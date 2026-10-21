@@ -7171,28 +7171,36 @@ def test_a_selection_no_library_parses_is_retried_in_the_serializers_own_words()
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(
-    ("serializer", "args", "declared"),
-    [
-        # Nothing the model sent shaped this render, so nothing it could send would
-        # change it: a retry would spend the budget on a server bug and hide it.
-        (lambda: _rejecting(_restql_not_found("bogus")), {}, QueryParam("query")),
-        # A default is seeded when the model omits the argument, so after the pop
-        # it looks exactly like a value the model sent. It is configuration, and a
-        # bad one has to stay loud. Real restql, so the default is the only thing
-        # wrong.
-        (lambda: _StrictRestqlWidget, {}, QueryParam("query", default="{name, bogus}")),
-        # ``{"query": null}`` is how a model says it chose not to fill the param.
-        (lambda: _rejecting(_restql_not_found("bogus")), {"query": None}, QueryParam("query")),
-    ],
-    ids=["no-query-param-supplied", "from-a-seeded-default", "with-an-explicit-null"],
-)
-def test_a_render_error_nothing_the_model_sent_caused_still_raises(serializer, args, declared):
+def test_render_error_with_no_query_param_supplied_still_raises():
+    """Nothing the model sent shaped this render, so nothing it could send would
+    change it: a retry would spend the budget on a server bug and hide it."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
 
     with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
-        _dispatch(_paged_spec(serializer()), user, args, query_params=(declared,))
+        _dispatch(
+            _paged_spec(_rejecting(_restql_not_found("bogus"))),
+            user,
+            {},
+            query_params=(QueryParam("query"),),
+        )
+
+
+@pytest.mark.django_db
+def test_render_error_from_a_seeded_default_still_raises():
+    """A default is seeded when the model omits the argument, so after the pop it
+    looks exactly like a value the model sent. It is configuration, and a bad one
+    has to stay loud. Real restql, so the default is the only thing wrong."""
+    user = User.objects.create(username="u")
+    Widget.objects.create(owner=user, name="a")
+
+    with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
+        _dispatch(
+            _paged_spec(_StrictRestqlWidget),
+            user,
+            {},
+            query_params=(QueryParam("query", default="{name, bogus}"),),
+        )
 
 
 @pytest.mark.django_db
@@ -7210,6 +7218,21 @@ def test_an_explicit_null_selection_renders_every_field():
     )
 
     assert _rows(result) == [{"id": widget.pk, "name": "a"}]
+
+
+@pytest.mark.django_db
+def test_render_error_with_an_explicit_null_still_raises():
+    """``{"query": null}`` is how a model says it chose not to fill the param."""
+    user = User.objects.create(username="u")
+    Widget.objects.create(owner=user, name="a")
+
+    with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
+        _dispatch(
+            _paged_spec(_rejecting(_restql_not_found("bogus"))),
+            user,
+            {"query": None},
+            query_params=(QueryParam("query"),),
+        )
 
 
 @pytest.mark.django_db
