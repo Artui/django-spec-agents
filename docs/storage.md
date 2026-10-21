@@ -204,6 +204,13 @@ the ones you had.
   SQLite a constraint changes only by remaking its table, so there every name
   comes out new.
 
+**Unapplying does the same on a database that never ran django-pydantic-agent.**
+The migration cannot tell how it was applied, so on a fresh install
+`migrate django_spec_agents_store zero` does not drop the store's tables: it leaves
+them under django-pydantic-agent's names, records that package's five migrations
+in `django_migrations` and moves the content types to its label. To remove the
+store from such a database, drop those tables and delete those rows yourself.
+
 What the upgrade leaves alone is everything stored or configured outside the
 schema: the [attachment storage alias](#putting-attachments-somewhere-other-than-the-default)
 and the stored files' `django_pydantic_agent/attachments/` prefix, the session key
