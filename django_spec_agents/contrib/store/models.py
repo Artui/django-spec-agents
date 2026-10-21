@@ -277,9 +277,11 @@ class StoredMemory(models.Model):
     ``path`` is the harness's own scope-qualified key —
     ``<namespace>/<agent_name>/<file>.md`` — stored verbatim so ``list_paths``
     can answer a prefix query the way the reference stores do. ``owner_id`` is
-    the *separately resolved* owner and every query filters by it: it is the
-    security boundary, and it is deliberately not derived from ``path``, so a
-    namespace resolver that returns something surprising cannot reach another
+    the owner every query filters by, and so the security boundary. Which owner
+    it holds depends on the store's mode: a namespace-scoped store takes it from
+    the path's leading segment, the namespace the capability resolved, and a
+    request-bound store resolves it from the request and trusts nothing in the
+    path, so a resolver returning something surprising cannot reach another
     owner's rows.
 
     ``version`` is the protocol's opaque compare-and-set token, replaced with a
