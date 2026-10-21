@@ -142,6 +142,25 @@ jobs:
           print("BASE IMPORT OK", django.get_version(), django_spec_agents.__version__)
           PY
 
+  # The package with no extra is what django-admin-agent ships, and the boundary
+  # tests are what keep it importable that way: the root loads nothing of
+  # ``spec_tools`` or the ``[specs]`` extra. Every other job installs every extra,
+  # where a root import of ``spec_tools`` would still import, so this one installs
+  # none and runs those tests alone. The floor job's base import proves the root
+  # imports at its floors; this proves what it leaves unloaded, under the settings
+  # of a project serving no specs. No coverage gate: these tests alone cover
+  # little of the package, and the suite that covers it needs the extras.
+  host-only:
+    name: host-only install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Boundary tests on an install with no extra
+        run: make test-host-only
+
   # The store's upgrade renames PostgreSQL's ``_like`` index, which Django drops by
   # a name it computes from the table rather than by looking it up, so a missed
   # rename leaves a duplicate index behind the next type change. SQLite makes no
@@ -388,7 +407,7 @@ jobs:
     # always(), never !cancelled(): a skipped job reports a skipped check, and
     # branch protection counts a skipped required check as passing.
     if: always()
-    needs: [lint, docs, floor, store-upgrade-postgresql, test]
+    needs: [lint, docs, floor, host-only, store-upgrade-postgresql, test]
     runs-on: ubuntu-latest
     steps:
       # Pass on an exact `success` from every job above, rather than failing on
