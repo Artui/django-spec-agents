@@ -9,7 +9,7 @@ from typing import Any, Protocol, runtime_checkable
 class SpecSource(Protocol):
     """Anything that can hand back a ``name -> spec`` mapping.
 
-    ``djangorestframework-services``' ``SpecRegistry`` (0.27+) is the intended
+    ``djangorestframework-services``' ``SpecRegistry`` is the intended
     implementation: a project exposing the same specs over more than one
     transport declares them there once, and each transport reads that source.
 
