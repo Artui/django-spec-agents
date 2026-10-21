@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ToolFailurePolicy` logs when it converts a tool's failure, open with
   `django-spec-agents: `.
 - The audit `ContextVar` is named `django_spec_agents.audit.execution`.
+- The `[drf-mcp]` extra requires `djangorestframework-mcp-server>=0.53.1`, the
+  release that requires `django-service-specs>=0.10.0`, so a selector raising
+  `Http404` is a missing row on that route as it is through `spec_tools`.
 - The enums and constants moved from `constants.py` to one module each under
   `django_spec_agents.types`; the root names are unchanged, and
   `django_spec_agents.constants` is gone.
