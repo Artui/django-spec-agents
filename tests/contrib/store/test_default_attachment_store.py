@@ -226,9 +226,9 @@ def test_removing_the_last_row_sharing_a_blob_deletes_the_file() -> None:
 #
 # Rows outlive blobs: a lifecycle rule expires a key, a dump is restored beside an
 # empty bucket, a backend is migrated underneath. The row is then a promise the
-# storage cannot keep, and the two defects below used to compound -- the read
-# raised where the contract says ``None``, and the re-upload that should have
-# repaired it adopted the same dead path and wrote nothing.
+# storage cannot keep. Two things must hold: the read answers ``None`` where the
+# contract says so rather than raising, and the re-upload that repairs it writes
+# fresh bytes rather than adopting the dead path.
 
 
 def test_open_reports_a_missing_blob_as_unavailable() -> None:
@@ -263,7 +263,7 @@ def test_a_re_upload_repairs_an_owner_whose_blob_went_missing() -> None:
     default_storage.delete(dead)
 
     # The user's natural recovery. Identical bytes hash identically, so this is
-    # exactly the upload that used to match the dead twin and write nothing.
+    # exactly the upload that must not match the dead twin and write nothing.
     second = store._save(_upload(content=b"hello"), "7")
 
     assert default_storage.exists(_stored_name(second.id))
@@ -377,7 +377,7 @@ def test_rows_sharing_one_dead_path_cost_a_single_existence_check(
 
 def test_the_store_logs_under_its_module_path() -> None:
     # Unlike the audit and failure loggers, nothing configures this one by name,
-    # so it follows the module rather than keeping the old package's spelling.
+    # so it follows the module path.
     from django_spec_agents.contrib.store import default_attachment_store
 
     assert default_attachment_store.logger.name == (
