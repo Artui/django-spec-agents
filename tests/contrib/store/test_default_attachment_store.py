@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from io import BytesIO
+from typing import Any
 
 import pytest
 from django.core.files.storage import default_storage
@@ -98,9 +99,9 @@ def test_open_is_owner_scoped() -> None:
     ],
 )
 def test_save_normalises_what_the_upload_leaves_out(
-    upload_kwargs: dict[str, object], field: str, expected: object
+    upload_kwargs: dict[str, Any], field: str, expected: object
 ) -> None:
-    ref = DefaultAttachmentStore()._save(_upload(**upload_kwargs), "7")  # type: ignore[arg-type]
+    ref = DefaultAttachmentStore()._save(_upload(**upload_kwargs), "7")
     assert getattr(ref, field) == expected
 
 
@@ -255,7 +256,7 @@ def test_a_re_upload_repairs_an_owner_whose_blob_went_missing() -> None:
     default_storage.delete(dead)
 
     # The user's natural recovery. Identical bytes hash identically, so this is
-    # exactly the upload that must not match the dead twin and write nothing.
+    # exactly the upload that would otherwise adopt the dead twin's path and write nothing.
     second = store._save(_upload(content=b"hello"), "7")
 
     assert default_storage.exists(_stored_name(second.id))

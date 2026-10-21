@@ -52,8 +52,8 @@ tool changing one row names the `pk` that picks it. A call that leaves such an
 argument out is a `ModelRetry` naming it, ``Missing required argument(s): `pk`.``,
 so the model supplies it on the next turn rather than the run ending on the
 selector's `TypeError`. The `[specs]` route does both, and
-the `[drf-mcp]` route asks for the same arguments and retries the same omission
-from drf-mcp 0.50. The extra is floored where a parameter a `kwargs=` provider
+the `[drf-mcp]` route asks for the same arguments and retries the same omission.
+The extra is floored where a parameter a `kwargs=` provider
 declines, and the model left out, is retried the same way rather than reaching
 the selector, and where a selector parameter the toolset takes out of every
 call, a list selector's `page` or `limit` or a name a `QueryParam` also claims,
@@ -112,7 +112,7 @@ requires `pk` rather than calling it optional. A service tool also advertises
 the target lookup its row is resolved through, its `collection_selector_spec`
 when it declares one and its `instance_selector_spec` otherwise, so a tool
 changing one row names the `pk` that picks it. A `many=True` service reads no
-target and advertises no lookup. Both arrived in drf-mcp 0.50; `[specs]`
+target and advertises no lookup. `[specs]`
 builds its schemas the same way, so one
 spec asks a model for the same arguments by either route. The extra is floored
 where drf-mcp refuses at registration a selector parameter it takes out of every
@@ -129,7 +129,7 @@ So the bridge lists definitions **once** per request, every tool the user may
 see included, and on **every step**:
 
 - offers only the tools drf-mcp would list right now, asking it through
-  `MCPServer.aunavailable_tools` (drf-mcp 0.48+), so a tool that becomes
+  `MCPServer.aunavailable_tools`, so a tool that becomes
   available mid-run is offered from the next step without listing again;
 - names each tool it left out in the toolset's instructions, with the reason
   its condition gives, so a model asked for one says why rather than guessing
@@ -164,10 +164,9 @@ model gets to recover:
   that message names nothing. Refused arguments include one a selector
   requires that the call left out, which the model reads as
   ``Missing required argument(s): `pk`.``, word for word what `[specs]`
-  raises for the same call, where below drf-mcp 0.50 the selector's `TypeError`
-  ended the run. They also include a read-shaping `QueryParam` value (a
+  raises for the same call. They also include a read-shaping `QueryParam` value (a
   `fields` selection, say) the output serializer refuses while rendering, which
-  drf-mcp 0.49+ answers as a `validation_error` naming the argument and quoting
+  drf-mcp answers as a `validation_error` naming the argument and quoting
   the serializer's reason; on a paged tool the likeliest one is a selection
   written against the page envelope rather than one item;
 - a tool-level `input_required` result (a service asking for more input, which
@@ -182,7 +181,7 @@ model gets to recover:
   of.
 
 A refusal keeps what names it. `ToolFailed` carries a single string, so when
-drf-mcp serves an affordance refusal's `code` (drf-mcp 0.45+), or the chain step
+drf-mcp serves an affordance refusal's `code`, or the chain step
 that failed, it rides as a suffix on the sentence:
 
 ```text
@@ -230,9 +229,8 @@ paths), so a harness capability, a first-party one, and your own all compose the
 same way, and pydantic-ai orders them by their own `get_ordering()`.
 
 !!! warning "Version-sensitive"
-    `pydantic-ai-harness` is 0.x and its minors may break: the 0.7 → 0.12 jump
-    changed the `StepStore` protocol, which is why `DefaultStepStore` grew an
-    `include_interrupted` argument and a `state` column. Even so, the `[harness]`
+    `pydantic-ai-harness` is 0.x and its minors may break, the `StepStore`
+    protocol among them. Even so, the `[harness]`
     extra declares a **floor and no upper bound** (the number is in
     `pyproject.toml`). A one-minor ceiling over an upstream that releases this
     often made the package unresolvable on every harness release, whether or

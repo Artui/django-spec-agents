@@ -173,8 +173,8 @@ one hook covers every tool regardless of origin:
 - **MCP tool annotations** — `metadata["annotations"]["readOnlyHint"] is False`,
   which is how a toolset speaking MCP's own vocabulary says it mutates. A
   drf-services `ServiceSpec` exposed through `SpecToolset` is the case that
-  matters: without this the *same* spec was gated over the drf-mcp bridge and
-  ungated attached in process, so a transport swap removed the gate silently.
+  matters: without this the *same* spec would be gated over the drf-mcp bridge and
+  ungated attached in process, so a transport swap would remove the gate silently.
 - **The `x-destructive` schema stamp** at the root of `parameters_json_schema`,
   which is what `build_input_schema` writes. A project deriving a schema with
   that helper and attaching the tool through `toolsets=` gets the gate from it.

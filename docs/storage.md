@@ -228,7 +228,7 @@ here beyond your normal Django storage backend.
 Agent uploads are user-supplied files, and a project often wants them in a
 private bucket rather than wherever its other media goes. Name a backend under
 the `django_pydantic_agent_attachments` alias and attachments use it; leave the
-alias out and they use `default`, which is what every existing project gets:
+alias out and they use `default`:
 
 ```python
 STORAGES = {
