@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-21
+
 ### Added
 
 - One package for Pydantic-AI agents in Django, in two halves. The agent host was
@@ -71,4 +73,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.0.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Artui/django-spec-agents/compare/v0.0.0...v0.1.0
