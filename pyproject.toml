@@ -93,7 +93,7 @@ specs = [
     # rather than through drf-services' re-exports, which are being retired.
     # The floor is above drf-services' own because ``tool_server_arguments`` is
     # built on ``ServerArguments``, ``check_server_arguments`` and
-    # ``apply_server_arguments``, which the kernel first exports here.
+    # ``apply_server_arguments``, which the kernel first exports in 0.9.0.
     # 0.10.0: a selector's ``Http404`` (``get_object_or_404``) is a missing row
     # in the kernel's dispatch, answered as ``not_found`` like a ``DoesNotExist``;
     # below it the exception escapes and aborts the agent run. The floor moves
