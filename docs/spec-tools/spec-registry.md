@@ -146,7 +146,9 @@ the spec is the one place it is said.
 `SpecToolset` reads the contract off the entry, and so does an MCP server's
 `register_specs`. That is the point of putting it there: an operation needs the
 *identical* description of the absent request whichever agent transport calls
-it, so declaring it per mount is how two mounts come to disagree.
+it, which is why a toolset takes no channel declarations of its own:
+`SpecToolset` has no `query_params=`, `tool_query_params=`, `url_kwargs=` or
+`tool_url_kwargs=`, and passing one is a `TypeError`.
 `field_audiences` is part of the spec's output declaration, so every projection
 of the spec carries it, whichever transport or mapping it is reached through.
 
@@ -166,20 +168,6 @@ advertises the parameter once, as the selector declares it, and leaves its
 value in the call, where drf-services hands it to the parameter and puts it on
 `request.query_params` both. `SpecToolset(registry)` and
 `SpecToolset(registry.specs())` build it and serve it alike.
-
-A `QueryParam` of that name passed to the toolset's own `query_params=` or
-`tool_query_params=` is still refused when the toolset is built, a re-declaration
-of the spec's read included: the toolset takes such a value out of the call and
-routes it to the query string alone, so the parameter would never receive it.
-A `UrlKwarg` of that name with no `default`, passed to `url_kwargs=` or
-`tool_url_kwargs=`, is built: it carries the input's value onto `view.kwargs`,
-and the spec's read puts it on `request.query_params`, from the registry and from
-`registry.specs()` alike. Two pairings still differ between the routes. A
-`UrlKwarg` with a `default` fills the parameter itself, so the tool no longer
-takes the name as an input, and a `UrlKwarg` may name a read the tool never took
-as one; in both, the registry refuses the spec's read beside the `UrlKwarg` with
-`ValueError`, as one name on two channels, while `registry.specs()`, which
-advertises none of the spec's reads, builds the toolset.
 
 ## Arguments the server supplies
 
@@ -274,26 +262,12 @@ ceilings. A publicly exposed MCP endpoint and an in-process toolset carry
 different risk, so one shared number would be a regression rather than a
 simplification.
 
-### Deprecated: channel declarations on the toolset
+### Moving a channel declaration off the toolset
 
-The [`QueryParam`](reference.md#rest_framework_services.types.query_param.QueryParam) /
-[`UrlKwarg`](reference.md#rest_framework_services.types.url_kwarg.UrlKwarg) constructor
-arguments, `query_params=`, `tool_query_params=`, `url_kwargs=` and
-`tool_url_kwargs=`, are deprecated. Passing any of them warns with
-`DeprecationWarning`, and they will be removed in the next minor release. They
-declare at one mount what the spec's `reads` declare for every transport, which
-is how two mounts come to disagree about one operation. Move each onto the spec
-and build the toolset from the registry:
+A toolset that declared a read at the mount declares it on the spec instead,
+and is built from the registry:
 
 ```python
-# Before
-SpecToolset(
-    registry.by_tag("read"),
-    query_params=[QueryParam(name="fields")],
-    tool_url_kwargs={"list_orders": [UrlKwarg(name="tenant_pk")]},
-)
-
-# After
 registry.register(
     "list_orders",
     replace(specs.list_orders, reads=[UrlKwarg(name="tenant_pk"), QueryParam(name="fields")]),
@@ -304,13 +278,6 @@ SpecToolset(registry.by_tag("read"))
 A `UrlKwarg(default=...)` used to keep a value the model should not choose was
 only ever a default: the model could override it, and it stayed advertised.
 That use moves to [`tool_server_arguments`](#arguments-the-server-supplies).
-
-Until they go, they behave as before. Each overrides the entry's declaration of
-the same name, and the override is true of what the toolset advertises, routes
-and defaults, and of nothing drf-services reads: the spec's own declaration
-still checks the call. A mount loosening a spec's `required` read to optional
-advertises an argument the call is then refused without. Per-tool maps key off
-the registry's names, and an unknown key still raises.
 
 ## Names
 

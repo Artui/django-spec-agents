@@ -13,6 +13,33 @@ doubles for driving a toolset through a real run loop are in
 
 ::: django_spec_agents.spec_tools.SpecToolset
 
+### Subclassing `SpecToolset`
+
+A project scoping an assistant to what one run may reach subclasses
+`SpecToolset`, and these are the parts of it a subclass builds on. They are
+public.
+
+- **`get_tools(ctx)` and `call_tool(name, tool_args, ctx, tool)`**, pydantic-ai's
+  toolset methods. Override `get_tools` to narrow the catalog a run is offered
+  and `call_tool` to wrap a call, each delegating to `super()`: the run loop
+  offers the model what `get_tools` returns and dispatches every call through
+  `call_tool`.
+- **`specs` and `id`**, read-only properties that answer at configuration time,
+  with no run: `specs` is every tool the toolset was built with, whatever a
+  `get_tools` override offers a given run.
+- **The six seams**, each receiving the live `RunContext`:
+  [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context] and
+  [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
+  cover the front half of a call,
+  [`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page],
+  [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output],
+  [`output_extras`][django_spec_agents.spec_tools.SpecToolset.output_extras] and
+  [`enforce_result_bytes`][django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes]
+  the back half.
+
+An attribute whose name starts with an underscore is not part of it, and a
+minor release may rename one.
+
 ## `SpecCapability`
 
 ::: django_spec_agents.spec_tools.SpecCapability

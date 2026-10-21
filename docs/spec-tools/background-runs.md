@@ -184,7 +184,9 @@ is *not* it, since that means "derive one from the spec".
 
 The run loop is where the interesting failures live, and it needs a model.
 [`django_spec_agents.testing`](reference.md#testing) ships the two
-doubles this package's own suite uses — no provider, no network, no key:
+doubles this package's own suite uses — no provider, no network, no key. The
+module imports pydantic-ai alone, so it works on an install without the
+`[specs]` extra too:
 
 ```python
 from pydantic_ai import Agent
