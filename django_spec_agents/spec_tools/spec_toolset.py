@@ -1442,7 +1442,7 @@ class SpecToolset(AbstractToolset[Any]):
         override is how a project that means it says so.
         """
         del ctx  # unused by the default; present so an override has it
-        return _render_output(
+        return render_for_audience(
             spec,
             value,
             projection=projection,
@@ -1530,12 +1530,10 @@ class SpecToolset(AbstractToolset[Any]):
     def _call_spec(
         self, spec: Spec, user: Any, args: dict[str, Any], *, ctx: RunContext[Any], **kw: Any
     ) -> Any:
-        """Bind the six seams to this run, then run the shared pipeline.
+        """Bind the six seams to this run, then run the module-level pipeline.
 
-        Separate from the module-level function of the same name because that one
-        has to stay usable without a toolset. The toolset's ``conventions`` are
-        bound here too, beside the seams, so every route into a call words its
-        retries the same way.
+        The toolset's ``conventions`` are bound here too, beside the seams, so
+        every route into a call words its retries the same way.
         """
         return _call_spec(
             spec,
@@ -2787,12 +2785,12 @@ def _call_spec(
     host: str | None = None,
     json_schema_registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    build_context: _ContextBuilder = build_offline_context,
-    translate_exception: _ExceptionTranslator | None = None,
-    shape_page: _PageShaper | None = None,
-    render_output: _OutputRenderer | None = None,
-    output_extras: _ExtrasBuilder | None = None,
-    enforce_result_bytes: _ResultBounder | None = None,
+    build_context: _ContextBuilder,
+    translate_exception: _ExceptionTranslator,
+    shape_page: _PageShaper,
+    render_output: _OutputRenderer,
+    output_extras: _ExtrasBuilder,
+    enforce_result_bytes: _ResultBounder,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
 ) -> Any:
     """Run ``spec`` under an off-HTTP context and render the result.
@@ -2802,14 +2800,10 @@ def _call_spec(
 
     The six keyword seams are what
     [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] threads its
-    overridable methods through; the defaults keep this function usable on its
-    own. ``build_context`` and ``translate_exception`` cover the front half of a
-    call, and ``shape_page`` / ``render_output`` / ``output_extras`` /
-    ``enforce_result_bytes`` the back half.
-
-    They are ``None``-defaulted rather than bound to their module-level
-    implementations in the signature because those are defined below this
-    function, and a default expression is evaluated at ``def`` time.
+    overridable methods through, bound to the run: ``build_context`` and
+    ``translate_exception`` cover the front half of a call, and ``shape_page`` /
+    ``render_output`` / ``output_extras`` / ``enforce_result_bytes`` the back
+    half.
 
     ``output_extras`` is called with the whole ``DispatchResult`` as
     ``dispatch_result=``, unconditionally and by every route --
@@ -2822,10 +2816,6 @@ def _call_spec(
     ``conventions`` words the two retries this function writes itself: a missing
     argument, and a read-shaping value the render rejected on a paged tool.
     """
-    shape: _PageShaper = shape_page or _shape_list
-    render: _OutputRenderer = render_output or _render_output
-    extras_for: _ExtrasBuilder = output_extras or _output_extras
-    bound: _ResultBounder = enforce_result_bytes or _enforce_result_bytes
     # **The server's arguments before anything reads the call.** Before the
     # required-arguments check below, so a required read the binding fills is
     # not refused as missing (``test_a_binding_fills_a_required_read_the_model_never_sends``);
@@ -2944,7 +2934,7 @@ def _call_spec(
         # ``except`` clause instead, every arm below it becomes unreachable — the
         # ``raise`` for an unclaimed exception leaves the ``try`` entirely rather
         # than trying the next clause.
-        handler = translate_exception(exc) if translate_exception is not None else None
+        handler = translate_exception(exc)
         if handler is not None:
             return handler(exc)
         if isinstance(exc, DRFValidationError | ServiceValidationError):
@@ -3001,7 +2991,7 @@ def _call_spec(
         # plain-string ``order_by`` eagerly — so a ``filter_set`` whose
         # ``param_map`` names something that is not a column raises inside
         # ``dispatch_spec``, not at this line. An arm here would never fire.
-        page = shape(
+        page = shape_page(
             value,
             page=page_args.page,
             limit=page_args.limit,
@@ -3017,9 +3007,9 @@ def _call_spec(
     # Built ahead of the render rather than as its argument so the ``try`` below
     # holds the render and nothing else. Nothing here reads the query string,
     # so an error out of it is never the caller's to correct.
-    extras = extras_for(spec, value, many=many, dispatch_result=result)
+    extras = output_extras(spec, value, many=many, dispatch_result=result)
     try:
-        rendered = render(
+        rendered = render_output(
             spec,
             value,
             projection=projection,
@@ -3034,13 +3024,13 @@ def _call_spec(
         # by the output serializer's ``to_representation`` -- so a bad one fails
         # here, after the ``try`` above has closed, and would escape the run as
         # a raw ``ValidationError``. Wrapped around the call rather than
-        # inside ``_render_output`` so a consumer's ``render_output`` override
-        # is covered too.
+        # inside the default ``render_output`` so a consumer's override is
+        # covered too.
         #
         # The consumer's map first, and its handler's value returned as-is,
         # exactly as on the dispatch path: one ``translate_exception`` should not
         # have to know which half of the call an error came from.
-        handler = translate_exception(exc) if translate_exception is not None else None
+        handler = translate_exception(exc)
         if handler is not None:
             return handler(exc)
         # **Only when the caller shaped the render.** With no read-shaping value
@@ -3077,7 +3067,7 @@ def _call_spec(
     # Measured on the envelope, because the envelope is what is sent. It adds
     # three small scalars and the "there is more" signal the model needs in
     # order to act on a refusal that tells it to lower `limit`.
-    return bound(rendered, max_bytes=max_result_bytes, label=label)
+    return enforce_result_bytes(rendered, max_bytes=max_result_bytes, label=label)
 
 
 def _apply_server_arguments(
@@ -3109,7 +3099,7 @@ def _enforce_result_bytes(
     *,
     max_bytes: int | None,
     label: str,
-    extra: Mapping[str, Any] | None = None,
+    extra: Mapping[str, Any],
 ) -> Any:
     """Return ``payload``, or raise a model-readable refusal when it is over budget.
 
@@ -3125,11 +3115,9 @@ def _enforce_result_bytes(
     was refused and no data reached the model, so ``failed`` is the truthful
     marking.
 
-    ``extra`` carries the caller's log correlation. Defaulted rather than
-    required because this function is also the standalone bound in ``_call_spec``,
-    which has no ``RunContext`` to derive one from;
+    ``extra`` carries the caller's log correlation, which
     [`SpecToolset.enforce_result_bytes`][django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes]
-    always supplies it.
+    reads off its ``RunContext``.
     """
     if max_bytes is None:
         return payload
@@ -3512,23 +3500,14 @@ def _refuse_unadvertised_ordering(value: Any) -> None:
 def _shape_list(
     value: Any, *, page: int | None, limit: int | None, max_page_size: int | None
 ) -> OutputPage:
-    """Paginate a list selector's queryset and force it to evaluate.
+    """Paginate a list selector's queryset with ``paginate_output``, then force it to evaluate.
 
-    The slicing itself is ``paginate_output``, drf-services' shared shaper, which
-    also counts the rows and clamps both bounds. This function is what is left
-    once that moved out: force evaluation.
-
-    **No sorting happens here.** Ordering belongs to whatever the spec declared
-    it on, which has already applied it to the (lazy) queryset by the time this
-    runs; a second ``order_by`` from the transport would replace that sort rather
-    than compose with it.
-
-    Forces evaluation (``list(...)``) so that *nothing downstream* holds a lazy
-    queryset once this returns: a serializer re-evaluating one would run the
-    query a second time, and the envelope's counts and its rows could then come
-    from two different reads. ``replace`` rather than mutation because
-    ``OutputPage`` is frozen, and here rather than at the call site because the
-    guarantee belongs to whatever produces the page.
+    Forced (``list(...)``) so that *nothing downstream* holds a lazy queryset
+    once this returns: a serializer re-evaluating one would run the query a
+    second time, and the envelope's counts and its rows could then come from two
+    different reads. ``replace`` rather than mutation because ``OutputPage`` is
+    frozen, and here rather than at the call site because the guarantee belongs
+    to whatever produces the page.
     """
     shaped: OutputPage = paginate_output(
         value,
@@ -3537,39 +3516,6 @@ def _shape_list(
         max_page_size=max_page_size,
     )
     return replace(shaped, items=list(shaped.items))
-
-
-def _render_output(
-    spec: Spec,
-    value: Any,
-    *,
-    projection: AudienceProjection | None,
-    many: bool,
-    request: Any,
-    view: Any,
-    extras: dict[str, Any],
-) -> Any:
-    """Render a dispatch result for the model to read.
-
-    The default is drf-services' ``render_for_audience`` -- ``render_spec_output``
-    plus the serializer's audience markings -- with the projection this toolset
-    built once at registration rather than derived per call.
-
-    **Passing ``projection=None`` is not an opt-out**: ``render_for_audience``
-    reads it as "derive one from the spec", which projects anyway and costs a
-    serializer instantiation. The way out is to render with ``render_spec_output``
-    instead, which is the whole reason this step is a seam -- see
-    [`SpecToolset.render_output`][django_spec_agents.spec_tools.SpecToolset.render_output].
-    """
-    return render_for_audience(
-        spec,
-        value,
-        projection=projection,
-        many=many,
-        request=request,
-        view=view,
-        extras=extras,
-    )
 
 
 def _output_extras(
