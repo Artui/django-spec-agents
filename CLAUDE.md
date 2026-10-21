@@ -243,7 +243,7 @@ Change a rule here and change the config with it, or they drift apart again.
 | Component | Floor | Tested |
 | --- | --- | --- |
 | Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
-| Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
+| Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
 | Pydantic-AI | 2.16 (`ToolFailurePolicy` imports `ToolFailed`, which first exists there); 2.33 with `[anthropic]` (older releases hand the 1.x SDK an `httpx` client it rejects) | latest in matrix |
 | `[specs]` | Django REST Framework, djangorestframework-services and django-service-specs, at the floors `pyproject.toml` declares and says the reason for | latest in matrix; the floors in the `lowest declared versions` job |
 
