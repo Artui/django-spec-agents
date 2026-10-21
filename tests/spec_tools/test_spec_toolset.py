@@ -2965,28 +2965,23 @@ async def test_an_over_budget_result_fails_rather_than_truncating():
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_result_inside_the_ceiling_passes_through_untouched():
+@pytest.mark.parametrize(
+    "ceilings",
+    [
+        {"max_result_bytes": 100_000},
+        # Absent and ``None`` are different answers: one inherits, one opts out.
+        {"max_result_bytes": 1, "tool_max_result_bytes": {"list_widgets": None}},
+    ],
+    ids=[
+        "a-result-inside-the-ceiling-passes-through-untouched",
+        "a-per-tool-ceiling-of-none-means-no-ceiling-for-that-tool",
+    ],
+)
+async def test_a_result_the_ceiling_admits_passes_through_untouched(ceilings):
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
 
-    toolset = SpecToolset({"list_widgets": list_spec()}, max_result_bytes=100_000)
-    tools = await toolset.get_tools(None)
-    result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
-
-    assert [w["name"] for w in _rows(result)] == ["a"]
-
-
-@pytest.mark.django_db(transaction=True)
-async def test_a_per_tool_ceiling_of_none_means_no_ceiling_for_that_tool():
-    """Absent and ``None`` are different answers: one inherits, one opts out."""
-    user = await sync_to_async(User.objects.create)(username="u")
-    await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
-
-    toolset = SpecToolset(
-        {"list_widgets": list_spec()},
-        max_result_bytes=1,
-        tool_max_result_bytes={"list_widgets": None},
-    )
+    toolset = SpecToolset({"list_widgets": list_spec()}, **ceilings)
     tools = await toolset.get_tools(None)
     result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
 
@@ -3061,12 +3056,24 @@ class _Boom(Exception):
     """Stands in for an exception this package knows nothing about."""
 
 
-def test_an_unmapped_exception_still_aborts_the_run():
-    """By default a genuine bug must not become a tool result."""
+def _raising(exc: BaseException) -> Any:
+    """A service taking the acting user that raises ``exc``."""
 
     def boom(user):
         """Boom."""
-        raise _Boom("kaboom")
+        raise exc
+
+    return boom
+
+
+def _retry_instead(exc: BaseException) -> Any:
+    """An ``exception_map`` handler that asks the model to retry."""
+    raise ModelRetry(str(exc))
+
+
+def test_an_unmapped_exception_still_aborts_the_run():
+    """By default a genuine bug must not become a tool result."""
+    boom = _raising(_Boom("kaboom"))
 
     with pytest.raises(_Boom):
         _dispatch(ServiceSpec(service=boom, atomic=False), object())
@@ -3079,10 +3086,7 @@ def test_exception_map_turns_an_unknown_exception_into_a_result():
     translated set, and so fatal to the run where the DRF twin would have been a
     retry. Broadening the built-in set fixes that one; a map fixes the class.
     """
-
-    def boom(user):
-        """Boom."""
-        raise DjangoValidationError("that name is taken")
+    boom = _raising(DjangoValidationError("that name is taken"))
 
     result = _dispatch(
         ServiceSpec(service=boom, atomic=False),
@@ -3094,27 +3098,19 @@ def test_exception_map_turns_an_unknown_exception_into_a_result():
 
 def test_a_handler_may_retry_instead_of_returning():
     """Both outcomes of the model loop are reachable from one map."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("try again")
+    boom = _raising(_Boom("try again"))
 
     with pytest.raises(ModelRetry, match="try again"):
         _dispatch(
             ServiceSpec(service=boom, atomic=False),
             object(),
-            toolset_kwargs={
-                "exception_map": {_Boom: lambda exc: (_ for _ in ()).throw(ModelRetry(str(exc)))}
-            },
+            toolset_kwargs={"exception_map": {_Boom: _retry_instead}},
         )
 
 
 def test_a_base_class_registration_catches_a_subclass():
     """Registering ``Exception`` should not require enumerating every subclass."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("anything")
+    boom = _raising(_Boom("anything"))
 
     result = _dispatch(
         ServiceSpec(service=boom, atomic=False),
@@ -3126,10 +3122,7 @@ def test_a_base_class_registration_catches_a_subclass():
 
 def test_the_most_specific_registration_wins():
     """MRO order, so a narrow handler is not shadowed by a broad one."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("x")
+    boom = _raising(_Boom("x"))
 
     result = _dispatch(
         ServiceSpec(service=boom, atomic=False),
@@ -3151,33 +3144,33 @@ def test_the_map_overrides_a_built_in_arm():
     rather the model retry must be able to say so, or the map is only half a
     seam.
     """
-
-    def boom(user):
-        """Boom."""
-        raise ServiceError("nope")
+    boom = _raising(ServiceError("nope"))
 
     with pytest.raises(ModelRetry):
         _dispatch(
             ServiceSpec(service=boom, atomic=False),
             object(),
-            toolset_kwargs={
-                "exception_map": {
-                    ServiceError: lambda exc: (_ for _ in ()).throw(ModelRetry(str(exc)))
-                }
-            },
+            toolset_kwargs={"exception_map": {ServiceError: _retry_instead}},
         )
+
+
+def _tenant_peek() -> tuple[Any, dict[str, Any]]:
+    """A service recording, in the dict beside it, the tenant header it was shown."""
+    seen: dict[str, Any] = {}
+
+    def peek(user, request=None, **_):
+        """Peek."""
+        seen["tenant"] = request.META.get("HTTP_X_TENANT")
+        return {"ok": True}
+
+    return peek, seen
 
 
 @pytest.mark.django_db
 def test_http_request_is_forwarded_to_the_offline_context():
     """A configured ``http_request`` reaches the service as its ``request``."""
     request = RequestFactory().get("/", HTTP_X_TENANT="acme")
-    seen = {}
-
-    def peek(user, request=None, **_):
-        """Peek."""
-        seen["tenant"] = request.META.get("HTTP_X_TENANT")
-        return {"ok": True}
+    peek, seen = _tenant_peek()
 
     _dispatch(
         ServiceSpec(service=peek, atomic=False),
@@ -3190,12 +3183,7 @@ def test_http_request_is_forwarded_to_the_offline_context():
 @pytest.mark.django_db
 def test_get_http_request_can_vary_the_request_per_run():
     """The per-run form, mirroring ``get_user``, routed through ``build_context``."""
-    seen = {}
-
-    def peek(user, request=None, **_):
-        """Peek."""
-        seen["tenant"] = request.META.get("HTTP_X_TENANT")
-        return {"ok": True}
+    peek, seen = _tenant_peek()
 
     def from_deps(ctx):
         return RequestFactory().get("/", HTTP_X_TENANT=ctx.deps.user)
@@ -3216,12 +3204,7 @@ def test_no_request_arrives_unless_one_was_configured():
 @pytest.mark.django_db
 def test_build_context_is_overridable_and_sees_the_run():
     """A subclass reaches dispatch with the run's typed deps in hand."""
-    seen = {}
-
-    def peek(user, request=None, **_):
-        """Peek."""
-        seen["tenant"] = request.META.get("HTTP_X_TENANT")
-        return {"ok": True}
+    peek, seen = _tenant_peek()
 
     class TenantToolset(SpecToolset):
         def build_context(self, user, params, *, ctx, **kwargs):
@@ -3249,10 +3232,7 @@ def test_build_context_is_overridable_and_sees_the_run():
 
 def test_translate_exception_is_overridable_without_a_map():
     """The method is the seam; ``exception_map`` is the declarative shortcut."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("subclassed")
+    boom = _raising(_Boom("subclassed"))
 
     class Translating(SpecToolset):
         def translate_exception(self, exc, *, ctx):
