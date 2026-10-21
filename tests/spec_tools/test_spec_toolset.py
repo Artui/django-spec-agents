@@ -2205,38 +2205,36 @@ def fileish_spec():
 
 
 @pytest.mark.django_db
-def test_without_a_host_file_urls_are_relative():
+@pytest.mark.parametrize(
+    ("host", "url"),
+    [
+        (None, "/media/doc.pdf"),
+        ("https://files.example.com", "https://files.example.com/media/doc.pdf"),
+    ],
+    ids=["without-a-host-file-urls-are-relative", "a-host-makes-file-urls-absolute"],
+)
+def test_the_host_decides_whether_file_urls_are_absolute(host, url):
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
-    assert [w["doc_url"] for w in _rows(_dispatch(fileish_spec(), user, {}))] == ["/media/doc.pdf"]
-
-
-@pytest.mark.django_db
-def test_host_makes_file_urls_absolute():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(fileish_spec(), user, {}, host="https://files.example.com")
-    assert [w["doc_url"] for w in _rows(result)] == ["https://files.example.com/media/doc.pdf"]
+    assert [w["doc_url"] for w in _rows(_dispatch(fileish_spec(), user, {}, host=host))] == [url]
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_toolset_threads_its_host_into_the_call():
+@pytest.mark.parametrize(
+    ("toolset_kwargs", "url"),
+    [
+        ({"host": "app.example.com:8000"}, "http://app.example.com:8000/media/doc.pdf"),
+        ({}, "/media/doc.pdf"),
+    ],
+    ids=["threads-its-host-into-the-call", "without-a-host-still-renders"],
+)
+async def test_the_toolsets_host_reaches_the_call(toolset_kwargs, url):
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
-    toolset = SpecToolset({"list_widgets": fileish_spec()}, host="app.example.com:8000")
+    toolset = SpecToolset({"list_widgets": fileish_spec()}, **toolset_kwargs)
     tools = await toolset.get_tools(None)
     result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
-    assert [w["doc_url"] for w in _rows(result)] == ["http://app.example.com:8000/media/doc.pdf"]
-
-
-@pytest.mark.django_db(transaction=True)
-async def test_toolset_without_a_host_still_renders():
-    user = await sync_to_async(User.objects.create)(username="u")
-    await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
-    toolset = SpecToolset({"list_widgets": fileish_spec()})
-    tools = await toolset.get_tools(None)
-    result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
-    assert [w["doc_url"] for w in _rows(result)] == ["/media/doc.pdf"]
+    assert [w["doc_url"] for w in _rows(result)] == [url]
 
 
 # ----- registration-time honesty: permissions and descriptions -----
@@ -2321,18 +2319,15 @@ def test_a_whitespace_only_description_counts_as_none():
 
 
 @pytest.mark.django_db
-def test_ordering_on_a_tool_that_declares_none_says_so():
-    with pytest.raises(ModelRetry, match="does not accept an `ordering` argument"):
-        _dispatch(list_spec(), object(), {"ordering": "name"})
-
-
-@pytest.mark.django_db
-def test_a_non_string_ordering_is_refused_the_same_way():
+@pytest.mark.parametrize(
+    "ordering", ["name", ["price"]], ids=["a-string", "a-non-string-is-refused-the-same-way"]
+)
+def test_ordering_on_a_tool_that_declares_none_says_so(ordering):
     """The tool schema is advisory and the args validator is a no-op, so a value
     of any shape reaches the pop untyped. Nothing here inspects it: the tool
     advertises no sort, so what it *is* cannot matter."""
     with pytest.raises(ModelRetry, match="does not accept an `ordering` argument"):
-        _dispatch(list_spec(), object(), {"ordering": ["price"]})
+        _dispatch(list_spec(), object(), {"ordering": ordering})
 
 
 async def test_the_ordering_instruction_is_absent_when_no_tool_advertises_a_sort():
