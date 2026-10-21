@@ -1,6 +1,6 @@
 """A host-only project that installs the store app, as django-admin-agent tells its users to.
 
-The same project as ``tests.host_only_settings`` with
+The same project as ``host_only_settings`` with
 ``django_spec_agents.contrib.store`` added, so the root's boundary is also held
 where ``django.setup()`` loads the store's models.
 """

@@ -27,16 +27,20 @@ import importlib.util
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPEC_TOOLS = ROOT / "django_spec_agents" / "spec_tools"
 
-HOST_ONLY = "tests.host_only_settings"
-HOST_ONLY_WITH_STORE = "tests.host_only_store_settings"
+# Settings modules, each run from a directory holding it alone. See
+# ``_modules_after``.
+HOST_ONLY = "host_only_settings"
+HOST_ONLY_WITH_STORE = "host_only_store_settings"
 
 # What a bare root import must leave unloaded: the tool half, what only the
 # ``[specs]`` extra installs, and the run-loop test doubles, whose module says the
@@ -65,28 +69,48 @@ def _is_or_under(name: str, package: str) -> bool:
 
 
 def _modules_after(settings: str, script: str) -> set[str]:
-    """Run ``script`` in a fresh interpreter under ``settings``; read its ``sys.modules``."""
-    env = {
-        **os.environ,
-        # Overwritten, never inherited: pytest-django has set the suite's own.
-        "DJANGO_SETTINGS_MODULE": settings,
-        "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")])),
-    }
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            f"{script}\nimport json, sys\nprint(json.dumps(sorted(sys.modules)))",
-        ],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert result.returncode == 0, result.stderr
-    return set(json.loads(result.stdout.splitlines()[-1]))
+    """Run ``script`` in a fresh interpreter under ``settings``; read its ``sys.modules``.
 
+    The interpreter runs in a directory holding a copy of the settings module and
+    nothing else, with that directory alone on ``PYTHONPATH``, so the package it
+    imports is the one installed in the venv: the editable install of the source
+    tree in development, and the built package on the host-only install. The
+    source tree is never put on the path, which would shadow the latter.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        shutil.copy(ROOT / "tests" / f"{settings}.py", directory)
+        env = {
+            **os.environ,
+            # Overwritten, never inherited: pytest-django has set the suite's own.
+            "DJANGO_SETTINGS_MODULE": settings,
+            "PYTHONPATH": directory,
+        }
+        result = subprocess.run(
+            [sys.executable, "-c", f"{script}\n{_REPORT}"],
+            cwd=directory,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout.splitlines()[-1])
+    if os.environ.get("HOST_ONLY_INSTALL"):
+        # On the host-only install the boundary is about what was installed, so
+        # the package the interpreter read is the venv's, never the source tree.
+        package, site_packages = report["package"], report["site_packages"]
+        assert pathlib.Path(package).is_relative_to(site_packages), (package, site_packages)
+    return set(report["modules"])
+
+
+_REPORT = """
+import json, sys, sysconfig
+print(json.dumps({
+    "modules": sorted(sys.modules),
+    "package": sys.modules["django_spec_agents"].__file__,
+    "site_packages": sysconfig.get_paths()["purelib"],
+}))
+"""
 
 _BARE_ROOT_IMPORT = "import django_spec_agents\nimport django\ndjango.setup()"
 
