@@ -665,10 +665,9 @@ What the model is told when a call is wrong:
   nowhere to go. The policy still decides what happens to an undeclared key
   inside an item.
 
-A `QueryParam` or `UrlKwarg` sharing the list's argument name is refused with
-`ImproperlyConfigured` when the toolset is built, whether it is declared
-toolset-wide, per tool or on the registry entry's `OfflineContract`: it would be
-taken out of the arguments first and carry the list away with it.
+A `QueryParam` or `UrlKwarg` in the spec's `reads=` sharing the list's argument
+name is refused with `ImproperlyConfigured` when the spec is registered: it would
+be taken out of the arguments first and carry the list away with it.
 
 A tool that needs arguments **beside** its list cannot be `many=True`. Name the
 list as a field of the input serializer instead, and loop over it:
@@ -1067,7 +1066,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
     Treat that confirmation as a prompt for missing input, not as a security
     boundary. An operation that needs a human decision has to be gated by an
     approval mechanism outside the spec: pydantic-ai's deferred-tool approval,
-    or `ToolGuard` in `django-pydantic-agent` when it is installed. `ToolGuard`
+    or this package's `ToolGuard`. `ToolGuard`
     is **off by default**, and a tool named in its `exempt` list stays ungated
     even when it is also in `require_approval`. Every tool built from a mutating
     spec carries `readOnlyHint: False` in its `annotations` metadata (only a
@@ -1078,7 +1077,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
     "Aborts the run" is what a plain `pydantic_ai.Agent` does: nothing catches
     the exception, so it propagates out of `agent.run`. A tool-failure policy
     normally converts an escaping exception into a failed-tool result and lets
-    the run continue — but `django-pydantic-agent`'s exempts an authorization
+    the run continue — but this package's exempts an authorization
     refusal from exactly that, by default, and `django-ag-ui` inherits the
     exemption. So a denial aborts the run under those hosts too.
 

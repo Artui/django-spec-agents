@@ -689,18 +689,16 @@ class SpecToolset(AbstractToolset[Any]):
     Raises:
         ImproperlyConfigured: ``unknown_arguments`` is neither ``REJECT`` nor
             ``IGNORE``, a spec has no ``permission_classes`` and
-            ``require_permissions`` is set, a ``QueryParam`` / ``UrlKwarg``
-            declared here on a ``many=True`` spec's tool shares the name its
-            list travels under (a spec's own read of that name is refused by
-            drf-services when the spec compiles), one is named after a
-            registered pool seed, a selector takes a parameter that a list
-            tool's ``page`` / ``limit`` or a ``QueryParam`` declared here takes
-            out of the call before it runs (a spec's own ``QueryParam`` read of
-            an input's name is not one: it is where the input comes from, and
-            is served as the input), ``tool_server_arguments`` names something
-            django-service-specs' ``check_server_arguments`` refuses for the
-            tool's spec or withholds a name a ``UrlKwarg`` declared here
-            requires, ``instructions=`` is given beside a
+            ``require_permissions`` is set (a spec's own read of the name a
+            ``many=True`` spec's list travels under is refused by drf-services
+            when the spec compiles), a spec reads a registered pool seed's
+            name, a selector takes a parameter that a list tool's ``page`` /
+            ``limit`` takes out of the call before it runs (a spec's own
+            ``QueryParam`` read of an input's name is not one: it is where the
+            input comes from, and is served as the input),
+            ``tool_server_arguments`` names something django-service-specs'
+            ``check_server_arguments`` refuses for the tool's spec,
+            ``instructions=`` is given beside a
             ``conventions=`` that changes a line of the block it replaces, or
             drf-services refuses a spec while the toolset compiles it, reads
             its input schema or projects its output -- a ``SelectorSpec`` with
@@ -3219,7 +3217,7 @@ def _refusal_message(exc: ActionUnavailable) -> str:
 
     **Written for the model and for a person reading a tool card, not for a
     program.** The format is a convention across the family's agent transports
-    rather than this toolset's own -- django-pydantic-agent's drf-mcp bridge is
+    rather than this toolset's own -- this package's drf-mcp bridge is
     meant to render the same refusal as the same text, so changing it here means
     changing it there. A program that branches on the code should read ``.code``
     off the exception instead, either in
