@@ -10,7 +10,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import FieldAudience, FieldMarking, SelectorKind, SpecRegistry
-from rest_framework.permissions import AllowAny, BasePermission
+from rest_framework.permissions import AllowAny
 from rest_framework_services import (
     PolymorphicServiceSpec,
     QueryParam,
@@ -20,7 +20,7 @@ from rest_framework_services import (
 )
 
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
-from tests.spec_tools.test_spec_toolset import ctx_for
+from tests.spec_tools.test_spec_toolset import RecordingPermission, ctx_for
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import AgentWidgetSerializer, WidgetSerializer
 
@@ -89,12 +89,6 @@ class TestToolsetFromRegistry:
             "annotations": {"readOnlyHint": False}
         }
 
-    def test_a_filtered_view_projects_a_subset(self) -> None:
-        registry = _registry()
-        reads = SpecToolset(registry.by_tag("read"), id="reads")
-
-        assert list(reads._tool_defs) == ["list_widgets"]
-
     def test_two_toolsets_from_one_registry_are_independent(self) -> None:
         registry = _registry()
         reads = SpecToolset(registry.by_tag("read"), id="reads")
@@ -143,26 +137,26 @@ _NATIVE_REFUSAL = (
 
 
 class TestANativeSpecIsRefused:
-    """A kernel-native spec reached the toolset's internals and died on the first
-    drf-services attribute it lacked, an ``AttributeError`` naming neither the
-    tool nor what to do. The refusal is a ``TypeError`` because the value is the
-    wrong kind, and it names the tool and both ways out."""
+    """A kernel-native spec is refused when the toolset is built. Left to the
+    toolset's internals it would die on the first drf-services attribute it
+    lacks, an ``AttributeError`` naming neither the tool nor what to do. The
+    refusal is a ``TypeError`` because the value is the wrong kind, and it names
+    the tool and both ways out."""
 
-    def test_from_a_registry(self) -> None:
+    @pytest.mark.parametrize(
+        ("build", "source"),
+        [
+            (SpecToolset, _native_registry),
+            (SpecToolset, lambda: _native_registry().specs()),
+            (SpecCapability, _native_registry),
+        ],
+        ids=["registry", "mapping", "capability"],
+    )
+    def test_whichever_way_it_arrives(self, build: Any, source: Any) -> None:
         with pytest.raises(TypeError, match=_NATIVE_REFUSAL) as raised:
-            SpecToolset(_native_registry())
+            build(source())
 
         assert "django_service_specs.dispatch" in str(raised.value)
-
-    def test_from_a_mapping(self) -> None:
-        native = _native_registry().specs()
-
-        with pytest.raises(TypeError, match=_NATIVE_REFUSAL):
-            SpecToolset(native)
-
-    def test_through_the_capability(self) -> None:
-        with pytest.raises(TypeError, match=_NATIVE_REFUSAL):
-            SpecCapability(_native_registry())
 
     def test_a_native_selector_spec_is_pointed_at_dispatch_too(self) -> None:
         native = django_service_specs.SelectorSpec(
@@ -263,25 +257,27 @@ class TestTheEntrysOfflineContract:
         )
         return registry
 
-    def test_url_kwargs_reach_the_tool_with_nothing_in_the_constructor(self) -> None:
-        toolset = SpecToolset(self._contract_registry(reads=(UrlKwarg("tenant_pk"),)))
+    @pytest.mark.parametrize(
+        ("read", "name", "channel"),
+        [
+            (UrlKwarg("tenant_pk"), "tenant_pk", "_tool_url_kwargs"),
+            (QueryParam(name="since"), "since", "_tool_query_params"),
+        ],
+        ids=["url-kwarg", "query-param"],
+    )
+    def test_reads_reach_the_tool_with_nothing_in_the_constructor(
+        self, read: UrlKwarg | QueryParam, name: str, channel: str
+    ) -> None:
+        toolset = SpecToolset(self._contract_registry(reads=(read,)))
 
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
-        assert "tenant_pk" in props
-        assert toolset._tool_url_kwargs["list_widgets"] == (UrlKwarg("tenant_pk"),)
-
-    def test_query_params_reach_the_tool_with_nothing_in_the_constructor(self) -> None:
-        toolset = SpecToolset(self._contract_registry(reads=(QueryParam(name="since"),)))
-
-        props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
-        assert "since" in props
-        assert toolset._tool_query_params["list_widgets"] == (QueryParam(name="since"),)
+        assert name in props
+        assert getattr(toolset, channel)["list_widgets"] == (read,)
 
     def test_field_audiences_reach_the_projection(self) -> None:
-        # The asymmetry this once closed -- one spec projecting a different field
-        # set depending on which agent transport served it -- is now closed at
-        # the source: the audiences are part of the spec's own output
-        # declaration, so the registry and a bare mapping project alike.
+        # The audiences are part of the spec's own output declaration, so one
+        # spec projects the same field set whichever agent transport serves it,
+        # and the registry and a bare mapping project alike.
         registry = self._contract_registry(field_audiences={"price": FieldMarking()})
 
         from_registry = SpecToolset(registry)._projections["list_widgets"]
@@ -335,7 +331,7 @@ class TestTheEntrysOfflineContract:
         """
         spec = replace(
             _agent_list_spec(),
-            permission_classes=[_RecordingPermission],
+            permission_classes=[RecordingPermission],
             reads=(UrlKwarg("tenant_pk"), QueryParam(name="since")),
         )
         registry = SpecRegistry()
@@ -357,20 +353,5 @@ class TestTheEntrysOfflineContract:
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
         assert "tenant_pk" not in props
         assert "since" not in props
-        assert _RecordingPermission.seen == {
-            "kwargs": {"tenant_pk": "5"},
-            "query_params": {"since": ["2020"]},
-        }
-
-
-class _RecordingPermission(BasePermission):
-    """Allows everything, and records the route captures and query it was shown."""
-
-    seen: dict[str, Any] = {}
-
-    def has_permission(self, request: Any, view: Any) -> bool:
-        _RecordingPermission.seen = {
-            "kwargs": dict(view.kwargs),
-            "query_params": dict(request.query_params.lists()),
-        }
-        return True
+        assert RecordingPermission.seen["kwargs"] == {"tenant_pk": "5"}
+        assert RecordingPermission.seen["query_params"] == {"since": ["2020"]}

@@ -77,9 +77,9 @@ async def test_acall_dispatches_sync_and_async() -> None:
 
 class TestDispatchingAToolThatTakesTheRunContext:
     """``ctx: RunContext[...]`` is the only way a registry tool reaches the
-    acting user. Direct dispatch bound the model's arguments alone, so such a
-    tool could not be called through the registry at all — ``sig.bind`` raised
-    ``TypeError`` for the missing ``ctx``."""
+    acting user. Binding the model's arguments alone would leave such a tool
+    uncallable through the registry — ``sig.bind`` raises ``TypeError`` for the
+    missing ``ctx`` — so dispatch takes the caller's context."""
 
     def _registry(self, seen: list[Any]) -> ToolRegistry:
         reg = ToolRegistry()

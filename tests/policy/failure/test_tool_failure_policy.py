@@ -4,20 +4,27 @@ import logging
 import sys
 from collections.abc import Callable
 from importlib.metadata import version
-from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
 import pytest
-from django.test import RequestFactory
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.capabilities import AbstractCapability, CapabilityOrdering
 from pydantic_ai.exceptions import ToolFailed, UnexpectedModelBehavior
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    RetryPromptPart,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness.step_persistence import StepPersistence
+from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
 
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
@@ -29,20 +36,14 @@ from django_spec_agents.policy.failure.types.tool_failure_config import ToolFail
 from django_spec_agents.policy.failure.utils import PolicyToolFailed
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
+from tests.request_helpers import authed_request
 
 # pydantic-ai 2.54 moved every ``before`` / ``on_error`` / ``after`` hook inside
 # the ``wrap_tool_execute`` chain, which changes what a wrapper sees.
 _HOOKS_INSIDE_THE_WRAPPER = tuple(
     int(part) for part in version("pydantic-ai-slim").split(".")[:2]
 ) >= (2, 54)
-
-
-class _RecordingAudit:
-    def __init__(self) -> None:
-        self.events: list[Any] = []
-
-    def record(self, event: Any) -> None:
-        self.events.append(event)
 
 
 def _raising_registry() -> ToolRegistry:
@@ -69,17 +70,43 @@ def _agent(
     return build_agent(_raising_registry(), config)
 
 
-def _tool_returns(result: Any) -> list[Any]:
+def _parts(result: Any, part_type: type) -> list[Any]:
     return [
         part
         for message in result.all_messages()
         for part in message.parts
-        if type(part).__name__ == "ToolReturnPart"
+        if isinstance(part, part_type)
     ]
 
 
-async def test_a_raising_tool_no_longer_ends_the_run() -> None:
-    """The behaviour the policy exists to replace.
+def _asks_again(name: str = "boom", *, executions: list[str] | None = None) -> ToolRegistry:
+    """A registry whose one tool answers every call with a ``ModelRetry``,
+    keeping the targets it was called with in ``executions``."""
+    reg = ToolRegistry()
+
+    async def asks(target: str) -> str:
+        """Always asks again."""
+        if executions is not None:
+            executions.append(target)
+        raise ModelRetry("try another target")
+
+    tool(reg, name=name)(asks)
+    return reg
+
+
+def _tool_returns(result: Any) -> list[Any]:
+    return _parts(result, ToolReturnPart)
+
+
+# What the model reads for a failure the policy converted with the default config.
+_FAILED_RESULT = (
+    "The boom tool failed and returned no result. "
+    "The failure has been recorded; do not retry the same call."
+)
+
+
+async def test_a_raising_tool_does_not_end_the_run() -> None:
+    """What the policy exists for.
 
     Without it the exception propagates, the transport emits ``RUN_ERROR``, and
     everything else the turn produced goes with it.
@@ -125,7 +152,7 @@ async def test_the_operator_copy_is_never_redacted() -> None:
     policy's redacted copy. The default ``include_detail`` off is what makes
     the difference visible: the copy carries none of the original text.
     """
-    audit = _RecordingAudit()
+    audit = CapturingAuditLogger()
 
     await _agent(audit=audit).run("go", deps=AgentDeps(user=None))
 
@@ -210,13 +237,7 @@ async def test_every_other_error_hook_sees_the_tools_exception() -> None:
 
     assert hook.seen == [error]
     returns = _tool_returns(result)
-    assert [(r.outcome, r.content) for r in returns] == [
-        (
-            "failed",
-            "The boom tool failed and returned no result. "
-            "The failure has been recorded; do not retry the same call.",
-        )
-    ]
+    assert [(r.outcome, r.content) for r in returns] == [("failed", _FAILED_RESULT)]
 
 
 class _OutermostErrorHook(_ErrorHook):
@@ -317,8 +338,7 @@ async def test_a_step_store_logs_the_tools_exception_not_the_policys() -> None:
     That event is the operator's record of the step, so it must name the tool's
     exception rather than text written for the model.
     """
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk="7")  # type: ignore[attr-defined]
+    request = authed_request()
     store = DefaultStepStore(request)
 
     await _composed(
@@ -359,13 +379,7 @@ async def test_another_capabilitys_retry_is_not_converted() -> None:
 
     result = await _composed(hook, error=RuntimeError("boom")).run("go", deps=AgentDeps(user=None))
 
-    retries = [
-        part
-        for message in result.all_messages()
-        for part in message.parts
-        if type(part).__name__ == "RetryPromptPart"
-    ]
-    assert [part.content for part in retries] == ["try another target"]
+    assert [part.content for part in _parts(result, RetryPromptPart)] == ["try another target"]
     assert [r.content for r in _tool_returns(result)] == ["ok"]
 
 
@@ -382,7 +396,7 @@ async def test_another_capabilitys_retry_spends_the_tools_retry_budget(
     tool's exception.
     """
     hook = _ErrorHook(answer=ModelRetry("try another target"))
-    audit = _RecordingAudit()
+    audit = CapturingAuditLogger()
 
     with (
         caplog.at_level(logging.ERROR, logger="django_pydantic_agent.failure"),
@@ -409,27 +423,15 @@ async def test_a_tools_own_retry_with_no_budget_left_is_converted_into_a_failed_
     records it, and the policy converts it into a failed result and logs it,
     where without the policy it would end the run.
     """
-    reg = ToolRegistry()
-
-    @tool(reg)
-    def boom(target: str) -> str:
-        """Always asks again."""
-        raise ModelRetry("try another target")
-
-    audit = _RecordingAudit()
+    reg = _asks_again()
+    audit = CapturingAuditLogger()
     agent = build_agent(
         reg, AgentConfig(model=TestModel(call_tools=["boom"]), retries=0, audit_logger=audit)
     )
     with caplog.at_level(logging.ERROR, logger="django_pydantic_agent.failure"):
         result = await agent.run("go", deps=AgentDeps(user=None))
 
-    assert [(r.outcome, r.content) for r in _tool_returns(result)] == [
-        (
-            "failed",
-            "The boom tool failed and returned no result. "
-            "The failure has been recorded; do not retry the same call.",
-        )
-    ]
+    assert [(r.outcome, r.content) for r in _tool_returns(result)] == [("failed", _FAILED_RESULT)]
     assert [
         r.getMessage() for r in caplog.records if r.name == "django_pydantic_agent.failure"
     ] == ["django-spec-agents: tool 'boom' failed; the run continues with a failed result"]
@@ -446,13 +448,7 @@ async def test_a_tool_keeps_executing_after_its_retry_budget_is_spent() -> None:
     and then answers; with the policy off the first spent budget would end the run.
     """
     executions: list[str] = []
-    reg = ToolRegistry()
-
-    @tool(reg)
-    def boom(target: str) -> str:
-        """Always asks again."""
-        executions.append(target)
-        raise ModelRetry("try another target")
+    reg = _asks_again(executions=executions)
 
     def model_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if len(executions) < 3:
@@ -476,21 +472,14 @@ async def test_reraising_unexpected_model_behavior_ends_the_run_on_a_spent_retry
     tool's ``ModelRetry``, which the next test shows a sub-agent's exhausted
     budget shares.
     """
-    from django.core.exceptions import PermissionDenied
-
-    reg = ToolRegistry()
-
-    @tool(reg)
-    def boom(target: str) -> str:
-        """Always asks again."""
-        raise ModelRetry("try another target")
-
     agent = build_agent(
-        reg,
+        _asks_again(),
         AgentConfig(
             model=TestModel(call_tools=["boom"]),
             retries=0,
-            tool_failure=ToolFailureConfig(reraise=(UnexpectedModelBehavior, PermissionDenied)),
+            tool_failure=ToolFailureConfig(
+                reraise=(UnexpectedModelBehavior, DjangoPermissionDenied)
+            ),
         ),
     )
 
@@ -508,15 +497,8 @@ async def test_reraising_unexpected_model_behavior_also_ends_the_run_for_a_sub_a
     sub-agent's exhausted budget propagate raises the same type with the same
     ``ModelRetry`` as its ``__cause__``, so the two cannot be told apart.
     """
-    sub_registry = ToolRegistry()
-
-    @tool(sub_registry)
-    def inner(target: str) -> str:
-        """Always asks again."""
-        raise ModelRetry("try another target")
-
     sub_agent = build_agent(
-        sub_registry,
+        _asks_again("inner"),
         AgentConfig(
             model=TestModel(call_tools=["inner"]),
             retries=0,
@@ -567,12 +549,10 @@ async def test_another_capabilitys_failed_result_is_not_converted() -> None:
 async def test_a_denial_passes_every_error_hook_untouched() -> None:
     """Running last does not change what the policy does with a refusal: it
     still ends the run, and a capability composed beside it sees it first."""
-    from django.core.exceptions import PermissionDenied
-
     hook = _ErrorHook()
-    error = PermissionDenied("not yours")
+    error = DjangoPermissionDenied("not yours")
 
-    with pytest.raises(PermissionDenied) as raised:
+    with pytest.raises(DjangoPermissionDenied) as raised:
         await _composed(hook, error=error).run("go", deps=AgentDeps(user=None))
 
     assert raised.value is error
@@ -603,13 +583,13 @@ async def test_the_failure_logger_hears_nothing_the_policy_did_not_convert(
 async def test_a_refusal_passing_through_is_not_logged_as_a_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    from django.core.exceptions import PermissionDenied
-
     with (
         caplog.at_level(logging.ERROR, logger="django_pydantic_agent.failure"),
-        pytest.raises(PermissionDenied),
+        pytest.raises(DjangoPermissionDenied),
     ):
-        await _composed(error=PermissionDenied("not yours")).run("go", deps=AgentDeps(user=None))
+        await _composed(error=DjangoPermissionDenied("not yours")).run(
+            "go", deps=AgentDeps(user=None)
+        )
 
     # Non-vacuous only while this literal is the policy's logger: an empty list
     # under a name the policy no longer logs to proves nothing.
@@ -652,12 +632,6 @@ async def test_a_model_retry_still_reaches_the_model_as_a_retry() -> None:
     assert len(calls) == 2
 
 
-def test_the_policy_can_be_built_without_a_config() -> None:
-    # Composed directly rather than through ``build_agent``: the default record
-    # is the same either way.
-    assert isinstance(ToolFailurePolicy(), ToolFailurePolicy)
-
-
 class TestAuthorizationIsNotAToolFailure:
     """A denial is the one failure the policy must not absorb.
 
@@ -686,46 +660,43 @@ class TestAuthorizationIsNotAToolFailure:
             ),
         )
 
-    async def test_a_drf_denial_aborts_the_run(self) -> None:
-        from rest_framework.exceptions import PermissionDenied
+    @pytest.mark.parametrize(
+        ("error", "tool_failure"),
+        [
+            pytest.param(DRFPermissionDenied("not yours"), None, id="drf-denial"),
+            pytest.param(DjangoPermissionDenied("not yours"), None, id="django-denial"),
+            # The set is a project decision.
+            pytest.param(
+                LookupError("tenant missing"),
+                ToolFailureConfig(reraise=(LookupError,)),
+                id="project-reraise",
+            ),
+        ],
+    )
+    async def test_a_reraised_failure_aborts_the_run(
+        self, error: BaseException, tool_failure: ToolFailureConfig | None
+    ) -> None:
+        agent = self._denying_agent(error, tool_failure=tool_failure)
 
-        agent = self._denying_agent(PermissionDenied("not yours"))
-
-        with pytest.raises(PermissionDenied):
+        with pytest.raises(type(error)):
             await agent.run("go", deps=AgentDeps(user=None))
 
-    async def test_a_django_denial_aborts_the_run(self) -> None:
-        from django.core.exceptions import PermissionDenied
-
-        agent = self._denying_agent(PermissionDenied("not yours"))
-
-        with pytest.raises(PermissionDenied):
-            await agent.run("go", deps=AgentDeps(user=None))
-
-    async def test_an_empty_reraise_set_converts_everything(self) -> None:
-        """The escape hatch for a project that wants the old behaviour back."""
-        from rest_framework.exceptions import PermissionDenied
-
-        agent = self._denying_agent(
-            PermissionDenied("not yours"),
-            tool_failure=ToolFailureConfig(reraise=()),
-        )
-
-        result = await agent.run("go", deps=AgentDeps(user=None))
-
-        assert _tool_returns(result)[0].outcome == "failed"
-
-    async def test_the_set_is_a_project_decision(self) -> None:
-        agent = self._denying_agent(
-            LookupError("tenant missing"),
-            tool_failure=ToolFailureConfig(reraise=(LookupError,)),
-        )
-
-        with pytest.raises(LookupError):
-            await agent.run("go", deps=AgentDeps(user=None))
-
-    async def test_an_ordinary_failure_is_still_absorbed(self) -> None:
-        result = await self._denying_agent(RuntimeError("boom")).run(
+    @pytest.mark.parametrize(
+        ("error", "tool_failure"),
+        [
+            # The escape hatch for a project that wants every failure converted.
+            pytest.param(
+                DRFPermissionDenied("not yours"),
+                ToolFailureConfig(reraise=()),
+                id="empty-reraise-set",
+            ),
+            pytest.param(RuntimeError("boom"), None, id="ordinary-failure"),
+        ],
+    )
+    async def test_a_failure_outside_the_reraise_set_is_absorbed(
+        self, error: BaseException, tool_failure: ToolFailureConfig | None
+    ) -> None:
+        result = await self._denying_agent(error, tool_failure=tool_failure).run(
             "go", deps=AgentDeps(user=None)
         )
 
@@ -736,9 +707,6 @@ async def test_the_default_set_survives_drf_not_being_installed() -> None:
     """DRF arrives with the optional extras, so the default set is resolved
     through an import that finds nothing in a slim install. Django's own denial
     is still exempt there; DRF's is just another exception nobody can raise."""
-    from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
-    from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
-
     with mock.patch.dict(sys.modules, {"rest_framework.exceptions": None}):
         policy = ToolFailurePolicy()
 

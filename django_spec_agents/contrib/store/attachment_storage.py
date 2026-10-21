@@ -11,8 +11,8 @@ def attachment_storage() -> Storage:
 
     A project naming a backend under
     [`ATTACHMENT_STORAGE_ALIAS`][django_spec_agents.types.attachment_storage_alias.ATTACHMENT_STORAGE_ALIAS]
-    in ``STORAGES`` gets that one; everyone else gets ``default_storage``, which
-    is what the field held before this hook existed. It is returned as the same
+    in ``STORAGES`` gets that one; everyone else gets ``default_storage``, as a
+    ``FileField`` with no storage of its own would. It is returned as the same
     lazy object Django itself hands out, not a resolved instance: Django rebinds
     it whenever storage-related settings change, and a resolved copy would keep
     pointing at the backend that was configured when this app's models were

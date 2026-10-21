@@ -1,30 +1,30 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
+import pytest
 from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.toolsets import FunctionToolset
 
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
-from django_spec_agents.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.guard.tool_guard import ToolGuard
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 
 
-class _CapturingLogger:
-    def __init__(self) -> None:
-        self.events: list[AuditEvent] = []
-
-    def record(self, event: AuditEvent) -> None:
-        self.events.append(event)
+def double(n: int) -> int:
+    """Double a number."""
+    return n * 2
 
 
 def test_build_agent_returns_agent_with_registry_tools() -> None:
     reg = ToolRegistry()
-
-    @tool(reg)
-    def double(n: int) -> int:
-        """Double a number."""
-        return n * 2
+    tool(reg)(double)
 
     agent = build_agent(reg, AgentConfig(model=TestModel()))
     assert isinstance(agent, Agent)
@@ -42,14 +42,8 @@ def test_build_agent_puts_deferred_tool_requests_in_output_type() -> None:
 
 
 def test_build_agent_accepts_model_settings_retries_toolsets_capabilities() -> None:
-    from pydantic_ai.toolsets import FunctionToolset
-
     reg = ToolRegistry()
-
-    @tool(reg)
-    def double(n: int) -> int:
-        """Double a number."""
-        return n * 2
+    tool(reg)(double)
 
     agent = build_agent(
         reg,
@@ -64,85 +58,58 @@ def test_build_agent_accepts_model_settings_retries_toolsets_capabilities() -> N
     assert isinstance(agent, Agent)
 
 
-async def test_audited_sync_tool_records_success() -> None:
+def boom(n: int) -> int:
+    """Always explodes."""
+    raise ValueError("kaboom")
+
+
+async def afetch(label: str) -> str:
+    """Fetch something asynchronously."""
+    return f"value:{label}"
+
+
+async def aboom(label: str) -> str:
+    """Async explosion."""
+    raise RuntimeError("async kaboom")
+
+
+# The sync tools stay sync on purpose: registry dispatch of a plain function is
+# what the sync rows hold.
+@pytest.mark.parametrize(
+    ("fn", "error"),
+    [
+        (double, None),
+        (boom, "kaboom"),
+        (afetch, None),
+        (aboom, "async kaboom"),
+    ],
+    ids=["sync-success", "sync-failure", "async-success", "async-failure"],
+)
+async def test_an_audited_tool_records_its_outcome(
+    fn: Callable[..., Any], error: str | None
+) -> None:
     reg = ToolRegistry()
+    tool(reg)(fn)
 
-    @tool(reg)
-    def double(n: int) -> int:
-        """Double a number."""
-        return n * 2
-
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
-    await agent.run("double 3")
+    # A raising tool does not end the run (the default tool-failure policy turns
+    # it into a failed result); the operator's record still names the tool and
+    # carries the real exception text.
+    await agent.run("go")
 
-    assert audit.events, "expected at least one audited call"
-    event = audit.events[0]
-    assert event.tool_name == "double"
-    assert event.success is True
-    assert event.result_size is not None
-
-
-async def test_audited_sync_tool_records_failure() -> None:
-    reg = ToolRegistry()
-
-    @tool(reg)
-    def boom(n: int) -> int:
-        """Always explodes."""
-        raise ValueError("kaboom")
-
-    audit = _CapturingLogger()
-    agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
-    # The run survives the raising tool (the default tool-failure policy turns
-    # it into a failed result); what this test guards is that the operator's
-    # record still names the tool and carries the real exception text.
-    await agent.run("call boom with 1")
-
-    failures = [e for e in audit.events if not e.success]
-    assert failures
-    assert "kaboom" in (failures[0].error or "")
-
-
-async def test_audited_async_tool_records_success() -> None:
-    reg = ToolRegistry()
-
-    @tool(reg)
-    async def afetch(label: str) -> str:
-        """Fetch something asynchronously."""
-        return f"value:{label}"
-
-    audit = _CapturingLogger()
-    agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
-    await agent.run("afetch x")
-
-    successes = [e for e in audit.events if e.success and e.tool_name == "afetch"]
-    assert successes
-
-
-async def test_audited_async_tool_records_failure() -> None:
-    reg = ToolRegistry()
-
-    @tool(reg)
-    async def aboom(label: str) -> str:
-        """Async explosion."""
-        raise RuntimeError("async kaboom")
-
-    audit = _CapturingLogger()
-    agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
-    await agent.run("aboom x")
-
-    failures = [e for e in audit.events if not e.success and e.tool_name == "aboom"]
-    assert failures
-    assert "async kaboom" in (failures[0].error or "")
+    [event] = audit.events
+    assert event.tool_name == fn.__name__
+    assert event.success is (error is None)
+    if error is None:
+        assert event.result_size is not None
+    else:
+        assert error in (event.error or "")
 
 
 async def test_no_audit_logger_is_a_noop_default() -> None:
     reg = ToolRegistry()
-
-    @tool(reg)
-    def double(n: int) -> int:
-        """Double a number."""
-        return n * 2
+    tool(reg)(double)
 
     # No audit_logger → NullAuditLogger; run must still succeed.
     agent = build_agent(reg, AgentConfig(model=TestModel()))
@@ -151,9 +118,6 @@ async def test_no_audit_logger_is_a_noop_default() -> None:
 
 
 def test_tool_guard_is_composed_when_enabled() -> None:
-    from django_spec_agents.policy.guard.tool_guard import ToolGuard
-    from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
-
     reg = ToolRegistry()
 
     @tool(reg, destructive=True)
@@ -171,9 +135,6 @@ def test_tool_guard_is_composed_when_enabled() -> None:
 
 
 def test_tool_guard_is_absent_when_disabled() -> None:
-    from django_spec_agents.policy.guard.tool_guard import ToolGuard
-    from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
-
     agent = build_agent(
         ToolRegistry(),
         AgentConfig(model=TestModel(), tool_guard=ToolGuardConfig(enabled=False)),

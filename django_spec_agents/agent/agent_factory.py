@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from pydantic_ai import Agent, DeferredToolRequests
+from pydantic_ai import Agent, DeferredToolRequests, Tool
 
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -11,6 +11,8 @@ from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
 from django_spec_agents.policy.guard.tool_guard import ToolGuard
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.types.tool_spec import ToolSpec
+from django_spec_agents.registry.utils import first_doc_paragraph
 
 
 def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps, Any]:
@@ -78,15 +80,15 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
     return Agent(
         model=config.model,
         deps_type=AgentDeps,
-        tools=[binding.spec.fn for binding in registry],
+        tools=[_pydantic_tool(binding.spec) for binding in registry],
         # ``DeferredToolRequests`` turns on the approval interrupt loop for
         # *server-side* tools. The AG-UI adapter augments ``output_type`` only
         # when the run carries frontend tools, so a run whose only gated tool is
         # server-side would never defer; setting it here makes approval
         # independent of them, and pydantic-ai dedups when the adapter augments
-        # too. Cast for the same reason as ``model_settings``: ty cannot bind
-        # ``OutputDataT`` from a heterogeneous list literal, so the call matches
-        # no overload and the return degrades to unsolved typevars.
+        # too. Cast because ty cannot bind ``OutputDataT`` from a
+        # heterogeneous list literal, so the call matches no overload and the
+        # return degrades to unsolved typevars.
         output_type=cast("Any", [str, DeferredToolRequests]),
         instructions=config.instructions,
         # ``model_settings`` is a plain dict at the settings boundary; Agent
@@ -96,6 +98,32 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
         toolsets=list(config.toolsets) if config.toolsets is not None else None,
         capabilities=capabilities or None,
     )
+
+
+def _pydantic_tool(spec: ToolSpec) -> Tool[AgentDeps]:
+    """``spec`` as the tool the model is offered, under its registered name.
+
+    The name is passed always: handed the bare function, pydantic-ai names the
+    tool after it. The guard and the tool catalog key on ``spec.name``, so
+    ``@tool(name=...)`` left the model calling a tool the guard never collected,
+    and the audit record, which takes the name the model called, disagreed with
+    the catalog.
+
+    The description is passed only when it is not the one ``@tool`` derives
+    from the docstring. ``ToolSpec.description`` is the first paragraph, and
+    pydantic-ai's own extraction keeps more of the docstring than that, so passing it unconditionally would rewrite what the model reads
+    for each docstringed tool nobody overrode. The cost is one blind spot: an
+    explicit description equal to the first paragraph is indistinguishable from
+    the derived one and the model gets the fuller extraction.
+    ``test_an_override_equal_to_the_first_paragraph_is_not_told_apart_from_none``
+    pins it, and ``test_the_model_is_offered_an_overriding_description`` holds
+    that a differing override is passed. An empty override is passed too, but
+    some pydantic-ai versions in the supported range read ``""`` as no
+    description and fall back to the docstring, so it is not promised to empty
+    the model's copy.
+    """
+    derived = spec.description == first_doc_paragraph(spec.fn)
+    return Tool(spec.fn, name=spec.name, description=None if derived else spec.description)
 
 
 __all__ = ["build_agent"]

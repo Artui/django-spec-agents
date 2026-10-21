@@ -80,7 +80,7 @@ the same file is answered by reading the attachment again, server-side. That is
 why the default sits at 4 MiB rather than at whatever your upload endpoint
 accepts.
 
-To keep the old behaviour and never attach bytes:
+To never attach bytes:
 
 ```python
 toolset = build_attachment_toolset(
@@ -228,7 +228,7 @@ here beyond your normal Django storage backend.
 Agent uploads are user-supplied files, and a project often wants them in a
 private bucket rather than wherever its other media goes. Name a backend under
 the `django_pydantic_agent_attachments` alias and attachments use it; leave the
-alias out and they use `default`, which is what every existing project gets:
+alias out and they use `default`:
 
 ```python
 STORAGES = {

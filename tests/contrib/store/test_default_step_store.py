@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
-from django.http import HttpRequest
-from django.test import RequestFactory, override_settings
+from django.test import override_settings
 from pydantic_ai.messages import (
     ModelMessagesTypeAdapter,
     ModelRequest,
@@ -23,6 +21,7 @@ from pydantic_ai_harness.step_persistence import (
 
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 from django_spec_agents.contrib.store.models import StoredRun, StoredSnapshot, StoredToolEffect
+from tests.request_helpers import anonymous_request, authed_request
 
 # transaction=True: the store writes through ``sync_to_async``, so its ORM calls
 # run on a different connection than a transaction-wrapped test would roll back —
@@ -33,21 +32,8 @@ pytestmark = pytest.mark.django_db(transaction=True)
 _T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
-def _authed(pk: str = "7") -> HttpRequest:
-    """A request whose user resolves to ``owner_id == pk`` (no DB / session)."""
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
-    return request
-
-
-def _anon() -> HttpRequest:
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=False, pk=None)  # type: ignore[attr-defined]
-    return request
-
-
 def _store(pk: str = "7") -> DefaultStepStore:
-    return DefaultStepStore(_authed(pk))
+    return DefaultStepStore(authed_request(pk))
 
 
 def _messages() -> list:
@@ -308,7 +294,7 @@ async def test_runs_snapshots_and_effects_are_owner_scoped() -> None:
 
 
 async def test_anonymous_disallowed_no_ops_every_method() -> None:
-    store = DefaultStepStore(_anon())  # ALLOW_ANONYMOUS defaults off
+    store = DefaultStepStore(anonymous_request())  # ALLOW_ANONYMOUS defaults off
     await store.register_run(RunRecord(run_id="r1", started_at=_T0))
     await store.append_event(StepEvent(run_id="r1", kind="run_started", step_index=0))
     await store.save_snapshot(ContinuableSnapshot(run_id="r1", step_index=0, messages=[]))
@@ -332,7 +318,7 @@ async def test_anonymous_disallowed_no_ops_every_method() -> None:
 async def test_anonymous_allowed_persists_under_a_session_bucket() -> None:
     from django.contrib.sessions.backends.cache import SessionStore
 
-    request = _anon()
+    request = anonymous_request()
     request.session = SessionStore()  # type: ignore[attr-defined]
     store = DefaultStepStore(request, allow_anonymous=True)
     await store.register_run(RunRecord(run_id="r1", agent_name="anon-run", started_at=_T0))

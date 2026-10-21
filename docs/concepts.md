@@ -76,8 +76,8 @@ and capabilities read them off `RunContext.deps`:
 deps = AgentDeps(user=request.user, ip_address=request.META.get("REMOTE_ADDR"))
 ```
 
-This is what a transport passes as `deps=` when it starts a run, and it is what
-replaced closing over the request. The difference matters beyond tidiness:
+This is what a transport passes as `deps=` when it starts a run, rather than
+closing over the request. The difference matters beyond tidiness:
 
 - **The acting user binds natively.** The `SpecToolset` in
   `django_spec_agents.spec_tools` already defaults to reading `ctx.deps.user`, so spec tools act

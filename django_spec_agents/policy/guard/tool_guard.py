@@ -38,15 +38,14 @@ class ToolGuard(AbstractCapability[Any]):
     - **MCP tool annotations** — ``metadata["annotations"]["readOnlyHint"] is
       False``. A toolset that speaks MCP's own vocabulary rather than this
       package's key declares a mutation this way, ``SpecToolset`` over a
-      drf-services ``ServiceSpec`` among them. Without this the *same* spec was
-      gated when it arrived over the drf-mcp bridge and ungated when it was
-      attached in process, so a transport swap silently removed the gate.
+      drf-services ``ServiceSpec`` among them. Reading it gates a spec
+      attached in process the way the bridge's key gates the same spec over
+      drf-mcp, so a transport swap cannot silently remove the gate.
     - **The ``x-destructive`` schema stamp** at the root of
       ``parameters_json_schema``, which is what
-      [`build_input_schema`][django_spec_agents.build_input_schema] writes.
-      That key is documented as the client-side signal and had no server-side
-      reader; a project deriving a schema with the package's own helper and
-      attaching the tool through ``toolsets=`` got no gate from it.
+      [`build_input_schema`][django_spec_agents.build_input_schema] writes,
+      so a project deriving a schema with the package's own helper and
+      attaching the tool through ``toolsets=`` is gated by it too.
     - **Project overrides**: ``require_approval`` force-gates a name, ``exempt``
       un-gates one, and ``exempt`` wins.
 

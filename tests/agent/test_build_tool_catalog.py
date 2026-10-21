@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.test import override_settings
+import pytest
 
 from django_spec_agents import ToolRegistry, tool
 from django_spec_agents.agent.build_tool_catalog import build_tool_catalog
@@ -26,7 +26,6 @@ def _registry() -> ToolRegistry:
     return reg
 
 
-@override_settings(DJANGO_AG_UI={})
 def test_registry_tools_use_summary_or_prettified_name_with_description() -> None:
     by_name = {e["name"]: e for e in build_tool_catalog(_registry())}
     # Explicit @tool(summary=) wins; description comes from the docstring.
@@ -52,22 +51,6 @@ def test_drf_mcp_tools_resolve_display_name_then_title_then_prettified() -> None
     assert "description" not in by_name["raw_tool"]
 
 
-def test_registry_wins_on_name_collision_with_a_drf_mcp_tool() -> None:
-    reg = ToolRegistry()
-
-    @tool(reg, summary="Local ping")
-    def ping() -> dict[str, Any]:
-        """Local ping."""
-        return {}
-
-    entries = [
-        e
-        for e in build_tool_catalog(reg, drf_mcp_server=_DRF, service_specs=_SPECS)
-        if e["name"] == "ping"
-    ]
-    assert entries == [{"name": "ping", "summary": "Local ping", "description": "Local ping."}]
-
-
 def test_service_specs_appear_in_catalog_with_prettified_summary() -> None:
     # Specs only — no drf-mcp server, which also defines ``ping`` and would win.
     by_name = {e["name"]: e for e in build_tool_catalog(ToolRegistry(), service_specs=_SPECS)}
@@ -76,7 +59,16 @@ def test_service_specs_appear_in_catalog_with_prettified_summary() -> None:
     assert by_name["ping"]["description"] == "Ping the server."
 
 
-def test_registry_wins_on_name_collision_with_a_service_spec() -> None:
+@pytest.mark.parametrize(
+    "sources",
+    [
+        {"drf_mcp_server": _DRF},
+        {"service_specs": _SPECS},
+        {"drf_mcp_server": _DRF, "service_specs": _SPECS},
+    ],
+    ids=["drf-mcp", "service-spec", "both"],
+)
+def test_registry_wins_on_name_collision(sources: dict[str, Any]) -> None:
     reg = ToolRegistry()
 
     @tool(reg, summary="Local ping")
@@ -84,9 +76,5 @@ def test_registry_wins_on_name_collision_with_a_service_spec() -> None:
         """Local ping."""
         return {}
 
-    entries = [
-        e
-        for e in build_tool_catalog(reg, drf_mcp_server=_DRF, service_specs=_SPECS)
-        if e["name"] == "ping"
-    ]
+    entries = [e for e in build_tool_catalog(reg, **sources) if e["name"] == "ping"]
     assert entries == [{"name": "ping", "summary": "Local ping", "description": "Local ping."}]

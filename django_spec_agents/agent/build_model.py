@@ -7,9 +7,9 @@ from pydantic_ai.exceptions import UserError
 from pydantic_ai.models import infer_model
 from pydantic_ai.providers import infer_provider_class
 
-# 0.2.0 accepted a non-standard ``gemini:`` prefix where Pydantic-AI's provider
-# name is ``google``. Normalising here keeps that spelling working; every other
-# prefix is Pydantic-AI's own vocabulary.
+# ``gemini:`` is accepted as an alias of Pydantic-AI's ``google`` provider name,
+# a spelling existing configurations carry; every other prefix is Pydantic-AI's
+# own vocabulary.
 _PREFIX_ALIASES = {"gemini": "google"}
 
 

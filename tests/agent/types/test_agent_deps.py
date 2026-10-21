@@ -25,8 +25,8 @@ def test_carries_the_acting_user() -> None:
 
 def test_the_acting_user_has_to_be_stated() -> None:
     """Pydantic-AI does not enforce ``deps=`` and never validates what it gets,
-    so a default here was the difference between an unauthenticated run and a
-    run nobody decided the identity of.
+    so a default here would be the difference between an unauthenticated run and
+    a run nobody decided the identity of.
 
     Registry tools do not fail closed the way a spec tool does — they run with no
     user context at all and the answer looks ordinary — so the only place to
@@ -44,8 +44,8 @@ def test_an_unauthenticated_run_says_so_in_one_word() -> None:
 
 
 def test_the_docstring_only_names_settings_that_exist() -> None:
-    """It sent readers to ``AgentConfig.deps_factory``, which raises ``TypeError``
-    — the parameter is real but lives on the transport, one layer up."""
+    """``AgentConfig.deps_factory`` would raise ``TypeError``: that parameter lives
+    on the transport, one layer up, so the docstring must not send readers to it."""
     named = set(re.findall(r"AgentConfig\.(\w+)", AgentDeps.__doc__ or ""))
     fields = {f.name for f in dataclasses.fields(AgentConfig)}
 
@@ -54,8 +54,8 @@ def test_the_docstring_only_names_settings_that_exist() -> None:
 
 def test_carries_a_progress_sink_for_the_run() -> None:
     """A spec's ``progress(...)`` calls are read off ``ctx.deps.progress``. With
-    no field to read they resolved to drf-services' no-op and vanished, and a
-    project could not fix it by subclassing without also owning the extractor."""
+    no field to read they would resolve to drf-services' no-op and vanish, and a
+    project could not fix that by subclassing without also owning the extractor."""
     reports: list[tuple[int, int | None]] = []
 
     def sink(progress: int, *, total: int | None = None, **_: object) -> None:

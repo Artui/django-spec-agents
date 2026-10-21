@@ -37,7 +37,7 @@ def build_spec_capability(
     from, so a spec properly guarded behind a viewset would become callable by
     whatever the model decides to call.
 
-    PAI's ``require_permissions=False`` migration flag is not exposed here; a
+    The ``require_permissions=False`` migration flag is not exposed here; a
     project migrating a large registry constructs ``SpecCapability`` itself and
     passes it to ``AgentConfig(capabilities=...)``. That path skips the
     tool-catalog registration this function participates in, so tool-call cards

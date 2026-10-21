@@ -1,21 +1,11 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from django.core.files.uploadedfile import SimpleUploadedFile, UploadedFile
-from django.http import HttpRequest
-from django.test import RequestFactory
 
 from django_spec_agents.persistence.model_attachment_store import ModelAttachmentStore
 from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
-
-
-def _authed_request(pk: str = "7") -> HttpRequest:
-    """A request whose user resolves to ``owner_id == pk`` (no DB / session)."""
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
-    return request
+from tests.request_helpers import authed_request
 
 
 class _DictStore(ModelAttachmentStore):
@@ -47,7 +37,7 @@ class _DictStore(ModelAttachmentStore):
 
 async def test_base_wraps_sync_ops_with_owner_scoping() -> None:
     store = _DictStore()
-    request = _authed_request()
+    request = authed_request()
     upload = SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain")
 
     ref = await store.save(upload, request=request)
@@ -63,4 +53,4 @@ async def test_base_wraps_sync_ops_with_owner_scoping() -> None:
 
 
 async def test_open_missing_returns_none() -> None:
-    assert await _DictStore().open("absent", request=_authed_request()) is None
+    assert await _DictStore().open("absent", request=authed_request()) is None
