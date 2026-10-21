@@ -63,8 +63,9 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
   `testing`. A host-only install, which is what django-admin-agent ships, would
   fail at import otherwise. The host reaches `spec_tools` in one place,
   `integrations/build_spec_capability.py`, through a function-local import under
-  rule 4's optional-dependency exception, and `integrations/__init__.py` stays
-  empty so that module is never loaded with the package.
+  rule 4's optional-dependency exception. `integrations/__init__.py` stays empty:
+  django-ag-ui patches the function as an attribute of that submodule, which a
+  re-export would shadow, so the patch would stop taking effect.
 - **`spec_tools` imports nothing from the host but `AgentDeps`, and never
   `contrib.store`.** It reads the acting user structurally, as `ctx.deps.user`, so
   a project's own deps type works as long as it has a `user`.

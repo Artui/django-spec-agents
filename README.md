@@ -70,15 +70,15 @@ agent = build_agent(registry, AgentConfig(model="anthropic:claude-sonnet-4-5"))
 result = await agent.run("what is still pending?", deps=AgentDeps(user=request.user))
 ```
 
-The same agent calling your specs, with `[specs]` installed. Each key is a tool
-name; the description, the parameter schema and the return schema come from the
+The same agent calling your specs beside the registry's tools, with `[specs]`
+installed. Each key is a tool name, distinct from the registry's; the description, the parameter schema and the return schema come from the
 spec. Each spec declares its `permission_classes`, which the toolset refuses to
 go without, because nothing over HTTP gates a call made in process:
 
 ```python
 from django_spec_agents.spec_tools import SpecToolset
 
-toolset = SpecToolset({"list_orders": list_orders_spec, "create_order": create_order_spec})
+toolset = SpecToolset({"list_invoices": list_invoices_spec, "create_invoice": create_invoice_spec})
 agent = build_agent(registry, AgentConfig(model="anthropic:claude-sonnet-4-5", toolsets=[toolset]))
 ```
 
