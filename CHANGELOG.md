@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pydantic-ai only, and the package root does not import it. It replaces
   `spec_tools.testing`.
 
+### Changed
+
+- The store app's label is `django_spec_agents_store`, and its tables, named
+  constraints and named indexes are named after it. One migration, `0001_initial`,
+  creates them on a fresh database and, on one migrated through
+  `django-pydantic-agent`'s store, renames its tables, named constraints, named
+  indexes, PostgreSQL's `_like` index on the attachment file column, content types
+  and migration records in place, so the upgrade is a single `migrate`. The other
+  objects Django named itself keep their old names on PostgreSQL. A database short of
+  that store's last migration is refused with a message naming it.
+- `DESTRUCTIVE_METADATA_KEY` is `"django_spec_agents.destructive"`.
+- The attachments toolset id is `django-spec-agents-attachments`.
+- The `ImproperlyConfigured` raised when a model cannot be built, and the error
+  `ToolFailurePolicy` logs when it converts a tool's failure, open with
+  `django-spec-agents: `.
+- The audit `ContextVar` is named `django_spec_agents.audit.execution`.
+- The enums and constants moved from `constants.py` to one module each under
+  `django_spec_agents.types`; the root names are unchanged, and
+  `django_spec_agents.constants` is gone.
+
 ### Removed
 
 - `SpecToolset` and `SpecCapability` no longer take the mount-level channel keywords

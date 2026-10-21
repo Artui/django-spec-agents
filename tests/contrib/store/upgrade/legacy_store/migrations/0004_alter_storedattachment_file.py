@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-import django_spec_agents.contrib.store.attachment_storage
+import tests.contrib.store.upgrade.legacy_store.attachment_storage
 
 
 class Migration(migrations.Migration):
@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
             name="file",
             field=models.FileField(
                 db_index=True,
-                storage=django_spec_agents.contrib.store.attachment_storage.attachment_storage,
+                storage=tests.contrib.store.upgrade.legacy_store.attachment_storage.attachment_storage,
                 upload_to="django_pydantic_agent/attachments/",
             ),
         ),

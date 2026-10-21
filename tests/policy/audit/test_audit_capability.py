@@ -43,6 +43,7 @@ from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.failure import tool_failure_policy as failure_policy_module
 from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
 from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
@@ -476,6 +477,9 @@ async def test_a_tools_own_tool_failed_is_recorded_as_it_propagated(
 
     assert _records(audit) == [("lookup", '{"n": 0}', False, "ToolFailedError: model copy", None)]
     # The policy logs every failure it converts; silence is it never seeing one.
+    # Non-vacuous only while this literal is the policy's logger: an empty list
+    # under a name the policy no longer logs to proves nothing.
+    assert logging.getLogger("django_pydantic_agent.failure") is failure_policy_module._logger
     assert not [r for r in caplog.records if r.name == "django_pydantic_agent.failure"]
 
 
@@ -1995,3 +1999,11 @@ async def test_a_before_or_after_hook_reaches_the_record_only_through_the_tool(
         (e.success, e.error, e.result_size, "[redacted]" in e.arguments_repr) for e in audit.events
     ]
     assert records == recorded
+
+
+def test_the_execution_context_variable_names_this_package() -> None:
+    # A ``ContextVar``'s name shows in a debugger and a ``repr`` and nowhere a
+    # project configures, so it follows the package rather than keeping the old
+    # spelling the two loggers keep.
+    capability = AuditCapability(_CapturingLogger())
+    assert capability._execution.name == "django_spec_agents.audit.execution"

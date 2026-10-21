@@ -49,7 +49,7 @@ reaches a client without inventing a side channel:
 policy; `destructive` is the flag that drives the approval gate.
 
 There is a fifth key that is *not* a schema stamp: `DESTRUCTIVE_METADATA_KEY`
-(`"django_pydantic_agent.destructive"`) rides pydantic-ai's `ToolDefinition`
+(`"django_spec_agents.destructive"`) rides pydantic-ai's `ToolDefinition`
 metadata rather than the schema, because metadata is the channel a *bridge*
 controls where the schema belongs to the tool's author. It is read
 **server-side** at `prepare_tools` time by the [tool guard](policy.md), which

@@ -35,7 +35,7 @@ class StoredConversation(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["owner_id", "thread_id"],
-                name="django_pydantic_agent_store_owner_thread_unique",
+                name="django_spec_agents_store_owner_thread_unique",
             )
         ]
         indexes = [models.Index(fields=["owner_id", "-updated_at"])]
@@ -84,7 +84,7 @@ class StoredAttachment(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["owner_id", "attachment_id"],
-                name="django_pydantic_agent_attachment_owner_id_unique",
+                name="django_spec_agents_attachment_owner_id_unique",
             )
         ]
         indexes = [
@@ -125,7 +125,7 @@ class ConversationAttachment(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["conversation", "attachment"],
-                name="django_pydantic_agent_conversation_attachment_unique",
+                name="django_spec_agents_conversation_attachment_unique",
             )
         ]
 
@@ -164,7 +164,7 @@ class StoredRun(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["owner_id", "run_id"], name="django_pydantic_agent_run_owner_run_unique"
+                fields=["owner_id", "run_id"], name="django_spec_agents_run_owner_run_unique"
             )
         ]
         indexes = [models.Index(fields=["owner_id", "started_at"])]
@@ -262,7 +262,7 @@ class StoredToolEffect(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["owner_id", "run_id", "tool_call_id"],
-                name="django_pydantic_agent_tool_effect_owner_run_call_unique",
+                name="django_spec_agents_tool_effect_owner_run_call_unique",
             )
         ]
         indexes = [models.Index(fields=["owner_id", "run_id"])]
@@ -303,7 +303,7 @@ class StoredMemory(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["owner_id", "path"],
-                name="django_pydantic_agent_memory_owner_path_unique",
+                name="django_spec_agents_memory_owner_path_unique",
             )
         ]
 
@@ -336,7 +336,7 @@ class StoredMemoryOperation(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["owner_id", "operation_id"],
-                name="django_pydantic_agent_memory_owner_operation_unique",
+                name="django_spec_agents_memory_owner_operation_unique",
             )
         ]
 

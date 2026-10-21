@@ -6,14 +6,12 @@ import typing
 from collections.abc import Callable
 from typing import Any
 
-from django_spec_agents.constants import (
-    X_CATEGORY_KEY,
-    X_CONFIRM_KEY,
-    X_DESTRUCTIVE_KEY,
-    X_SUMMARY_KEY,
-    ToolCategory,
-)
 from django_spec_agents.registry.utils import run_context_parameter
+from django_spec_agents.types.tool_category import ToolCategory
+from django_spec_agents.types.x_category_key import X_CATEGORY_KEY
+from django_spec_agents.types.x_confirm_key import X_CONFIRM_KEY
+from django_spec_agents.types.x_destructive_key import X_DESTRUCTIVE_KEY
+from django_spec_agents.types.x_summary_key import X_SUMMARY_KEY
 
 
 def build_input_schema(

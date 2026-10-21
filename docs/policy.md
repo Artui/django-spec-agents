@@ -352,8 +352,8 @@ rows the acting user cannot read — inside a single turn, spending no retry
 budget, bounded by nothing `build_agent` sets.
 
 That sentence used to read "distinguishable from a `{"error": "not found"}`
-one", which described how `djangorestframework-pydantic-ai` reported a missing
-row before it began raising `ToolFailed` for one. The shape changed and the
+one", which described how the spec tools reported a missing
+row before they began raising `ToolFailed` for one. The shape changed and the
 argument did not, but the reason is worth stating because the change looks like
 it closed the hole and did not. A missing row and a converted denial now share
 an `outcome` — both are `failed` — so the two are no longer told apart by the

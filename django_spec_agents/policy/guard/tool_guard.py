@@ -10,9 +10,10 @@ from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import ToolDefinition
 
-from django_spec_agents.constants import DESTRUCTIVE_METADATA_KEY, X_DESTRUCTIVE_KEY
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
+from django_spec_agents.types.x_destructive_key import X_DESTRUCTIVE_KEY
 
 
 class ToolGuard(AbstractCapability[Any]):
@@ -32,7 +33,7 @@ class ToolGuard(AbstractCapability[Any]):
       flag lives on the spec and never reaches pydantic-ai, which sees a bare
       callable, so the capability reads it directly.
     - **drf-mcp bridged tools**, through the
-      [`DESTRUCTIVE_METADATA_KEY`][django_spec_agents.DESTRUCTIVE_METADATA_KEY] the
+      [`DESTRUCTIVE_METADATA_KEY`][django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY] the
       bridge stamps into ``ToolDefinition.metadata``.
     - **MCP tool annotations** — ``metadata["annotations"]["readOnlyHint"] is
       False``. A toolset that speaks MCP's own vocabulary rather than this

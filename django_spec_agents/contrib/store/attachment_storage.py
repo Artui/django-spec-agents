@@ -3,14 +3,14 @@ from __future__ import annotations
 from django.conf import settings
 from django.core.files.storage import Storage, default_storage, storages
 
-from django_spec_agents.constants import ATTACHMENT_STORAGE_ALIAS
+from django_spec_agents.types.attachment_storage_alias import ATTACHMENT_STORAGE_ALIAS
 
 
 def attachment_storage() -> Storage:
     """The ``Storage`` attachment bytes live in.
 
     A project naming a backend under
-    [`ATTACHMENT_STORAGE_ALIAS`][django_spec_agents.constants.ATTACHMENT_STORAGE_ALIAS]
+    [`ATTACHMENT_STORAGE_ALIAS`][django_spec_agents.types.attachment_storage_alias.ATTACHMENT_STORAGE_ALIAS]
     in ``STORAGES`` gets that one; everyone else gets ``default_storage``, which
     is what the field held before this hook existed. It is returned as the same
     lazy object Django itself hands out, not a resolved instance: Django rebinds

@@ -373,3 +373,13 @@ def test_rows_sharing_one_dead_path_cost_a_single_existence_check(
     # Counted for the dead path alone: the write that follows asks about its own
     # new name too, and that call is not what this is measuring.
     assert checked.count(dead) == 1
+
+
+def test_the_store_logs_under_its_module_path() -> None:
+    # Unlike the audit and failure loggers, nothing configures this one by name,
+    # so it follows the module rather than keeping the old package's spelling.
+    from django_spec_agents.contrib.store import default_attachment_store
+
+    assert default_attachment_store.logger.name == (
+        "django_spec_agents.contrib.store.default_attachment_store"
+    )

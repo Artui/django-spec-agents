@@ -1,7 +1,7 @@
 """Build a Pydantic-AI capability over drf-services specs, with no MCP hop.
 
-Requires the ``django-pydantic-agent[spec-tools]`` extra, so consumers import
-this module lazily and the dependency on ``djangorestframework-pydantic-ai``
+Requires the ``django-spec-agents[specs]`` extra, so consumers import
+this module lazily and ``spec_tools``, with the DRF and drf-services it needs,
 stays optional.
 """
 

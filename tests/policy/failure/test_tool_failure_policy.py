@@ -23,6 +23,7 @@ from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.policy.failure import tool_failure_policy as failure_policy_module
 from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
 from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_spec_agents.policy.failure.utils import PolicyToolFailed
@@ -342,6 +343,9 @@ async def test_a_recovering_capability_pre_empts_the_conversion(
 
     assert hook.seen == [error]
     assert [r.content for r in _tool_returns(result)] == ["recovered"]
+    # Non-vacuous only while this literal is the policy's logger: an empty list
+    # under a name the policy no longer logs to proves nothing.
+    assert logging.getLogger("django_pydantic_agent.failure") is failure_policy_module._logger
     assert not [r for r in caplog.records if r.name == "django_pydantic_agent.failure"]
 
 
@@ -388,6 +392,9 @@ async def test_another_capabilitys_retry_spends_the_tools_retry_budget(
             "go", deps=AgentDeps(user=None)
         )
 
+    # Non-vacuous only while this literal is the policy's logger: an empty list
+    # under a name the policy no longer logs to proves nothing.
+    assert logging.getLogger("django_pydantic_agent.failure") is failure_policy_module._logger
     assert not [r for r in caplog.records if r.name == "django_pydantic_agent.failure"]
     assert [(e.success, e.error) for e in audit.events] == [(False, "RuntimeError: boom")]
 
@@ -425,7 +432,7 @@ async def test_a_tools_own_retry_with_no_budget_left_is_converted_into_a_failed_
     ]
     assert [
         r.getMessage() for r in caplog.records if r.name == "django_pydantic_agent.failure"
-    ] == ["django-pydantic-agent: tool 'boom' failed; the run continues with a failed result"]
+    ] == ["django-spec-agents: tool 'boom' failed; the run continues with a failed result"]
     [event] = audit.events
     assert event.success is False
     assert event.error.startswith(
@@ -587,6 +594,9 @@ async def test_the_failure_logger_hears_nothing_the_policy_did_not_convert(
             "go", deps=AgentDeps(user=None)
         )
 
+    # Non-vacuous only while this literal is the policy's logger: an empty list
+    # under a name the policy no longer logs to proves nothing.
+    assert logging.getLogger("django_pydantic_agent.failure") is failure_policy_module._logger
     assert not [r for r in caplog.records if r.name == "django_pydantic_agent.failure"]
 
 
@@ -601,6 +611,9 @@ async def test_a_refusal_passing_through_is_not_logged_as_a_failure(
     ):
         await _composed(error=PermissionDenied("not yours")).run("go", deps=AgentDeps(user=None))
 
+    # Non-vacuous only while this literal is the policy's logger: an empty list
+    # under a name the policy no longer logs to proves nothing.
+    assert logging.getLogger("django_pydantic_agent.failure") is failure_policy_module._logger
     assert not [r for r in caplog.records if r.name == "django_pydantic_agent.failure"]
 
 

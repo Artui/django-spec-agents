@@ -34,7 +34,7 @@ def _read_attachment(
     store: Any, request: HttpRequest, *, inline: AttachmentInlineConfig | None = None
 ) -> Any:
     toolset = build_attachment_toolset(store, request, inline=inline)
-    assert toolset.id == "django-pydantic-agent-attachments"
+    assert toolset.id == "django-spec-agents-attachments"
     return toolset.tools["read_attachment"].function
 
 

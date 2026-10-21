@@ -4,9 +4,9 @@ import inspect
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from django_spec_agents.constants import ToolCategory
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.registry.types.tool_spec import ToolSpec
+from django_spec_agents.types.tool_category import ToolCategory
 
 F = TypeVar("F", bound=Callable[..., Any])
 

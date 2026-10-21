@@ -10,7 +10,7 @@ generated from the live source, nothing duplicated by hand.
 - **[Persistence](persistence.md)** — the store contracts, their value types,
   and the shipped implementations.
 - **[Policy](policy.md)** — audit and the destructive-tool gate.
-- **[Integrations](integrations.md)** — the `[spec-tools]` and `[drf-mcp]`
+- **[Integrations](integrations.md)** — the `[specs]` and `[drf-mcp]`
   bridges.
 
 ## Public surface

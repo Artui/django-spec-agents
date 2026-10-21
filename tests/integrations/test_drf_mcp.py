@@ -895,10 +895,10 @@ async def test_both_routes_hand_back_an_omission_in_the_same_words(
 async def test_both_bridges_require_the_same_arguments(name: str) -> None:
     """One spec, listed in process and over the drf-mcp bridge.
 
-    The reason the ``[drf-mcp]`` and ``[spec-tools]`` floors move together: a
-    model is asked for the same arguments whichever way a spec is exposed.
-    Asserted against both packages' real schemas, so a pair of floors where only
-    one side requires ``pk`` fails here.
+    The reason the ``[drf-mcp]`` floor moves with ``spec_tools``: a model is
+    asked for the same arguments whichever way a spec is exposed. Asserted against
+    both routes' real schemas, so a drf-mcp floor where only one side requires
+    ``pk`` fails here.
     """
     ctx = RunContext(deps=AgentDeps(user=AnonymousUser()), model=TestModel(), usage=RunUsage())
     in_process = await build_spec_capability(LOOKUP_SPECS).get_toolset().get_tools(ctx)

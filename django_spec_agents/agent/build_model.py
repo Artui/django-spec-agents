@@ -44,7 +44,7 @@ def build_model(model: str, *, api_key: str | None = None, provider: Any = None)
         )
     except (UserError, ValueError, ImportError) as error:
         raise ImproperlyConfigured(
-            f"django-pydantic-agent: could not build model {model!r} with the supplied "
+            f"django-spec-agents: could not build model {model!r} with the supplied "
             f"api_key / provider ({error}). The model must be a 'provider:name' "
             "string (e.g. 'anthropic:claude-sonnet-4.6') whose provider "
             "Pydantic-AI knows, with the matching provider extra installed — or "

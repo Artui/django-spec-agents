@@ -66,7 +66,7 @@ def build_attachment_toolset(
 
     # ``read_attachment`` takes no ``RunContext``, and pydantic-ai's
     # ``FunctionToolset`` overloads only type the ctx-taking form.
-    return FunctionToolset([cast("Any", read_attachment)], id="django-pydantic-agent-attachments")
+    return FunctionToolset([cast("Any", read_attachment)], id="django-spec-agents-attachments")
 
 
 def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | ToolReturn:

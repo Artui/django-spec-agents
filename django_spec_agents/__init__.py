@@ -6,14 +6,6 @@ from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
-from django_spec_agents.constants import (
-    DESTRUCTIVE_METADATA_KEY,
-    X_CATEGORY_KEY,
-    X_CONFIRM_KEY,
-    X_DESTRUCTIVE_KEY,
-    X_SUMMARY_KEY,
-    ToolCategory,
-)
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
@@ -47,6 +39,12 @@ from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.registry.types.tool_binding import ToolBinding
 from django_spec_agents.registry.types.tool_spec import ToolSpec
+from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
+from django_spec_agents.types.tool_category import ToolCategory
+from django_spec_agents.types.x_category_key import X_CATEGORY_KEY
+from django_spec_agents.types.x_confirm_key import X_CONFIRM_KEY
+from django_spec_agents.types.x_destructive_key import X_DESTRUCTIVE_KEY
+from django_spec_agents.types.x_summary_key import X_SUMMARY_KEY
 from django_spec_agents.version import __version__
 
 __all__ = [

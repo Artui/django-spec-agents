@@ -164,6 +164,61 @@ models before the app registry is ready — `AppRegistryNotReady` at startup, fo
 every project, whether or not it uses the stores. The leaf path is the price of the
 package being importable at all.
 
+### The app label, and upgrading from django-pydantic-agent
+
+The app's label is `django_spec_agents_store`, so its nine tables are
+`django_spec_agents_store_<model>` and its content types, and the permissions
+hanging off them, sit under that label.
+
+The same app shipped in django-pydantic-agent as `django_pydantic_agent_store`.
+A database that installed it upgrades with the `migrate` a deploy runs anyway:
+swap the `INSTALLED_APPS` entry,
+
+```python
+INSTALLED_APPS = [
+    ...,
+    "django_spec_agents.contrib.store",  # was "django_pydantic_agent.contrib.store"
+]
+```
+
+and run `migrate`. The app's one migration sees the old tables and renames them in
+place: the tables, their constraints and named indexes, and the content types, so
+permissions, group grants and admin log entries come along by key. The old app's
+rows in `django_migrations` are deleted, and nothing is copied, so the rows are
+the ones you had.
+
+- **The old install has to be at its last migration**, `0005`, which shipped in
+  django-pydantic-agent 0.20. Short of it, `migrate` stops with
+  `OldInstallBehindError` and renames nothing: run `migrate` under
+  django-pydantic-agent first.
+- **Rolling back is one command before the old pin goes back**:
+  `migrate django_spec_agents_store zero` renames everything back and records the
+  old app's migrations again.
+- **Some objects Django named itself keep the old names on PostgreSQL**: the index
+  on an attachment's file, the check on its size, the link table's foreign keys and
+  each table's primary key and sequence. When a later migration drops or replaces
+  one of them, Django asks the database for the column's constraints rather than
+  computing the name, so the old names show only to a person reading the schema.
+  The exception is the `_like` index PostgreSQL keeps beside the file column,
+  which Django drops by a name it computes, so the upgrade renames it too. On
+  SQLite a constraint changes only by remaking its table, so there every name
+  comes out new.
+
+**Unapplying does the same on a database that never ran django-pydantic-agent.**
+The migration cannot tell how it was applied, so on a fresh install
+`migrate django_spec_agents_store zero` does not drop the store's tables: it leaves
+them under django-pydantic-agent's names, records that package's five migrations
+in `django_migrations` and moves the content types to its label. To remove the
+store from such a database, drop those tables and delete those rows yourself.
+
+What the upgrade leaves alone is everything stored or configured outside the
+schema: the [attachment storage alias](#putting-attachments-somewhere-other-than-the-default)
+and the stored files' `django_pydantic_agent/attachments/` prefix, the session key
+`DjangoSessionConversationStore` keeps conversations under, and the
+`django_pydantic_agent.audit` and `django_pydantic_agent.failure` loggers. Each
+keeps django-pydantic-agent's spelling, so a project's `STORAGES`, `LOGGING`, live
+sessions and stored files need nothing.
+
 `DefaultAttachmentStore` keeps bytes in Django `Storage` and metadata in a row,
 so S3 and friends come free through `STORAGES` — you don't configure anything
 here beyond your normal Django storage backend.

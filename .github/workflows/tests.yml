@@ -142,6 +142,45 @@ jobs:
           print("BASE IMPORT OK", django.get_version(), django_spec_agents.__version__)
           PY
 
+  # The store's upgrade renames PostgreSQL's ``_like`` index, which Django drops by
+  # a name it computes from the table rather than by looking it up, so a missed
+  # rename leaves a duplicate index behind the next type change. SQLite makes no
+  # such index, so only a real server can show the rename happened.
+  store-upgrade-postgresql:
+    name: store upgrade on PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: store_upgrade
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Sync dev deps
+        run: uv sync --all-groups
+      - name: Install the PostgreSQL driver
+        run: uv pip install "psycopg[binary]"
+      - name: pytest
+        env:
+          STORE_UPGRADE_ENGINE: django.db.backends.postgresql
+          STORE_UPGRADE_DATABASE: store_upgrade
+          STORE_UPGRADE_HOST: localhost
+          STORE_UPGRADE_USER: postgres
+        run: |
+          uv run --no-sync pytest -q --no-cov \
+            tests/contrib/store/test_upgrade_from_django_pydantic_agent.py
+
   test:
     name: ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
     runs-on: ubuntu-latest
@@ -349,7 +388,7 @@ jobs:
     # always(), never !cancelled(): a skipped job reports a skipped check, and
     # branch protection counts a skipped required check as passing.
     if: always()
-    needs: [lint, docs, floor, test]
+    needs: [lint, docs, floor, store-upgrade-postgresql, test]
     runs-on: ubuntu-latest
     steps:
       # Pass on an exact `success` from every job above, rather than failing on

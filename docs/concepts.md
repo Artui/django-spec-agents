@@ -79,8 +79,8 @@ deps = AgentDeps(user=request.user, ip_address=request.META.get("REMOTE_ADDR"))
 This is what a transport passes as `deps=` when it starts a run, and it is what
 replaced closing over the request. The difference matters beyond tidiness:
 
-- **The acting user binds natively.** `djangorestframework-pydantic-ai`'s
-  `SpecToolset` already defaults to reading `ctx.deps.user`, so spec tools act
+- **The acting user binds natively.** The `SpecToolset` in
+  `django_spec_agents.spec_tools` already defaults to reading `ctx.deps.user`, so spec tools act
   as the right user with nothing passed at the call site.
 - **The agent stops being request-shaped.** A capability that closes over a
   request can only serve that request, which forces a rebuild — schemas and all
@@ -155,7 +155,7 @@ the peer" is core.**
 | --- | --- |
 | `AgentConfig`, model / settings / retries resolution, the factory escape hatch | **core** |
 | `ToolRegistry` + `@tool` + typed schema derivation | **core** |
-| External toolsets and capabilities; the `[drf-mcp]` and `[spec-tools]` bridges | **core** (optional extras) |
+| External toolsets and capabilities; the `[drf-mcp]` and `[specs]` bridges | **core** (optional extras) |
 | The `AuditLogger` protocol and the tool guard | **core** |
 | `ConversationStore` / `AttachmentStore` protocols, `contrib.store` models | **core** |
 | An HTTP view, an SSE encoder, a wire adapter, `.urls` | **a transport** |
