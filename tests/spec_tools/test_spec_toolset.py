@@ -3515,7 +3515,7 @@ async def test_a_declared_query_param_still_reaches_the_spec_alongside_it():
 
 @pytest.mark.django_db
 def test_one_configured_request_is_not_shared_between_two_dispatches():
-    """Pins ``djangorestframework-services>=0.44``; lowering the floor fails here.
+    """Pins a guarantee of the declared drf-services floor; lowering it fails here.
 
     ``http_request=`` captures one object for the toolset's lifetime, and
     ``call_tool`` dispatches through ``sync_to_async``, so two concurrent runs
@@ -3903,8 +3903,8 @@ async def test_a_build_context_override_reaches_a_condition_at_listing_time():
 async def test_a_condition_is_asked_on_the_toolsets_own_dispatch_thread():
     """``thread_sensitive`` and ``executor`` govern the listing as they do the call.
 
-    A condition stands in front of the call it gates, so a deployment that moved
-    dispatch off asgiref's shared thread has moved its conditions with it.
+    A condition stands in front of the call it gates, so a deployment that moves
+    dispatch off asgiref's shared thread moves its conditions with it.
     """
     threads: list[str] = []
 
@@ -4725,8 +4725,8 @@ def test_a_providers_return_annotation_decides_what_the_model_is_asked_for(
     ``ceiling`` stays offered beside ``_scope_with_an_unresolvable_key`` while
     the parameters nothing fills stay required; a parameter's annotation says
     nothing about the keys, so ``_scope_for_an_unresolvable_view`` reads as
-    ``_scope`` does. Both rows used to read the whole provider as untyped,
-    which offered every name and required none.
+    ``_scope`` does. Neither row reads the whole provider as untyped, which
+    would offer every name and require none.
 
     The reader is drf-services' ``provider_keys``; this holds what the toolset
     makes of its answer, on the schema the model reads.
@@ -4832,8 +4832,8 @@ async def test_an_annotation_imported_only_for_type_checking_leaves_the_keys_rea
     keys, and ``tenant`` is filled. A key whose own value does not resolve might
     be one the provider declines, so ``tenant`` stays offered, optional.
 
-    One unresolvable annotation used to make the whole provider untyped: the
-    model was offered ``tenant`` beside the first, and ``pk`` was required by
+    One unresolvable annotation does not make the whole provider untyped, which
+    would offer the model ``tenant`` beside the first and require ``pk`` of
     neither.
     """
     toolset = SpecToolset({"read": _invoice_spec(get_invoice, provider)})
@@ -4902,9 +4902,9 @@ async def test_a_key_the_provider_may_decline_stays_the_models_to_send(args, row
     not one the toolset fills. It stays advertised, since the model may be the
     one to send it, and optional, since the provider may fill it instead.
 
-    Counted as filled, it was dropped from the schema, so a model never told
-    about ``ceiling`` left it out and a decline reached the selector as
-    ``TypeError``. Holds the declinable keys in ``_selector_inputs``: required
+    Counted as filled, it would be dropped from the schema, so a model never
+    told about ``ceiling`` would leave it out and a decline would reach the
+    selector as ``TypeError``. Holds the declinable keys in ``_selector_inputs``: required
     for lacking a default, the ``filled`` call would be refused for ``ceiling``.
     """
     toolset = SpecToolset(
@@ -4945,9 +4945,8 @@ async def test_a_parameter_neither_the_provider_nor_the_model_fills_is_asked_for
     drf-services' words for a missing field, ``ceiling: This field is
     required.``.
 
-    This used to be the selector's ``TypeError`` out of the run, which is what
-    the docs then advised a default against. The retry is what a model can act
-    on: a resend carrying ``ceiling`` is served, and a default still answers the
+    The retry, not the selector's ``TypeError`` out of the run, is what a model
+    can act on: a resend carrying ``ceiling`` is served, and a default still answers the
     call without one.
     """
     toolset = SpecToolset(
@@ -5197,8 +5196,8 @@ async def test_a_key_a_precondition_hides_is_not_advertised_beside_the_lookup():
     """A key one callable in the call marks ``NotClientInput`` is the server's for
     the whole call: dispatch drops the caller's value before the lookup reads
     it, and ``REJECT`` refuses it. The lookup names ``tenant`` plainly, so its
-    own reflection offers it, and the toolset used to merge it in, advertising an
-    argument every call carrying it was refused for.
+    own reflection offers it; merged in, it would advertise an argument every
+    call carrying it is refused for.
 
     Holds the subtraction of ``server_owned_keys`` in ``_caller_schema``.
     """
@@ -5318,7 +5317,7 @@ def names_in_range(user, low, high):
     ids=["one", "several"],
 )
 async def test_a_selector_call_missing_a_required_argument_is_handed_back(spec, args, missing):
-    """It used to reach the selector, which raised ``TypeError`` out of the run.
+    """Handed back, not passed to the selector to raise ``TypeError`` out of the run.
 
     The same answer, worded the same way, as a required ``UrlKwarg`` the model
     leaves out: a retry naming every missing argument, so one turn fixes them all.
@@ -5332,7 +5331,7 @@ async def test_a_selector_call_missing_a_required_argument_is_handed_back(spec, 
 
 
 async def test_a_service_call_missing_its_lookup_is_handed_back():
-    """``get_any_widget()`` used to raise ``TypeError`` out of the run instead."""
+    """Handed back, not passed to ``get_any_widget()`` to raise ``TypeError``."""
     toolset = SpecToolset({"rename": _update_spec()})
 
     with pytest.raises(ModelRetry) as raised:
@@ -5457,11 +5456,9 @@ async def test_a_list_result_is_a_page_not_a_bare_list():
 
 @pytest.mark.django_db
 def test_a_truncated_page_says_that_it_was_truncated():
-    """The defect stated as its symptom.
-
-    Asking for a collection used to return ``limit`` rows and nothing at all
-    about the rest, so a model answered "there are 2 widgets" from a page of 2
-    out of 5 -- confidently, and with no way to find out otherwise.
+    """``limit`` rows and nothing at all about the rest would have a model answer
+    "there are 2 widgets" from a page of 2 out of 5 -- confidently, and with no
+    way to find out otherwise.
     """
     user = User.objects.create(username="u")
     for n in range(5):
@@ -5700,8 +5697,8 @@ async def test_a_retrieve_tool_advertises_the_bare_item():
     ("allow_none", "root_type"), [(True, ["object", "null"]), (False, "object")]
 )
 async def test_a_retrieve_tool_says_whether_it_can_return_null(allow_none, root_type):
-    """An ``allow_none`` retrieve that finds nothing returns ``None``, which the
-    schema used to deny by declaring an object.
+    """An ``allow_none`` retrieve that finds nothing returns ``None``, which a
+    schema declaring an object alone would deny.
 
     The ``False`` case holds ``spec.allow_none`` in ``_return_schema``: passed
     unconditionally, every retrieve tool would admit a ``null`` it never returns.
@@ -6191,9 +6188,9 @@ def _refused_spec() -> ServiceSpec:
 
 
 async def test_a_refused_call_fails_with_its_reason_and_its_code():
-    """Through ``call_tool``, the path a run takes. The message used to be the
-    reason alone, with ``books_closed`` reachable only on ``__cause__``; the cause
-    is kept, because that is where a program reads the code from."""
+    """Through ``call_tool``, the path a run takes. The message carries the code
+    beside the reason, and the cause is kept as well, because that is where a
+    program reads the code from."""
     toolset = SpecToolset({"close_books": _refused_spec()})
 
     with pytest.raises(ToolFailed) as caught:
@@ -6628,11 +6625,9 @@ def test_a_dispatch_leaves_a_connection_it_did_not_open_alone() -> None:
 
 # --- the back half of a call is overridable ----------------------------------
 #
-# 0.14.0 made argument intake through dispatch overridable and stopped there, so
-# everything after the dispatch returned -- pagination, rendering, the resolved-
-# data pool, the byte bound -- stayed module-level privates reached from a
-# module-level function. A project wanting to change one of them had to replace
-# ``call_tool`` wholesale or nothing at all.
+# Everything after the dispatch returns -- pagination, rendering, the resolved-
+# data pool, the byte bound -- is a seam as argument intake is, so a project
+# changing one of them need not replace ``call_tool`` wholesale.
 
 
 def test_the_run_context_double_carries_every_field_the_package_reads():
@@ -6801,13 +6796,11 @@ async def test_permission_denial_log_line_carries_run_correlation(caplog):
 
 # --- the dispatch carrier and the two remaining log sites ---------------------
 #
-# ``output_extras`` documents ``DispatchResult.service_result`` as the thing it
-# deliberately withholds, and offers an override as the escape hatch. The
-# override could not reach it either: ``_call_spec`` read three fields off the
-# dispatch result and let the carrier go. These cover the carrier arriving, the
-# break an override written against the older signature now takes, the two log
-# sites that had no run correlation, and the derived instructions being built
-# once rather than per model step.
+# ``output_extras`` withholds ``DispatchResult.service_result`` by default and
+# offers an override as the escape hatch, so the override is handed the whole
+# carrier. These cover the carrier arriving, the break an override written
+# without it takes, run correlation on the two remaining log sites, and the
+# derived instructions being built once rather than per model step.
 
 
 def upsert_widget(data, user):
@@ -6877,7 +6870,8 @@ async def test_output_extras_reaches_the_dispatch_result_carrier():
 
 @pytest.mark.django_db(transaction=True)
 async def test_an_override_predating_the_carrier_breaks_loudly():
-    """The 0.23.0 signature raises, and taking that break is the whole point.
+    """An override without the carrier argument raises, and taking that break is
+    the whole point.
 
     The alternative -- read the override's signature at construction and widen
     the call only where it fits -- reads as kindness and is not. The answer is
@@ -7005,8 +6999,8 @@ async def test_an_instructions_override_never_derives_at_all():
 # A read-shaping param is the one caller input read while the output renders
 # rather than while the call dispatches: a ``fields`` or ``query`` selection is
 # parsed inside the output serializer's ``to_representation``. So a selection it
-# rejects fails after the dispatch arms have closed, and used to end the run with
-# a raw DRF ``ValidationError``. These pin what the model gets back instead, and
+# rejects fails after the dispatch arms have closed, where a raw DRF
+# ``ValidationError`` would end the run. These pin what the model gets back, and
 # the cases where nothing it sent could have caused the error and the error stays
 # loud. The toolset never reads the value, so the producers are mixed on purpose:
 # real django-restql, the strict selector most likely to be in use, and a
