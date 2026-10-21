@@ -1,6 +1,6 @@
 # Polymorphic actions as tools
 
-drf-services 0.25 added `PolymorphicServiceSpec` — one action that accepts
+drf-services offers `PolymorphicServiceSpec` — one action that accepts
 *N* mutually exclusive payload shapes and picks a variant at dispatch time
 from a `discriminator` callable reading the request body. It earns its keep on
 HTTP, where a URL is a scarce, addressable resource and one endpoint accepting

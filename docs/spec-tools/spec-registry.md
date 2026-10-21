@@ -10,7 +10,7 @@ so the list gets written once per transport and the copies drift — a spec is
 added to the MCP wiring and forgotten in the agent's, or the same operation is
 named `create_order` in one place and something else in the other.
 
-`SpecRegistry` (`djangorestframework-services` 0.27+) is the one declaration
+`SpecRegistry` is the one declaration
 site. `SpecToolset` and `SpecCapability` accept one **anywhere they accept a
 mapping** — there is no separate constructor to learn.
 
@@ -275,9 +275,9 @@ registry.register(
 SpecToolset(registry.by_tag("read"))
 ```
 
-A `UrlKwarg(default=...)` used to keep a value the model should not choose was
-only ever a default: the model could override it, and it stayed advertised.
-That use moves to [`tool_server_arguments`](#arguments-the-server-supplies).
+A `UrlKwarg(default=...)` is only a default: the model can override it, and it
+stays advertised. To keep a value the model should not choose, use
+[`tool_server_arguments`](#arguments-the-server-supplies).
 
 ## Names
 
