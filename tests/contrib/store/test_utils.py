@@ -55,12 +55,9 @@ def _attachment(
     return row
 
 
-def test_hash_file_matches_hashlib() -> None:
-    assert hash_file(ContentFile(b"hello")) == hashlib.sha256(b"hello").hexdigest()
-
-
-def test_hash_file_of_an_empty_file() -> None:
-    assert hash_file(ContentFile(b"")) == hashlib.sha256(b"").hexdigest()
+@pytest.mark.parametrize("content", [b"hello", b""], ids=["small", "empty"])
+def test_hash_file_matches_hashlib(content: bytes) -> None:
+    assert hash_file(ContentFile(content)) == hashlib.sha256(content).hexdigest()
 
 
 def test_hash_file_reads_a_large_file_in_chunks() -> None:
