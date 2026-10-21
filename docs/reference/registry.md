@@ -38,11 +38,26 @@ Each lives in its own module under `django_spec_agents.types` and is importable
 from the package root.
 
 ::: django_spec_agents.types.x_destructive_key
+    options:
+      members:
+        - X_DESTRUCTIVE_KEY
 
 ::: django_spec_agents.types.x_category_key
+    options:
+      members:
+        - X_CATEGORY_KEY
 
 ::: django_spec_agents.types.x_confirm_key
+    options:
+      members:
+        - X_CONFIRM_KEY
 
 ::: django_spec_agents.types.x_summary_key
+    options:
+      members:
+        - X_SUMMARY_KEY
 
 ::: django_spec_agents.types.destructive_metadata_key
+    options:
+      members:
+        - DESTRUCTIVE_METADATA_KEY

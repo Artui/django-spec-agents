@@ -20,11 +20,12 @@ the connection first:
 
 What it does not rename are the objects Django named from the old tables without a
 name in the model: the index on ``StoredAttachment.file`` (and its ``_like`` twin on
-PostgreSQL), ``ConversationAttachment``'s two foreign-key indexes and constraints,
-each table's primary key and PostgreSQL's identity sequences. Django finds those by
-introspecting columns on a later alter, so the old names are harmless to it. On
-SQLite a constraint can only change by remaking its table, so the seven tables with
-a constraint come out with every name derived afresh.
+PostgreSQL), the check constraint on ``StoredAttachment.size``,
+``ConversationAttachment``'s two foreign-key indexes and constraints, each table's
+primary key and PostgreSQL's identity sequences. Django finds those by introspecting
+columns on a later alter, so the old names are harmless to it. On SQLite a
+constraint can only change by remaking its table, so there every name comes out
+new.
 
 Unapplying it renames everything back and records the old app's five migrations
 again, which is the schema django-pydantic-agent 0.20 to 0.28 expects, so a

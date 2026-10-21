@@ -3,7 +3,7 @@
 Three optional extras, all lazily imported — the base install stays slim and
 none of these dependencies is pulled unless configured.
 
-Two of them are **bridges**: `[spec-tools]` and `[drf-mcp]` expose an existing
+Two of them are **bridges**: `[specs]` and `[drf-mcp]` expose an existing
 DRF surface as agent tools, so you don't re-declare your API as `@tool`
 functions. Both make the agent act as the **logged-in user** — the request is
 carried into every call, so your existing permission checks apply exactly as they
@@ -16,17 +16,17 @@ tool-guard capabilities use.
 
 ## Which bridge?
 
-| | `[spec-tools]` | `[drf-mcp]` |
+| | `[specs]` | `[drf-mcp]` |
 | --- | --- | --- |
 | Path | `drf-services` spec → tool, in process | `drf-mcp-server` registry → toolset, in process |
 | Needs an MCP server | **No** | Yes (but no network hop) |
 | Use when | The agent is the consumer, and you have specs | You already run an MCP server and want the same tools in the agent |
 
 If you have `ServiceSpec` / `SelectorSpec` objects and no MCP server, take
-`[spec-tools]`. If you already run an MCP server for external clients, take
+`[specs]`. If you already run an MCP server for external clients, take
 `[drf-mcp]` and get the identical tool surface without standing up a second one.
 
-## `[spec-tools]` — specs as tools
+## `[specs]` — specs as tools
 
 ```bash
 pip install django-spec-agents[specs]
@@ -51,7 +51,7 @@ single-item service advertises the lookup its target is resolved through, so a
 tool changing one row names the `pk` that picks it. A call that leaves such an
 argument out is a `ModelRetry` naming it, ``Missing required argument(s): `pk`.``,
 so the model supplies it on the next turn rather than the run ending on the
-selector's `TypeError`. Both arrived in djangorestframework-pydantic-ai 0.33, and
+selector's `TypeError`. The `[specs]` route does both, and
 the `[drf-mcp]` route asks for the same arguments and retries the same omission
 from drf-mcp 0.50. The extra is floored where a parameter a `kwargs=` provider
 declines, and the model left out, is retried the same way rather than reaching
@@ -112,11 +112,11 @@ requires `pk` rather than calling it optional. A service tool also advertises
 the target lookup its row is resolved through, its `collection_selector_spec`
 when it declares one and its `instance_selector_spec` otherwise, so a tool
 changing one row names the `pk` that picks it. A `many=True` service reads no
-target and advertises no lookup. Both arrived in drf-mcp 0.50; `[spec-tools]`
-builds its schemas the same way from djangorestframework-pydantic-ai 0.33, so one
+target and advertises no lookup. Both arrived in drf-mcp 0.50; `[specs]`
+builds its schemas the same way, so one
 spec asks a model for the same arguments by either route. The extra is floored
 where drf-mcp refuses at registration a selector parameter it takes out of every
-call, as `[spec-tools]` refuses it when the toolset is built, so one spec is
+call, as `[specs]` refuses it when the toolset is built, so one spec is
 served by both routes or refused by both.
 
 ### A tool that cannot run now
@@ -140,7 +140,7 @@ see included, and on **every step**:
   - `close_books`: The books are closed.
 ```
 
-That is word for word what `[spec-tools]` says for the same spec, so the model
+That is word for word what `[specs]` says for the same spec, so the model
 is taught one sentence whichever way a spec is exposed. A server declaring no
 such condition adds nothing to the instructions and no thread hop per step.
 Nothing here is an authorization decision: the call enforces every condition,
@@ -163,7 +163,7 @@ model gets to recover:
   `Invalid arguments: {"a": ["A valid integer is required."]}` keeps it, since
   that message names nothing. Refused arguments include one a selector
   requires that the call left out, which the model reads as
-  ``Missing required argument(s): `pk`.``, word for word what `[spec-tools]`
+  ``Missing required argument(s): `pk`.``, word for word what `[specs]`
   raises for the same call, where below drf-mcp 0.50 the selector's `TypeError`
   ended the run. They also include a read-shaping `QueryParam` value (a
   `fields` selection, say) the output serializer refuses while rendering, which
@@ -190,12 +190,12 @@ The books are closed. (code: books_closed)
 The books are closed. (code: books_closed, step: void)
 ```
 
-The first line is word for word what `[spec-tools]` produces for the same
+The first line is word for word what `[specs]` produces for the same
 refusal raised in process, so a spec reads the same to the model whichever way
 it is exposed, and the code matches the one a row's `affordances` answer
 advertised. The suffix is written for the model and for a person reading the
 tool call; a program that needs the code reads it from drf-mcp's result, or on
-the `[spec-tools]` route off the exception through `translate_exception`, rather
+the `[specs]` route off the exception through `translate_exception`, rather
 than parsing it out of the sentence.
 
 Bridged tools also carry destructiveness into the [tool guard](policy.md): the
@@ -203,7 +203,7 @@ bridge maps each tool's `readOnlyHint` annotation onto `DESTRUCTIVE_METADATA_KEY
 
 A spec's own confirmation (`AdditionalInputRequired`) is the `input_required`
 retry above, which the model can answer itself, on this route and on
-`[spec-tools]` alike. It is not an approval gate: see
+`[specs]` alike. It is not an approval gate: see
 [what is gated, and what is not](policy.md#what-is-gated-and-what-is-not).
 
 ## `[harness]` — upstream capabilities

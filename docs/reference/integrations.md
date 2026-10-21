@@ -5,7 +5,7 @@ lazily imported and live under `django_spec_agents.integrations` rather than
 being re-exported at the package root, so the base install pulls neither
 dependency. See [Integrations](../integrations.md) for which to choose.
 
-## Spec tools (`[spec-tools]`)
+## Spec tools (`[specs]`)
 
 ### `build_spec_capability`
 

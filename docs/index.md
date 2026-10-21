@@ -1,4 +1,4 @@
-# django-pydantic-agent
+# django-spec-agents
 
 The settings-agnostic agent-host substrate shared by Django's Pydantic-AI
 transports.
