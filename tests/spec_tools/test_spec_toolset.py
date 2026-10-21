@@ -2133,7 +2133,7 @@ def test_render_supplies_the_request_in_the_serializer_context():
 
     Off the HTTP path there is no view to call ``get_serializer_context()`` on,
     so drf-services synthesizes the baseline (``request`` / ``format`` /
-    ``view``) from the offline pair. Without it this raised ``KeyError:
+    ``view``) from the offline pair. Without it this would raise ``KeyError:
     'request'`` on a serializer that works behind a view.
     """
 
@@ -2406,9 +2406,9 @@ def _three_widgets(user):
 def test_the_sort_argument_is_found_under_whatever_name_it_was_declared():
     """The name is the project's to choose, and nothing requires ``ordering``.
 
-    This used to test the literal string, so a FilterSet declaring ``sorting``
-    read as "owns no ordering" -- which dropped the usage instruction and, more
-    quietly, left the value in the callable's kwarg pool.
+    A check of the literal string would read a FilterSet declaring ``sorting``
+    as "owns no ordering" -- dropping the usage instruction and, more quietly,
+    leaving the value in the callable's kwarg pool.
     """
     assert _spec_ordering_argument(_sorting_list_spec()) == "sorting"
 
@@ -2421,14 +2421,13 @@ def test_a_plain_filter_is_not_mistaken_for_a_sort():
 
 @pytest.mark.django_db
 def test_a_renamed_sort_is_popped_out_of_the_callables_kwargs():
-    """The half nobody had found, and the one with a consequence.
+    """Popped, not merely applied.
 
-    With a filter named ``sorting`` the rows still came back correctly sorted --
-    ``filter_data`` stayed defaulted to ``params`` and the FilterSet reads
-    ``params`` either way. What was lost was the *pop*: the value stayed in the
-    selector's kwarg pool, so a selector declaring ``**kwargs`` received a
-    read-shaping argument it never asked for. Which is exactly the hazard
-    ``_pop_filter_ordering``'s own docstring describes for the ``ordering`` case.
+    The FilterSet reads ``params`` either way, so the rows would come back sorted
+    even with the value left in the selector's kwarg pool, where a selector
+    declaring ``**kwargs`` would receive a read-shaping argument it never asked
+    for: the hazard ``_pop_filter_ordering``'s docstring describes for the
+    ``ordering`` case.
     """
     seen: dict[str, object] = {}
 
@@ -2449,16 +2448,6 @@ def test_a_renamed_sort_is_popped_out_of_the_callables_kwargs():
     result = _dispatch(spec, user, {"sorting": "cost"})
 
     assert "sorting" not in seen, "the sort reached the selector as a surprise kwarg"
-    assert [w["name"] for w in _rows(result)] == ["b", "c", "a"]
-
-
-@pytest.mark.django_db
-def test_a_renamed_sort_still_orders_the_rows():
-    user = User.objects.create(username="u")
-    _three_widgets(user)
-
-    result = _dispatch(_sorting_list_spec(), user, {"sorting": "cost"})
-
     assert [w["name"] for w in _rows(result)] == ["b", "c", "a"]
 
 
@@ -2486,26 +2475,25 @@ def test_the_instruction_names_every_live_sort_argument():
 
 
 @pytest.mark.django_db
-def test_filter_owned_ordering_actually_orders_the_rows():
-    """The test that would have caught the original defect.
-
-    The FilterSet advertises ``ordering``, so the value has to reach it and the
+@pytest.mark.parametrize(
+    ("build", "args", "names"),
+    [
+        (_ordered_list_spec, {"ordering": "cost"}, ["b", "c", "a"]),
+        (_ordered_list_spec, {"ordering": "-cost"}, ["a", "c", "b"]),
+        (_sorting_list_spec, {"sorting": "cost"}, ["b", "c", "a"]),
+    ],
+    ids=["actually-orders-the-rows", "descends", "a-renamed-sort-still-orders-the-rows"],
+)
+def test_filter_owned_ordering_orders_the_rows(build, args, names):
+    """The FilterSet advertises its sort, so the value has to reach it and the
     rows have to come back sorted. Asserting the order rather than "no error" is
     the point — the failure being guarded against is a tool that answers
     cheerfully with rows in the wrong order.
     """
     user = User.objects.create(username="u")
     _three_widgets(user)
-    result = _dispatch(_ordered_list_spec(), user, {"ordering": "cost"})
-    assert [w["name"] for w in _rows(result)] == ["b", "c", "a"]
-
-
-@pytest.mark.django_db
-def test_filter_owned_ordering_descends():
-    user = User.objects.create(username="u")
-    _three_widgets(user)
-    result = _dispatch(_ordered_list_spec(), user, {"ordering": "-cost"})
-    assert [w["name"] for w in _rows(result)] == ["a", "c", "b"]
+    result = _dispatch(build(), user, args)
+    assert [w["name"] for w in _rows(result)] == names
 
 
 @pytest.mark.django_db
@@ -2542,7 +2530,7 @@ def test_an_ordering_outside_the_filters_choices_is_a_retry():
 
 
 async def test_the_advertised_ordering_enum_is_the_filters_own_vocabulary():
-    """drf-services 0.47 publishes a labelled ``ChoiceFilter`` as ``oneOf`` const
+    """drf-services publishes a labelled ``ChoiceFilter`` as ``oneOf`` const
     options rather than a bare ``enum``, so the filter's *labels* travel to the
     model beside its values. ``OrderingFilter`` is a ``ChoiceFilter``, so this is
     the shape a filter-owned sort takes. The vocabulary reaching the model is the
@@ -2624,16 +2612,12 @@ class _BogusTargetFilterSet(django_filters.FilterSet):
 
 @pytest.mark.django_db
 def test_a_sort_target_that_is_not_a_column_raises_rather_than_retrying():
-    """Pinned because it is easy to assume the opposite, and the toolset used to
-    look like it handled this.
+    """Pinned because it is easy to assume the opposite.
 
-    The removed ``ordering_fields`` knob applied its own ``queryset.order_by``
-    inside the pagination step, and a ``FieldError`` arm there turned that into a
-    ``ModelRetry``. A ``filter_set``-declared sort never reached that arm: Django
-    validates a plain-string ``order_by`` eagerly, so the FilterSet raises inside
-    ``dispatch_spec``, above it. The arm went with the knob it served, and this
-    path is exactly as it was — which is arguably right, since the model cannot
-    correct a mis-declared ``param_map`` by choosing a different sort.
+    Django validates a plain-string ``order_by`` eagerly, so the FilterSet raises
+    inside ``dispatch_spec`` and no arm turns the ``FieldError`` into a
+    ``ModelRetry`` -- which is arguably right, since the model cannot correct a
+    mis-declared ``param_map`` by choosing a different sort.
     """
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
@@ -2648,7 +2632,7 @@ def test_a_sort_target_that_is_not_a_column_raises_rather_than_retrying():
         _dispatch(spec, user, {"ordering": "broken"})
 
 
-# The guard on the strip this change narrows. drf-services spreads the *entire*
+# drf-services spreads the *entire*
 # pool into a selector declaring ``**kwargs`` ("if fn declares **kwargs, the
 # entire pool is passed"), so any transport arg left in ``params`` lands in the
 # callable's signature as an argument it never declared. That is why a
@@ -2712,7 +2696,7 @@ def test_the_transport_args_never_reach_a_kwargs_selector():
 
     # The FilterSet gets the filter args plus ordering, and *not* the pagination
     # args: ``filter_data`` is built after ``page`` / ``limit`` have been popped,
-    # so widening the ordering route did not widen what the FilterSet sees.
+    # so routing ``ordering`` there does not widen what the FilterSet sees.
     assert _FILTER_DATA_SEEN[-1] == {"min_price": "1", "ordering": "cost"}
 
 
