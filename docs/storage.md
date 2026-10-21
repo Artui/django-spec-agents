@@ -80,7 +80,7 @@ the same file is answered by reading the attachment again, server-side. That is
 why the default sits at 4 MiB rather than at whatever your upload endpoint
 accepts.
 
-To keep the old behaviour and never attach bytes:
+To never attach bytes:
 
 ```python
 toolset = build_attachment_toolset(
