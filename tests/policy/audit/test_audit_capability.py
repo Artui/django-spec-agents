@@ -1995,3 +1995,11 @@ async def test_a_before_or_after_hook_reaches_the_record_only_through_the_tool(
         (e.success, e.error, e.result_size, "[redacted]" in e.arguments_repr) for e in audit.events
     ]
     assert records == recorded
+
+
+def test_the_execution_context_variable_names_this_package() -> None:
+    # A ``ContextVar``'s name shows in a debugger and a ``repr`` and nowhere a
+    # project configures, so it follows the package rather than keeping the old
+    # spelling the two loggers keep.
+    capability = AuditCapability(_CapturingLogger())
+    assert capability._execution.name == "django_spec_agents.audit.execution"

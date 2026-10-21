@@ -15,7 +15,7 @@ class SpecSource(Protocol):
 
     It is matched structurally rather than imported, because this substrate
     depends on ``pydantic-ai-slim`` alone and drf-services arrives only with the
-    optional ``[spec-tools]`` extra. Naming ``SpecRegistry`` in a signature would
+    optional ``[specs]`` extra. Naming ``SpecRegistry`` in a signature would
     force that dependency on every install or bury the type behind a lazy import
     where a signature cannot reach it.
 

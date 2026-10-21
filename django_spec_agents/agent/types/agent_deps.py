@@ -18,7 +18,7 @@ class AgentDeps:
     Pydantic-AI's seam for threading request-scoped values into a run: tools,
     toolsets and capabilities read them off ``RunContext.deps`` instead of
     closing over a request, which is what lets one agent serve many requests.
-    ``djangorestframework-pydantic-ai``'s ``SpecToolset`` already reads
+    ``spec_tools``' ``SpecToolset`` already reads
     ``ctx.deps.user`` as its default user extractor, so a run given these deps
     binds the acting user with nothing passed at the call site.
 

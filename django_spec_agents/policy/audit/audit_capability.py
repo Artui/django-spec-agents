@@ -178,7 +178,7 @@ class AuditCapability(AbstractCapability[Any]):
         # ``TestModel`` repeats in every run. One per instance, so two audit
         # capabilities in one chain never read each other's.
         self._execution: ContextVar[_Execution | None] = ContextVar(
-            "django_pydantic_agent.audit.execution", default=None
+            "django_spec_agents.audit.execution", default=None
         )
 
     def get_ordering(self) -> CapabilityOrdering:

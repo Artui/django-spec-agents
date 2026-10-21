@@ -25,7 +25,7 @@ def _ctx(deps: AgentDeps) -> RunContext[AgentDeps]:
 
     These tests used a ``SimpleNamespace`` carrying only ``deps``, which is every
     field the code under test read at the time. It broke the moment
-    djangorestframework-pydantic-ai started stamping run correlation on its log
+    the spec tools started stamping run correlation on its log
     lines and reached for ``run_id`` / ``conversation_id`` / ``run_step`` /
     ``tool_call_id`` -- fields a real context has always had. A double describing
     less than the real producer agrees with the caller right up until the caller

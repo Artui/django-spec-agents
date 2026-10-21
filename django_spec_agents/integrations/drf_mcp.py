@@ -1,6 +1,6 @@
 """In-process bridge from a ``drf-mcp-server`` registry to a Pydantic-AI toolset.
 
-Requires the ``django-pydantic-agent[drf-mcp]`` extra, so consumers import this
+Requires the ``django-spec-agents[drf-mcp]`` extra, so consumers import this
 module lazily and the dependency on ``rest_framework_mcp`` stays optional.
 """
 
@@ -28,7 +28,7 @@ from django_spec_agents.constants import DESTRUCTIVE_METADATA_KEY
 _TOOL_ARGS_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
 
 # The heading of the per-step list of tools an unmet operation condition left
-# out, worded as ``djangorestframework-pydantic-ai`` words it for the spec-tools
+# out, worded as ``spec_tools`` words it for the spec-tools
 # route. A consumer can expose one spec either way, and the model is taught one
 # sentence for a missing operation; a test asserts it against that package's
 # real output, so a change on either side fails there rather than drifting.
@@ -72,7 +72,7 @@ class DRFMCPToolset(AbstractToolset[Any]):
     - protocol faults (auth, rate limits, an internal error) raise
       ``RuntimeError`` and abort the run.
 
-    The mapping is the one ``djangorestframework-pydantic-ai`` applies to the same
+    The mapping is the one ``spec_tools`` applies to the same
     exceptions raised in process, and a refusal reads identically through both:
     ``The books are closed. (code: books_closed)``.
 
@@ -339,7 +339,7 @@ def _failure_message(error: dict[str, Any]) -> str:
     While the error came back as a returned dict, ``code`` and ``failedStep`` were
     keys the model could read. ``ToolFailed`` carries a string and nothing else,
     so they ride as a suffix rather than being dropped. The ``(code: ...)`` form
-    is the one ``djangorestframework-pydantic-ai`` writes for the same refusal
+    is the one ``spec_tools`` writes for the same refusal
     raised in process, so a model reads one wording whichever route a tool
     arrived by, and can match it to the ``code`` a row's ``affordances`` answer
     advertised. It is written for the model and for a person reading the tool
@@ -359,7 +359,7 @@ def _missing_input_prompt(error: dict[str, Any]) -> str:
     """Compose the ``ModelRetry`` text for ``input_required``: the service's
     message, plus the names it wants the answer back under.
 
-    Worded as ``djangorestframework-pydantic-ai`` words the same request, for its
+    Worded as ``spec_tools`` words the same request, for its
     reason: ``requestedInput`` is a JSON-Schema *properties* mapping keyed by
     input name, the model is about to call the same tool again, and that tool's
     parameter schema already describes each argument. The names are what to add;

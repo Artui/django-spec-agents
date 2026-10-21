@@ -44,7 +44,7 @@ X_SUMMARY_KEY = "x-summary"
 # ``prepare_tools`` time for tools whose destructiveness the ``@tool`` registry
 # does not know, such as a drf-mcp tool whose ``readOnlyHint`` the bridge maps
 # onto this key.
-DESTRUCTIVE_METADATA_KEY = "django_pydantic_agent.destructive"
+DESTRUCTIVE_METADATA_KEY = "django_spec_agents.destructive"
 
 
 # The ``STORAGES`` alias attachment bytes are written through, when a project

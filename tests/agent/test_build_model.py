@@ -72,3 +72,11 @@ def test_uninferable_bare_model_points_at_provider_setting() -> None:
 def test_unknown_prefix_points_at_provider_setting() -> None:
     with pytest.raises(ImproperlyConfigured, match="provider"):
         build_model("bogus:model", api_key="k")
+
+
+def test_the_error_opens_with_the_packages_name() -> None:
+    # The prefix is how a reader of a deploy log tells which package refused the
+    # configuration, so it names the distribution a project installs.
+    with pytest.raises(ImproperlyConfigured) as raised:
+        build_model("bogus:model", api_key="k")
+    assert str(raised.value).startswith("django-spec-agents: could not build model 'bogus:model'")

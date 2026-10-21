@@ -125,7 +125,7 @@ class ToolFailurePolicy(AbstractCapability[Any]):
             # ``test_another_capabilitys_failed_result_is_not_converted``.
             raise error
         _logger.exception(
-            "django-pydantic-agent: tool %r failed; the run continues with a failed result",
+            "django-spec-agents: tool %r failed; the run continues with a failed result",
             tool_def.name,
             exc_info=error,
         )
@@ -147,7 +147,7 @@ def _denial_types() -> tuple[type[BaseException], ...]:
 
     Django's own and DRF's are unrelated classes — neither inherits from the
     other — and a Django project raises both, so covering one is covering half a
-    boundary. DRF is optional here (it arrives with the ``[spec-tools]`` and
+    boundary. DRF is optional here (it arrives with the ``[specs]`` and
     ``[drf-mcp]`` extras, and drf-services' off-HTTP permission check raises its
     ``PermissionDenied``), so its class is imported at call time and simply
     absent from the set in a slim install.

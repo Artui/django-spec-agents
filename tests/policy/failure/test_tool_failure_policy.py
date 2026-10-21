@@ -425,7 +425,7 @@ async def test_a_tools_own_retry_with_no_budget_left_is_converted_into_a_failed_
     ]
     assert [
         r.getMessage() for r in caplog.records if r.name == "django_pydantic_agent.failure"
-    ] == ["django-pydantic-agent: tool 'boom' failed; the run continues with a failed result"]
+    ] == ["django-spec-agents: tool 'boom' failed; the run continues with a failed result"]
     [event] = audit.events
     assert event.success is False
     assert event.error.startswith(

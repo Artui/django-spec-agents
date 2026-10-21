@@ -22,3 +22,11 @@ def test_extension_keys() -> None:
     assert X_CATEGORY_KEY == "x-category"
     assert X_CONFIRM_KEY == "x-confirm"
     assert X_SUMMARY_KEY == "x-summary"
+
+
+def test_the_destructive_metadata_key_names_this_package() -> None:
+    # In-process only: it rides ``ToolDefinition.metadata`` between a bridge and
+    # ``ToolGuard`` and is never stored, so it follows the package's name.
+    from django_spec_agents import DESTRUCTIVE_METADATA_KEY
+
+    assert DESTRUCTIVE_METADATA_KEY == "django_spec_agents.destructive"

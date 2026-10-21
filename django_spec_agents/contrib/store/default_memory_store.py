@@ -88,7 +88,7 @@ class DefaultMemoryStore:
 
     Add ``"django_spec_agents.contrib.store"`` to ``INSTALLED_APPS`` and run
     ``migrate`` for the backing tables. Requires the
-    ``django-pydantic-agent[harness]`` extra.
+    ``django-spec-agents[harness]`` extra.
     """
 
     def __init__(
