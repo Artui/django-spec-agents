@@ -782,11 +782,7 @@ class SpecToolset(AbstractToolset[Any]):
         self._executor = executor
         overrides: Mapping[str, int | None] = tool_max_result_bytes or {}
         for tool_name in overrides:
-            if tool_name not in self._specs:
-                raise ValueError(
-                    f"tool_max_result_bytes references unknown tool {tool_name!r}; "
-                    f"known tools: {sorted(self._specs)}."
-                )
+            _refuse_an_unknown_tool("tool_max_result_bytes", tool_name, self._specs)
         self._tool_max_result_bytes: dict[str, int | None] = {
             # ``.get`` with the toolset default, so a stored ``None`` wins over
             # it: an explicit "no ceiling here" is not an absent key.
@@ -1086,23 +1082,18 @@ class SpecToolset(AbstractToolset[Any]):
         ``_specs`` after the first ``get_instructions`` is describing tools the
         block will not mention. Nothing in this package mutates it, and the
         public ``specs`` property is read-only precisely so nothing outside can.
+
+        Derived by the method the per-step memo wraps, called directly so the
+        full set is kept here rather than in that memo.
         """
-        return _derive_instructions(
-            self._specs,
-            {name: self._offered_query_params(name) for name in self._specs},
-            self._projections,
-            registry=self._json_schema_registry,
-            page_size=_served_page_size(self._max_page_size),
-            pool_seeds=self._pool_seeds,
-            conventions=self._conventions,
-        )
+        return self._derive_instructions_without(frozenset())
 
     def _derive_instructions_without(self, omitted: frozenset[str]) -> str | None:
         """The conventions block for the tools a step offers, ``omitted`` aside.
 
         Reached through ``_instructions_without``, the per-instance memo
-        ``__init__`` wraps it in, and only when some tool *is* omitted -- the
-        full set is ``_derived_instructions``, cached for the toolset's life.
+        ``__init__`` wraps it in, when some tool *is* omitted, and directly by
+        ``_derived_instructions`` for the full set, cached for the toolset's life.
         The lines naming what was omitted are not part of it: they carry each
         tool's ``reason``, and rendering them per step keeps this memo a
         function of which tools are offered and nothing else.
@@ -1704,10 +1695,7 @@ def _validate_descriptions(
     undescribed tool degrades an answer, an unguarded one exposes data.
     """
     for tool_name in descriptions or {}:
-        if tool_name not in specs:
-            raise ValueError(
-                f"descriptions references unknown tool {tool_name!r}; known tools: {sorted(specs)}."
-            )
+        _refuse_an_unknown_tool("descriptions", tool_name, specs)
     resolved: dict[str, str] = {}
     blank: list[str] = []
     for name, spec in specs.items():
@@ -1727,6 +1715,14 @@ def _validate_descriptions(
             stacklevel=3,
         )
     return resolved
+
+
+def _refuse_an_unknown_tool(knob: str, tool_name: str, specs: Mapping[str, Spec]) -> None:
+    """``ValueError`` when a per-tool mapping's key names a tool this toolset does not expose."""
+    if tool_name not in specs:
+        raise ValueError(
+            f"{knob} references unknown tool {tool_name!r}; known tools: {sorted(specs)}."
+        )
 
 
 def _validate_tool_names(specs: Mapping[str, Spec]) -> None:
@@ -1759,11 +1755,7 @@ def _validate_server_arguments(
     """
     bindings = dict(tool_server_arguments or {})
     for tool_name, server in bindings.items():
-        if tool_name not in specs:
-            raise ValueError(
-                f"tool_server_arguments references unknown tool {tool_name!r}; "
-                f"known tools: {sorted(specs)}."
-            )
+        _refuse_an_unknown_tool("tool_server_arguments", tool_name, specs)
         with _refusals_name_the_tool(tool_name):
             check_server_arguments(specs[tool_name], server, pool_seeds=pool_seeds)
     return bindings
