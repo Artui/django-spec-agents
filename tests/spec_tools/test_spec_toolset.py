@@ -1299,9 +1299,8 @@ async def test_query_param_default_appears_in_schema():
 
 
 def test_reserved_query_param_name_is_rejected():
-    # ``ImproperlyConfigured`` since 0.9.0: reserved-name checking moved to
-    # drf-services' shared validator, so one exception type now covers every bad
-    # declaration instead of ValueError-for-pagination / something-else-for-seeds.
+    # Reserved-name checking is drf-services' shared validator, so one exception
+    # type covers every bad declaration, pagination names and seeds alike.
     with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
         SpecToolset(
             reading({"list_widgets": list_spec()}, {"list_widgets": [QueryParam("ordering")]})
@@ -1324,15 +1323,15 @@ def recent_entries(*, page: int = 1, limit: int = 10):
 def test_a_list_selector_parameter_named_page_is_refused():
     """A list tool's ``page`` and ``limit`` are its pagination arguments, popped
     before dispatch, so a selector parameter of either name never receives what
-    the model sent. Advertised as required, every call died on a ``TypeError``
-    naming the argument the model had just sent.
+    the model sent. Advertised as required, every call would die on a
+    ``TypeError`` naming the argument the model had just sent.
     """
     with pytest.raises(ImproperlyConfigured, match=r"tool 'log'.*parameter\(s\) \['page'\]"):
         SpecToolset({"log": _name_list_spec(page_of_log)})
 
 
 def test_a_defaulted_page_parameter_is_refused_too():
-    """The shape that passed silently: each call ran on the selector's defaults,
+    """The shape that would pass silently: each call would run on the selector's defaults,
     ``page=1, limit=10``, whatever page and size the model asked for. Both names
     are listed, in one refusal.
     """
@@ -1376,9 +1375,7 @@ async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both
     declaration of where that parameter comes from, not a shadow of it. Neither
     route makes it a channel of the toolset's: the parameter is advertised once,
     as the selector declares it, and its value stays in the call for
-    drf-services, which hands it to the selector and the query string both. The
-    registry route used to refuse the spec, reading the entry's read as a
-    ``QueryParam`` of its own.
+    drf-services, which hands it to the selector and the query string both.
     """
     registry = SpecRegistry()
     registry.register(
@@ -1566,8 +1563,7 @@ async def test_agent_run_recovers_from_model_retry():
 # the exception, and the whole point of raising rather than returning is the
 # ``outcome`` it produces on the resulting ``ToolReturnPart``. That field is what
 # a transport forwards, so a test asserting only the message would keep passing
-# if the marking regressed to ``"success"`` -- which is the exact defect this
-# replaced.
+# if the marking regressed to ``"success"``.
 
 
 def _tool_return(result: Any) -> ToolReturnPart:
@@ -1597,8 +1593,8 @@ async def _run_one_tool(
 
 
 async def test_a_business_failure_marks_the_tool_return_failed():
-    """The defect in one assertion: a ``ServiceError`` used to reach the wire as
-    a *successful* call whose payload happened to read like a refusal."""
+    """A ``ServiceError`` reaches the wire as a failed call, never as a
+    *successful* one whose payload happens to read like a refusal."""
     result = await _run_one_tool(
         ServiceSpec(service=boom, permission_classes=[AllowAny], atomic=False)
     )
@@ -1690,9 +1686,7 @@ async def test_a_result_over_the_ceiling_marks_the_tool_return_failed():
 
 
 async def test_an_exception_map_handler_that_returns_a_value_still_succeeds():
-    """The consumer seam is unchanged, and so is its marking.
-
-    ``exception_map`` is documented as returning *the tool's result*, and a
+    """``exception_map`` is documented as returning *the tool's result*, and a
     returned value is what pydantic-ai marks ``"success"``. A project using the
     seam to turn an exception into an ordinary answer -- a "nothing matched" it
     would rather express as an empty payload than as a refusal -- keeps getting
@@ -1752,8 +1746,8 @@ def test_reject_refuses_a_key_outside_a_filter_sets_surface():
     """A ``filter_set``'s filters are declared names like a parameter is, so the
     set they make is closed: a key outside the filters and the selector's own
     parameters is refused under ``REJECT`` like any invented key. Holds the
-    ``unknown_arguments`` docstring and the quickstart, which used to call a
-    ``filter_set`` spec's input set open and so unaffected."""
+    ``unknown_arguments`` docstring and the quickstart to calling that set
+    closed."""
     with pytest.raises(ModelRetry, match=r"^Unexpected argument\(s\): 'colour'\.$"):
         _dispatch(_filtered_list_spec(), User(username="u"), {"colour": "red"})
 
@@ -1772,8 +1766,7 @@ _OPEN_SELECTOR_CALLS: list[dict[str, Any]] = []
 def test_a_bare_kwargs_selector_refuses_nothing_and_is_handed_nothing(policy):
     """A bare ``**kwargs`` declares no name, so there is nothing to hold a key
     against and neither policy refuses one -- and nothing undeclared reaches
-    the callable either, which is the half the docstring used to leave out by
-    calling such a spec unaffected."""
+    the callable either."""
     _OPEN_SELECTOR_CALLS.clear()
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
@@ -2059,7 +2052,7 @@ def test_dual_declared_url_kwarg_delivers_to_the_selector_pool():
     assert [w["name"] for w in _rows(result)] == ["cheap"]
 
 
-# --- required URL kwargs (drf-services 0.28) ---------------------------------
+# --- required URL kwargs -----------------------------------------------------
 
 
 async def test_required_url_kwarg_is_advertised_as_required():
@@ -2104,11 +2097,11 @@ def test_required_url_kwarg_with_a_default_is_rejected():
         )
 
 
-# The toolset's own wording for refusals it used to make of a mount's channel
-# declarations. A spec cannot make any of these declarations unrefused, so the
-# toolset no longer checks for them; each case below is refused one layer down,
-# and must not be answered in these words.
-_THE_TOOLSETS_OLD_REFUSALS = (
+# Wording for refusals of a mount's channel declarations that the toolset does not
+# make: a spec cannot make any of these declarations unrefused, so the toolset
+# carries no check for them. Each case below is refused one layer down, and must
+# not be answered in these words.
+_REFUSALS_THE_TOOLSET_DOES_NOT_MAKE = (
     "takes its list under the argument",
     "that the tool also declares as a QueryParam",
     "cannot route to two channels",
@@ -2164,7 +2157,7 @@ def test_a_read_no_spec_can_declare_is_refused_before_the_toolset_checks_it(buil
     with pytest.raises(ImproperlyConfigured, match=refusal) as raised:
         build()
 
-    assert not any(old in str(raised.value) for old in _THE_TOOLSETS_OLD_REFUSALS)
+    assert not any(wording in str(raised.value) for wording in _REFUSALS_THE_TOOLSET_DOES_NOT_MAKE)
 
 
 # --- DRF's baseline serializer context ---------------------------------------
