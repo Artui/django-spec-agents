@@ -146,10 +146,10 @@ def streaming_tool_calling_model(
             # one delta is a valid stream a reassembling client handles the same
             # way.
             yield {0: DeltaToolCall(name=part.tool_name, json_args=part.args_as_json_str())}
-        elif isinstance(part, TextPart):
-            yield part.content
-        else:  # pragma: no cover - `_next_response` emits only these two.
-            raise AssertionError(f"the double produced an unstreamable part: {part!r}")
+            return
+        # `_next_response` emits only these two parts.
+        assert isinstance(part, TextPart), f"the double produced an unstreamable part: {part!r}"
+        yield part.content
 
     return FunctionModel(model_fn, stream_function=stream_fn)
 
