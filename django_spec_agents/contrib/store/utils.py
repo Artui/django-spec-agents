@@ -5,12 +5,28 @@ from collections.abc import Iterable
 
 from django.core.files.base import File
 from django.db.models import QuerySet
+from django.http import HttpRequest
 
 from django_spec_agents.contrib.store.models import StoredAttachment
 from django_spec_agents.contrib.store.types.attachment_deletion import AttachmentDeletion
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.utils import resolve_owner_id
 
 # 64 KiB: Django's own default read size for a ``File``.
 _CHUNK_SIZE = 64 * 1024
+
+
+def owner_or_none(request: HttpRequest, *, allow_anonymous: bool) -> str | None:
+    """The resolved owner id, or ``None`` where ``resolve_owner_id`` refuses.
+
+    For the harness-protocol stores, whose hooks fire mid-run: refusing an
+    anonymous request by raising there would abort the run, so they degrade on
+    ``None`` instead.
+    """
+    try:
+        return resolve_owner_id(request, allow_anonymous=allow_anonymous)
+    except AnonymousOperationError:
+        return None
 
 
 def hash_file(handle: File) -> str:

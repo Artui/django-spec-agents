@@ -34,9 +34,9 @@ def resolve_owner_id(request: HttpRequest, *, allow_anonymous: bool) -> str:
     Call this **inside** a sync context — the model stores wrap it in
     ``sync_to_async`` — because the anonymous branch may write a session row.
     """
-    user = getattr(request, "user", None)
-    if user is not None and getattr(user, "is_authenticated", False):
-        return str(user.pk)
+    owner_id = owner_id_for(request)
+    if owner_id is not None:
+        return owner_id
     if not allow_anonymous:
         raise AnonymousOperationError(
             "Anonymous requests are refused by this store. Authenticate the "
@@ -44,10 +44,19 @@ def resolve_owner_id(request: HttpRequest, *, allow_anonymous: bool) -> str:
             "or construct the store with allow_anonymous=True to bucket "
             "anonymous users by browser session."
         )
+    return f"anon:{session_key_for(request)}"
+
+
+def session_key_for(request: HttpRequest) -> str:
+    """The request's session key, creating the session if the browser has none.
+
+    Writes a session row on that first call, so it belongs off the event loop
+    like ``resolve_owner_id``.
+    """
     session = request.session
     if session.session_key is None:
         session.create()
-    return f"anon:{session.session_key}"
+    return str(session.session_key)
 
 
 def derive_title(messages: list[Any]) -> str:
@@ -113,6 +122,10 @@ __all__ = [
 # that never installs it. The memory namespace tests check the result against the
 # real ``validate_store_path`` when the extra is present.
 _SAFE_SEGMENT_RE = re.compile(r"[A-Za-z0-9_.-]{1,200}")
+
+# The prefix both memory namespace resolvers put before a user's pk, so one
+# user resolves to the same namespace whichever of them a host uses.
+USER_NAMESPACE_PREFIX = "u-"
 
 # Long enough that two distinct identifiers colliding is not a threat model,
 # short enough to leave room under the 200-character segment limit for a prefix.

@@ -21,8 +21,7 @@ from django_spec_agents.contrib.store.models import (
     StoredStepEvent,
     StoredToolEffect,
 )
-from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
-from django_spec_agents.persistence.utils import resolve_owner_id
+from django_spec_agents.contrib.store.utils import owner_or_none
 
 
 class DefaultStepStore:
@@ -115,10 +114,7 @@ class DefaultStepStore:
 
     def _owner(self) -> str | None:
         """The resolved owner id, or ``None`` when an anonymous request is refused."""
-        try:
-            return resolve_owner_id(self._request, allow_anonymous=self._allow_anonymous)
-        except AnonymousOperationError:
-            return None
+        return owner_or_none(self._request, allow_anonymous=self._allow_anonymous)
 
     def _register_run(self, record: RunRecord) -> None:
         owner = self._owner()

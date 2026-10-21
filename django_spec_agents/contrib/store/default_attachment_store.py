@@ -120,9 +120,7 @@ class DefaultAttachmentStore(ModelAttachmentStore):
         return AttachmentRef(id=attachment_id, name=name, mime=mime, size=size)
 
     def _open(self, attachment_id: str, owner_id: str | None) -> OpenedAttachment | None:
-        row = StoredAttachment.objects.filter(
-            owner_id=owner_id or "", attachment_id=attachment_id
-        ).first()
+        row = _owned_row(attachment_id, owner_id)
         if row is None:
             return None
         # Hand back the open storage handle rather than reading the file: both
@@ -169,12 +167,17 @@ class DefaultAttachmentStore(ModelAttachmentStore):
         point at one stored file, and taking it with the first would leave the
         second resolving to nothing.
         """
-        row = StoredAttachment.objects.filter(
-            owner_id=owner_id or "", attachment_id=attachment_id
-        ).first()
+        row = _owned_row(attachment_id, owner_id)
         if row is None:
             return
         delete_attachments([row])
+
+
+def _owned_row(attachment_id: str, owner_id: str | None) -> StoredAttachment | None:
+    """The owner's row for ``attachment_id``; anonymous is stored as ``""``."""
+    return StoredAttachment.objects.filter(
+        owner_id=owner_id or "", attachment_id=attachment_id
+    ).first()
 
 
 def _basename(name: str | None) -> str:

@@ -16,8 +16,7 @@ from pydantic_ai_harness.memory import (
 )
 
 from django_spec_agents.contrib.store.models import StoredMemory, StoredMemoryOperation
-from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
-from django_spec_agents.persistence.utils import resolve_owner_id
+from django_spec_agents.contrib.store.utils import owner_or_none
 
 # The two literal fence tags the harness wraps injected memory in
 # (``memory._capability._MEMORY_DATA_PREFIX`` / ``_SUFFIX``). Matched with
@@ -201,10 +200,7 @@ class DefaultMemoryStore:
         """
         if self._request is None:
             return path.split("/", 1)[0]
-        try:
-            return resolve_owner_id(self._request, allow_anonymous=self._allow_anonymous)
-        except AnonymousOperationError:
-            return None
+        return owner_or_none(self._request, allow_anonymous=self._allow_anonymous)
 
     def _read(self, path: str, max_chars: int) -> MemoryFile | None:
         owner = self._owner(path)
@@ -270,15 +266,7 @@ class DefaultMemoryStore:
         with transaction.atomic():
             if operation is not None and (replay := self._receipt(owner, operation)) is not None:
                 return replay
-            # ``select_for_update`` rather than a bare read: two concurrent writes
-            # that both read the same version would otherwise both pass the
-            # compare-and-set and one would silently overwrite the other.
-            row = StoredMemory.objects.select_for_update().filter(owner_id=owner, path=path).first()
-            current_version = None if row is None else row.version
-            if current_version != expected_version:
-                raise MemoryConflictError(
-                    f"memory path {path!r} changed before it could be written"
-                )
+            row = _locked_row(owner, path, expected_version, verb="written")
             safe = _FENCE_TAG_RE.sub(_escape_tag, content)
             self._check_ceilings(owner, path, safe, replacing=row is not None)
             version = uuid4().hex
@@ -311,12 +299,7 @@ class DefaultMemoryStore:
         with transaction.atomic():
             if operation is not None and (replay := self._receipt(owner, operation)) is not None:
                 return replay
-            row = StoredMemory.objects.select_for_update().filter(owner_id=owner, path=path).first()
-            current_version = None if row is None else row.version
-            if current_version != expected_version:
-                raise MemoryConflictError(
-                    f"memory path {path!r} changed before it could be deleted"
-                )
+            row = _locked_row(owner, path, expected_version, verb="deleted")
             if row is not None:
                 StoredMemory.objects.filter(pk=row.pk).delete()
             mutation = MemoryMutation(version=None, replayed=False, existed=row is not None)
@@ -370,6 +353,22 @@ class DefaultMemoryStore:
             version=mutation.version,
             existed=mutation.existed,
         )
+
+
+def _locked_row(
+    owner: str, path: str, expected_version: str | None, *, verb: str
+) -> StoredMemory | None:
+    """The row at ``path``, locked, once its version matches ``expected_version``.
+
+    ``select_for_update`` rather than a bare read: two concurrent writes that
+    both read the same version would otherwise both pass the compare-and-set
+    and one would silently overwrite the other. Call inside the transaction.
+    """
+    row = StoredMemory.objects.select_for_update().filter(owner_id=owner, path=path).first()
+    current_version = None if row is None else row.version
+    if current_version != expected_version:
+        raise MemoryConflictError(f"memory path {path!r} changed before it could be {verb}")
+    return row
 
 
 def _validate_path(path: str) -> None:
