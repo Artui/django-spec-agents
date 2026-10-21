@@ -12,16 +12,17 @@ from rest_framework_services import ServiceSpec, SpecRegistry
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
-from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
+from tests.integrations.helpers import (
+    LOOKUP_CALLS,
+    open_spec,
+    run_context,
+    run_omission_then_correction,
+)
 
 
 def _ok(user: Any) -> dict[str, Any]:
     """A no-op spec service."""
     return {"ok": True}
-
-
-def _open_spec() -> ServiceSpec:
-    return ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
 
 
 def test_an_unguarded_spec_is_refused_rather_than_exposed() -> None:
@@ -39,11 +40,11 @@ def test_an_unguarded_spec_is_refused_rather_than_exposed() -> None:
 
 @pytest.mark.parametrize("as_registry", [False, True], ids=["mapping", "registry"])
 def test_exclude_names_drops_the_names_the_registry_owns(as_registry: bool) -> None:
-    source: Any = {"ping": _open_spec(), "dup": _open_spec()}
+    source: Any = {"ping": open_spec(), "dup": open_spec()}
     if as_registry:
         source = SpecRegistry()
-        source.register("ping", _open_spec())
-        source.register("dup", _open_spec())
+        source.register("ping", open_spec())
+        source.register("dup", open_spec())
 
     capability = build_spec_capability(source, exclude_names=frozenset({"dup"}))
     # The registry-owned name is dropped (registry wins the collision); the
@@ -57,7 +58,7 @@ async def test_carries_the_spec_conventions_to_the_model() -> None:
     # ``SpecToolset.get_instructions()`` carries them so they land whether a
     # toolset is attached directly or wrapped here, and the capability returns
     # None so pydantic-ai doesn't collect the same block twice.
-    capability = build_spec_capability({"ping": _open_spec()})
+    capability = build_spec_capability({"ping": open_spec()})
     assert capability.get_instructions() is None
 
     instructions = await capability.get_toolset().get_instructions(None)
@@ -109,7 +110,7 @@ async def test_one_capability_serves_two_users() -> None:
 
 def test_accepts_a_spec_registry() -> None:
     registry = SpecRegistry()
-    registry.register("ping", _open_spec())
+    registry.register("ping", open_spec())
 
     capability = build_spec_capability(registry)
     assert set(capability.get_toolset()._specs) == {"ping"}
@@ -147,7 +148,7 @@ class TestARegistryIsNotFlattened:
         registry = SpecRegistry()
         registry.register(
             "ping",
-            _open_spec(),
+            open_spec(),
             tags=("read",),
         )
 
@@ -166,10 +167,10 @@ class TestARegistryIsNotFlattened:
         registry = SpecRegistry()
         registry.register(
             "ping",
-            _open_spec(),
+            open_spec(),
             tags=("read",),
         )
-        registry.register("dup", _open_spec())
+        registry.register("dup", open_spec())
 
         build_spec_capability(registry, exclude_names=frozenset({"dup"}))
 
@@ -181,7 +182,7 @@ class TestARegistryIsNotFlattened:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         captured = _capture_source(monkeypatch)
-        spec = _open_spec()
+        spec = open_spec()
 
         build_spec_capability({"ping": spec, "dup": spec}, exclude_names=frozenset({"dup"}))
 

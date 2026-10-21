@@ -20,6 +20,8 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
+from rest_framework.permissions import AllowAny
+from rest_framework_services import ServiceSpec
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 
@@ -34,6 +36,18 @@ def run_context(deps: AgentDeps) -> RunContext[AgentDeps]:
     its own defaults.
     """
     return RunContext(deps=deps, model=TestModel(), usage=RunUsage())
+
+
+def _ok(user: Any) -> dict[str, Any]:
+    """A no-op spec service."""
+    return {"ok": True}
+
+
+def open_spec() -> ServiceSpec:
+    """A spec that dispatches for anyone. Its permissions are declared because
+    ``SpecRegistry.register`` and the spec capability refuse a spec that declares
+    none."""
+    return ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
 
 
 # Each tool reads its row through a selector taking ``pk`` with no default: the
