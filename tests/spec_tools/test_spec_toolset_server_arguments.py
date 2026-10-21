@@ -382,14 +382,12 @@ async def test_a_bound_selection_the_render_rejects_is_the_server_s_error_not_a_
 
 # --- a consumer scoping each run ----------------------------------------------
 #
-# Modelled on a production consumer that scopes a document-enrichment run to the
-# document's project, or else its draw request. It subclassed the toolset to keep
-# its bound scope out of each tool's schema and each call's arguments, under one
-# rule: a tool counts as scoped by the run only if the run binds one of its scope
-# names; its optional siblings are then the server's as well, and a required one
-# the run does not bind stays the model's to send. With the keyword, that rule is
-# one small function from the registry and the run's scope to the bindings, and
-# the toolset is not subclassed for it at all.
+# A document-enrichment run is scoped to the document's project, or else its draw
+# request. One rule decides which tools the run scopes: a tool counts as scoped
+# only if the run binds one of its scope names; its optional siblings are then
+# the server's as well, and a required one the run does not bind stays the
+# model's to send. That rule is one small function from the registry and the
+# run's scope to the bindings, so the toolset is not subclassed for it.
 #
 # The function is the registry page's own example, run as written, so the page
 # cannot drift from what these tests hold.
@@ -551,7 +549,7 @@ async def test_the_capability_forwards_the_bindings():
     assert "project_pk" not in _input_schema_of(toolset, "vendors")["properties"]
 
 
-# --- the mount-level channel declarations are gone ---------------------------
+# --- a mount declares no channels ---------------------------------------------
 
 
 _MOUNT_LEVEL_CHANNELS = [
