@@ -43,12 +43,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A tool registered with `@tool(name=...)` is now offered to the model under
-  that name. It was offered under the function's own name, so a destructive tool
-  carrying a `name=` override was never collected by `ToolGuard` and ran without
-  approval under an enabled guard, and the audit record and tool catalog named it
-  differently from each other. A `description=` override now reaches the
-  model too; a tool with neither override is offered exactly what it was.
+- A registry tool whose name differs from its function's, through
+  `@tool(name=...)` or a `ToolSpec` registered directly, is now offered to the
+  model under its registered name. It was offered under the function's own name,
+  so a destructive tool carrying such a name was never collected by `ToolGuard`
+  and ran without approval under an enabled guard, and the audit record and tool
+  catalog named it differently from each other. A `description=` override now
+  reaches the model too; a tool with neither override is offered exactly what it
+  was. **Anything that named such a tool by its function name must now use the
+  registered name**: a `require_approval` or `exempt` entry, an approval prompt,
+  and a query on the audit or step store's `tool_name`. A `require_approval`
+  entry left on the function name no longer matches, so that tool runs without
+  approval.
 
 ### Removed
 

@@ -25,8 +25,8 @@ The name you register is the name the model is offered, and the one the
 `description=` is what the model reads in place of the docstring, an empty one
 excepted: some supported Pydantic-AI versions treat it as none. A tool with
 no `description=` is offered exactly what Pydantic-AI derives from the
-docstring, which keeps every paragraph before the arguments section where the
-registry's own `description` keeps the first. A `description=` identical to
+docstring, which keeps more than the first paragraph the registry's own
+`description` holds. A `description=` identical to
 that first paragraph is indistinguishable from none, so the model gets the
 fuller text.
 

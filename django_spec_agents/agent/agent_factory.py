@@ -111,16 +111,16 @@ def _pydantic_tool(spec: ToolSpec) -> Tool[AgentDeps]:
 
     The description is passed only when it is not the one ``@tool`` derives
     from the docstring. ``ToolSpec.description`` is the first paragraph, and
-    pydantic-ai's own extraction keeps every paragraph before the arguments
-    section, so passing it unconditionally would rewrite what the model reads
+    pydantic-ai's own extraction keeps more of the docstring than that, so passing it unconditionally would rewrite what the model reads
     for each docstringed tool nobody overrode. The cost is one blind spot: an
     explicit description equal to the first paragraph is indistinguishable from
     the derived one and the model gets the fuller extraction.
     ``test_an_override_equal_to_the_first_paragraph_is_not_told_apart_from_none``
     pins it, and ``test_the_model_is_offered_an_overriding_description`` holds
     that a differing override is passed. An empty override is passed too, but
-    pydantic-ai versions in the supported range read ``""`` as no description and
-    fall back to the docstring, so it is not promised to empty the model's copy.
+    some pydantic-ai versions in the supported range read ``""`` as no
+    description and fall back to the docstring, so it is not promised to empty
+    the model's copy.
     """
     derived = spec.description == first_doc_paragraph(spec.fn)
     return Tool(spec.fn, name=spec.name, description=None if derived else spec.description)
