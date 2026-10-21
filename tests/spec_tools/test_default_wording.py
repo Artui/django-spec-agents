@@ -29,6 +29,7 @@ from rest_framework_services import MARKING, QueryParam, SelectorSpec, ServiceSp
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
+from tests.spec_tools.test_spec_toolset import reading
 from tests.spec_tools.testapp.models import Widget
 
 _BASE = (
@@ -177,7 +178,7 @@ def _every_line() -> dict[str, Any]:
 
 
 def _toolset() -> SpecToolset:
-    return SpecToolset(_every_line(), tool_query_params={"list_widgets": [QueryParam("fields")]})
+    return SpecToolset(reading(_every_line(), {"list_widgets": [QueryParam("fields")]}))
 
 
 async def test_the_default_block_reads_as_it_always_has():

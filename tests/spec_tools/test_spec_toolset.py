@@ -254,6 +254,20 @@ def ctx_for(user=None, *, deps=None, **overrides):
     return SimpleNamespace(**(fields | overrides))
 
 
+def reading(specs, reads):
+    """``specs`` as a ``SpecRegistry``, each tool ``reads`` names declaring those
+    reads on its spec, after any it declares already.
+
+    A toolset learns what a tool reads off HTTP from the tool's registry entry,
+    so a bare mapping advertises none of a spec's reads: a test of a read builds
+    its toolset from this.
+    """
+    registry = SpecRegistry()
+    for name, spec in specs.items():
+        registry.register(name, replace(spec, reads=(*spec.reads, *reads.get(name, ()))))
+    return registry
+
+
 def _rows(result: Any) -> list[Any]:
     """The rows out of a list tool's page envelope.
 
@@ -310,8 +324,7 @@ async def test_pagination_line_present_only_with_a_list_selector():
 
 async def test_read_shaping_line_lists_declared_query_params_sorted():
     toolset = SpecToolset(
-        {"list": list_spec()},
-        query_params=[QueryParam("query"), QueryParam("fields")],
+        reading({"list": list_spec()}, {"list": [QueryParam("query"), QueryParam("fields")]})
     )
     instr = await toolset.get_instructions(None)
     assert instr is not None
@@ -335,7 +348,7 @@ def test_is_list_selector():
 
 
 def test_derive_instructions_matches_get_instructions_input():
-    toolset = SpecToolset({"list": list_spec()}, query_params=[QueryParam("query")])
+    toolset = SpecToolset(reading({"list": list_spec()}, {"list": [QueryParam("query")]}))
     # The public ``get_instructions`` derives from exactly these two mappings.
     assert _derive_instructions(toolset._specs, toolset._tool_query_params) == "\n".join(
         [
@@ -829,9 +842,10 @@ async def test_declared_channels_are_advertised_beside_the_list_argument():
     """``additionalProperties: false`` survives the merge and stays true: it forbids
     an *undeclared* argument, and a ``QueryParam`` or ``UrlKwarg`` is declared."""
     toolset = SpecToolset(
-        {"create_widgets": bulk_spec()},
-        query_params=[QueryParam("fields")],
-        url_kwargs=[UrlKwarg("project_pk", required=True)],
+        reading(
+            {"create_widgets": bulk_spec()},
+            {"create_widgets": [QueryParam("fields"), UrlKwarg("project_pk", required=True)]},
+        )
     )
     tools = await toolset.get_tools(None)
     schema = tools["create_widgets"].tool_def.parameters_json_schema
@@ -978,54 +992,6 @@ def test_an_argument_beside_the_list_is_refused_under_every_policy(policy):
     assert not Widget.objects.exists()
 
 
-@pytest.mark.parametrize(
-    ("build", "kind"),
-    [
-        pytest.param(
-            lambda: SpecToolset(
-                {"create_widgets": bulk_spec()}, query_params=[QueryParam("items")]
-            ),
-            "QueryParam",
-            id="toolset-wide query_params",
-        ),
-        pytest.param(
-            lambda: SpecToolset(
-                {"create_widgets": bulk_spec()},
-                tool_query_params={"create_widgets": [QueryParam("items")]},
-            ),
-            "QueryParam",
-            id="tool_query_params",
-        ),
-        pytest.param(
-            lambda: SpecToolset({"create_widgets": bulk_spec()}, url_kwargs=[UrlKwarg("items")]),
-            "UrlKwarg",
-            id="toolset-wide url_kwargs",
-        ),
-        pytest.param(
-            lambda: SpecToolset(
-                {"create_widgets": bulk_spec()},
-                tool_url_kwargs={"create_widgets": [UrlKwarg("items")]},
-            ),
-            "UrlKwarg",
-            id="tool_url_kwargs",
-        ),
-    ],
-)
-def test_a_channel_named_after_the_list_argument_is_refused(build, kind):
-    """A declared channel is popped out of the arguments before dispatch, so one
-    sharing the list's name would take the list with it and the service would
-    never see a call succeed. Every declaration site this toolset owns; the
-    spec's own ``reads`` are refused before it sees them (below)."""
-    with pytest.raises(ImproperlyConfigured) as caught:
-        build()
-
-    message = str(caught.value)
-    assert f"{kind} named 'items'" in message
-    assert "'create_widgets'" in message
-    # Not drf-services' reserved-name refusal, which would say nothing about why.
-    assert "reserved transport keys" not in message
-
-
 def test_a_malformed_schema_fragment_is_refused_naming_the_tool():
     """drf-services reads a spec's ``metadata["json_schema"]`` while the tool's
     schema is built, and refuses one that is not keyed by phase in the spec's own
@@ -1063,23 +1029,6 @@ def test_a_read_named_after_the_list_argument_is_refused_by_drf_services(read):
         SpecToolset({"create_widgets": spec})
 
     assert "named 'items'" not in str(caught.value)
-
-
-def test_a_channel_may_share_a_name_no_list_travels_under():
-    """The two ways the refusal could over-reach. A single-item spec has no list
-    argument, which holds the ``spec.many`` conjunct; a spec naming its own list
-    argument leaves ``items`` free, which holds reading ``many_argument`` rather
-    than assuming the default."""
-    SpecToolset({"create_widget": create_spec()}, query_params=[QueryParam("items")])
-    SpecToolset(
-        {"create_widgets": bulk_spec(many_argument="widgets")}, url_kwargs=[UrlKwarg("items")]
-    )
-
-    with pytest.raises(ImproperlyConfigured, match="UrlKwarg named 'widgets'"):
-        SpecToolset(
-            {"create_widgets": bulk_spec(many_argument="widgets")},
-            url_kwargs=[UrlKwarg("widgets")],
-        )
 
 
 class _WidgetItems(serializers.Serializer):
@@ -1318,12 +1267,15 @@ def _echo_list_spec(**kwargs):
     )
 
 
-async def test_toolset_wide_query_params_appear_in_every_tool_schema():
+async def test_a_query_param_read_is_told_what_it_applies_to_only_on_a_page():
     """Both tools carry the param; only the one returning a page is told that it
     applies to each item rather than to the envelope, after the declared text."""
+    fields = QueryParam("fields", description="restql field selection")
     toolset = SpecToolset(
-        {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
-        query_params=[QueryParam("fields", description="restql field selection")],
+        reading(
+            {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
+            {"list_widgets": [fields], "get_widget": [fields]},
+        )
     )
     tools = await toolset.get_tools(None)
     list_props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
@@ -1335,10 +1287,12 @@ async def test_toolset_wide_query_params_appear_in_every_tool_schema():
     assert get_props["fields"] == {"type": "string", "description": "restql field selection"}
 
 
-async def test_per_tool_query_params_only_apply_to_that_tool():
+async def test_a_query_param_read_applies_to_the_tool_whose_spec_declares_it():
     toolset = SpecToolset(
-        {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
-        tool_query_params={"list_widgets": [QueryParam("expand", type="boolean")]},
+        reading(
+            {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
+            {"list_widgets": [QueryParam("expand", type="boolean")]},
+        )
     )
     tools = await toolset.get_tools(None)
     # No declared description, so the scope sentence is the whole of it.
@@ -1350,20 +1304,11 @@ async def test_per_tool_query_params_only_apply_to_that_tool():
     assert "expand" not in get_widget_props
 
 
-async def test_per_tool_query_param_overrides_toolset_wide_by_name():
-    toolset = SpecToolset(
-        {"list_widgets": list_spec()},
-        query_params=[QueryParam("fields", description="wide")],
-        tool_query_params={"list_widgets": [QueryParam("fields", description="specific")]},
-    )
-    tools = await toolset.get_tools(None)
-    props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
-    assert props["fields"]["description"] == "specific " + _SCOPE_DESCRIPTION
-
-
 async def test_query_param_default_appears_in_schema():
     toolset = SpecToolset(
-        {"list_widgets": list_spec()}, query_params=[QueryParam("fields", default="id")]
+        reading(
+            {"list_widgets": list_spec()}, {"list_widgets": [QueryParam("fields", default="id")]}
+        )
     )
     tools = await toolset.get_tools(None)
     props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
@@ -1375,14 +1320,8 @@ def test_reserved_query_param_name_is_rejected():
     # drf-services' shared validator, so one exception type now covers every bad
     # declaration instead of ValueError-for-pagination / something-else-for-seeds.
     with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset({"list_widgets": list_spec()}, query_params=[QueryParam("ordering")])
-
-
-def test_reserved_per_tool_query_param_name_is_rejected():
-    with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
         SpecToolset(
-            {"list_widgets": list_spec()},
-            tool_query_params={"list_widgets": [QueryParam("limit")]},
+            reading({"list_widgets": list_spec()}, {"list_widgets": [QueryParam("ordering")]})
         )
 
 
@@ -1447,50 +1386,6 @@ def tasks_by_status(*, status: str = "open"):
     return [{"name": status}]
 
 
-def _status_registry(*reads: QueryParam) -> SpecRegistry:
-    registry = SpecRegistry()
-    registry.register("tasks", replace(_name_list_spec(tasks_by_status), reads=reads))
-    return registry
-
-
-@pytest.mark.parametrize(
-    "build",
-    [
-        pytest.param(
-            lambda: SpecToolset(
-                {"tasks": _name_list_spec(tasks_by_status)},
-                tool_query_params={"tasks": [QueryParam("status")]},
-            ),
-            id="per-tool",
-        ),
-        pytest.param(
-            lambda: SpecToolset(
-                {"tasks": _name_list_spec(tasks_by_status)}, query_params=[QueryParam("status")]
-            ),
-            id="toolset-wide",
-        ),
-        pytest.param(
-            lambda: SpecToolset(
-                _status_registry(QueryParam("status")), query_params=[QueryParam("status")]
-            ),
-            id="mount-over-the-spec-s-read",
-        ),
-    ],
-)
-def test_a_selector_parameter_a_query_param_shadows_is_refused(build):
-    """A ``QueryParam`` this mount declares is popped and routed to
-    ``request.query_params``, so a selector parameter of the same name never
-    receives it. With a default, as here, the tool ran on ``status="open"``
-    whatever status the model asked for. A mount re-declaring the spec's own read
-    of the name is still this mount's declaration, and is refused with it.
-    """
-    with pytest.raises(
-        ImproperlyConfigured,
-        match=r"tool 'tasks': the selector takes input\(s\) \['status'\] .*QueryParam",
-    ):
-        build()
-
-
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("args", [{"status": "done"}, {}], ids=["sent", "omitted"])
 async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both_routes(args):
@@ -1548,36 +1443,15 @@ def test_a_spec_read_naming_a_lookup_parameter_builds_from_both_routes():
     )
 
 
-def test_a_serializer_field_a_query_param_shadows_is_refused():
-    """A service tool's input serializer validates the arguments left once the
-    ``QueryParam`` has taken its own, so a field of the same name never sees the
-    model's value: a required one answered that the field is required, of a call
-    that carried it.
-    """
-    with pytest.raises(
-        ImproperlyConfigured,
-        match=r"tool 'make': the service takes input\(s\) \['name'\] that .*QueryParam",
-    ):
-        SpecToolset({"make": create_spec()}, tool_query_params={"make": [QueryParam("name")]})
-
-
 def test_a_url_kwarg_may_share_a_selector_parameters_name():
     """A ``UrlKwarg``'s value reaches the selector through ``view.kwargs``, the
     documented way to route a capture the selector also reads, so the refusal
     leaves it alone."""
     toolset = SpecToolset(
-        {"tasks": _name_list_spec(tasks_by_status)}, url_kwargs=[UrlKwarg("status")]
+        reading({"tasks": _name_list_spec(tasks_by_status)}, {"tasks": [UrlKwarg("status")]})
     )
 
     assert "status" in _input_schema_of(toolset, "tasks")["properties"]
-
-
-def test_unknown_per_tool_key_is_rejected():
-    with pytest.raises(ValueError, match="unknown tool"):
-        SpecToolset(
-            {"list_widgets": list_spec()},
-            tool_query_params={"nope": [QueryParam("fields")]},
-        )
 
 
 @pytest.mark.django_db
@@ -1955,20 +1829,6 @@ def test_a_bare_kwargs_selector_refuses_nothing_and_is_handed_nothing(policy):
     assert "colour" not in call
 
 
-def test_a_filter_set_field_a_query_param_shadows_is_refused():
-    """A ``filter_set`` field is the call's own input, and the toolset builds the
-    filter data from the arguments left once every channel has taken its own, so
-    a ``QueryParam`` of the same name takes the value the filter would have read.
-    """
-    with pytest.raises(
-        ImproperlyConfigured, match=r"the selector takes input\(s\) \['min_price'\] "
-    ):
-        SpecToolset(
-            {"list_widgets": _filtered_list_spec()},
-            tool_query_params={"list_widgets": [QueryParam("min_price")]},
-        )
-
-
 @pytest.mark.django_db(transaction=True)
 async def test_a_spec_read_naming_a_filter_set_field_is_served_alike_from_both_routes():
     """The same rule for a ``filter_set`` field, which the tool advertises as its
@@ -2032,10 +1892,13 @@ def test_a_filter_set_field_under_a_hidden_name_is_still_client_input():
 # --- UrlKwarg registration ---------------------------------------------------
 
 
-async def test_toolset_wide_url_kwargs_appear_in_every_tool_schema():
+async def test_a_url_kwarg_read_is_advertised_alike_on_every_tool_declaring_it():
+    project = UrlKwarg("project_pk", type="integer", description="owning project")
     toolset = SpecToolset(
-        {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
-        url_kwargs=[UrlKwarg("project_pk", type="integer", description="owning project")],
+        reading(
+            {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
+            {"list_widgets": [project], "get_widget": [project]},
+        )
     )
     tools = await toolset.get_tools(None)
     for name in ("list_widgets", "get_widget"):
@@ -2043,10 +1906,12 @@ async def test_toolset_wide_url_kwargs_appear_in_every_tool_schema():
         assert props["project_pk"] == {"type": "integer", "description": "owning project"}
 
 
-async def test_per_tool_url_kwargs_only_apply_to_that_tool():
+async def test_a_url_kwarg_read_applies_to_the_tool_whose_spec_declares_it():
     toolset = SpecToolset(
-        {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
-        tool_url_kwargs={"list_widgets": [UrlKwarg("parent_pk")]},
+        reading(
+            {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
+            {"list_widgets": [UrlKwarg("parent_pk")]},
+        )
     )
     tools = await toolset.get_tools(None)
     assert "parent_pk" in tools["list_widgets"].tool_def.parameters_json_schema["properties"]
@@ -2054,20 +1919,11 @@ async def test_per_tool_url_kwargs_only_apply_to_that_tool():
     assert "parent_pk" not in get_widget_props
 
 
-async def test_per_tool_url_kwarg_overrides_toolset_wide_by_name():
-    toolset = SpecToolset(
-        {"list_widgets": list_spec()},
-        url_kwargs=[UrlKwarg("parent_pk", description="wide")],
-        tool_url_kwargs={"list_widgets": [UrlKwarg("parent_pk", description="specific")]},
-    )
-    tools = await toolset.get_tools(None)
-    props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
-    assert props["parent_pk"]["description"] == "specific"
-
-
 async def test_url_kwarg_default_appears_in_schema():
     toolset = SpecToolset(
-        {"list_widgets": list_spec()}, url_kwargs=[UrlKwarg("parent_pk", default="1")]
+        reading(
+            {"list_widgets": list_spec()}, {"list_widgets": [UrlKwarg("parent_pk", default="1")]}
+        )
     )
     tools = await toolset.get_tools(None)
     props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
@@ -2076,31 +1932,8 @@ async def test_url_kwarg_default_appears_in_schema():
 
 def test_reserved_url_kwarg_name_is_rejected():
     with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset({"list_widgets": list_spec()}, url_kwargs=[UrlKwarg("ordering")])
-
-
-def test_reserved_per_tool_url_kwarg_name_is_rejected():
-    with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
         SpecToolset(
-            {"list_widgets": list_spec()},
-            tool_url_kwargs={"list_widgets": [UrlKwarg("limit")]},
-        )
-
-
-def test_unknown_per_tool_url_kwarg_key_is_rejected():
-    with pytest.raises(ValueError, match="unknown tool"):
-        SpecToolset(
-            {"list_widgets": list_spec()},
-            tool_url_kwargs={"nope": [UrlKwarg("parent_pk")]},
-        )
-
-
-def test_name_registered_as_both_query_param_and_url_kwarg_is_rejected():
-    with pytest.raises(ValueError, match="two channels"):
-        SpecToolset(
-            {"list_widgets": list_spec()},
-            query_params=[QueryParam("scope")],
-            url_kwargs=[UrlKwarg("scope")],
+            reading({"list_widgets": list_spec()}, {"list_widgets": [UrlKwarg("ordering")]})
         )
 
 
@@ -2208,8 +2041,14 @@ async def test_dual_declared_url_kwarg_schema_wins_over_reflected_property():
     # ``project_pk`` is reflected by drf-services (the selector's Unpack extras)
     # *and* registered as a UrlKwarg; the explicit UrlKwarg schema wins the merge.
     toolset = SpecToolset(
-        {"list_in_project": _dual_declared_spec()},
-        url_kwargs=[UrlKwarg("project_pk", type="integer", description="the project")],
+        reading(
+            {"list_in_project": _dual_declared_spec()},
+            {
+                "list_in_project": [
+                    UrlKwarg("project_pk", type="integer", description="the project")
+                ]
+            },
+        )
     )
     tools = await toolset.get_tools(None)
     props = tools["list_in_project"].tool_def.parameters_json_schema["properties"]
@@ -2265,26 +2104,14 @@ def test_dual_declared_url_kwarg_delivers_to_the_selector_pool():
 
 async def test_required_url_kwarg_is_advertised_as_required():
     toolset = SpecToolset(
-        {"list_widgets": list_spec()},
-        url_kwargs=[UrlKwarg("project_pk", type="integer", required=True)],
+        reading(
+            {"list_widgets": list_spec()},
+            {"list_widgets": [UrlKwarg("project_pk", type="integer", required=True)]},
+        )
     )
     tools = await toolset.get_tools(None)
     schema = tools["list_widgets"].tool_def.parameters_json_schema
     assert schema["required"] == ["project_pk"]
-
-
-async def test_per_tool_override_can_add_requiredness():
-    # Per-tool wins by name, so an override may tighten a toolset-wide optional
-    # declaration into a required one for a single tool.
-    toolset = SpecToolset(
-        {"list_widgets": list_spec(), "get_widget": retrieve_spec()},
-        url_kwargs=[UrlKwarg("project_pk")],
-        tool_url_kwargs={"list_widgets": [UrlKwarg("project_pk", required=True)]},
-    )
-    tools = await toolset.get_tools(None)
-    assert tools["list_widgets"].tool_def.parameters_json_schema["required"] == ["project_pk"]
-    # ``pk`` is ``get_widget``'s own: it has no default and only the model sends it.
-    assert tools["get_widget"].tool_def.parameters_json_schema["required"] == ["pk"]
 
 
 def test_omitting_a_required_url_kwarg_raises_model_retry():
@@ -2310,25 +2137,11 @@ def test_supplying_a_required_url_kwarg_dispatches_normally():
 def test_required_url_kwarg_with_a_default_is_rejected():
     with pytest.raises(ImproperlyConfigured, match="cannot also be required"):
         SpecToolset(
-            {"list_widgets": list_spec()},
-            url_kwargs=[UrlKwarg("project_pk", default="P1", required=True)],
+            reading(
+                {"list_widgets": list_spec()},
+                {"list_widgets": [UrlKwarg("project_pk", default="P1", required=True)]},
+            )
         )
-
-
-def test_a_pool_seed_name_is_now_rejected():
-    # Previously only the pagination names were checked here, so ``user`` — a
-    # dispatcher-controlled seed — passed registration in this toolset while
-    # being rejected by the MCP transport. The shared validator closes that.
-    with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset({"list_widgets": list_spec()}, url_kwargs=[UrlKwarg("user")])
-
-
-def test_the_lifted_types_are_the_sister_repo_types():
-    from rest_framework_services.types.query_param import QueryParam as SharedQueryParam
-    from rest_framework_services.types.url_kwarg import UrlKwarg as SharedUrlKwarg
-
-    assert UrlKwarg is SharedUrlKwarg
-    assert QueryParam is SharedQueryParam
 
 
 # --- DRF's baseline serializer context ---------------------------------------
@@ -3784,13 +3597,15 @@ async def test_a_declared_query_param_still_reaches_the_spec_alongside_it():
         return {"ok": True}
 
     toolset = SpecToolset(
-        {
-            "do_it": ServiceSpec(
-                service=noop, atomic=False, permission_classes=[RecordingPermission]
-            )
-        },
+        reading(
+            {
+                "do_it": ServiceSpec(
+                    service=noop, atomic=False, permission_classes=[RecordingPermission]
+                )
+            },
+            {"do_it": [QueryParam(name="fields")]},
+        ),
         descriptions={"do_it": "Do it."},
-        query_params=[QueryParam(name="fields")],
         http_request=RequestFactory().post("/agent/?fields=ssn&query={id}"),
     )
     RecordingPermission.seen = {}
@@ -3844,9 +3659,11 @@ async def test_a_dispatch_leaves_the_configured_request_untouched():
     ambient = RequestFactory().get("/agent/?fields=original")
     ambient.user = "the-operator"
     toolset = SpecToolset(
-        {"do_it": ServiceSpec(service=noop, atomic=False, permission_classes=[AllowAny])},
+        reading(
+            {"do_it": ServiceSpec(service=noop, atomic=False, permission_classes=[AllowAny])},
+            {"do_it": [QueryParam(name="fields")]},
+        ),
         descriptions={"do_it": "Do it."},
-        query_params=[QueryParam(name="fields")],
         http_request=ambient,
     )
 
@@ -4028,12 +3845,14 @@ async def test_the_instructions_name_an_unavailable_operation_and_describe_only_
     """
     books = {"open": False}
     toolset = SpecToolset(
-        {
-            "list_widgets": list_spec(),
-            "approve": _conditioned_spec(lambda: books["open"]),
-            "ping": _conditioned_spec(lambda: True, code="always", reason="Never shown."),
-        },
-        tool_query_params={"approve": [QueryParam(name="fields")]},
+        reading(
+            {
+                "list_widgets": list_spec(),
+                "approve": _conditioned_spec(lambda: books["open"]),
+                "ping": _conditioned_spec(lambda: True, code="always", reason="Never shown."),
+            },
+            {"approve": [QueryParam(name="fields")]},
+        )
     )
     ctx = ctx_for(User(username="u"))
 
@@ -4454,8 +4273,8 @@ async def test_a_seed_named_argument_is_not_refused_by_a_spec_that_never_declare
 
 @pytest.mark.parametrize(
     "channel",
-    [{"query_params": [QueryParam("tenant")]}, {"url_kwargs": [UrlKwarg("tenant")]}],
-    ids=["query_params", "url_kwargs"],
+    [[QueryParam("tenant")], [UrlKwarg("tenant")]],
+    ids=["query_param", "url_kwarg"],
 )
 def test_a_channel_named_after_a_registered_seed_is_refused(channel):
     """A registered seed is reserved like a built-in one, so a channel cannot name it.
@@ -4465,7 +4284,7 @@ def test_a_channel_named_after_a_registered_seed_is_refused(channel):
     that is silently dropped.
     """
     with pytest.raises(ImproperlyConfigured, match="tenant"):
-        SpecToolset({"list": list_spec()}, pool_seeds=_tenant_seeds(), **channel)
+        SpecToolset(reading({"list": list_spec()}, {"list": channel}), pool_seeds=_tenant_seeds())
 
 
 # --- what a call needs from the model -----------------------------------------
@@ -4576,8 +4395,10 @@ async def test_a_url_kwarg_answers_for_the_parameter_it_fills():
     default, and the call that default serves is refused for leaving it out.
     """
     toolset = SpecToolset(
-        {"in_project": _name_list_spec(names_in_project)},
-        url_kwargs=[UrlKwarg("project_pk", type="integer", default=7)],
+        reading(
+            {"in_project": _name_list_spec(names_in_project)},
+            {"in_project": [UrlKwarg("project_pk", type="integer", default=7)]},
+        )
     )
 
     schema = _input_schema_of(toolset, "in_project")
@@ -4598,8 +4419,10 @@ async def test_a_url_kwarg_with_no_default_leaves_the_selector_to_require_it():
     optional.
     """
     toolset = SpecToolset(
-        {"in_project": _name_list_spec(names_in_project)},
-        url_kwargs=[UrlKwarg("project_pk", type="integer")],
+        reading(
+            {"in_project": _name_list_spec(names_in_project)},
+            {"in_project": [UrlKwarg("project_pk", type="integer")]},
+        )
     )
 
     schema = _input_schema_of(toolset, "in_project")
@@ -4705,7 +4528,7 @@ async def test_a_value_the_model_sends_for_a_marked_name_never_reaches_the_selec
             [{"name": "project-7"}],
         ),
         (
-            {"url_kwargs": [UrlKwarg("project_pk", type="integer", default=0)]},
+            {"reads": [UrlKwarg("project_pk", type="integer", default=0)]},
             True,
             [{"name": "project-42"}],
         ),
@@ -4728,7 +4551,11 @@ async def test_a_name_a_build_context_override_fills_is_declared_to_the_toolset(
     that way rather than recommending it, and the ``defaulted-url-kwarg`` case
     holds that description.
     """
-    toolset = _ProjectScopedToolset({"in_project": _name_list_spec(names_in_project)}, **declared)
+    options = dict(declared)
+    reads = {"in_project": options.pop("reads", [])}
+    toolset = _ProjectScopedToolset(
+        reading({"in_project": _name_list_spec(names_in_project)}, reads), **options
+    )
 
     schema = _input_schema_of(toolset, "in_project")
     left_out = await _call(toolset, "in_project", User(username="u"))
@@ -4758,8 +4585,10 @@ async def test_a_name_a_typed_provider_returns_is_not_asked_for():
     """drf-services documents ``ExtraT`` as a ``TypedDict`` of the keys ``kwargs``
     returns, so a provider annotated with one says which parameters it fills."""
     toolset = SpecToolset(
-        {"under": _name_list_spec(names_under, kwargs=_typed_ceiling)},
-        url_kwargs=[UrlKwarg("project_pk")],
+        reading(
+            {"under": _name_list_spec(names_under, kwargs=_typed_ceiling)},
+            {"under": [UrlKwarg("project_pk")]},
+        )
     )
 
     schema = _input_schema_of(toolset, "under")
@@ -4780,8 +4609,10 @@ async def test_an_untyped_provider_leaves_every_parameter_optional():
     refused before it ran.
     """
     toolset = SpecToolset(
-        {"under": _name_list_spec(names_under, kwargs=_ceiling_from_project)},
-        url_kwargs=[UrlKwarg("project_pk")],
+        reading(
+            {"under": _name_list_spec(names_under, kwargs=_ceiling_from_project)},
+            {"under": [UrlKwarg("project_pk")]},
+        )
     )
 
     schema = _input_schema_of(toolset, "under")
@@ -4839,8 +4670,10 @@ def test_a_marked_parameter_a_url_kwarg_fills_is_not_required_beside_an_untyped_
     keeping every marked name there would require ``floor`` of the model.
     """
     toolset = SpecToolset(
-        {"band": _name_list_spec(names_in_band, kwargs=_untyped_band)},
-        url_kwargs=[UrlKwarg("floor", type="integer", default=2)],
+        reading(
+            {"band": _name_list_spec(names_in_band, kwargs=_untyped_band)},
+            {"band": [UrlKwarg("floor", type="integer", default=2)]},
+        )
     )
 
     assert "floor" not in _input_schema_of(toolset, "band").get("required", [])
@@ -5185,8 +5018,10 @@ async def test_a_key_the_provider_may_decline_stays_the_models_to_send(args, row
     for lacking a default, the ``filled`` call would be refused for ``ceiling``.
     """
     toolset = SpecToolset(
-        {"under": _name_list_spec(names_under, kwargs=_ceiling_inside_a_project)},
-        url_kwargs=[UrlKwarg("project_pk")],
+        reading(
+            {"under": _name_list_spec(names_under, kwargs=_ceiling_inside_a_project)},
+            {"under": [UrlKwarg("project_pk")]},
+        )
     )
 
     schema = _input_schema_of(toolset, "under")
@@ -5226,11 +5061,13 @@ async def test_a_parameter_neither_the_provider_nor_the_model_fills_is_asked_for
     call without one.
     """
     toolset = SpecToolset(
-        {
-            "under": _name_list_spec(names_under, kwargs=provider),
-            "under_a_default": _name_list_spec(names_under_a_default_ceiling, kwargs=provider),
-        },
-        url_kwargs=[UrlKwarg("project_pk")],
+        reading(
+            {
+                "under": _name_list_spec(names_under, kwargs=provider),
+                "under_a_default": _name_list_spec(names_under_a_default_ceiling, kwargs=provider),
+            },
+            {"under": [UrlKwarg("project_pk")], "under_a_default": [UrlKwarg("project_pk")]},
+        )
     )
 
     # drf-services' own refusal, keyed by the name, not the toolset's
@@ -5666,60 +5503,7 @@ async def test_a_model_that_leaves_out_the_lookup_is_told_and_corrects_itself():
     assert widget.name == "new"
 
 
-# --- a QueryParam beside the target lookup or a provider ----------------------
-#
-# The refusal of a ``QueryParam`` sharing an input's name reads the names the
-# tool advertises as the call's own, which is the selector's or the target
-# lookup's parameters less what a provider fills and what the server keeps.
-
-
-def _looked_up_through(lookup: Any, **kwargs: Any) -> ServiceSpec:
-    return _update_spec(
-        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lookup, **kwargs)
-    )
-
-
-@pytest.mark.parametrize(
-    "lookup", [widget_in_a_named_tenant, widget_in_tenant], ids=["required", "defaulted"]
-)
-def test_a_lookup_parameter_a_query_param_takes_is_refused(lookup):
-    """A service tool advertises its target lookup's parameters as its own
-    inputs, and a ``QueryParam`` of the same name pops the model's value before
-    the lookup runs. A required ``tenant`` answered every call carrying it
-    ``Missing required argument(s): 'tenant'.``, so an agent resent the same call
-    until it ran out of retries; a defaulted one resolved the row in ``acme``
-    whatever tenant the model sent.
-
-    Holds the lookup's names in the set the refusal reads, and the wording that
-    says the lookup is what takes the name.
-    """
-    with pytest.raises(
-        ImproperlyConfigured,
-        match=r"tool 'rename': its target lookup takes input\(s\) \['tenant'\] .*QueryParam",
-    ):
-        SpecToolset(
-            {"rename": _looked_up_through(lookup)},
-            tool_query_params={"rename": [QueryParam("tenant")]},
-        )
-
-
-def test_a_query_param_named_after_a_key_the_server_keeps_is_not_refused():
-    """A precondition marks ``tenant`` ``NotClientInput``, so it is the server's
-    for the whole call: the model is never offered it, and a ``QueryParam`` of
-    that name takes nothing the lookup could have read. Sized so the check
-    answers on the lookup, beside a ``QueryParam`` on ``pk``, which the model is
-    offered: the refusal names ``pk`` alone.
-
-    Holds the subtraction of the server-owned keys from the set the refusal
-    reads: without it the refusal names ``['pk', 'tenant']``.
-    """
-    with pytest.raises(
-        ImproperlyConfigured, match=r"its target lookup takes input\(s\) \['pk'\] that"
-    ):
-        SpecToolset(
-            {"rename": _gated_update_spec(widget_in_tenant)},
-            tool_query_params={"rename": [QueryParam("tenant"), QueryParam("pk")]},
-        )
+# --- a QueryParam beside a provider ------------------------------------------
 
 
 class _Status(TypedDict):
@@ -5743,42 +5527,18 @@ async def test_a_query_param_a_typed_provider_hands_the_selector_is_served():
     a selector, and nothing is lost: the ``QueryParam`` takes the model's value
     to the query string and the provider hands it to the selector. The provider
     owns the parameter, so the model is not offered it as the selector's and
-    the ``QueryParam`` takes nothing from the selector. Refused when the tool
-    was built, this shape stopped serving.
-
-    Holds the subtraction of the provider's ``filled`` keys from the set the
-    refusal reads.
+    the ``QueryParam`` takes nothing from the selector.
     """
     toolset = SpecToolset(
-        {"filed": _name_list_spec(names_filed_under, kwargs=_status_from_the_query)},
-        tool_query_params={"filed": [QueryParam("status")]},
+        reading(
+            {"filed": _name_list_spec(names_filed_under, kwargs=_status_from_the_query)},
+            {"filed": [QueryParam("status")]},
+        )
     )
 
     result = await _call(toolset, "filed", User(username="u"), {"status": "closed"})
 
     assert _rows(result) == [{"name": "signed"}]
-
-
-@pytest.mark.parametrize(
-    "provider", [_declining_written_out, _nothing_in_scope], ids=["declinable", "untyped"]
-)
-def test_a_query_param_on_a_key_a_provider_may_leave_to_the_model_is_refused(provider):
-    """A provider that may decline ``tenant`` with ``UNSET``, or one whose keys
-    cannot be read, leaves the model to fill it on a call where it does not, and
-    by then the ``QueryParam`` has popped the model's value. So the key stays
-    advertised as the model's, and the collision is refused, on the target
-    lookup as on a selector.
-
-    Holds the declinable keys kept in the set the refusal reads, and an untyped
-    provider counting as filling nothing: read as filled, either constructs.
-    """
-    with pytest.raises(
-        ImproperlyConfigured, match=r"its target lookup takes input\(s\) \['tenant'\] "
-    ):
-        SpecToolset(
-            {"rename": _looked_up_through(widget_in_a_named_tenant, kwargs=provider)},
-            tool_query_params={"rename": [QueryParam("tenant")]},
-        )
 
 
 # --- the pagination envelope --------------------------------------------------
@@ -7478,7 +7238,10 @@ async def test_a_selection_written_against_the_envelope_is_one_retry_then_the_pa
         return ModelResponse(parts=[ToolCallPart("list_widgets", {"query": next(queries)})])
 
     toolset = SpecToolset(
-        {"list_widgets": _paged_spec(_StrictRestqlWidget)}, query_params=[QueryParam("query")]
+        reading(
+            {"list_widgets": _paged_spec(_StrictRestqlWidget)},
+            {"list_widgets": [QueryParam("query")]},
+        )
     )
     result = await Agent(FunctionModel(model), deps_type=AgentDeps, toolsets=[toolset]).run(
         "go", deps=AgentDeps(user=user)
@@ -7678,7 +7441,7 @@ def test_a_render_output_override_is_covered_too():
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
     spec = _paged_spec(WidgetSerializer)
-    toolset = OwnRender({"list_widgets": spec}, query_params=[QueryParam("query")])
+    toolset = OwnRender(reading({"list_widgets": spec}, {"list_widgets": [QueryParam("query")]}))
 
     with pytest.raises(ModelRetry) as retry:
         toolset._call_spec(
@@ -7751,7 +7514,7 @@ def test_a_detail_that_ends_a_sentence_is_not_given_a_second_full_stop():
 
 
 async def test_the_read_shaping_line_says_what_a_param_applies_to_on_a_page():
-    toolset = SpecToolset({"list": list_spec()}, query_params=[QueryParam("query")])
+    toolset = SpecToolset(reading({"list": list_spec()}, {"list": [QueryParam("query")]}))
 
     instructions = await toolset.get_instructions(None)
 
@@ -7766,8 +7529,7 @@ async def test_the_scope_sentence_needs_a_list_tool_that_declares_a_query_param(
     on a retrieve tool, the param never meets a page, and the block adds a line
     only when some tool can act on it."""
     toolset = SpecToolset(
-        {"list": list_spec(), "get": retrieve_spec()},
-        tool_query_params={"get": [QueryParam("fields")]},
+        reading({"list": list_spec(), "get": retrieve_spec()}, {"get": [QueryParam("fields")]})
     )
 
     instructions = await toolset.get_instructions(None)

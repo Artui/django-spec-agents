@@ -7,10 +7,8 @@ toolset without the keyword and fails there on what it asserts, not on an import
 
 from __future__ import annotations
 
-import _thread
 import logging
 import re
-import warnings
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -160,24 +158,6 @@ def test_a_name_a_registered_seed_occupies_is_refused():
             pool_seeds=seeds,
             tool_server_arguments={"rows": ServerArguments(values={"tenant": "other"})},
         )
-
-
-def test_a_withheld_name_this_mount_declares_required_is_refused():
-    """The kernel reads the spec alone, so a ``UrlKwarg(required=True)`` declared
-    at the mount for a withheld name passes its check, and the toolset would then
-    refuse every call as missing an argument nobody may send."""
-    with (
-        pytest.warns(DeprecationWarning),
-        pytest.raises(ImproperlyConfigured) as raised,
-    ):
-        SpecToolset(
-            {"vendors": _name_list_spec(vendors_in_scope)},
-            tool_url_kwargs={"vendors": [UrlKwarg("project_pk", required=True)]},
-            tool_server_arguments={"vendors": ServerArguments(withheld=frozenset({"project_pk"}))},
-        )
-
-    assert str(raised.value).startswith("SpecToolset tool 'vendors': ")
-    assert "project_pk" in str(raised.value)
 
 
 # --- the advertised schema ----------------------------------------------------
@@ -571,174 +551,24 @@ async def test_the_capability_forwards_the_bindings():
     assert "project_pk" not in _input_schema_of(toolset, "vendors")["properties"]
 
 
-# --- the mount-level channel declarations are deprecated ----------------------
+# --- the mount-level channel declarations are gone ---------------------------
 
 
-@pytest.mark.parametrize(
-    ("knob", "value"),
-    [
-        ("query_params", [QueryParam("fields")]),
-        ("tool_query_params", {"vendors": [QueryParam("fields")]}),
-        ("url_kwargs", [UrlKwarg("tenant_pk")]),
-        ("tool_url_kwargs", {"vendors": [UrlKwarg("tenant_pk")]}),
-    ],
-)
+_MOUNT_LEVEL_CHANNELS = [
+    ("query_params", [QueryParam("fields")]),
+    ("tool_query_params", {"vendors": [QueryParam("fields")]}),
+    ("url_kwargs", [UrlKwarg("tenant_pk")]),
+    ("tool_url_kwargs", {"vendors": [UrlKwarg("tenant_pk")]}),
+]
+
+
+@pytest.mark.parametrize(("knob", "value"), _MOUNT_LEVEL_CHANNELS)
 @pytest.mark.parametrize("build", [SpecToolset, SpecCapability], ids=["toolset", "capability"])
-def test_a_mount_level_channel_declaration_is_deprecated(build, knob, value):
-    """Each names its replacement, and points at the line that passed it, through
-    the capability as well as directly."""
-    with pytest.warns(DeprecationWarning) as record:
+def test_a_mount_level_channel_declaration_is_an_unknown_keyword(build, knob, value):
+    """A read is the spec's to declare, in its ``reads``, and a value the model
+    may not choose is ``tool_server_arguments``; no mount declares a channel."""
+    with pytest.raises(TypeError, match=rf"unexpected keyword argument '{knob}'"):
         build({"vendors": _name_list_spec(any_vendors)}, **{knob: value})
-
-    (warning,) = [w for w in record if issubclass(w.category, DeprecationWarning)]
-    message = str(warning.message)
-    assert message.startswith(f"{build.__name__}'s {knob}= is deprecated")
-    assert "reads=" in message
-    assert "tool_server_arguments" in message
-    assert warning.filename == __file__
-
-
-# Compiled into a namespace of the test's choosing, so the frames a warning is
-# attributed through carry whatever module name the test needs them to.
-_DEPRECATED_BUILD = """
-def build():
-    with warnings.catch_warnings(record=True) as record:
-        warnings.simplefilter("always")
-        SpecToolset({"vendors": spec}, url_kwargs=[UrlKwarg("tenant_pk")])
-    return [w for w in record if issubclass(w.category, DeprecationWarning)]
-
-
-def run_as_thread(outcome, done):
-    try:
-        outcome["warnings"] = build()
-    except BaseException as error:
-        outcome["error"] = error
-    finally:
-        done.release()
-"""
-
-
-def _probe(module: str) -> dict[str, Any]:
-    """``_DEPRECATED_BUILD`` compiled as code of ``module``, in a file named
-    ``<module>``, so a warning attributed to one of its frames says so."""
-    namespace: dict[str, Any] = {
-        "__name__": module,
-        "warnings": warnings,
-        "SpecToolset": SpecToolset,
-        "UrlKwarg": UrlKwarg,
-        "spec": _name_list_spec(any_vendors),
-    }
-    exec(compile(_DEPRECATED_BUILD, f"<{module}>", "exec"), namespace)
-    return namespace
-
-
-def test_a_package_whose_name_only_begins_like_this_one_is_the_caller():
-    """The frame walk skips this package's modules by dotted name, so a package
-    named ``django_spec_agents.spec_tools_extras`` is outside it and is the line the
-    warning names. Holds the trailing dot in ``_in_this_package``: a bare prefix
-    match would skip this caller too and name the test instead."""
-    (warning,) = _probe("django_spec_agents.spec_tools_extras")["build"]()
-
-    assert warning.filename == "<django_spec_agents.spec_tools_extras>"
-
-
-def test_a_walk_reaching_the_bottom_of_the_stack_inside_this_package_still_warns():
-    """A function a thread is started on from C has no frame beneath it. When
-    that frame is this package's, the walk stops on it and warns there rather
-    than stepping off the stack. Holds the ``f_back`` guard in
-    ``_warn_mount_channels``, without which the walk reads the globals of
-    ``None`` and the toolset is never built."""
-    outcome: dict[str, Any] = {}
-    done = _thread.allocate_lock()
-    done.acquire()
-
-    _thread.start_new_thread(
-        _probe("django_spec_agents.spec_tools.probe")["run_as_thread"], (outcome, done)
-    )
-
-    assert done.acquire(timeout=30)
-    assert "error" not in outcome, outcome.get("error")
-    (warning,) = outcome["warnings"]
-    assert warning.filename == "<django_spec_agents.spec_tools.probe>"
-
-
-def tasks_in_status(*, status: str = "open"):
-    """The tasks in one status, the open ones when none is named."""
-    return [{"name": status}]
-
-
-def _status_registry() -> SpecRegistry:
-    """A tool whose selector takes ``status``, which its spec also reads as a ``QueryParam``."""
-    return _registry(
-        tasks=_name_list_spec(
-            tasks_in_status,
-            permission_classes=[_RecordingPermission],
-            reads=(QueryParam("status"),),
-        )
-    )
-
-
-@pytest.mark.django_db(transaction=True)
-async def test_a_mount_url_kwarg_over_a_spec_s_read_of_its_input_serves_as_both_routes_do():
-    """A mount's ``UrlKwarg("status")`` over a spec's ``QueryParam("status")``
-    read of a selector parameter declares where the tool's input comes from, so
-    the registry builds and serves it as ``registry.specs()`` does: the value on
-    ``view.kwargs``, and on the query string under the spec's read. Up to 0.35.x
-    the registry refused it as one name on two channels."""
-    user = await User.objects.acreate(username="u")
-    registry = _status_registry()
-    served = []
-    for source in (registry, registry.specs()):
-        with pytest.warns(DeprecationWarning):
-            toolset = SpecToolset(source, url_kwargs=[UrlKwarg("status")])
-        result = await _call(toolset, "tasks", user, {"status": "done"})
-        served.append(
-            (_rows(result), _RecordingPermission.seen, _input_schema_of(toolset, "tasks"))
-        )
-
-    assert served[0] == served[1]
-    assert served[0][:2] == (
-        [{"name": "done"}],
-        {"kwargs": {"status": "done"}, "query_params": {"status": ["done"]}},
-    )
-
-
-@pytest.mark.parametrize(
-    ("selector", "url_kwarg"),
-    [
-        (tasks_in_status, UrlKwarg("status", default="open")),
-        (any_vendors, UrlKwarg("status")),
-    ],
-    ids=["default-fills-the-parameter", "not-an-input"],
-)
-def test_a_mount_url_kwarg_over_a_read_the_tool_does_not_take_is_refused_from_the_registry(
-    selector, url_kwarg
-):
-    """Where the tool does not take the name as an input -- a ``UrlKwarg`` with a
-    ``default`` fills the selector's ``status`` itself, and ``any_vendors`` has
-    none -- the spec's read is a channel of its own, and the registry refuses it
-    beside the ``UrlKwarg`` as one name on two channels. ``registry.specs()``
-    reads no channel off the spec, so it builds. The first case holds
-    ``_parameter_reads`` reading the tool's ``url_kwargs``: read without them,
-    the parameter would count as the model's and the registry would build."""
-    registry = _registry(
-        tasks=_name_list_spec(
-            selector, permission_classes=[_RecordingPermission], reads=(QueryParam("status"),)
-        )
-    )
-    with (
-        pytest.warns(DeprecationWarning),
-        pytest.raises(ValueError, match="both a QueryParam and a UrlKwarg on tool 'tasks'"),
-    ):
-        SpecToolset(registry, url_kwargs=[url_kwarg])
-    with pytest.warns(DeprecationWarning):
-        SpecToolset(registry.specs(), url_kwargs=[url_kwarg])
-
-
-def test_no_deprecation_is_raised_for_a_mount_declaring_no_channel():
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        SpecToolset(_registry(vendors=_scoped_spec()), tool_server_arguments={"vendors": _SCOPED})
 
 
 @pytest.mark.django_db(transaction=True)

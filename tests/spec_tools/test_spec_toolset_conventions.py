@@ -27,6 +27,7 @@ from rest_framework_services import MARKING, QueryParam, SelectorSpec, ServiceSp
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.testing import instruction_capturing_model
+from tests.spec_tools.test_spec_toolset import reading
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import WidgetInputSerializer
 
@@ -160,9 +161,13 @@ def _every_line() -> dict[str, Any]:
 
 def _toolset(**kwargs: Any) -> SpecToolset:
     return SpecToolset(
-        _every_line(),
-        tool_query_params={"list_widgets": [QueryParam("fields")]},
-        tool_url_kwargs={"scoped_widget": [UrlKwarg("project_pk", required=True)]},
+        reading(
+            _every_line(),
+            {
+                "list_widgets": [QueryParam("fields")],
+                "scoped_widget": [UrlKwarg("project_pk", required=True)],
+            },
+        ),
         **kwargs,
     )
 
@@ -319,8 +324,10 @@ async def test_none_drops_the_scope_sentence_from_the_param_and_the_retry():
 
 async def test_a_declared_param_description_keeps_its_place_ahead_of_a_changed_sentence():
     toolset = SpecToolset(
-        {"list_widgets": _every_line()["list_widgets"]},
-        query_params=[QueryParam("fields", description="Which fields.")],
+        reading(
+            {"list_widgets": _every_line()["list_widgets"]},
+            {"list_widgets": [QueryParam("fields", description="Which fields.")]},
+        ),
         conventions=AgentConventions(query_param_on_pages="Per row."),
     )
     tools = await toolset.get_tools(_ctx())
@@ -408,16 +415,18 @@ async def test_an_overridden_line_follows_a_tool_a_condition_leaves_out():
     """
     books = {"open": False}
     toolset = SpecToolset(
-        {
-            "get_widget": _every_line()["scoped_widget"],
-            "approve": _conditioned(
-                lambda: books["open"],
-                output_selector_spec=SelectorSpec(
-                    kind=SelectorKind.RETRIEVE, output_serializer=_HandledWidget
+        reading(
+            {
+                "get_widget": _every_line()["scoped_widget"],
+                "approve": _conditioned(
+                    lambda: books["open"],
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, output_serializer=_HandledWidget
+                    ),
                 ),
-            ),
-        },
-        tool_query_params={"approve": [QueryParam("fields")]},
+            },
+            {"approve": [QueryParam("fields")]},
+        ),
         conventions=AgentConventions(
             handles="Handles.", read_shaping="Shape with {names}.", unavailable_heading="Closed:"
         ),
@@ -448,10 +457,12 @@ async def test_an_agent_takes_no_instructions_from_a_toolset_that_says_nothing(r
     only its own instructions, with no blank line where the block would have been.
     """
     options: dict[str, Any] = {
-        "tool_query_params": {"list_widgets": [QueryParam("fields")]},
         "conventions": AgentConventions(**dict.fromkeys([*_BLOCK, "unavailable_heading"])),
     }
-    specs = {name: spec for name, spec in _every_line().items() if name != "approve"}
+    specs = reading(
+        {name: spec for name, spec in _every_line().items() if name != "approve"},
+        {"list_widgets": [QueryParam("fields")]},
+    )
     toolset = SpecToolset(specs, **options)
     assert await toolset.get_instructions(_ctx()) is None
     attached: dict[str, Any] = {

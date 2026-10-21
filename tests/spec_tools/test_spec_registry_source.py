@@ -10,7 +10,6 @@ import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import FieldAudience, FieldMarking, SelectorKind, SpecRegistry
-from pydantic_ai import ModelRetry
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework_services import (
     PolymorphicServiceSpec,
@@ -115,16 +114,6 @@ class TestToolsetFromRegistry:
 
         assert list(SpecToolset(registry)._tool_defs) == ["b_spec", "a_spec"]
 
-    def test_transport_knobs_still_apply(self) -> None:
-        """The registry carries no transport config, so per-toolset knobs are
-        unaffected by where the specs came from."""
-        toolset = SpecToolset(
-            _registry(),
-            query_params=[QueryParam(name="tenant")],
-        )
-        props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
-        assert "tenant" in props
-
     def test_a_registry_name_invalid_as_a_tool_name_still_fails_fast(self) -> None:
         """Registry names are free-form; provider tool names are not."""
         registry = SpecRegistry()
@@ -132,22 +121,6 @@ class TestToolsetFromRegistry:
 
         with pytest.raises(ValueError, match="not a valid tool name"):
             SpecToolset(registry)
-
-    def test_per_tool_knobs_key_off_registry_names(self) -> None:
-        toolset = SpecToolset(
-            _registry(),
-            tool_query_params={"list_widgets": [QueryParam(name="since")]},
-        )
-        assert "since" in toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
-        other = toolset._tool_defs["create_widget"].parameters_json_schema
-        assert "since" not in other.get("properties", {})
-
-    def test_an_unknown_per_tool_key_still_raises(self) -> None:
-        with pytest.raises(ValueError, match="typo"):
-            SpecToolset(
-                _registry(),
-                tool_query_params={"typo": [QueryParam(name="x")]},
-            )
 
 
 def _native_registry() -> SpecRegistry:
@@ -350,60 +323,6 @@ class TestTheEntrysOfflineContract:
 
         assert str(raised.value).startswith("SpecToolset tool 'list_widgets': ")
         assert "'nope'" in str(raised.value)
-
-    def test_this_mounts_declaration_overrides_the_entrys_by_name(self) -> None:
-        # The contract is a default. A constructor declaration is this mount's
-        # word about this deployment, and wins.
-        toolset = SpecToolset(
-            self._contract_registry(reads=(QueryParam(name="since", description="entry"),)),
-            query_params=[QueryParam(name="since", description="mount")],
-        )
-
-        (param,) = toolset._tool_query_params["list_widgets"]
-        assert param.description == "mount"
-
-    def test_a_per_tool_declaration_overrides_both(self) -> None:
-        toolset = SpecToolset(
-            self._contract_registry(reads=(UrlKwarg("tenant_pk"),)),
-            url_kwargs=[UrlKwarg("tenant_pk", description="mount")],
-            tool_url_kwargs={"list_widgets": [UrlKwarg("tenant_pk", description="tool")]},
-        )
-
-        (kwarg,) = toolset._tool_url_kwargs["list_widgets"]
-        assert kwarg.description == "tool"
-
-    @pytest.mark.django_db(transaction=True)
-    async def test_an_override_changes_what_is_advertised_and_the_spec_still_checks_the_call(
-        self,
-    ) -> None:
-        """An override by name is true of what this toolset advertises, routes and
-        defaults, and of nothing drf-services reads: the spec's own declaration
-        still checks the call. A mount loosening a required read to optional
-        advertises it as optional, and a call leaving it out is refused by the
-        spec all the same. Declare the read once, on the spec.
-        """
-        registry = self._contract_registry(reads=(UrlKwarg("tenant_pk", required=True),))
-        toolset = SpecToolset(registry, url_kwargs=[UrlKwarg("tenant_pk")])
-        user = await User.objects.acreate(username="u")
-
-        schema = toolset._tool_defs["list_widgets"].parameters_json_schema
-        assert "tenant_pk" in schema["properties"]
-        assert "tenant_pk" not in schema.get("required", [])
-        tools = await toolset.get_tools(ctx_for(user))
-        with pytest.raises(ModelRetry, match="tenant_pk: This field is required"):
-            await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
-
-    def test_the_contract_still_answers_to_the_shared_channel_checks(self) -> None:
-        # Nothing about arriving from an entry exempts a declaration from the
-        # checks a constructor one answers to: both are merged first, and the
-        # merged tuple is what is validated and what reaches the schema. The
-        # entry's ``UrlKwarg`` and the mount's ``QueryParam`` meet only there --
-        # one spec cannot declare the name twice, which drf-services refuses
-        # when the spec is built.
-        registry = self._contract_registry(reads=(UrlKwarg("tenant_pk"),))
-
-        with pytest.raises(ValueError, match="cannot route to two channels"):
-            SpecToolset(registry, query_params=[QueryParam(name="tenant_pk")])
 
     @pytest.mark.django_db(transaction=True)
     async def test_a_bare_mapping_advertises_no_read_and_still_routes_one(self) -> None:
