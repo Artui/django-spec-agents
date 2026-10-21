@@ -80,7 +80,15 @@ def _modules_after(settings: str, script: str) -> set[str]:
     with tempfile.TemporaryDirectory() as directory:
         shutil.copy(ROOT / "tests" / f"{settings}.py", directory)
         env = {
-            **os.environ,
+            # Unmeasured: pytest-cov below 7 starts coverage in every subprocess
+            # from its COV_CORE_* variables, and here it would find none of the
+            # suite's configuration in the temporary directory, so it would write
+            # statement data the parent's branch data cannot be combined with.
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if not key.startswith(("COV_CORE_", "COVERAGE_"))
+            },
             # Overwritten, never inherited: pytest-django has set the suite's own.
             "DJANGO_SETTINGS_MODULE": settings,
             "PYTHONPATH": directory,
