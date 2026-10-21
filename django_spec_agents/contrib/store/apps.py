@@ -14,6 +14,6 @@ class StoreConfig(AppConfig):
     """
 
     name = "django_spec_agents.contrib.store"
-    label = "django_pydantic_agent_store"
+    label = "django_spec_agents_store"
     default_auto_field = "django.db.models.BigAutoField"
-    verbose_name = "django-pydantic-agent stores"
+    verbose_name = "django-spec-agents stores"
