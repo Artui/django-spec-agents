@@ -119,8 +119,8 @@ def test_importing_spec_tools_loads_nothing_of_the_store() -> None:
     assert sorted(m for m in modules if _is_or_under(m, STORE)) == []
 
 
-def _host_imports(source: str) -> list[str]:
-    """Each host name ``source`` imports, anywhere in it, as a dotted path.
+def _package_imports(source: str) -> list[str]:
+    """Each name of this package ``source`` imports, anywhere in it, as a dotted path.
 
     Every node is walked, not only the module's top level, so an import inside a
     function or under a guard counts. ``from a.b import c`` reads as ``a.b.c``, so
@@ -135,11 +135,15 @@ def _host_imports(source: str) -> list[str]:
             # here is one the scan could only place by guessing.
             assert node.level == 0, f"relative import at line {node.lineno}"
             names.extend(f"{node.module}.{alias.name}" for alias in node.names)
+    return [name for name in names if _is_or_under(name, "django_spec_agents")]
+
+
+def _host_imports(source: str) -> list[str]:
+    """Each host name ``source`` imports: this package's, outside ``spec_tools``."""
     return [
         name
-        for name in names
-        if _is_or_under(name, "django_spec_agents")
-        and not _is_or_under(name, "django_spec_agents.spec_tools")
+        for name in _package_imports(source)
+        if not _is_or_under(name, "django_spec_agents.spec_tools")
     ]
 
 
@@ -198,3 +202,50 @@ def test_the_scan_allows_agent_deps_and_names_any_other_host_import() -> None:
     assert [n for n in _host_imports(source) if n not in SPEC_TOOLS_MAY_IMPORT] == [
         "django_spec_agents.registry.tool_registry.ToolRegistry"
     ]
+
+
+PACKAGE = ROOT / "django_spec_agents"
+
+# The one host module that reaches the tool half, through a function-local import
+# under the optional-dependency exception, so loading it never loads the half.
+MAY_IMPORT_SPEC_TOOLS = {"django_spec_agents/integrations/build_spec_capability.py"}
+
+
+def _host_files() -> list[pathlib.Path]:
+    return sorted(path for path in PACKAGE.rglob("*.py") if SPEC_TOOLS not in path.parents)
+
+
+def test_the_host_reaches_spec_tools_in_one_module_and_testing_in_none() -> None:
+    # The fresh-interpreter test above sees only what importing the root loads, so
+    # an import inside a host function, run later, would pass it. This scan reads
+    # every host module for the two the root must never reach: ``spec_tools``
+    # outside the one module that bridges to it, and ``testing`` anywhere: its
+    # doubles are for a project's tests, and its module says the root never
+    # imports it.
+    files = {path.relative_to(ROOT).as_posix(): path for path in _host_files()}
+    assert {"django_spec_agents/__init__.py", *MAY_IMPORT_SPEC_TOOLS} <= files.keys()
+
+    imported = [
+        (relative, name)
+        for relative, path in files.items()
+        for name in _package_imports(path.read_text())
+    ]
+
+    spec_tools = sorted(
+        f"{relative}: {name}"
+        for relative, name in imported
+        if _is_or_under(name, "django_spec_agents.spec_tools")
+        and relative not in MAY_IMPORT_SPEC_TOOLS
+    )
+    assert spec_tools == [], "a host module imports spec_tools"
+    testing = sorted(
+        f"{relative}: {name}"
+        for relative, name in imported
+        if _is_or_under(name, "django_spec_agents.testing")
+    )
+    assert testing == [], "a host module imports testing"
+    # The allowance is used, so the scan reads the import it permits.
+    assert (
+        "django_spec_agents/integrations/build_spec_capability.py",
+        "django_spec_agents.spec_tools.SpecCapability",
+    ) in imported
