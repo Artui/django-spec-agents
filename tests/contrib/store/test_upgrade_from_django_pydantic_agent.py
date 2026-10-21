@@ -31,8 +31,10 @@ LABEL = "django_spec_agents_store"
 
 
 # What Django named from the old tables without a name in the model, as an upgraded
-# PostgreSQL database shows it. The migration renames none of them; Django finds
-# each by column on a later alter, so only a person reading the schema sees them.
+# PostgreSQL database shows it. The migration renames none of them: when a later
+# migration drops or replaces one, Django asks the database for the column's
+# constraints rather than computing the name. The ``_like`` index it does drop by
+# a computed name is renamed, so it is not here, and the ``alter`` step holds it.
 STALE_ON_POSTGRESQL = {
     "django_pydantic_agen_attachment_id_6a60527b_fk_django_py",
     "django_pydantic_agen_conversation_id_9f098291_fk_django_py",
@@ -40,7 +42,6 @@ STALE_ON_POSTGRESQL = {
     "django_pydantic_agent_stor_conversation_id_9f098291",
     "django_pydantic_agent_store_conversationattachment_pkey",
     "django_pydantic_agent_store_storedattachment_file_39b93faa",
-    "django_pydantic_agent_store_storedattachment_file_39b93faa_like",
     "django_pydantic_agent_store_storedattachment_pkey",
     "django_pydantic_agent_store_storedattachment_size_check",
     "django_pydantic_agent_store_storedconversation_pkey",
@@ -58,7 +59,7 @@ def _step(
 ) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
-        "DJANGO_SETTINGS_MODULE": f"tests.contrib.store.upgrade.settings_{side}",
+        "DJANGO_SETTINGS_MODULE": f"tests.contrib.store.upgrade.settings_{'old' if side == 'old' else 'new'}",
         "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")])),
     }
     if sqlite or "STORE_UPGRADE_ENGINE" not in os.environ:
@@ -112,6 +113,15 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
     # On SQLite a constraint changes only by remaking its table, which derives
     # every name afresh, so not even the auto-named objects keep the old prefix.
     assert stale == (STALE_ON_POSTGRESQL if after["vendor"] == "postgresql" else set())
+
+    # A later change to the column's type drops its ``_like`` index by the name
+    # Django computes from the new table and creates one for the new type, so a
+    # ``_like`` index left under the old name would survive beside the new one.
+    like = _ran(_step(database, "alter"))
+    on_postgresql = after["vendor"] == "postgresql"
+    assert like == (
+        ["django_spec_agents_store_storedattachment_file_bb78a77a_like"] if on_postgresql else []
+    )
 
 
 def test_an_install_short_of_its_last_migration_is_refused(tmp_path: pathlib.Path) -> None:

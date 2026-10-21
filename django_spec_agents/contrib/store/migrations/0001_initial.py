@@ -14,18 +14,21 @@ the connection first:
   and every test run see.
 - **With the old tables present**, it renames what the old label named: the nine
   tables, the seven constraints, the seven named indexes, the content types (so
-  permissions and grants follow by foreign key), and it deletes the old label's
-  rows from ``django_migrations``. The old install must be at its ``0005``, so a
+  permissions and grants follow by foreign key), PostgreSQL's ``_like`` index on
+  ``StoredAttachment.file``, and it deletes the old label's rows from
+  ``django_migrations``. The old install must be at its ``0005``, so a
   schema behind its state is refused rather than renamed.
 
-What it does not rename are the objects Django named from the old tables without a
-name in the model: the index on ``StoredAttachment.file`` (and its ``_like`` twin on
-PostgreSQL), the check constraint on ``StoredAttachment.size``,
-``ConversationAttachment``'s two foreign-key indexes and constraints, each table's
-primary key and PostgreSQL's identity sequences. Django finds those by introspecting
-columns on a later alter, so the old names are harmless to it. On SQLite a
-constraint can only change by remaking its table, so there every name comes out
-new.
+What it does not rename are the other objects Django named from the old tables
+without a name in the model: the index on ``StoredAttachment.file``, the check
+constraint on ``StoredAttachment.size``, ``ConversationAttachment``'s two
+foreign-key indexes and constraints, each table's primary key and PostgreSQL's
+identity sequences. When a later migration drops or replaces one of these, Django's
+schema editors, from 4.2 to 6.0 on SQLite, PostgreSQL and MySQL, find it by asking
+the database for the column's constraints, so the old names are harmless to them.
+The ``_like`` index is the exception: PostgreSQL's editor drops it by the name it
+computes from the current table, which is why it is renamed. On SQLite a constraint
+can only change by remaking its table, so there every name comes out new.
 
 Unapplying it renames everything back and records the old app's five migrations
 again, which is the schema django-pydantic-agent 0.20 to 0.28 expects, so a
@@ -132,6 +135,41 @@ def _old_apps(apps: StateApps) -> StateApps:
     return state.apps
 
 
+def _rename_like_indexes(
+    # ``Any``: Django's stubs leave out ``_create_index_name``, which this needs.
+    schema_editor: Any,
+    source_table: str,
+    model: type[models.Model],
+) -> None:
+    """Rename the ``_like`` indexes PostgreSQL keeps beside a text column's index.
+
+    The one auto-named object Django does not find by introspection: when a later
+    migration changes such a column's type, or drops its uniqueness, PostgreSQL's
+    schema editor drops the ``_like`` index by the name it computes from the table
+    the model names now, and with ``IF EXISTS``. Left under the old table's name,
+    the index would survive that drop and sit beside the one created in its place.
+    The name is computed the way Django computes it, so it matches what Django will
+    look for. Only PostgreSQL creates these, so elsewhere nothing matches.
+    """
+    connection = schema_editor.connection
+    table = model._meta.db_table
+    with connection.cursor() as cursor:
+        existing = connection.introspection.get_constraints(cursor, table)
+    for field in model._meta.local_concrete_fields:
+        # ``_create_index_name`` is how Django names this index on creation and on
+        # the drop described above; no public spelling of it exists.
+        source = schema_editor._create_index_name(source_table, [field.column], suffix="_like")
+        if source in existing:
+            target = schema_editor._create_index_name(table, [field.column], suffix="_like")
+            schema_editor.execute(
+                schema_editor.sql_rename_index
+                % {
+                    "old_name": schema_editor.quote_name(source),
+                    "new_name": schema_editor.quote_name(target),
+                }
+            )
+
+
 def _move(
     apps: StateApps, schema_editor: BaseDatabaseSchemaEditor, source_label: str, target_label: str
 ) -> None:
@@ -143,6 +181,12 @@ def _move(
             target.get_model(target_label, name),
             source.get_model(source_label, name)._meta.db_table,
             target.get_model(target_label, name)._meta.db_table,
+        )
+    for name in MODELS:
+        _rename_like_indexes(
+            schema_editor,
+            source.get_model(source_label, name)._meta.db_table,
+            target.get_model(target_label, name),
         )
     # Indexes before constraints: on SQLite a constraint change remakes the table
     # with the target model's indexes, after which the source index is gone.

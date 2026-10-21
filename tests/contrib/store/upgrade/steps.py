@@ -9,7 +9,9 @@ types' keys.
 
 ``python -m tests.contrib.store.upgrade.steps new`` runs under the new side's
 settings: it runs ``migrate`` and prints what the database holds afterwards, read
-through this package's own models.
+through this package's own models. ``alter``, after it, changes the type of the
+attachment's file column as a later migration might, and prints the column's
+``_like`` indexes.
 
 Each runs in its own interpreter, because a process has one set of installed apps
 and the upgrade is a change of exactly that. The Django imports sit inside the
@@ -131,10 +133,37 @@ def upgrade() -> dict[str, Any]:
     }
 
 
+def alter_the_file_column() -> list[str]:
+    """Turn ``StoredAttachment.file`` into a text column, and list its ``_like`` indexes.
+
+    A later migration altering the column's type is where a stale index name would
+    show: PostgreSQL's schema editor drops the column's ``_like`` index by the name
+    it computes from the table, rather than by asking the database, and creates a
+    new one for the new type.
+    """
+    from django.db import connection, models
+
+    from django_spec_agents.contrib.store.models import StoredAttachment
+
+    old_field = StoredAttachment._meta.get_field("file")
+    new_field = models.TextField(db_index=True)
+    new_field.set_attributes_from_name("file")
+    with connection.schema_editor() as schema_editor:
+        schema_editor.alter_field(StoredAttachment, old_field, new_field)
+    with connection.cursor() as cursor:
+        names = connection.introspection.get_constraints(cursor, StoredAttachment._meta.db_table)
+    return sorted(name for name in names if name.endswith("_like"))
+
+
 def main(argv: list[str]) -> None:
     django.setup()
     step, *rest = argv
-    result = install_old(rest[0] if rest else None) if step == "old" else upgrade()
+    steps = {
+        "old": lambda: install_old(rest[0] if rest else None),
+        "new": upgrade,
+        "alter": alter_the_file_column,
+    }
+    result = steps[step]()
     sys.stdout.write(json.dumps(result))
 
 

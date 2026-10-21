@@ -153,3 +153,26 @@ def test_the_models_need_no_migration_beyond_this_one() -> None:
     from django.core.management import call_command
 
     call_command("makemigrations", LABEL, "--check", "--dry-run", verbosity=0)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_like_index_is_renamed_to_the_name_django_will_look_for(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Only PostgreSQL makes ``_like`` indexes, and the suite runs on SQLite, so the
+    # database is told it has the one an upgraded PostgreSQL install has, and the
+    # SQL is collected rather than run. Both names are the ones PostgreSQL showed
+    # before and after the upgrade test's run there.
+    old_like = "django_pydantic_agent_store_storedattachment_file_39b93faa_like"
+    monkeypatch.setattr(
+        connection.introspection, "get_constraints", lambda cursor, table: {old_like: {}}
+    )
+    with connection.schema_editor(collect_sql=True) as schema_editor:
+        migration._rename_like_indexes(
+            schema_editor, f"{OLD_LABEL}_storedattachment", StoredAttachment
+        )
+
+    assert schema_editor.collected_sql == [
+        f'ALTER INDEX "{old_like}" RENAME TO '
+        '"django_spec_agents_store_storedattachment_file_bb78a77a_like";'
+    ]

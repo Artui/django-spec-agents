@@ -196,9 +196,13 @@ the ones you had.
   old app's migrations again.
 - **Some objects Django named itself keep the old names on PostgreSQL**: the index
   on an attachment's file, the check on its size, the link table's foreign keys and
-  each table's primary key and sequence. Django finds them by column, never by name, so nothing reads
-  the stale name but a person looking at the schema. On SQLite a constraint
-  changes only by remaking its table, so there every name comes out new.
+  each table's primary key and sequence. When a later migration drops or replaces
+  one of them, Django asks the database for the column's constraints rather than
+  computing the name, so the old names show only to a person reading the schema.
+  The exception is the `_like` index PostgreSQL keeps beside the file column,
+  which Django drops by a name it computes, so the upgrade renames it too. On
+  SQLite a constraint changes only by remaking its table, so there every name
+  comes out new.
 
 What the upgrade leaves alone is everything stored or configured outside the
 schema: the [attachment storage alias](#putting-attachments-somewhere-other-than-the-default)
