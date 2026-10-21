@@ -36,6 +36,8 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 # Django REST Framework into this process, so a check made here proves nothing.
 _IMPORTS_OF_THE_DOUBLES = """
 import sys
+import django_spec_agents
+assert "django_spec_agents.testing" not in sys.modules, "the package root imported the doubles"
 import django_spec_agents.testing
 print(sorted(
     name for name in sys.modules
@@ -48,7 +50,8 @@ print(sorted(
 def test_the_doubles_import_without_the_specs_extra():
     """No settings module, so the doubles must import on pydantic-ai alone: a
     module importing ``spec_tools`` would fail here at Django REST Framework's
-    settings, and one importing drf-services lazily would be listed."""
+    settings, and one importing drf-services lazily would be listed. The
+    package root, imported first, must not have imported them."""
     env = {key: value for key, value in os.environ.items() if key != "DJANGO_SETTINGS_MODULE"}
     completed = subprocess.run(
         [sys.executable, "-c", _IMPORTS_OF_THE_DOUBLES],

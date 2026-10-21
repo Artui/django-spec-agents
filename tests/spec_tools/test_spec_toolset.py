@@ -33,6 +33,7 @@ from django_service_specs import (
     FieldMarking,
     PoolSeeds,
     SelectorKind,
+    ServerArguments,
     ServiceConflict,
     ServiceError,
     ServiceValidationError,
@@ -2142,6 +2143,69 @@ def test_required_url_kwarg_with_a_default_is_rejected():
                 {"list_widgets": [UrlKwarg("project_pk", default="P1", required=True)]},
             )
         )
+
+
+# The toolset's own wording for refusals it used to make of a mount's channel
+# declarations. A spec cannot make any of these declarations unrefused, so the
+# toolset no longer checks for them; each case below is refused one layer down,
+# and must not be answered in these words.
+_THE_TOOLSETS_OLD_REFUSALS = (
+    "takes its list under the argument",
+    "that the tool also declares as a QueryParam",
+    "cannot route to two channels",
+    "which a UrlKwarg declared for the tool requires",
+)
+
+
+@pytest.mark.parametrize(
+    ("build", "refusal"),
+    [
+        pytest.param(
+            lambda: SpecToolset(reading({"c": bulk_spec()}, {"c": [QueryParam("items")]})),
+            r"Parameters \['items'\] are declared by two sources",
+            id="query-param-named-after-the-list-argument",
+        ),
+        pytest.param(
+            lambda: SpecToolset(reading({"c": bulk_spec()}, {"c": [UrlKwarg("items")]})),
+            r"Parameters \['items'\] are declared by two sources",
+            id="url-kwarg-named-after-the-list-argument",
+        ),
+        pytest.param(
+            lambda: SpecToolset(reading({"make": create_spec()}, {"make": [QueryParam("name")]})),
+            r"input serializer \w+ also takes as a writable field",
+            id="query-param-naming-a-serializer-field",
+        ),
+        pytest.param(
+            lambda: SpecToolset(
+                reading({"l": list_spec()}, {"l": [UrlKwarg("scope"), QueryParam("scope")]})
+            ),
+            r"declares 'scope' twice",
+            id="one-name-on-both-channels",
+        ),
+        pytest.param(
+            lambda: SpecToolset(reading({"l": list_spec()}, {"l": [UrlKwarg("user")]})),
+            r"declares 'user', which dispatch fills itself from the pool",
+            id="a-default-pool-seed",
+        ),
+        pytest.param(
+            lambda: SpecToolset(
+                reading({"l": list_spec()}, {"l": [UrlKwarg("project_pk", required=True)]}),
+                tool_server_arguments={"l": ServerArguments(withheld=frozenset({"project_pk"}))},
+            ),
+            r"withholds project_pk, which no call could then do without",
+            id="a-required-read-withheld",
+        ),
+    ],
+)
+def test_a_read_no_spec_can_declare_is_refused_before_the_toolset_checks_it(build, refusal):
+    """drf-services refuses each of these reads when the spec is built or
+    compiled, and django-service-specs refuses a required read withheld by
+    ``tool_server_arguments``, so a toolset never sees one: the reason the
+    toolset carries no check of its own for them."""
+    with pytest.raises(ImproperlyConfigured, match=refusal) as raised:
+        build()
+
+    assert not any(old in str(raised.value) for old in _THE_TOOLSETS_OLD_REFUSALS)
 
 
 # --- DRF's baseline serializer context ---------------------------------------
