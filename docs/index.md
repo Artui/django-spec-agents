@@ -69,9 +69,12 @@ nothing else; the deps a run passes are the host's
 
 ## The rule that shapes everything
 
-**The package reads no Django settings.** There is no `DJANGO_*` lookup anywhere
-in it. Its public input is an `AgentConfig` dataclass; each transport owns its own
-settings namespace, resolves its config, and hands the record down.
+**The package reads no Django settings of its own.** There is no `DJANGO_*`
+lookup anywhere in it. Its public input is an `AgentConfig` dataclass; each
+transport owns its own settings namespace, resolves its config, and hands the
+record down. What it does read is Django's and DRF's own configuration:
+`STORAGES`, for the store app's optional attachment storage alias, and DRF's
+settings, where `spec_tools` and the `[drf-mcp]` bridge run through DRF.
 
 That is what keeps transports independent: `django-ag-ui` reads `DJANGO_AG_UI`,
 `django-a2a` reads its own, and neither fights the other for keys. A settings
