@@ -1,9 +1,11 @@
-"""Shared registry helpers: recognising the parameter pydantic-ai fills in."""
+"""Shared registry helpers: the description a tool derives and the parameter
+pydantic-ai fills in."""
 
 from __future__ import annotations
 
 import inspect
 import typing
+from collections.abc import Callable
 from typing import Any
 
 from pydantic_ai import RunContext
@@ -43,4 +45,24 @@ def _is_run_context(annotation: Any) -> bool:
     return isinstance(target, type) and issubclass(target, RunContext)
 
 
-__all__ = ["run_context_parameter"]
+def first_doc_paragraph(fn: Callable[..., Any]) -> str:
+    """The first paragraph of ``fn``'s docstring on one line, ``""`` without one.
+
+    This is the description ``@tool`` derives when none is given. It is not what
+    pydantic-ai derives from the same docstring, which keeps every paragraph
+    before the arguments section and gives ``None`` for no docstring, so
+    ``build_agent`` compares against this to tell a derived description from an
+    explicit one.
+    """
+    doc = inspect.getdoc(fn)
+    if not doc:
+        return ""
+    paragraph: list[str] = []
+    for line in doc.splitlines():
+        if not line.strip():
+            break
+        paragraph.append(line)
+    return " ".join(paragraph).strip()
+
+
+__all__ = ["first_doc_paragraph", "run_context_parameter"]
