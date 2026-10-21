@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-21
+
 ### Added
 
 - One package for Pydantic-AI agents in Django, in two halves. The agent host was
@@ -37,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ToolFailurePolicy` logs when it converts a tool's failure, open with
   `django-spec-agents: `.
 - The audit `ContextVar` is named `django_spec_agents.audit.execution`.
+- The `[drf-mcp]` extra requires `djangorestframework-mcp-server>=0.53.1`, the
+  release that requires `django-service-specs>=0.10.0`, so a selector raising
+  `Http404` is a missing row on that route as it is through `spec_tools`.
 - The enums and constants moved from `constants.py` to one module each under
   `django_spec_agents.types`; the root names are unchanged, and
   `django_spec_agents.constants` is gone.
@@ -68,4 +73,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.0.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Artui/django-spec-agents/compare/v0.0.0...v0.1.0
