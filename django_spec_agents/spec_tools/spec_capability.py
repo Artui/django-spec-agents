@@ -10,6 +10,8 @@ from django.http import HttpRequest
 from django_service_specs import DEFAULT_POOL_SEEDS, PoolSeeds, ServerArguments, UnknownArguments
 from pydantic_ai.capabilities import AbstractCapability
 from rest_framework_services import DEFAULT_JSON_SCHEMA_REGISTRY, JsonSchemaRegistry
+from rest_framework_services.types.query_param import QueryParam
+from rest_framework_services.types.url_kwarg import UrlKwarg
 
 from django_spec_agents.spec_tools.spec_toolset import (
     ExceptionHandler,
@@ -20,8 +22,6 @@ from django_spec_agents.spec_tools.spec_toolset import (
     UserExtractor,
 )
 from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
-from django_spec_agents.spec_tools.types.query_param import QueryParam
-from django_spec_agents.spec_tools.types.url_kwarg import UrlKwarg
 
 
 class SpecCapability(AbstractCapability[Any]):

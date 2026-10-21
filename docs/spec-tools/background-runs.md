@@ -20,7 +20,8 @@ from celery import shared_task
 from django.contrib.auth import get_user_model
 from pydantic_ai import Agent
 
-from django_spec_agents.spec_tools import AgentDeps, SpecToolset
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
 
 toolset = SpecToolset({"list_orders": list_orders_spec})
 agent = Agent("anthropic:claude-opus-4-8", deps_type=AgentDeps, toolsets=[toolset])
@@ -188,7 +189,8 @@ doubles this package's own suite uses — no provider, no network, no key:
 ```python
 from pydantic_ai import Agent
 
-from django_spec_agents.spec_tools import AgentDeps, SpecToolset
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
 from django_spec_agents.spec_tools.testing import tool_calling_model
 
 

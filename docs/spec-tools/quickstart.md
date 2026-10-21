@@ -62,11 +62,11 @@ selector's [`filter_set` declares one](#ordering).
 ## 3. Run an agent
 
 The acting user flows through `RunContext.deps`. The default
-[`AgentDeps`](reference.md#django_spec_agents.spec_tools.AgentDeps) carries it:
+[`AgentDeps`](../reference/agent.md#django_spec_agents.AgentDeps) carries it:
 
 ```python
 from pydantic_ai import Agent
-from django_spec_agents.spec_tools import AgentDeps
+from django_spec_agents import AgentDeps
 
 agent = Agent("anthropic:claude-opus-4-8", deps_type=AgentDeps, toolsets=[toolset])
 
@@ -756,7 +756,7 @@ use.
 `page` / `limit` are built in for list selectors and `ordering` comes from the
 `filter_set`, but a spec can declare its own request-level params, as
 `reads=[QueryParam(...)]` with
-[`QueryParam`](reference.md#django_spec_agents.spec_tools.QueryParam). Built from
+[`QueryParam`](reference.md#rest_framework_services.types.query_param.QueryParam). Built from
 the [registry](spec-registry.md#what-the-spec-declares-for-an-agent) the spec is
 registered in, the toolset advertises each as a tool arg, then — instead of reaching the spec as an input — seeded
 into `request.query_params` over the off-HTTP path. That is for whatever reads
@@ -783,7 +783,9 @@ from dataclasses import replace
 
 from django_service_specs import SpecRegistry
 
-from django_spec_agents.spec_tools import QueryParam, SpecToolset
+from rest_framework_services import QueryParam
+
+from django_spec_agents.spec_tools import SpecToolset
 
 # A param several tools read is one declaration, in each spec's reads.
 RESTQL = QueryParam("query", description="django-restql field selection")
@@ -906,7 +908,7 @@ Over HTTP a nested route (`/projects/{project_pk}/widgets/`) supplies
 or through a `spec.kwargs` provider that scopes by it (a tenant/role lookup). Off
 the HTTP path there is no route, so declare the capture on the spec, as
 `reads=[UrlKwarg(...)]` with
-[`UrlKwarg`](reference.md#django_spec_agents.spec_tools.UrlKwarg). Built from the
+[`UrlKwarg`](reference.md#rest_framework_services.types.url_kwarg.UrlKwarg). Built from the
 registry, the toolset advertises it as a tool arg, then popped and seeded into `build_offline_context(kwargs=…)`,
 from where drf-services spreads it into the selector / target pools —
 authoritative over the spec `params`, below a `spec.kwargs` provider (mirroring
@@ -922,7 +924,7 @@ HTTP precedence exactly).
     instead.
 
 ```python
-from django_spec_agents.spec_tools import UrlKwarg
+from rest_framework_services import UrlKwarg
 
 project = UrlKwarg("project_pk", type="integer", description="owning project")
 registry.register("list_widgets", replace(list_widgets_spec, reads=[project]))
@@ -1026,10 +1028,9 @@ server supplies.
 
 `UrlKwarg` and `QueryParam` are
 [drf-services' types](https://github.com/Artui/djangorestframework-services/blob/main/rest_framework_services/types/url_kwarg.py),
-re-exported here — the declaration is the same whichever transport carries it,
-and this package's copy had drifted from the MCP transport's on which names each
-reserved. `from django_spec_agents.spec_tools import UrlKwarg, QueryParam` keeps
-working. Requires `djangorestframework-services>=0.28.1`.
+imported from `rest_framework_services`: the declaration is the same whichever
+transport carries it, so there is one class of each, and this package does not
+re-export them.
 
 ## Absolute URLs (file and hyperlinked fields)
 

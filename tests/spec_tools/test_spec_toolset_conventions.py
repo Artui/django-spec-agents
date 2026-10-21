@@ -22,16 +22,10 @@ from pydantic_ai.usage import RunUsage
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny
-from rest_framework_services import MARKING, SelectorSpec, ServiceSpec
+from rest_framework_services import MARKING, QueryParam, SelectorSpec, ServiceSpec, UrlKwarg
 
-from django_spec_agents.spec_tools import (
-    AgentConventions,
-    AgentDeps,
-    QueryParam,
-    SpecCapability,
-    SpecToolset,
-    UrlKwarg,
-)
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.spec_tools.testing import instruction_capturing_model
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import WidgetInputSerializer

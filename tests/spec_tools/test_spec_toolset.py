@@ -62,8 +62,10 @@ from rest_framework_services import (
     InputRequired,
     NotClientInput,
     PolymorphicServiceSpec,
+    QueryParam,
     SelectorSpec,
     ServiceSpec,
+    UrlKwarg,
     audience_projection_for_spec,
     build_offline_context,
     output_to_json_schema,
@@ -72,14 +74,8 @@ from rest_framework_services import (
 )
 from typing_extensions import NotRequired, TypedDict, Unpack
 
-from django_spec_agents.spec_tools import (
-    AgentConventions,
-    AgentDeps,
-    QueryParam,
-    SpecToolset,
-    UrlKwarg,
-    spec_toolset,
-)
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import AgentConventions, SpecToolset, spec_toolset
 from django_spec_agents.spec_tools.spec_toolset import (
     UndescribedToolWarning,
     UnguardedSpecWarning,

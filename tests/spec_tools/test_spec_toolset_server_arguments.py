@@ -28,15 +28,10 @@ from django_service_specs import (
 from pydantic_ai import Agent
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import BasePermission
-from rest_framework_services import SelectorSpec
+from rest_framework_services import QueryParam, SelectorSpec, UrlKwarg
 
-from django_spec_agents.spec_tools import (
-    AgentDeps,
-    QueryParam,
-    SpecCapability,
-    SpecToolset,
-    UrlKwarg,
-)
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecCapability, SpecToolset
 from django_spec_agents.spec_tools.testing import tool_calling_model
 from tests.spec_tools.test_spec_toolset import (
     _call,

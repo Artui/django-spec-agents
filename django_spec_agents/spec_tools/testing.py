@@ -18,7 +18,8 @@ docs.
 
 ```python
 from pydantic_ai import Agent
-from django_spec_agents.spec_tools import AgentDeps, SpecToolset
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
 from django_spec_agents.spec_tools.testing import tool_calling_model
 
 agent = Agent(tool_calling_model("list_widgets"), deps_type=AgentDeps, toolsets=[toolset])

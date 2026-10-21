@@ -14,16 +14,10 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 from rest_framework.permissions import AllowAny
-from rest_framework_services import SelectorSpec, ServiceSpec
+from rest_framework_services import QueryParam, SelectorSpec, ServiceSpec, UrlKwarg
 
-from django_spec_agents.spec_tools import (
-    AgentConventions,
-    AgentDeps,
-    QueryParam,
-    SpecCapability,
-    SpecToolset,
-    UrlKwarg,
-)
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.spec_tools.spec_toolset import UnguardedSpecWarning
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import WidgetSerializer

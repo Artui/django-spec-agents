@@ -43,7 +43,8 @@ class OrdersConfig(AppConfig):
 ```python
 from pydantic_ai import Agent
 
-from django_spec_agents.spec_tools import AgentDeps, SpecToolset
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
 from orders.registry import registry
 
 agent = Agent(model, deps_type=AgentDeps, toolsets=[SpecToolset(registry)])
@@ -126,7 +127,7 @@ for an agent. Its registry entry answers both as one
 ```python
 from dataclasses import replace
 
-from django_spec_agents.spec_tools import QueryParam, UrlKwarg
+from rest_framework_services import QueryParam, UrlKwarg
 
 registry.register(
     "list_orders",
@@ -275,8 +276,8 @@ simplification.
 
 ### Deprecated: channel declarations on the toolset
 
-The [`QueryParam`](reference.md#django_spec_agents.spec_tools.QueryParam) /
-[`UrlKwarg`](reference.md#django_spec_agents.spec_tools.UrlKwarg) constructor
+The [`QueryParam`](reference.md#rest_framework_services.types.query_param.QueryParam) /
+[`UrlKwarg`](reference.md#rest_framework_services.types.url_kwarg.UrlKwarg) constructor
 arguments, `query_params=`, `tool_query_params=`, `url_kwargs=` and
 `tool_url_kwargs=`, are deprecated. Passing any of them warns with
 `DeprecationWarning`, and they will be removed in the next minor release. They

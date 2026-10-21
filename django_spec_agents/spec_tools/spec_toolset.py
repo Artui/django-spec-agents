@@ -100,11 +100,11 @@ from rest_framework_services import (
     unmet_operation_affordance,
 )
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
+from rest_framework_services.types.query_param import QueryParam
+from rest_framework_services.types.url_kwarg import UrlKwarg
 from rest_framework_services.types.validate_channel_names import validate_channel_names
 
 from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
-from django_spec_agents.spec_tools.types.query_param import QueryParam
-from django_spec_agents.spec_tools.types.url_kwarg import UrlKwarg
 
 Spec = ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
 # Widening the parameter beats a ``from_registry`` constructor, which would have
@@ -521,7 +521,7 @@ class SpecToolset(AbstractToolset[Any]):
             derived, conditional and current.
         get_user: Reads the acting identity off the run context. Defaults to
             ``ctx.deps.user`` (the
-            [`AgentDeps`][django_spec_agents.spec_tools.AgentDeps] shape).
+            [`AgentDeps`][django_spec_agents.AgentDeps] shape).
         get_progress: Reads the run's ``ProgressReporter`` sink off the run
             context, for a spec that reports progress. Defaults to
             ``ctx.deps.progress``, tolerating a deps type without the field.

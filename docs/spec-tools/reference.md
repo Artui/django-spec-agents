@@ -1,7 +1,13 @@
 # Reference
 
-The public API is six symbols, all importable from the package root, plus a
-`testing` module of doubles for driving a toolset through a real run loop.
+`django_spec_agents.spec_tools` exports three symbols: `SpecToolset`,
+`SpecCapability` and `AgentConventions`. A spec declares what it reads with
+drf-services' `QueryParam` and `UrlKwarg`, imported from
+`rest_framework_services` and rendered below for reference. The deps a run
+passes are the package's one
+[`AgentDeps`](../reference/agent.md#django_spec_agents.AgentDeps), and the
+doubles for driving a toolset through a real run loop are in
+`django_spec_agents.testing`.
 
 ## `SpecToolset`
 
@@ -22,10 +28,6 @@ The public API is six symbols, all importable from the package root, plus a
 ## `UrlKwarg`
 
 ::: rest_framework_services.types.url_kwarg.UrlKwarg
-
-## `AgentDeps`
-
-::: django_spec_agents.spec_tools.AgentDeps
 
 ## `testing`
 

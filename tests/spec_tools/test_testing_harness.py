@@ -18,7 +18,8 @@ from rest_framework import serializers
 from rest_framework.permissions import AllowAny
 from rest_framework_services import ServiceSpec
 
-from django_spec_agents.spec_tools import AgentDeps, SpecToolset
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
 from django_spec_agents.spec_tools.testing import (
     instruction_capturing_model,
     streaming_tool_calling_model,

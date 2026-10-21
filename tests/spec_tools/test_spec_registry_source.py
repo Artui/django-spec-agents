@@ -12,9 +12,15 @@ from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import FieldAudience, FieldMarking, SelectorKind, SpecRegistry
 from pydantic_ai import ModelRetry
 from rest_framework.permissions import AllowAny, BasePermission
-from rest_framework_services import PolymorphicServiceSpec, SelectorSpec, ServiceSpec
+from rest_framework_services import (
+    PolymorphicServiceSpec,
+    QueryParam,
+    SelectorSpec,
+    ServiceSpec,
+    UrlKwarg,
+)
 
-from django_spec_agents.spec_tools import QueryParam, SpecCapability, SpecToolset, UrlKwarg
+from django_spec_agents.spec_tools import SpecCapability, SpecToolset
 from tests.spec_tools.test_spec_toolset import ctx_for
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import AgentWidgetSerializer, WidgetSerializer
