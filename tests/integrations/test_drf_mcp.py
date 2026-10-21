@@ -9,11 +9,15 @@ from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 from django.test import RequestFactory, override_settings
 from pydantic_ai import Agent, ModelRetry, ToolFailed
-from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelResponse,
+    RetryPromptPart,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.tools import RunContext
-from pydantic_ai.usage import RunUsage
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
@@ -29,6 +33,7 @@ from tests.integrations.drf_server import BOOKS, REFUSED_SPEC, server
 from tests.integrations.drf_server_lookup import lookup_server
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
 from tests.integrations.drf_specs_lookup import Row
+from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
 
 # The sentence a refused integer argument carries, which depends on which layer
 # of drf-services answers it, not on anything this package does. drf-mcp
@@ -39,6 +44,15 @@ from tests.integrations.drf_specs_lookup import Row
 # are accepted, and only these two: a refusal worded any other way, such as a
 # missing-argument "This field is required.", still fails the tests below.
 WRONG_TYPE_SENTENCES = ("A valid integer is required.", "Expected an integer.")
+
+
+def _parts(result: Any, part_type: type) -> list[Any]:
+    return [
+        part
+        for message in result.all_messages()
+        for part in message.parts
+        if isinstance(part, part_type)
+    ]
 
 
 def _request() -> HttpRequest:
@@ -65,18 +79,13 @@ async def test_toolset_exposes_drf_tools_with_schemas() -> None:
 
 @pytest.mark.django_db
 async def test_agent_run_executes_drf_tool_in_process() -> None:
-    # The real regression: drive a full agent run. With `kind="external"` the
-    # tool was deferred to the client and never executed (the run stalled); as a
-    # `function` tool Pydantic-AI runs it in-process and returns its result.
+    # Drive a full agent run. As a `kind="external"` tool it would be deferred to
+    # the client and never executed (the run stalls); as a `function` tool
+    # Pydantic-AI runs it in-process and returns its result.
     toolset = DRFMCPToolset(server, _request())
     agent = Agent(TestModel(call_tools=["add"]), toolsets=[toolset])
     result = await agent.run("add two numbers")
-    returns = [
-        part
-        for message in result.all_messages()
-        for part in getattr(message, "parts", [])
-        if isinstance(part, ToolReturnPart) and part.tool_name == "add"
-    ]
+    returns = [part for part in _parts(result, ToolReturnPart) if part.tool_name == "add"]
     assert returns, "drf-mcp 'add' tool was deferred, not executed in-process"
     assert "result" in returns[0].content
 
@@ -85,8 +94,7 @@ async def test_agent_run_executes_drf_tool_in_process() -> None:
 async def test_agent_run_recovers_from_model_retry() -> None:
     # A ModelRetry (malformed arguments) must be fed back to the model to
     # self-correct, consuming one unit of the tool's retry budget — not abort
-    # the run. The budget was previously pinned to 0, so the first retry died
-    # with UnexpectedModelBehavior.
+    # the run, as a budget of 0 would, with UnexpectedModelBehavior.
     def model_fn(messages: list, info: object) -> ModelResponse:
         last = messages[-1]
         if any(part.part_kind == "retry-prompt" for part in last.parts):
@@ -157,12 +165,11 @@ async def test_toolset_invokes_drf_tool_as_acting_user() -> None:
     assert result == {"result": 8}
 
 
-async def test_an_unknown_tool_is_now_retryable_not_fatal() -> None:
-    """**Changed by drf-mcp 0.24.0, and the change is upstream's.** An unknown
-    tool used to arrive as `-32004` and this bridge killed the run; the MCP spec's
-    own worked example puts it on `-32602`, indistinguishable from malformed
-    arguments. Retrying is the deliberate choice, since both are faults in the
-    request the model produced and both are things it can change.
+async def test_an_unknown_tool_is_retryable_not_fatal() -> None:
+    """drf-mcp answers an unknown tool with `-32602`, as the MCP spec's own worked
+    example does, which is indistinguishable from malformed arguments. Retrying is
+    the deliberate choice, since both are faults in the request the model produced
+    and both are things it can change.
     """
     toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ModelRetry, match="Unknown tool"):
@@ -243,8 +250,8 @@ async def test_service_validation_error_result_raises_model_retry() -> None:
 
 async def test_service_error_result_raises_tool_failed() -> None:
     # A business-rule denial is a sentence the model reads and adapts to, and a
-    # failed call to everything streaming the run. It was returned as the tool's
-    # value, which pydantic-ai records as a success.
+    # failed call to everything streaming the run. Returned as the tool's value,
+    # pydantic-ai would record it as a success.
     toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ToolFailed) as excinfo:
         await toolset.call_tool("denied", {"a": 1, "b": 2}, None, None)
@@ -277,7 +284,7 @@ async def test_a_refusal_reads_the_same_through_both_bridges() -> None:
     rather than a copy of its format, so a change on either side fails here.
     """
     capability = build_spec_capability({"refused": REFUSED_SPEC})
-    ctx = RunContext(deps=AgentDeps(user=AnonymousUser()), model=TestModel(), usage=RunUsage())
+    ctx = run_context(AgentDeps(user=AnonymousUser()))
     with pytest.raises(ToolFailed) as in_process:
         await capability.get_toolset().call_tool("refused", {}, ctx, None)
     with pytest.raises(ToolFailed) as bridged:
@@ -289,8 +296,8 @@ async def test_a_refusal_reads_the_same_through_both_bridges() -> None:
 async def test_agent_run_records_a_refusal_as_a_failed_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The regression one hop out: a transport streaming the run reads
-    # ``outcome``, and a refusal returned as a value arrived as ``"success"``.
+    # One hop out: a transport streaming the run reads ``outcome``, and a refusal
+    # returned as a value would arrive as ``"success"``.
     # The bridge offers a tool only while its condition is met, so a run meets
     # the refusal when the condition flips between offering the tool and the
     # call: here the books close while the model is choosing.
@@ -303,12 +310,7 @@ async def test_agent_run_records_a_refusal_as_a_failed_call(
     monkeypatch.setitem(BOOKS, "open", True)
     agent = Agent(FunctionModel(model_fn), toolsets=[DRFMCPToolset(server, _request())])
     result = await agent.run("close the books")
-    returns = [
-        part
-        for message in result.all_messages()
-        for part in getattr(message, "parts", [])
-        if isinstance(part, ToolReturnPart) and part.tool_name == "refused"
-    ]
+    returns = [part for part in _parts(result, ToolReturnPart) if part.tool_name == "refused"]
     assert [(part.outcome, part.content) for part in returns] == [
         ("failed", "The books are closed. (code: books_closed)")
     ]
@@ -384,7 +386,7 @@ async def test_a_missing_tool_reads_the_same_through_both_bridges() -> None:
     conventions of its own, so its whole block is that last part.
     """
     capability = build_spec_capability({"refused": REFUSED_SPEC})
-    ctx = RunContext(deps=AgentDeps(user=AnonymousUser()), model=TestModel(), usage=RunUsage())
+    ctx = run_context(AgentDeps(user=AnonymousUser()))
     in_process = await capability.get_toolset().get_instructions(ctx)
     bridged = await DRFMCPToolset(server, _request()).get_instructions(None)
     assert in_process is not None
@@ -494,62 +496,46 @@ async def test_other_error_payloads_raise_tool_failed(
     assert excinfo.value.message == expected
 
 
-def _serve_error(monkeypatch: pytest.MonkeyPatch, error: dict[str, object]) -> None:
-    """Make ``acall_tool`` answer with ``error``, encoded as drf-mcp encodes one."""
-    import json as json_module
+def _serve_text(monkeypatch: pytest.MonkeyPatch, text: str) -> None:
+    """Make ``acall_tool`` answer with an ``isError`` result carrying ``text``."""
 
     async def fake_call(
         name: str, arguments: object = None, **_kwargs: object
     ) -> dict[str, object]:
-        text = json_module.dumps({"error": error})
         return {"isError": True, "content": [{"type": "text", "text": text}]}
 
     monkeypatch.setattr(server, "acall_tool", fake_call)
 
 
+def _serve_error(monkeypatch: pytest.MonkeyPatch, error: dict[str, object]) -> None:
+    """Make ``acall_tool`` answer with ``error``, encoded as drf-mcp encodes one."""
+    _serve_text(monkeypatch, json.dumps({"error": error}))
+
+
 async def test_validation_error_payload_raises_model_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     # Payload-level twin of the integration test above, for the same Python 3.11
     # tracer reason: the branch runs there but is not recorded.
-    import json as json_module
-
-    async def fake_call(
-        name: str, arguments: object = None, **_kwargs: object
-    ) -> dict[str, object]:
-        payload = {
-            "error": {"type": "validation_error", "message": "bad", "detail": {"a": ["nope"]}}
-        }
-        return {"isError": True, "content": [{"type": "text", "text": json_module.dumps(payload)}]}
-
-    monkeypatch.setattr(server, "acall_tool", fake_call)
+    _serve_error(
+        monkeypatch, {"type": "validation_error", "message": "bad", "detail": {"a": ["nope"]}}
+    )
     toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ModelRetry, match="bad.*nope"):
         await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
 
 
-async def test_unparseable_error_content_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_call(
-        name: str, arguments: object = None, **_kwargs: object
-    ) -> dict[str, object]:
-        return {"isError": True, "content": [{"type": "text", "text": "not json"}]}
-
-    monkeypatch.setattr(server, "acall_tool", fake_call)
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [("not json", "not json"), ('{"error": "boom"}', "boom")],
+    ids=["unparseable", "non-dict-error"],
+)
+async def test_an_error_text_that_is_not_a_payload_falls_back_to_the_text(
+    monkeypatch: pytest.MonkeyPatch, text: str, message: str
+) -> None:
+    _serve_text(monkeypatch, text)
     toolset = DRFMCPToolset(server, _request())
     with pytest.raises(ToolFailed) as excinfo:
         await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
-    assert excinfo.value.message == "not json"
-
-
-async def test_non_dict_error_payload_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_call(
-        name: str, arguments: object = None, **_kwargs: object
-    ) -> dict[str, object]:
-        return {"isError": True, "content": [{"type": "text", "text": '{"error": "boom"}'}]}
-
-    monkeypatch.setattr(server, "acall_tool", fake_call)
-    toolset = DRFMCPToolset(server, _request())
-    with pytest.raises(ToolFailed) as excinfo:
-        await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
-    assert excinfo.value.message == "boom"
+    assert excinfo.value.message == message
 
 
 async def test_excluded_names_are_skipped_registry_wins() -> None:
@@ -712,12 +698,7 @@ async def test_a_selection_refused_while_rendering_is_one_retry_then_the_page() 
     toolset = DRFMCPToolset(_paged_selection_server(), _request())
     result = await Agent(FunctionModel(model_fn), toolsets=[toolset]).run("list the rows")
 
-    retries = [
-        part.content
-        for message in result.all_messages()
-        for part in message.parts
-        if part.part_kind == "retry-prompt"
-    ]
+    retries = [part.content for part in _parts(result, RetryPromptPart)]
     assert len(retries) == 1
     # The argument is named, the serializer is quoted in its own words, and the
     # model is told what the selection applies to on a paged tool. The detail,
@@ -727,34 +708,14 @@ async def test_a_selection_refused_while_rendering_is_one_retry_then_the_page() 
         "`fields` was rejected while rendering the result: Unknown field `items`. "
         + PAGED_QUERY_PARAM_SCOPE
     )
-    page = [
-        part.content
-        for message in result.all_messages()
-        for part in message.parts
-        if isinstance(part, ToolReturnPart)
-    ]
+    page = [part.content for part in _parts(result, ToolReturnPart)]
     assert page[0]["items"] == [{"name": "a"}, {"name": "b"}]
-
-
-# Each tool reads its row through a selector taking ``pk`` with no default: the
-# selector tool's own selector, and the service tool's target lookup. A call
-# leaving ``pk`` out is corrected by sending it.
-_LOOKUP_CALLS = [
-    pytest.param("get_row", {}, {"pk": 1}, {"id": 1, "name": "first"}, id="selector"),
-    pytest.param(
-        "rename_row",
-        {"name": "second"},
-        {"pk": 1, "name": "second"},
-        {"id": 1, "name": "second"},
-        id="service-target-lookup",
-    ),
-]
 
 
 @pytest.mark.parametrize("name", ["get_row", "rename_row"])
 async def test_a_selector_parameter_without_a_default_is_required(name: str) -> None:
     # drf-mcp lists a selector parameter with no default, which the server does
-    # not fill, in the tool's ``required``, and a service tool now advertises the
+    # not fill, in the tool's ``required``, and a service tool advertises the
     # target lookup its row is resolved through. The bridge passes ``tools/list``
     # through verbatim, so this is what the model reads. Without either, the
     # schema called ``pk`` optional on ``get_row`` and left it out of
@@ -813,7 +774,7 @@ async def test_refused_arguments_arrive_as_a_validation_error_result(
     ], error
 
 
-@pytest.mark.parametrize(("name", "omitted", "corrected", "row"), _LOOKUP_CALLS)
+@pytest.mark.parametrize(("name", "omitted", "corrected", "row"), LOOKUP_CALLS)
 async def test_a_call_missing_a_selector_argument_is_one_retry_then_the_row(
     name: str, omitted: dict[str, Any], corrected: dict[str, Any], row: dict[str, Any]
 ) -> None:
@@ -822,56 +783,16 @@ async def test_a_call_missing_a_selector_argument_is_one_retry_then_the_row(
     # Without it the selector raised ``TypeError`` out of ``acall_tool``, and so
     # out of ``call_tool``, ending the run over an argument the model could have
     # supplied. Driven through a real run, so the retry is what the model reads.
-    calls = iter([omitted, corrected])
-
-    def model_fn(messages: list, info: AgentInfo) -> ModelResponse:
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
-            return ModelResponse(parts=[TextPart("done")])
-        return ModelResponse(parts=[ToolCallPart(tool_name=name, args=next(calls))])
-
-    toolset = DRFMCPToolset(lookup_server, _request())
-    result = await Agent(FunctionModel(model_fn), toolsets=[toolset]).run("read the row")
-
-    parts = [part for message in result.all_messages() for part in message.parts]
-    retries = [part.content for part in parts if part.part_kind == "retry-prompt"]
+    retries, returns = await run_omission_then_correction(
+        name, omitted, corrected, toolsets=[DRFMCPToolset(lookup_server, _request())]
+    )
     # The message names the one argument the detail is keyed by, so the detail
     # is left off: the model reads the sentence once, as on the spec-tools route.
     assert retries == ["Missing required argument(s): `pk`."]
-    assert [part.content for part in parts if isinstance(part, ToolReturnPart)] == [row]
+    assert returns == [row]
 
 
-async def _retries_for_an_omission(
-    name: str,
-    omitted: dict[str, Any],
-    corrected: dict[str, Any],
-    *,
-    toolsets: list[Any] | None = None,
-    capabilities: list[Any] | None = None,
-) -> list[str]:
-    """Run one omission then its correction, and return what the model was told."""
-    calls = iter([omitted, corrected])
-
-    def model_fn(messages: list, info: AgentInfo) -> ModelResponse:
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
-            return ModelResponse(parts=[TextPart("done")])
-        return ModelResponse(parts=[ToolCallPart(tool_name=name, args=next(calls))])
-
-    agent = Agent(
-        FunctionModel(model_fn),
-        deps_type=AgentDeps,
-        toolsets=toolsets,
-        capabilities=capabilities,
-    )
-    result = await agent.run("read the row", deps=AgentDeps(user=AnonymousUser()))
-    return [
-        part.content
-        for message in result.all_messages()
-        for part in message.parts
-        if part.part_kind == "retry-prompt"
-    ]
-
-
-@pytest.mark.parametrize(("name", "omitted", "corrected", "row"), _LOOKUP_CALLS)
+@pytest.mark.parametrize(("name", "omitted", "corrected", "row"), LOOKUP_CALLS)
 async def test_both_routes_hand_back_an_omission_in_the_same_words(
     name: str, omitted: dict[str, Any], corrected: dict[str, Any], row: dict[str, Any]
 ) -> None:
@@ -881,10 +802,10 @@ async def test_both_routes_hand_back_an_omission_in_the_same_words(
     missing-argument line is the spec-tools toolset's sentence, and the detail
     after it was the only difference a model could read between the routes.
     """
-    bridged = await _retries_for_an_omission(
+    bridged, _ = await run_omission_then_correction(
         name, omitted, corrected, toolsets=[DRFMCPToolset(lookup_server, _request())]
     )
-    in_process = await _retries_for_an_omission(
+    in_process, _ = await run_omission_then_correction(
         name, omitted, corrected, capabilities=[build_spec_capability(LOOKUP_SPECS)]
     )
     assert len(bridged) == 1
@@ -900,7 +821,7 @@ async def test_both_bridges_require_the_same_arguments(name: str) -> None:
     both routes' real schemas, so a drf-mcp floor where only one side requires
     ``pk`` fails here.
     """
-    ctx = RunContext(deps=AgentDeps(user=AnonymousUser()), model=TestModel(), usage=RunUsage())
+    ctx = run_context(AgentDeps(user=AnonymousUser()))
     in_process = await build_spec_capability(LOOKUP_SPECS).get_toolset().get_tools(ctx)
     bridged = await DRFMCPToolset(lookup_server, _request()).get_tools(None)
     required = bridged[name].tool_def.parameters_json_schema.get("required", [])

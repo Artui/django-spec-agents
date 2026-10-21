@@ -187,11 +187,7 @@ async def test_a_mount_time_capability_serves_every_user_from_one_store() -> Non
 
     seven, eight = _Capture(), _Capture()
     for capture, pk in ((seven, "7"), (eight, "8")):
-        agent = build_agent(
-            ToolRegistry(),
-            AgentConfig(model=FunctionModel(capture), capabilities=[capability]),
-        )
-        await agent.run("hi", deps=AgentDeps(user=_authed(pk).user))
+        await _agent(capture, capability).run("hi", deps=AgentDeps(user=_authed(pk).user))
 
     assert any("Berlin" in block for block in seven.blocks)
     assert not any("Lisbon" in block for block in seven.blocks)

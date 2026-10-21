@@ -4,32 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec, SpecRegistry
+from rest_framework_services import SpecRegistry
 
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
-
-
-def _ok(user: Any) -> dict[str, Any]:
-    """A no-op spec service."""
-    return {"ok": True}
-
-
-def _spec() -> ServiceSpec:
-    # Permissions are declared because ``SpecRegistry.register`` refuses a spec
-    # that declares none from drf-services 0.58; earlier releases took one.
-    return ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
+from tests.integrations.helpers import open_spec
 
 
 def test_a_plain_mapping_passes_through_unchanged() -> None:
-    specs = {"ping": _spec()}
+    specs = {"ping": open_spec()}
     assert resolve_spec_mapping(specs) is specs
 
 
 def test_a_registry_is_unwrapped_to_its_mapping() -> None:
     registry = SpecRegistry()
-    spec = _spec()
+    spec = open_spec()
     registry.register("ping", spec)
 
     assert resolve_spec_mapping(registry) == {"ping": spec}
@@ -37,7 +26,7 @@ def test_a_registry_is_unwrapped_to_its_mapping() -> None:
 
 def test_a_registry_and_its_dict_resolve_identically() -> None:
     registry = SpecRegistry()
-    registry.register("ping", _spec())
+    registry.register("ping", open_spec())
 
     assert resolve_spec_mapping(registry) == resolve_spec_mapping(registry.specs())
 
@@ -48,8 +37,8 @@ def test_an_empty_registry_resolves_to_an_empty_mapping() -> None:
 
 def test_registration_order_survives() -> None:
     registry = SpecRegistry()
-    registry.register("b", _spec())
-    registry.register("a", _spec())
+    registry.register("b", open_spec())
+    registry.register("a", open_spec())
 
     assert list(resolve_spec_mapping(registry)) == ["b", "a"]
 
@@ -69,7 +58,7 @@ class TestSpecSourceProtocol:
 
         class _Stand_in:
             def specs(self) -> dict[str, Any]:
-                return {"ping": _spec()}
+                return {"ping": open_spec()}
 
         assert isinstance(_Stand_in(), SpecSource)
         assert list(resolve_spec_mapping(_Stand_in())) == ["ping"]
@@ -83,7 +72,7 @@ def test_iterating_a_registry_would_not_give_names() -> None:
     collision-detection set with dataclasses and silently disabling the check.
     """
     registry = SpecRegistry()
-    registry.register("ping", _spec())
+    registry.register("ping", open_spec())
 
     assert [type(entry).__name__ for entry in registry] == ["RegisteredSpec"]
     assert list(resolve_spec_mapping(registry)) == ["ping"]
