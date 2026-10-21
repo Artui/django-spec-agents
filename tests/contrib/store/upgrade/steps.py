@@ -105,6 +105,7 @@ def upgrade() -> dict[str, Any]:
         }
     conversation = StoredConversation.objects.get()
     return {
+        "vendor": connection.vendor,
         "tables": sorted(tables),
         "recorded": sorted(
             [app, name]

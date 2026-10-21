@@ -144,3 +144,12 @@ def test_an_old_install_short_of_its_last_migration_is_refused() -> None:
     # Nothing was renamed on the way to the refusal.
     assert f"{OLD_LABEL}_storedconversation" in _tables()
     assert f"{LABEL}_storedconversation" not in _tables()
+
+
+@pytest.mark.django_db
+def test_the_models_need_no_migration_beyond_this_one() -> None:
+    # The state this migration carries is the models', so the next change to a
+    # model is a migration of its own rather than a silent drift from this one.
+    from django.core.management import call_command
+
+    call_command("makemigrations", LABEL, "--check", "--dry-run", verbosity=0)

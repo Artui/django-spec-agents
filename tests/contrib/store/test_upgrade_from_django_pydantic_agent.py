@@ -7,10 +7,16 @@ They are two processes because the upgrade is a change of installed apps, which 
 process sets once. The migration's rename path is measured for coverage by
 ``tests/contrib/store/migrations/test_0001_initial.py``; this is the test that it
 renames the schema django-pydantic-agent actually shipped.
+
+It runs on SQLite. To run the first case on PostgreSQL, create an empty database
+and set ``STORE_UPGRADE_ENGINE=django.db.backends.postgresql``,
+``STORE_UPGRADE_DATABASE`` to its name and ``STORE_UPGRADE_HOST`` and
+``STORE_UPGRADE_USER`` as the server needs, with ``psycopg`` importable.
 """
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import pathlib
@@ -19,17 +25,45 @@ import sys
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
+migration = importlib.import_module("django_spec_agents.contrib.store.migrations.0001_initial")
 OLD_LABEL = "django_pydantic_agent_store"
 LABEL = "django_spec_agents_store"
 
 
-def _step(database: pathlib.Path, side: str, *args: str) -> subprocess.CompletedProcess[str]:
+# What Django named from the old tables without a name in the model, as an upgraded
+# PostgreSQL database shows it. The migration renames none of them; Django finds
+# each by column on a later alter, so only a person reading the schema sees them.
+STALE_ON_POSTGRESQL = {
+    "django_pydantic_agen_attachment_id_6a60527b_fk_django_py",
+    "django_pydantic_agen_conversation_id_9f098291_fk_django_py",
+    "django_pydantic_agent_stor_attachment_id_6a60527b",
+    "django_pydantic_agent_stor_conversation_id_9f098291",
+    "django_pydantic_agent_store_conversationattachment_pkey",
+    "django_pydantic_agent_store_storedattachment_file_39b93faa",
+    "django_pydantic_agent_store_storedattachment_file_39b93faa_like",
+    "django_pydantic_agent_store_storedattachment_pkey",
+    "django_pydantic_agent_store_storedattachment_size_check",
+    "django_pydantic_agent_store_storedconversation_pkey",
+    "django_pydantic_agent_store_storedmemory_pkey",
+    "django_pydantic_agent_store_storedmemoryoperation_pkey",
+    "django_pydantic_agent_store_storedrun_pkey",
+    "django_pydantic_agent_store_storedsnapshot_pkey",
+    "django_pydantic_agent_store_storedstepevent_pkey",
+    "django_pydantic_agent_store_storedtooleffect_pkey",
+}
+
+
+def _step(
+    database: pathlib.Path, side: str, *args: str, sqlite: bool = False
+) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "DJANGO_SETTINGS_MODULE": f"tests.contrib.store.upgrade.settings_{side}",
-        "STORE_UPGRADE_DATABASE": str(database),
-        "PYTHONPATH": str(ROOT),
+        "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")])),
     }
+    if sqlite or "STORE_UPGRADE_ENGINE" not in os.environ:
+        env.pop("STORE_UPGRADE_ENGINE", None)
+        env["STORE_UPGRADE_DATABASE"] = str(database)
     return subprocess.run(
         [sys.executable, "-m", "tests.contrib.store.upgrade.steps", side, *args],
         cwd=ROOT,
@@ -64,17 +98,26 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
     assert after["memory"] == [["/notes.md", "remember"]]
 
     names = {name for table in after["names"].values() for name in table}
-    assert "django_spec_agents_store_owner_thread_unique" in names
-    assert "django_spec_owner_i_c74857_idx" in names
+    assert set(migration.INDEXES.values()) <= names
+    assert {
+        "django_spec_agents_store_owner_thread_unique",
+        "django_spec_agents_attachment_owner_id_unique",
+        "django_spec_agents_conversation_attachment_unique",
+        "django_spec_agents_run_owner_run_unique",
+        "django_spec_agents_tool_effect_owner_run_call_unique",
+        "django_spec_agents_memory_owner_path_unique",
+        "django_spec_agents_memory_owner_operation_unique",
+    } <= names
+    stale = {name for name in names if name.startswith(("django_pyda", OLD_LABEL))}
     # On SQLite a constraint changes only by remaking its table, which derives
     # every name afresh, so not even the auto-named objects keep the old prefix.
-    assert [name for name in names if name.startswith(("django_pyda", OLD_LABEL))] == []
+    assert stale == (STALE_ON_POSTGRESQL if after["vendor"] == "postgresql" else set())
 
 
 def test_an_install_short_of_its_last_migration_is_refused(tmp_path: pathlib.Path) -> None:
     database = tmp_path / "store.sqlite3"
-    _ran(_step(database, "old", "0004_alter_storedattachment_file"))
-    refused = _step(database, "new")
+    _ran(_step(database, "old", "0004_alter_storedattachment_file", sqlite=True))
+    refused = _step(database, "new", sqlite=True)
 
     assert refused.returncode != 0
     assert "OldInstallBehindError" in refused.stderr
