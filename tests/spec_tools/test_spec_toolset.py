@@ -1287,24 +1287,24 @@ async def test_a_query_param_read_applies_to_the_tool_whose_spec_declares_it():
     assert "expand" not in get_widget_props
 
 
-async def test_query_param_default_appears_in_schema():
-    toolset = SpecToolset(
-        reading(
-            {"list_widgets": list_spec()}, {"list_widgets": [QueryParam("fields", default="id")]}
-        )
-    )
+@pytest.mark.parametrize(
+    "read",
+    [QueryParam("fields", default="id"), UrlKwarg("fields", default="id")],
+    ids=["query-param", "url-kwarg"],
+)
+async def test_a_read_default_appears_in_schema(read):
+    toolset = SpecToolset(reading({"list_widgets": list_spec()}, {"list_widgets": [read]}))
     tools = await toolset.get_tools(None)
     props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
     assert props["fields"]["default"] == "id"
 
 
-def test_reserved_query_param_name_is_rejected():
+@pytest.mark.parametrize("read", [QueryParam, UrlKwarg], ids=["query-param", "url-kwarg"])
+def test_a_reserved_read_name_is_rejected(read):
     # Reserved-name checking is drf-services' shared validator, so one exception
     # type covers every bad declaration, pagination names and seeds alike.
     with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset(
-            reading({"list_widgets": list_spec()}, {"list_widgets": [QueryParam("ordering")]})
-        )
+        SpecToolset(reading({"list_widgets": list_spec()}, {"list_widgets": [read("ordering")]}))
 
 
 # --- a selector parameter the toolset's own arguments take -------------------
@@ -1872,24 +1872,6 @@ async def test_a_url_kwarg_read_applies_to_the_tool_whose_spec_declares_it():
     assert "parent_pk" not in get_widget_props
 
 
-async def test_url_kwarg_default_appears_in_schema():
-    toolset = SpecToolset(
-        reading(
-            {"list_widgets": list_spec()}, {"list_widgets": [UrlKwarg("parent_pk", default="1")]}
-        )
-    )
-    tools = await toolset.get_tools(None)
-    props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
-    assert props["parent_pk"]["default"] == "1"
-
-
-def test_reserved_url_kwarg_name_is_rejected():
-    with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset(
-            reading({"list_widgets": list_spec()}, {"list_widgets": [UrlKwarg("ordering")]})
-        )
-
-
 def _ceiling_from_project(view):
     """Scoping provider: derive a price ceiling from the URL's ``project_pk``.
 
@@ -1917,17 +1899,22 @@ def _provider_scoped_spec():
 
 
 @pytest.mark.django_db
-def test_url_kwarg_reaches_a_scoping_provider_via_view_kwargs():
+@pytest.mark.parametrize(
+    ("args", "declared", "names"),
+    [
+        ({"project_pk": "10"}, UrlKwarg("project_pk"), ["cheap"]),
+        ({}, UrlKwarg("project_pk", default="10"), ["cheap"]),
+        # No project_pk, no default: view.kwargs is empty, the ceiling is 0.
+        ({}, UrlKwarg("project_pk"), []),
+    ],
+    ids=["sent", "default-seeded-when-omitted", "omitted-without-default-seeds-nothing"],
+)
+def test_url_kwarg_reaches_a_scoping_provider_via_view_kwargs(args, declared, names):
     user = User.objects.create(username="u")
     Widget.objects.create(name="cheap", price=5, owner=user)
     Widget.objects.create(name="dear", price=15, owner=user)
-    result = _dispatch(
-        _provider_scoped_spec(),
-        user,
-        {"project_pk": "10"},
-        url_kwargs=(UrlKwarg("project_pk"),),
-    )
-    assert [w["name"] for w in _rows(result)] == ["cheap"]
+    result = _dispatch(_provider_scoped_spec(), user, args, url_kwargs=(declared,))
+    assert [w["name"] for w in _rows(result)] == names
 
 
 @pytest.mark.django_db
@@ -1945,29 +1932,6 @@ def test_url_kwarg_is_popped_before_dispatch_so_reject_ignores_it():
         unknown_arguments=UnknownArguments.REJECT,
     )
     assert [w["name"] for w in _rows(result)] == ["cheap"]
-
-
-@pytest.mark.django_db
-def test_url_kwarg_default_is_seeded_when_the_model_omits_it():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="cheap", price=5, owner=user)
-    Widget.objects.create(name="dear", price=15, owner=user)
-    result = _dispatch(
-        _provider_scoped_spec(),
-        user,
-        {},
-        url_kwargs=(UrlKwarg("project_pk", default="10"),),
-    )
-    assert [w["name"] for w in _rows(result)] == ["cheap"]
-
-
-@pytest.mark.django_db
-def test_url_kwarg_omitted_without_default_seeds_nothing():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="cheap", price=5, owner=user)
-    # No project_pk, no default → view.kwargs empty → provider ceiling 0 → nothing.
-    result = _dispatch(_provider_scoped_spec(), user, {}, url_kwargs=(UrlKwarg("project_pk"),))
-    assert _rows(result) == []
 
 
 class _ProjectExtras(TypedDict, total=False):
