@@ -65,271 +65,29 @@ openai = ["pydantic-ai-slim[openai]>=2.16,<3"]
 google = ["pydantic-ai-slim[google]>=2.16,<3"]
 # In-process bridge exposing a drf-mcp-server tool registry as a Pydantic-AI
 # toolset (the agent calls DRF tools without a network hop).
-# Floored where the server asks for drf-services at 0.58.0 and
-# django-service-specs at 0.9.0, the adapter over the kernel, and the ceiling
-# that kept an older build below drf-services 0.58 is gone. The floor declared
-# before admitted the uncapped build beside drf-services 0.58, a pairing the
-# package excludes from its next patch on because its own suite fails there. It
-# also registers a selector's channels from the spec's own ``reads=``, where the
-# mount's ``query_params=`` is deprecated and warns, and it refuses at
-# registration what drf-services 0.58 refuses on every call, so a tool that
-# would fail each call is not offered. It moves in lockstep with the
-# ``[spec-tools]`` floor below, which makes the same move on that route: a
-# mismatched pair would resolve one route onto a drf-services the other
-# excludes. The ``[spec-tools]`` route named here is now in-package as
-# ``spec_tools``, so the pair is this floor and the ``[specs]`` extra's.
-#
-# 0.52 was the previous floor, where an argument a call gets wrong comes back as a retry naming what
-# to change, rather than as a crash, a silent drop or a server fault. A call
-# leaving out a required argument is refused with a message naming it,
-# ``Missing required argument(s): `pk`.``, which is the sentence the
-# ``[spec-tools]`` route writes for the same call; it said ``Invalid
-# arguments`` and left the name to the detail. A chain step whose service
-# raises DRF's ``ValidationError`` is a ``validation_error`` result, which this
-# bridge raises as ``ModelRetry``; below it the exception escaped
-# ``acall_tool``, and so ``call_tool``, ending the run. A service tool with no
-# ``input_serializer`` refuses an argument it does not declare, as a
-# ``validation_error`` result the bridge retries, and its ``inputSchema`` lists
-# the ones it does; below it the call ran with the argument dropped unread. A
-# parameter the call could have carried and nothing filled, one a ``kwargs=``
-# provider declines say, is refused the same way where it raised ``TypeError``
-# out of the call. And a tool that
-# could never serve, a ``LIST`` selector taking ``page`` or a service requiring
-# ``data`` with no ``input_serializer`` to fill it, is refused at registration
-# rather than failing every call it is offered for. It moves in lockstep with
-# the ``[spec-tools]`` floor below, which refuses the same selector parameters
-# when the toolset is built and retries the same unfilled parameter: a
-# mismatched pair would register one spec on one route and refuse it on the
-# other, and word one omission two ways. Both floor drf-services at 0.56.0 in
-# turn, whose dispatch is what refuses the unfilled parameter. Subsumed.
-#
-# 0.50 was the floor before that, where a tool's ``inputSchema`` requires what a call needs. A
-# selector parameter with no default, which the server does not fill, is listed
-# in ``required``, and a service tool advertises the target lookup its row is
-# resolved through, so a tool changing one row names the ``pk`` that picks it.
-# Below it ``get_x(*, pk)`` advertised ``pk`` as optional, and a service tool
-# never mentioned it. A call that leaves such an argument out is an ``isError``
-# ``validation_error`` result keyed by the missing name, which this bridge
-# raises as ``ModelRetry``; below it the selector raised ``TypeError`` out of
-# ``acall_tool`` and so out of ``call_tool``, ending the run over an argument
-# the model could have supplied. It moves in lockstep with the ``[spec-tools]``
-# floor below, which made both changes on that route: the two routes now ask a
-# model for the same arguments and hand back the same omission as a retry, and a
-# mismatched pair would require ``pk`` on one route and leave it optional, and
-# fatal when missed, on the other. It floors drf-services at 0.55.0 in turn,
-# and hard: ``tools/list`` passes ``spec_to_json_schema(supplied=)``, which
-# first exists there, so below it listing any selector tool or target lookup
-# raises ``TypeError``. Subsumed.
-#
-# 0.49 was the floor before that, where a read-shaping ``QueryParam`` value the output
-# serializer refuses while rendering is an ``isError`` ``validation_error``
-# result naming the argument, which this bridge raises as ``ModelRetry``. Below
-# it the refusal escaped ``call_tool`` as a raw ``ValidationError`` and ended the
-# run over a selection the model could have corrected, most often one written
-# against a paged tool's envelope. It moves in lockstep with the
-# ``[spec-tools]`` floor below, which fixed the same render on that route: a
-# mismatched pair makes one spec self-correcting on one route and fatal on the
-# other. Subsumed.
-#
-# 0.48 was the floor before that, the release that answers in process which tools a listing
-# leaves out and why. The bridge offers the tools a fresh listing would on every
-# step, which needs both halves of that release: ``aunavailable_tools`` for the
-# answer, and ``list_tools(include_unavailable=True)`` so a tool unavailable
-# when the bridge lists still has a definition to offer once it becomes
-# available. Below it neither exists -- ``list_tools`` raises ``TypeError`` for
-# the argument and the server has no such method -- so this is a hard floor
-# rather than a behavioural one. Subsumed.
-#
-# 0.46 was the floor before that, where a ``ServiceSpec`` declaring ``many=True`` registers as a
-# tool and takes its list under one named argument. Below it the registry refuses
-# such a spec outright, so the bridge lists no tool for it at all while the
-# ``[spec-tools]`` route offers one -- which is why this floor and that one move
-# together rather than each on its own schedule. 0.46 also stops a ``many=True``
-# chain step collapsing its list to one row through an output re-fetch, and
-# refuses a chain that inherits such a step's ``input_serializer`` rather than
-# handing the bulk service a single item as ``data``. It floors drf-services at
-# 0.53.0 in turn, and hard: every service dispatch passes ``many_as_argument``,
-# which first exists there, so below it every service tool call raises
-# ``TypeError`` at the call rather than at import.
-#
-# 0.45 was the previous floor, the release that serves a refusal's ``code`` in a
-# tool's error result, which this bridge carries into the ``ToolFailed`` text.
-# Below it the
-# suffix is never written, and the model reads a refusal worded differently from
-# the one the ``[spec-tools]`` route gives for the same rule. 0.45 also resolves a
-# chain's RETRIEVE step to its row before the object-level permission judges it:
-# below it a selector returning a queryset skipped that check, and a chain tool
-# rendered without an output serializer answered with the text of the row the
-# rule refuses. It floored drf-services at 0.52.1 in turn. Subsumed. Nothing here
-# declares drf-services directly, so the extra is where the constraint can be
-# stated.
-#
-# 0.44 was the previous floor, where the tools this bridge lists and calls caught
-# up with drf-services' affordances: below it a chain tool ran a step whose
-# service's own affordances refuse it, and the ``outputSchema`` handed to the
-# model as ``return_schema`` left out the ``affordances`` object. Subsumed.
-#
-# 0.37 was the floor before that, the first release carrying drf-services>=0.49
-# after a serializer that nests itself crashed the catalog walk. That constraint
-# still holds and is subsumed.
-drf-mcp = ["djangorestframework-mcp-server>=0.53"]
+# 0.53.1 is the server built on the kernel: it asks for drf-services 0.58.0 and
+# django-service-specs 0.10.0, reads a selector's channels from the spec's own
+# ``reads=``, refuses at registration what drf-services refuses on every call,
+# and answers a selector's ``Http404`` as a missing row rather than aborting the
+# run. It moves in lockstep with the ``[specs]`` extra below: the two routes
+# reach the same specs, and a mismatched pair would offer one spec as a tool on
+# one route and an error on the other, or word one refusal two ways.
+drf-mcp = ["djangorestframework-mcp-server>=0.53.1"]
 # Expose drf-services specs directly as agent tools via ``spec_tools``'
-# SpecCapability — no MCP server in the path. This route was the separate
-# djangorestframework-pydantic-ai distribution and is now in-package, so the
-# history below is that package's floor on the route, and the requirements it
-# declared are listed in the extra itself, each with the reason for its floor.
-# Floored where the toolset asks for drf-services at 0.58.0 and
-# django-service-specs at 0.9.0, the adapter over the kernel, and the ceiling
-# that kept an older build below drf-services 0.58 is gone. The floor declared
-# before admitted the uncapped build beside drf-services 0.58, a pairing the
-# package excludes from its next patch on because its own suite fails there. It
-# also reads a registry entry's channels from the spec's own ``reads=``, refuses
-# ``UnknownArguments.PASSTHROUGH`` when the toolset is built rather than on
-# every call, and takes server-supplied values for a tool's arguments. It moves
-# in lockstep with the ``[drf-mcp]`` floor above, which makes the same move on
-# that route: a mismatched pair would resolve one route onto a drf-services the
-# other excludes.
-#
-# 0.35 was the previous floor, where a spec no call could be served through is refused when the
-# toolset is built, and a parameter nothing filled is a retry rather than a
-# crash. A selector parameter the toolset takes out of every call, a list
-# selector's ``page`` or ``limit`` or a name a ``QueryParam`` also claims, is an
-# ``ImproperlyConfigured`` from ``build_spec_capability``; below it the
-# parameter was advertised and never received the model's value, so a required
-# one failed every call and a defaulted one ran on its default whatever the
-# model sent. A parameter a ``kwargs=`` provider declines and the model left
-# out is a ``ModelRetry`` naming it, where it reached the selector and raised
-# ``TypeError`` out of the run. A value sent for a ``NotClientInput`` name is
-# dropped under every unknown-argument policy, and a key any callable in a
-# service call marks ``NotClientInput`` is no longer advertised beside its
-# target lookup. It moves in lockstep with the ``[drf-mcp]`` floor above for
-# the reason that pairing always has: both routes now refuse the same specs,
-# ask for the same arguments and word an omission the same way. It
-# floors drf-services at 0.56.0 in turn, and hard: the toolset imports
-# ``provider_keys``, ``can_present_nothing`` and ``server_owned_keys`` at module
-# level, and they first exist there. Subsumed.
-#
-# 0.33 was the floor before that, where a tool's input schema requires what a call needs: a
-# selector parameter with no default, which the toolset does not fill, is listed
-# in ``required``, and a single-item service advertises the lookup its target is
-# resolved through. A call that leaves such an argument out is a ``ModelRetry``
-# naming it, where below 0.33 the selector raised ``TypeError`` out of
-# ``SpecToolset`` and ended the run. It moves in lockstep with the
-# ``[drf-mcp]`` floor above for the reason that pairing always has: both routes
-# now ask a model for the same arguments and hand back the same omission as a
-# retry. It floors drf-services at 0.55.0 in turn, and hard: building the
-# toolset passes ``spec_to_json_schema(supplied=)``, so below it
-# ``build_spec_capability`` raises ``TypeError`` for any selector spec or
-# service target lookup. Subsumed.
-#
-# 0.32 was the floor before that, where a read-shaping value the output serializer refuses
-# while rendering is a ``ModelRetry`` naming the argument rather than a raw
-# ``ValidationError`` ending the run, and an explicit ``null`` for one is
-# omitted rather than reaching the serializer as the string ``None``. It moves in
-# lockstep with the ``[drf-mcp]`` floor above for the reason that pairing always
-# has: both routes now let a model correct a selection it got wrong. Subsumed.
-#
-# 0.31 was the floor before that, which names each operation an unmet condition left out, with
-# its reason, in that step's instructions. It moves in lockstep with the
-# ``[drf-mcp]`` floor above for the reason that pairing always has: both routes
-# now tell a model why an operation is missing, in one sentence, and this
-# package's tests assert the bridge's wording against this package's real
-# output. Below 0.31 there is no such wording to agree with, and a model would
-# be told why on one route and left guessing on the other. Subsumed.
-#
-# 0.30 was the floor before that, where a ``ServiceSpec`` declaring ``many=True`` is a tool
-# taking its list as one named argument, and a ``QueryParam`` or ``UrlKwarg``
-# named after that argument is refused when the toolset is built rather than
-# making every call come back asking for the argument the model just sent. It
-# moves in lockstep with the ``[drf-mcp]`` floor above: 0.29 refuses such a spec
-# where drf-mcp 0.46 offers it, so a mismatched pair makes one spec a working
-# tool on one route and an ``ImproperlyConfigured`` on the other, which is the
-# disagreement both comments exist to prevent. It floors drf-services at 0.53.0
-# in turn, and hard: every spec call passes ``many_as_argument``, so below it
-# every tool call raises ``TypeError`` once a model calls one.
-#
-# 0.29 was the previous floor, where a call an ``Affordance`` refuses fails with
-# the rule's
-# code after its reason, the wording the ``[drf-mcp]`` bridge writes for the same
-# refusal; below it the code is dropped. 0.29 also returns ``None`` where a tool
-# finds nothing, rather than a row of empty fields, and refuses a ``many=True``
-# service spec when the toolset is built, so ``build_spec_capability`` raises
-# ``ImproperlyConfigured`` for one instead of offering a tool no call can
-# satisfy. It floored drf-services at 0.52.1 in turn. Subsumed.
-#
-# 0.28 was the previous floor, where a spec tool's ``return_schema`` declares the
-# ``affordances`` object drf-services renders into each item. Subsumed.
-#
-# 0.24 was the floor before that, for the recursion crash above one level down:
-# build_spec_capability constructs a SpecCapability, whose tool definitions are
-# schemas, so the crash landed at construction rather than at a call. Subsumed.
+# SpecCapability, with no MCP server in the path. The requirements are listed
+# in the extra itself, each with what its floor buys. They move in lockstep
+# with the ``[drf-mcp]`` floor above, for the reason given there.
 specs = [
     "djangorestframework>=3.14",
-    # 0.48 floor: ``paginate_output`` / ``OutputPage``, the shared shaper every
-    # list-selector result is now wrapped in, and the renamed audience symbols
-    # (``FieldMarking`` / ``MARKING`` / ``AudienceProjection`` /
-    # ``OfflineContract`` / ``audience_projection_for_spec`` /
-    # ``render_for_audience``) — imported at module level, with no aliases left
-    # behind, so this is a hard floor rather than a preference. The band below
-    # carries the entry ``OfflineContract`` and
-    # ``audience_projection_for_spec(overrides=…)`` (0.46) and
-    # ``build_offline_context`` wrapping a shallow *copy* of the
-    # ``http_request=`` it is given rather than writing to the caller's own
-    # object (0.44) — below that, a toolset configured with one request shares
-    # that object across every call, so two concurrent runs overwrite each
-    # other's ``GET``.
-    # 0.49 is where a self-referential serializer stopped crashing schema
-    # generation, and this toolset cannot route around it: a tool definition is
-    # built from ``spec_to_json_schema`` per spec, so a serializer that nests
-    # itself takes the toolset down at construction rather than at the call that
-    # used it. That raise bought behaviour and imports no 0.49 symbol.
-    # 0.51 floor: ``output_to_json_schema(affordances=…)``, which declares the
-    # ``affordances`` object ``render_for_audience`` adds to every item of a
-    # spec whose selector declares ``SelectorSpec.affordances`` -- without it the
-    # return schema denies a key every such payload carries. ``_return_schema``
-    # reads that attribute and passes the argument for every selector, and every
-    # service with an ``output_selector_spec``, whether it declares any or not,
-    # while the toolset builds its tool definitions at construction. Below 0.51
-    # the attribute and the keyword are both missing, so such a toolset cannot
-    # be built at all: a hard floor rather than a preference.
-    # 0.52.1 renders a single ``None`` as ``None``: below it a nullable retrieve
-    # that found nothing, and a service that returned nothing, reach the model as
-    # the output serializer's blank row. A soft floor on its own -- the toolset
-    # imports and runs below it -- held by the tests asserting both return ``None``.
-    # 0.53.0: every spec call passes ``many_as_argument=True``, which first exists
-    # there, so below it every tool call raises ``TypeError`` -- the toolset builds
-    # and nothing fails until a model calls a tool. It is also where a
-    # ``many=True`` spec's list is read from the one argument
-    # ``ServiceSpec.many_argument`` names.
-    # 0.54.0: ``operation_affordances`` and ``unmet_operation_affordance``,
-    # imported at module level to leave an operation whose condition is unmet
-    # out of a step's tools. They answer a condition against the names
-    # drf-services itself enforces it with at the call, which is why the toolset
-    # asks them rather than restating that rule.
-    # 0.55.0: ``spec_to_json_schema(supplied=)``
-    # and ``output_to_json_schema(allow_none=)`` first exist there, and the
-    # toolset passes both for every selector and every target lookup while it
-    # builds its tool definitions at construction, so below it a toolset cannot
-    # be built at all. ``supplied`` is how a selector parameter the toolset fills
-    # stops being advertised and one only the model sends becomes required;
-    # ``allow_none`` is how an ``allow_none`` retrieve's ``return_schema`` admits
-    # the ``null`` it returns.
-    # 0.56.0: ``provider_keys``, ``can_present_nothing`` and
-    # ``server_owned_keys`` first exist there, and the toolset imports them at
-    # module level, so below it the toolset does not import.
-    # ``spec_to_json_schema`` also first takes ``argument_binding=`` there,
-    # which the toolset passes with the same binding it hands dispatch, so the
-    # advertised keys and the admitted ones are read off one binding.
-    # It is also where a missing argument is refused only where the caller
-    # could have sent it, which the toolset turns into a retry.
-    # The floor, and a hard one: drf-services is an adapter over
-    # django-service-specs from here, and the names the kernel owns are re-exported
-    # as the kernel's own objects. The toolset imports those names from the kernel
-    # (below), so its ``isinstance`` checks against ``ServiceError``,
-    # ``ServiceValidationError``, ``AdditionalInputRequired``, ``ActionUnavailable``
-    # and ``SpecRegistry`` match what drf-services raises and builds only where
-    # the two are one object; below it each refusal would escape the run as an
-    # unrecognised exception and a registry would be read as a bare mapping.
+    # 0.58.0, and a hard floor: drf-services is an adapter over
+    # django-service-specs from here, and the names the kernel owns are
+    # re-exported as the kernel's own objects. The toolset imports those names
+    # from the kernel (below), so its ``isinstance`` checks against
+    # ``ServiceError``, ``ServiceValidationError``, ``AdditionalInputRequired``,
+    # ``ActionUnavailable`` and ``SpecRegistry`` match what drf-services raises
+    # and builds only where the two are one object; below it each refusal would
+    # escape the run as an unrecognised exception and a registry would be read
+    # as a bare mapping.
     "djangorestframework-services>=0.58.0",
     # Declared because the toolset imports the kernel-owned names from here
     # rather than through drf-services' re-exports, which are being retired.
@@ -378,7 +136,7 @@ dev = [
     # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
     # Must move in lockstep with the extra — a dev group pinning the old band
     # makes the project unsatisfiable against its own extra.
-    "djangorestframework-mcp-server>=0.53",
+    "djangorestframework-mcp-server>=0.53.1",
     # The [specs] extra's requirements, so ``spec_tools`` and its tests run in
     # dev, at the extra's floors: ``uv sync --all-groups`` installs no extra.
     "djangorestframework>=3.14",
