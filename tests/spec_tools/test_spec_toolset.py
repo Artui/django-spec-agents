@@ -8,6 +8,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import fields as dataclass_fields
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, Any, Generic, TypeVar
@@ -1673,8 +1674,6 @@ async def test_a_refused_call_marks_the_tool_return_failed_and_carries_its_code(
 @pytest.mark.django_db(transaction=True)
 @_MISSING_ROW_SELECTORS
 async def test_an_unresolved_target_marks_the_tool_return_failed(selector):
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="alice")
     result = await _run_one_tool(retrieve_spec(selector=selector), user=user, args={"pk": 999})
     part = _tool_return(result)
@@ -1702,8 +1701,6 @@ async def test_a_dispatch_past_its_deadline_marks_the_tool_return_failed():
 async def test_a_result_over_the_ceiling_marks_the_tool_return_failed():
     """The dispatch succeeded and the *result* was refused. ``failed`` is still
     the truthful marking: nothing usable reached the model."""
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="alice")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
 
@@ -2288,8 +2285,6 @@ def test_host_makes_file_urls_absolute():
 
 @pytest.mark.django_db(transaction=True)
 async def test_toolset_threads_its_host_into_the_call():
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
     toolset = SpecToolset({"list_widgets": fileish_spec()}, host="app.example.com:8000")
@@ -2300,8 +2295,6 @@ async def test_toolset_threads_its_host_into_the_call():
 
 @pytest.mark.django_db(transaction=True)
 async def test_toolset_without_a_host_still_renders():
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
     toolset = SpecToolset({"list_widgets": fileish_spec()})
@@ -2963,8 +2956,6 @@ async def test_a_reporter_on_the_deps_reaches_the_service():
     have picked a transport it does not own, which is the thing this package
     exists not to do.
     """
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     sink = _RecordingProgress()
     toolset = SpecToolset({"create_widget": reporting_spec()})
@@ -2982,8 +2973,6 @@ async def test_a_reporter_on_the_deps_reaches_the_service():
 @pytest.mark.django_db(transaction=True)
 async def test_the_same_service_runs_with_no_reporter_supplied():
     """``None`` is the ordinary case: drf-services substitutes its no-op."""
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"create_widget": reporting_spec()})
     tools = await toolset.get_tools(None)
@@ -3005,8 +2994,6 @@ async def test_a_deps_type_without_a_progress_field_is_fine():
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_call_is_timed_at_debug(caplog):
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"list_widgets": list_spec()})
     tools = await toolset.get_tools(None)
@@ -3025,8 +3012,6 @@ async def test_a_denial_is_logged_at_warning_and_still_raises(caplog):
     denial aborts the run and is absorbed by whatever is driving it — so over
     HTTP this is a `403` in the access log and here it was nothing at all.
     """
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"list_widgets": list_spec(permission_classes=[DenyAll])})
     tools = await toolset.get_tools(None)
@@ -3051,8 +3036,6 @@ async def test_an_over_budget_result_fails_rather_than_truncating():
     that many rows, so a model would answer confidently from data it does not
     know is missing. Refusing costs a turn; truncating costs correctness.
     """
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     for n in range(5):
         await sync_to_async(Widget.objects.create)(name=f"w{n}", price=n, owner=user)
@@ -3068,8 +3051,6 @@ async def test_an_over_budget_result_fails_rather_than_truncating():
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_result_inside_the_ceiling_passes_through_untouched():
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
 
@@ -3083,8 +3064,6 @@ async def test_a_result_inside_the_ceiling_passes_through_untouched():
 @pytest.mark.django_db(transaction=True)
 async def test_a_per_tool_ceiling_of_none_means_no_ceiling_for_that_tool():
     """Absent and ``None`` are different answers: one inherits, one opts out."""
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
 
@@ -6801,9 +6780,7 @@ def test_the_run_context_double_carries_every_field_the_package_reads():
     ``RunContext`` does not have would pass here and ``AttributeError`` in
     production; carrying one fewer than the package reads would do the reverse.
     """
-    import dataclasses
-
-    real = {f.name for f in dataclasses.fields(RunContext)}
+    real = {f.name for f in dataclass_fields(RunContext)}
     assert real >= RUN_CONTEXT_FIELDS_READ, RUN_CONTEXT_FIELDS_READ - real
     double = set(vars(ctx_for("alice")))
     assert double >= RUN_CONTEXT_FIELDS_READ, RUN_CONTEXT_FIELDS_READ - double
@@ -6812,8 +6789,6 @@ def test_the_run_context_double_carries_every_field_the_package_reads():
 @pytest.mark.django_db(transaction=True)
 async def test_shape_page_override_replaces_the_slice():
     """The seam is reached for a list selector, with the model's page args."""
-    from asgiref.sync import sync_to_async
-
     seen = {}
 
     class Windowed(SpecToolset):
@@ -6847,7 +6822,6 @@ async def test_render_output_override_can_skip_the_projection():
     ``render_spec_output`` instead. That is reachable only because the render
     step is a seam.
     """
-    from asgiref.sync import sync_to_async
 
     class Unprojected(SpecToolset):
         def render_output(self, spec, value, *, ctx, projection, many, request, view, extras):
@@ -6876,8 +6850,6 @@ async def test_render_output_override_can_skip_the_projection():
 
 @pytest.mark.django_db(transaction=True)
 async def test_output_extras_override_reaches_the_resolved_data_pool():
-    from asgiref.sync import sync_to_async
-
     seen = {}
 
     class Extra(SpecToolset):
@@ -6906,7 +6878,6 @@ async def test_output_extras_override_reaches_the_resolved_data_pool():
 @pytest.mark.django_db(transaction=True)
 async def test_enforce_result_bytes_override_can_bound_on_something_else():
     """Overriding the bound is how a non-byte ceiling gets written at all."""
-    from asgiref.sync import sync_to_async
 
     class RowCapped(SpecToolset):
         def enforce_result_bytes(self, payload, *, ctx, max_bytes, label):
@@ -7020,8 +6991,6 @@ async def test_output_extras_reaches_the_dispatch_result_carrier():
     ``output_selector_spec`` present, ``value`` is the re-fetched row and the
     service's own return -- the flags carrier -- is reachable nowhere else.
     """
-    from asgiref.sync import sync_to_async
-
     seen: dict[str, Any] = {}
 
     class Upsert(SpecToolset):
@@ -7060,8 +7029,6 @@ async def test_an_override_predating_the_carrier_breaks_loudly():
     trade -- ``TypeError`` on the first tool call, naming the argument, fixable in
     one line by whoever wrote the override.
     """
-    from asgiref.sync import sync_to_async
-
     called: list[str] = []
 
     class Legacy(SpecToolset):
@@ -7084,8 +7051,6 @@ async def test_an_override_predating_the_carrier_breaks_loudly():
 @pytest.mark.django_db(transaction=True)
 async def test_a_forwarding_override_receives_the_carrier_through_kwargs():
     """``**kwargs`` is the other one-line way to take a seam that grew."""
-    from asgiref.sync import sync_to_async
-
     seen: dict[str, Any] = {}
 
     class Forwarding(SpecToolset):
@@ -7133,8 +7098,6 @@ async def test_dispatch_timeout_log_line_carries_run_correlation(caplog):
 @pytest.mark.django_db(transaction=True)
 async def test_result_bound_log_line_carries_run_correlation(caplog):
     """A bound that fires invisibly reads to an operator as a broken tool."""
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
     toolset = SpecToolset({"list_widgets": list_spec()}, max_result_bytes=1)
