@@ -1,15 +1,18 @@
-# Repo conventions for `django-pydantic-agent`
+# Repo conventions for `django-spec-agents`
 
 This file is the single source of truth for how to write code in this package.
 Rules are non-negotiable unless flagged as a heuristic.
 
 ## What this package is
 
-The **settings-agnostic agent-host substrate** shared by Django's Pydantic-AI
-transports. `AgentConfig` in → a built `pydantic_ai.Agent` (composed toolsets,
-audit, user resolution) out.
+Pydantic-AI agents for Django, in two halves under one import path,
+`django_spec_agents`.
 
-Provides:
+**The agent host**, the root and every subpackage but `spec_tools`, is the
+settings-agnostic substrate shared by Django's Pydantic-AI transports: `AgentConfig`
+in, a built `pydantic_ai.Agent` (composed toolsets, audit, user resolution) out. It
+needs Django and `pydantic-ai-slim` only. It provides:
+
 - `AgentConfig` + the agent builder; model / model-settings / retries / provider
   resolution and the agent-factory escape hatch.
 - A tool registry (`ToolRegistry`, `@tool`) with `destructive=` / `category=` /
@@ -17,13 +20,80 @@ Provides:
   (`x-destructive` / `x-category` / `x-confirm` / `x-summary` — plain annotations
   any protocol can carry).
 - Toolset / capability composition, including the optional `[drf-mcp]` bridge and
-  `[spec-tools]` `SpecCapability`.
-- The `AuditLogger` protocol (`Null` / `Logging`) and the `get_user(request)`
-  user-resolution hook.
+  `build_spec_capability`, which reaches `spec_tools` when `[specs]` is installed.
+- The `AuditLogger` protocol (`Null` / `Logging`), `ToolGuard`, `ToolFailurePolicy`
+  and the `get_user(request)` user-resolution hook.
 - Storage **contracts** — `ConversationStore` / `AttachmentStore` protocols —
   plus the reference `contrib.store` models and stores. (`DefaultStepStore`
   ships too, but its protocol is `pydantic-ai-harness`'s; this package does
   not declare a `StepStore` protocol of its own.)
+- `testing`, the run-loop test doubles, which import pydantic-ai only.
+
+**`spec_tools`**, behind the `[specs]` extra, serves djangorestframework-services
+specs as agent tools in process: `SpecToolset`, and `SpecCapability` over it. It
+needs Django REST Framework, drf-services and the spec kernel, which the extra
+installs.
+
+The host was published as `django-pydantic-agent` and `spec_tools` as
+`djangorestframework-pydantic-ai`.
+
+## Layout
+
+| Path | Holds |
+| --- | --- |
+| `agent/` | `AgentConfig`, `AgentDeps`, the builder, the model builder, the tool catalog and the attachment toolset |
+| `registry/` | `ToolRegistry`, `@tool`, schema derivation |
+| `policy/` | `audit/`, `guard/` and `failure/`: the capabilities composed around every tool call |
+| `persistence/` | the store protocols, the session, model, scoped and null stores, and the memory namespaces |
+| `integrations/` | the `[drf-mcp]` bridge, `build_spec_capability` and `resolve_spec_mapping` |
+| `contrib/store/` | the opt-in store app: models, the one migration, reference stores, management commands |
+| `types/` | the package-wide enums and constants, one per file |
+| `spec_tools/` | the tool half, with its own `types/` |
+| `testing.py`, `utils.py`, `version.py` | the test doubles, the request and authorization helpers, the version |
+
+`django_spec_agents/__init__.py` re-exports the host's public surface and nothing
+of `spec_tools`. `spec_tools/__init__.py` has its own `__all__`, three names:
+`AgentConventions`, `SpecCapability` and `SpecToolset`. A consumer imports them
+from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
+
+## The boundary between the halves
+
+- **The root never imports `spec_tools`**, nor anything only `[specs]` installs
+  (`rest_framework`, `rest_framework_services`, `django_service_specs`), nor
+  `testing`. A host-only install, which is what django-admin-agent ships, would
+  fail at import otherwise. The host reaches `spec_tools` in one place,
+  `integrations/build_spec_capability.py`, through a function-local import under
+  rule 4's optional-dependency exception. `integrations/__init__.py` stays empty:
+  django-ag-ui patches the function as an attribute of that submodule, which a
+  re-export would shadow, so the patch would stop taking effect.
+- **`spec_tools` imports nothing from the host but `AgentDeps`, and never
+  `contrib.store`.** It reads the acting user structurally, as `ctx.deps.user`, so
+  a project's own deps type works as long as it has a `user`.
+
+`tests/test_boundary.py` holds both: each half in a fresh interpreter under
+settings that list neither `rest_framework` nor the spec test app
+(`tests/host_only_settings.py`, and `tests/host_only_store_settings.py` with the
+store app), and an import scan of every module under `spec_tools/`. Inside the
+suite's own process the check would prove nothing, because pytest-django has
+imported `rest_framework` by collection time. `make test-host-only`, and the
+`host-only install` CI job that runs it, runs that file on an install with no
+extra. `tests/test_lock.py` holds that `uv.lock` names neither old distribution.
+
+## The store app
+
+`django_spec_agents.contrib.store`, label **`django_spec_agents_store`**: its
+tables are `django_spec_agents_store_<model>` and its named constraints and
+indexes are named after the package. One migration, `0001_initial`, creates the
+schema on a fresh database and renames one migrated through
+`django-pydantic-agent`'s store in place;
+`tests/contrib/store/test_upgrade_from_django_pydantic_agent.py` holds the
+upgrade, on SQLite in the suite and on PostgreSQL in its own CI job. Never add a
+second migration that re-derives names from the old label.
+
+Some names keep their old spelling because their value lives outside the
+database: the attachment storage alias, the session key, the audit and failure
+logger names and the `upload_to` prefix. A rename of any of them is silent for a
+consumer, so `tests/test_kept_spellings.py` pins each against its literal.
 
 ### The one rule that defines this package
 
@@ -56,7 +126,7 @@ peer" is core.**
 | --- | --- |
 | `AgentConfig`, model / settings / retries / provider resolution, agent-factory escape hatch | **core** |
 | `ToolRegistry` + `@tool` + typed-schema derivation | **core** |
-| External toolsets / capabilities; the `[drf-mcp]` bridge and `[spec-tools]` composition | **core** (optional extras) |
+| External toolsets / capabilities; the `[drf-mcp]` bridge and `[specs]` composition | **core** (optional extras) |
 | `get_user(request)` + the `AuditLogger` protocol | **core** |
 | `ConversationStore` / `AttachmentStore` protocols, the `read_attachment` tool, `contrib.store` models and stores (incl. `DefaultStepStore`, satisfying harness's protocol) | **core** (storage contracts are transport-neutral) |
 | An HTTP view, an SSE/streaming encoder, a wire adapter, `.urls` | **a transport** |
@@ -74,6 +144,7 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 | --- | --- |
 | `make init` | `uv sync --all-groups` + install pre-commit hooks |
 | `make test` | pytest with 100% line+branch coverage gate |
+| `make test-host-only` | the boundary tests on an install with no extra, in `build/host-only-venv` |
 | `make lint` | `ruff check .` + `ty check django_spec_agents` |
 | `make format` | `ruff format .` |
 | `make docs-serve` | live-reload mkdocs at `localhost:8000` |
@@ -134,9 +205,14 @@ are fine — module-level **mutable** state is not.
 - `make test` runs pytest with `--cov=django_spec_agents --cov-fail-under=100`
   (line + branch). Restructure rather than reach for `# pragma: no cover`.
 - Test layout mirrors the source tree under `tests/`.
-  `django_spec_agents/foo/bar.py` → `tests/foo/test_bar.py`.
+  `django_spec_agents/foo/bar.py` → `tests/foo/test_bar.py`. `tests/spec_tools/`
+  mirrors `spec_tools/` and carries the models its specs serve,
+  `tests/spec_tools/testapp/` (label `testapp`). The tests whose subject is the
+  package as a whole sit at `tests/` root: the boundary, the lock, the kept
+  spellings and the module paths django-ag-ui imports (`test_consumer_paths.py`).
 - `tests/conftest_settings.py` is the Django settings module pytest uses (set via
-  `DJANGO_SETTINGS_MODULE` in `pyproject.toml`).
+  `DJANGO_SETTINGS_MODULE` in `pyproject.toml`): the store app, `rest_framework`,
+  `rest_framework_services` and the spec test app, so one run covers both halves.
 - Async tests: `async def test_...` with pytest-asyncio (`asyncio_mode = "auto"`).
 - A store that writes through `sync_to_async` needs
   `@pytest.mark.django_db(transaction=True)` — its ORM calls run on a different
@@ -167,8 +243,9 @@ Change a rule here and change the config with it, or they drift apart again.
 | Component | Floor | Tested |
 | --- | --- | --- |
 | Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
-| Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0 |
+| Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
 | Pydantic-AI | 2.16 (`ToolFailurePolicy` imports `ToolFailed`, which first exists there); 2.33 with `[anthropic]` (older releases hand the 1.x SDK an `httpx` client it rejects) | latest in matrix |
+| `[specs]` | Django REST Framework, djangorestframework-services and django-service-specs, at the floors `pyproject.toml` declares and says the reason for | latest in matrix; the floors in the `lowest declared versions` job |
 
 ## Branching
 
@@ -179,8 +256,9 @@ checkout — `main` only advances via merged PRs.
 
 ## Releases
 
-Merge-to-main triggered. `.github/workflows/release.yml` runs on tag push and publishes to
-PyPI via OIDC trusted publishing, then deploys docs to `gh-pages`.
+Merge-to-main triggered. `.github/workflows/release.yml` runs on every push to `main`,
+publishes to PyPI via OIDC trusted publishing when the version was bumped, tags it, and
+deploys docs to `gh-pages`.
 
 ### Cutting a release
 
@@ -193,13 +271,12 @@ gh pr create
 # Merge to main; release.yml fires on the merge commit.
 ```
 
-The **first** release is the exception: the scaffold already sits at `0.1.0`, so write the
-`## [0.1.0] — <date>` heading in the CHANGELOG by hand (there is no prior tag to bump from)
-and let the tag push publish it.
+The repository starts at `0.0.0` with a `v0.0.0` tag, so the first real release is
+`make release-bump VERSION=0.1.0` like any other.
 
 ### One-time setup (manual)
 
-1. **PyPI Trusted Publisher** — `Artui/django-pydantic-agent`, workflow `release.yml`,
+1. **PyPI Trusted Publisher** — `Artui/django-spec-agents`, workflow `release.yml`,
    environment `pypi`. For a project with no releases yet this is a *pending* publisher.
 2. **GitHub Environment** — create `pypi` (no secrets; OIDC).
 3. **GitHub Pages** — branch `gh-pages` (created on first release with docs).

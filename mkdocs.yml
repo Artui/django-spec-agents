@@ -1,5 +1,5 @@
 site_name: django-spec-agents
-site_description: Settings-agnostic Django agent-host substrate for Pydantic-AI — config in, built agent out.
+site_description: Pydantic-AI agents for Django - a settings-agnostic agent host, and specs as agent tools behind the [specs] extra.
 site_url: https://artui.github.io/django-spec-agents/
 repo_url: https://github.com/Artui/django-spec-agents
 repo_name: Artui/django-spec-agents
@@ -42,12 +42,13 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          # ``spec_tools`` re-exports drf-services types (QueryParam, UrlKwarg),
-          # and their docstrings link to drf-services' own symbols. Those links
-          # resolve in that project's inventory, not ours, so without this the
-          # strict build aborts on cross-reference targets it cannot find -- and
-          # a reader following one would have nowhere to land. Importing the
-          # inventory makes them point at the upstream page they mean.
+          # ``spec_tools``' docstrings link to symbols drf-services and the
+          # kernel document (``OfflineContract``, ``UrlKwarg``, ``ServerArguments``
+          # and their kin). Those links resolve in those projects' inventories,
+          # not ours, so without these the strict build aborts on
+          # cross-reference targets it cannot find -- and a reader following one
+          # would have nowhere to land. Importing the inventories makes them point
+          # at the upstream page they mean.
           # The kernel's inventory first: the names it owns (``PoolSeeds``,
           # ``DispatchResult``, ...) are linked as ``django_service_specs.*``
           # and should land on the kernel's own pages, which drf-services'
@@ -86,18 +87,19 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Concepts: concepts.md
-  - Tools: tools.md
-  - Storage: storage.md
-  - Policy: policy.md
-  - Integrations: integrations.md
-  - Reference:
-      - reference/index.md
-      - Agent: reference/agent.md
-      - Registry: reference/registry.md
-      - Persistence: reference/persistence.md
-      - Policy: reference/policy.md
-      - Integrations: reference/integrations.md
+  - Agent host:
+      - Concepts: concepts.md
+      - Tools: tools.md
+      - Storage: storage.md
+      - Policy: policy.md
+      - Integrations: integrations.md
+      - Reference:
+          - reference/index.md
+          - Agent: reference/agent.md
+          - Registry: reference/registry.md
+          - Persistence: reference/persistence.md
+          - Policy: reference/policy.md
+          - Integrations: reference/integrations.md
   - Spec tools:
       - spec-tools/index.md
       - Quickstart: spec-tools/quickstart.md

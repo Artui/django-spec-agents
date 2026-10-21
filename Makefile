@@ -1,9 +1,10 @@
-.PHONY: help init test lint lint-fix format format-check type-check deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
+.PHONY: help init test test-host-only lint lint-fix format format-check type-check deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
 
 help:
 	@echo "Available targets:"
 	@echo "  init             Sync deps (all groups) and install pre-commit hooks"
 	@echo "  test             Run pytest with coverage (100% required)"
+	@echo "  test-host-only   Run the boundary tests on an install with no extra"
 	@echo "  lint             Run ruff check + ty check"
 	@echo "  lint-fix         Auto-fix lint issues with ruff"
 	@echo "  format           Format with ruff"
@@ -23,6 +24,21 @@ init:
 
 test:
 	uv run pytest
+
+# The package with no extra, the install django-admin-agent ships, in a venv of
+# its own: ``uv run`` would sync the dev group, which brings every extra's
+# packages. Only pytest joins it, not pytest-django, whose plugin would load the
+# suite's settings and stop at ``rest_framework``. So the run takes no coverage
+# gate, ``addopts`` being where ``--cov`` lives, and the ini's Django and asyncio
+# keys are unknown to it, which is expected rather than a warning to read.
+HOST_ONLY_VENV := build/host-only-venv
+
+test-host-only:
+	uv venv --clear --quiet --python 3.13 $(HOST_ONLY_VENV)
+	uv pip install --quiet --python $(HOST_ONLY_VENV)/bin/python . pytest
+	$(HOST_ONLY_VENV)/bin/python -c "import importlib.util, sys; found = [m for m in ('rest_framework', 'rest_framework_services', 'django_service_specs') if importlib.util.find_spec(m)]; sys.exit(f'not a host-only install: {found}' if found else 0)"
+	HOST_ONLY_INSTALL=1 $(HOST_ONLY_VENV)/bin/python -m pytest -q -p no:cacheprovider -o addopts="" \
+		-W ignore::pytest.PytestConfigWarning tests/test_boundary.py
 
 lint:
 	uv run ruff check .

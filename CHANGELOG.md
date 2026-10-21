@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- One package for Pydantic-AI agents in Django, in two halves. The agent host was
+  published as `django-pydantic-agent`
+  ([changelog](https://github.com/Artui/django-pydantic-agent/blob/main/CHANGELOG.md));
+  `django_spec_agents.spec_tools`, behind the `[specs]` extra, was published as
+  `djangorestframework-pydantic-ai`
+  ([changelog](https://github.com/Artui/djangorestframework-pydantic-ai/blob/main/CHANGELOG.md)).
+  The package root never imports `spec_tools`, so the host installs and runs
+  without the extra.
 - `django_spec_agents.testing` holds the run-loop test doubles. It imports
   pydantic-ai only, and the package root does not import it. It replaces
   `spec_tools.testing`.
