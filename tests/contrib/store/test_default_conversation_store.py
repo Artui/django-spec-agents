@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
 from django_spec_agents.persistence.types.conversation import Conversation
+from tests.contrib.store.rows import stored_attachment
 
 pytestmark = pytest.mark.django_db
 
@@ -35,13 +35,6 @@ def _conv_with(
         "attachments": [{"id": attachment_id} for attachment_id in attachment_ids],
     }
     return Conversation(thread_id=thread_id, messages=[message], owner_id=owner_id)
-
-
-def _attachment(attachment_id: str, owner_id: str = "7") -> StoredAttachment:
-    row = StoredAttachment(attachment_id=attachment_id, owner_id=owner_id, size=5)
-    row.file.save(attachment_id, ContentFile(b"hello"), save=False)
-    row.save()
-    return row
 
 
 def test_store_then_fetch_round_trips() -> None:
@@ -140,7 +133,7 @@ def test_exists_is_owner_scoped_and_reads_no_body() -> None:
 
 def test_store_references_the_attachments_its_messages_quote() -> None:
     store = DefaultConversationStore()
-    _attachment("a1")
+    stored_attachment("a1")
     store._store(_conv_with("a1"), "7")
     row = StoredConversation.objects.get(thread_id="t1")
     assert set(row.attachments.values_list("attachment_id", flat=True)) == {"a1"}
@@ -148,8 +141,8 @@ def test_store_references_the_attachments_its_messages_quote() -> None:
 
 def test_resave_reconciles_references_from_the_new_messages() -> None:
     store = DefaultConversationStore()
-    _attachment("a1")
-    _attachment("a2")
+    stored_attachment("a1")
+    stored_attachment("a2")
     store._store(_conv_with("a1"), "7")
     store._store(_conv_with("a2"), "7")
     row = StoredConversation.objects.get(thread_id="t1")
@@ -158,7 +151,7 @@ def test_resave_reconciles_references_from_the_new_messages() -> None:
 
 def test_remove_deletes_attachments_nothing_else_references() -> None:
     store = DefaultConversationStore()
-    attachment = _attachment("a1")
+    attachment = stored_attachment("a1")
     stored_name = attachment.file.name
     store._store(_conv_with("a1"), "7")
 
@@ -170,7 +163,7 @@ def test_remove_deletes_attachments_nothing_else_references() -> None:
 
 def test_remove_keeps_an_attachment_another_thread_references() -> None:
     store = DefaultConversationStore()
-    attachment = _attachment("a1")
+    attachment = stored_attachment("a1")
     store._store(_conv_with("a1", thread_id="t1"), "7")
     store._store(_conv_with("a1", thread_id="t2"), "7")
 
@@ -182,7 +175,7 @@ def test_remove_keeps_an_attachment_another_thread_references() -> None:
 
 def test_remove_leaves_another_owners_attachments_alone() -> None:
     store = DefaultConversationStore()
-    _attachment("a1", owner_id="99")
+    stored_attachment("a1", owner_id="99")
     store._store(_conv_with("a1", owner_id="7"), "7")
 
     store._remove("t1", "7")

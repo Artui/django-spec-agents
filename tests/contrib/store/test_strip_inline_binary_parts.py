@@ -80,24 +80,18 @@ def test_removes_every_kind_of_inlined_file(kind: str) -> None:
     assert changed is True
 
 
-def test_leaves_a_plain_string_message_alone() -> None:
-    messages = [{"id": "u1", "role": "user", "content": "book a flight"}]
-
+@pytest.mark.parametrize(
+    "messages",
+    [
+        pytest.param(
+            [{"id": "u1", "role": "user", "content": "book a flight"}], id="string-content"
+        ),
+        pytest.param(["not a message"], id="message-is-not-a-record"),
+        pytest.param({"messages": []}, id="messages-is-not-a-list"),
+    ],
+)
+def test_leaves_a_payload_without_parts_alone(messages: Any) -> None:
     stripped, changed = strip_inline_binary_parts(messages)
 
     assert changed is False
     assert stripped == messages
-
-
-def test_leaves_a_message_that_is_not_a_record_alone() -> None:
-    stripped, changed = strip_inline_binary_parts(["not a message"])
-
-    assert changed is False
-    assert stripped == ["not a message"]
-
-
-def test_leaves_a_messages_value_that_is_not_a_list_alone() -> None:
-    stripped, changed = strip_inline_binary_parts({"messages": []})
-
-    assert changed is False
-    assert stripped == {"messages": []}
