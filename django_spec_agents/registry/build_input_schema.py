@@ -101,7 +101,6 @@ def _hint_to_schema(hint: Any) -> dict[str, Any]:
 
 
 def _scalar_schema(hint: Any) -> dict[str, Any]:
-    # Bool is a subclass of int — check bool first.
     if hint is bool:
         return {"type": "boolean"}
     if hint is str:

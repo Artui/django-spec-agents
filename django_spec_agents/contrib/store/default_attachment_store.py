@@ -111,17 +111,10 @@ class DefaultAttachmentStore(ModelAttachmentStore):
             row.file = adopted
         else:
             # ``save=False`` writes the bytes through Storage but defers the row
-            # INSERT to the single ``row.save()`` below.
-            #
-            # A twin row is not proof its blob survives. Bytes go missing without
-            # the row going with them -- a lifecycle rule expiring a key, a dump
-            # restored beside an empty bucket, a backend migrated underneath.
-            # Adopting the name on the row's word alone writes nothing and hands
-            # back a reference to a file that is not there, and because identical
-            # bytes hash identically, the re-upload that would repair it matches
-            # the same dead twin and fails the same way. One ``exists`` on the
-            # backend this branch is about to write to anyway is what keeps the
-            # store self-healing rather than accumulating unreadable rows.
+            # INSERT to the single ``row.save()`` below. Reached as well when
+            # every twin's blob is gone, which is what keeps the store
+            # self-healing rather than accumulating unreadable rows (see
+            # ``_live_blob_name``).
             row.file.save(attachment_id, upload, save=False)
         row.save()
         return AttachmentRef(id=attachment_id, name=name, mime=mime, size=size)
