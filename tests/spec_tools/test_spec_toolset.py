@@ -1381,7 +1381,7 @@ async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both
     registry.register(
         "tasks",
         replace(
-            _name_list_spec(tasks_by_status, permission_classes=[_QueryRecordingPermission]),
+            _name_list_spec(tasks_by_status, permission_classes=[RecordingPermission]),
             reads=(QueryParam("status"),),
         ),
     )
@@ -1391,21 +1391,26 @@ async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both
     assert _input_schema_of(from_registry, "tasks") == _input_schema_of(from_mapping, "tasks")
     assert from_registry._tool_query_params["tasks"] == ()
     served = await _call(from_registry, "tasks", AnonymousUser(), dict(args))
-    seen_from_registry = _QueryRecordingPermission.seen
+    seen_from_registry = RecordingPermission.seen["query_params"]
     expected = await _call(from_mapping, "tasks", AnonymousUser(), dict(args))
     assert _rows(served) == _rows(expected) == [{"name": args.get("status", "open")}]
     # And the query string carries the value too, on both routes alike.
-    assert seen_from_registry == _QueryRecordingPermission.seen
+    assert seen_from_registry == RecordingPermission.seen["query_params"]
     assert seen_from_registry == ({"status": ["done"]} if args else {})
 
 
-class _QueryRecordingPermission(BasePermission):
-    """Allows everything, and records the query string it was shown."""
+class RecordingPermission(BasePermission):
+    """Allows everything, and records what it was shown."""
 
     seen: dict[str, Any] = {}
 
-    def has_permission(self, request: Any, view: Any) -> bool:
-        _QueryRecordingPermission.seen = dict(request.query_params.lists())
+    def has_permission(self, request, view):
+        RecordingPermission.seen = {
+            "action": view.action,
+            "kwargs": dict(view.kwargs),
+            "query_params": dict(request.query_params.lists()),
+            "user": request.user,
+        }
         return True
 
 
@@ -3393,19 +3398,9 @@ def test_a_real_default_still_reaches_the_spec() -> None:
 # spec, and every one of them is authored against the HTTP transport.
 
 
-class RecordingPermission(BasePermission):
-    """Allows everything, and records what it was shown."""
-
-    seen: dict[str, Any] = {}
-
-    def has_permission(self, request, view):
-        RecordingPermission.seen = {
-            "action": view.action,
-            "kwargs": dict(view.kwargs),
-            "query_params": dict(request.query_params.lists()),
-            "user": request.user,
-        }
-        return True
+def _do_it(user):
+    """Do it."""
+    return {"ok": True}
 
 
 async def _call(toolset: SpecToolset, name: str, user: Any, args: dict[str, Any] | None = None):
@@ -3423,15 +3418,10 @@ async def test_the_tool_name_is_the_view_action_a_permission_class_reads():
     over HTTP and another way through an agent. The tool name is the identity the model
     called, and it is what the MCP transport reports for the same spec.
     """
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     toolset = SpecToolset(
         {
             "suspend_account": ServiceSpec(
-                service=noop, atomic=False, permission_classes=[RecordingPermission]
+                service=_do_it, atomic=False, permission_classes=[RecordingPermission]
             )
         },
         descriptions={"suspend_account": "Suspend an account."},
@@ -3452,10 +3442,6 @@ async def test_an_override_can_rewrite_the_action_it_is_handed():
     build to do it.
     """
 
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     class RetrieveShaped(SpecToolset):
         def build_context(self, user, params, *, ctx, **kwargs):
             return super().build_context(user, params, ctx=ctx, **{**kwargs, "action": "retrieve"})
@@ -3463,7 +3449,7 @@ async def test_an_override_can_rewrite_the_action_it_is_handed():
     toolset = RetrieveShaped(
         {
             "get_thing": ServiceSpec(
-                service=noop, atomic=False, permission_classes=[RecordingPermission]
+                service=_do_it, atomic=False, permission_classes=[RecordingPermission]
             )
         },
         descriptions={"get_thing": "Get a thing."},
@@ -3486,15 +3472,10 @@ async def test_a_configured_requests_query_string_never_reaches_the_spec():
     nor the model chose. The MCP transport passes a mapping at every call site
     for exactly this reason.
     """
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     toolset = SpecToolset(
         {
             "do_it": ServiceSpec(
-                service=noop, atomic=False, permission_classes=[RecordingPermission]
+                service=_do_it, atomic=False, permission_classes=[RecordingPermission]
             )
         },
         descriptions={"do_it": "Do it."},
@@ -3510,16 +3491,11 @@ async def test_a_configured_requests_query_string_never_reaches_the_spec():
 @pytest.mark.django_db
 async def test_a_declared_query_param_still_reaches_the_spec_alongside_it():
     """The other half: replacing the query string is not dropping it."""
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     toolset = SpecToolset(
         reading(
             {
                 "do_it": ServiceSpec(
-                    service=noop, atomic=False, permission_classes=[RecordingPermission]
+                    service=_do_it, atomic=False, permission_classes=[RecordingPermission]
                 )
             },
             {"do_it": [QueryParam(name="fields")]},
@@ -3570,16 +3546,11 @@ async def test_a_dispatch_leaves_the_configured_request_untouched():
     ``method`` to ``POST``, replaced ``GET`` and reassigned ``user`` on that very
     object, and the effects outlived the call.
     """
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     ambient = RequestFactory().get("/agent/?fields=original")
     ambient.user = "the-operator"
     toolset = SpecToolset(
         reading(
-            {"do_it": ServiceSpec(service=noop, atomic=False, permission_classes=[AllowAny])},
+            {"do_it": ServiceSpec(service=_do_it, atomic=False, permission_classes=[AllowAny])},
             {"do_it": [QueryParam(name="fields")]},
         ),
         descriptions={"do_it": "Do it."},
