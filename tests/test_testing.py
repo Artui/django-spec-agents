@@ -66,12 +66,21 @@ def test_the_doubles_import_without_the_specs_extra():
     assert completed.stdout.strip() == "[]"
 
 
-def _toolset(service, name="t"):
+def _toolset(service, name="t", **spec_kwargs):
     # ``atomic=False`` because none of these services touch the ORM: the point
     # here is the run loop, not dispatch.
     return SpecToolset(
-        {name: ServiceSpec(service=service, permission_classes=[AllowAny], atomic=False)}
+        {
+            name: ServiceSpec(
+                service=service, permission_classes=[AllowAny], atomic=False, **spec_kwargs
+            )
+        }
     )
+
+
+def _ping(user: Any) -> Any:
+    """Ping."""
+    return {"ok": True}
 
 
 async def test_tool_calling_model_drives_one_call_and_stops():
@@ -91,14 +100,10 @@ async def test_tool_calling_model_drives_one_call_and_stops():
 
 
 async def test_final_text_is_the_run_output():
-    def ping(user):
-        """Ping."""
-        return {}
-
     agent = Agent(
         tool_calling_model("t", final_text="all set"),
         deps_type=AgentDeps,
-        toolsets=[_toolset(ping)],
+        toolsets=[_toolset(_ping)],
     )
 
     assert (await agent.run("go", deps=AgentDeps(user="u"))).output == "all set"
@@ -126,16 +131,7 @@ async def test_retry_args_default_to_repeating_the_first_arguments():
         calls.append(data["mode"])
         raise ModelRetry("never satisfied")
 
-    toolset = SpecToolset(
-        {
-            "t": ServiceSpec(
-                service=always_retries,
-                input_serializer=_ModeInputSerializer,
-                permission_classes=[AllowAny],
-                atomic=False,
-            )
-        }
-    )
+    toolset = _toolset(always_retries, input_serializer=_ModeInputSerializer)
     agent = Agent(tool_calling_model("t", {"mode": "bad"}), deps_type=AgentDeps, toolsets=[toolset])
 
     with pytest.raises(UnexpectedModelBehavior):
@@ -145,13 +141,9 @@ async def test_retry_args_default_to_repeating_the_first_arguments():
 
 
 async def test_instruction_capturing_model_records_what_the_toolset_contributed():
-    def ping(user):
-        """Ping."""
-        return {}
-
     captured: dict[str, Any] = {}
     agent = Agent(
-        instruction_capturing_model(captured), deps_type=AgentDeps, toolsets=[_toolset(ping)]
+        instruction_capturing_model(captured), deps_type=AgentDeps, toolsets=[_toolset(_ping)]
     )
 
     result = await agent.run("go", deps=AgentDeps(user="u"))
@@ -166,11 +158,6 @@ async def test_instruction_capturing_model_honours_final_text():
     agent = Agent(instruction_capturing_model(captured, final_text="ok"), deps_type=AgentDeps)
 
     assert (await agent.run("go", deps=AgentDeps(user="u"))).output == "ok"
-
-
-def _ping(user: Any) -> Any:
-    """Ping."""
-    return {"ok": True}
 
 
 async def test_the_streaming_double_serves_a_streamed_run() -> None:
@@ -226,16 +213,7 @@ async def test_the_streaming_double_retries_in_the_same_order() -> None:
             raise ModelRetry("try again")
         return {"mode": data["mode"]}
 
-    toolset = SpecToolset(
-        {
-            "t": ServiceSpec(
-                service=picky,
-                input_serializer=_ModeInputSerializer,
-                permission_classes=[AllowAny],
-                atomic=False,
-            )
-        }
-    )
+    toolset = _toolset(picky, input_serializer=_ModeInputSerializer)
     agent = Agent(
         streaming_tool_calling_model("t", {"mode": "first"}, retry_args={"mode": "second"}),
         deps_type=AgentDeps,

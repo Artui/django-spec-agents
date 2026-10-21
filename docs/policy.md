@@ -173,8 +173,8 @@ one hook covers every tool regardless of origin:
 - **MCP tool annotations** — `metadata["annotations"]["readOnlyHint"] is False`,
   which is how a toolset speaking MCP's own vocabulary says it mutates. A
   drf-services `ServiceSpec` exposed through `SpecToolset` is the case that
-  matters: without this the *same* spec was gated over the drf-mcp bridge and
-  ungated attached in process, so a transport swap removed the gate silently.
+  matters: without this the *same* spec would be gated over the drf-mcp bridge and
+  ungated attached in process, so a transport swap would remove the gate silently.
 - **The `x-destructive` schema stamp** at the root of `parameters_json_schema`,
   which is what `build_input_schema` writes. A project deriving a schema with
   that helper and attaching the tool through `toolsets=` gets the gate from it.
@@ -224,10 +224,10 @@ server does not perform is worse than no promise at all:
 
 ## What a raising tool costs
 
-A tool that raises used to end the run. The transport emitted `RUN_ERROR`, the
-turn stopped, and everything the model had already produced went with it —
-along with the results of every other tool in the same round. One broken
-integration cost the whole answer.
+Without a policy, a tool that raises ends the run. The transport emits
+`RUN_ERROR`, the turn stops, and everything the model had already produced goes
+with it — along with the results of every other tool in the same round. One
+broken integration costs the whole answer.
 
 `ToolFailurePolicy` changes what the failure stops, and nothing else. The call
 comes back to the model marked failed, naming the tool, and the run carries on:
@@ -236,7 +236,7 @@ comes back to the model marked failed, naming the tool, and the run carries on:
 config = AgentConfig(model="openai:gpt-4o")  # on by default
 ```
 
-Turn it off to restore the old behaviour, or opt into detail:
+Turn it off so a raising tool ends the run again, or opt into detail:
 
 ```python
 from django_spec_agents import ToolFailureConfig
@@ -351,20 +351,15 @@ over ids therefore turns the permission boundary into an existence oracle over
 rows the acting user cannot read — inside a single turn, spending no retry
 budget, bounded by nothing `build_agent` sets.
 
-That sentence used to read "distinguishable from a `{"error": "not found"}`
-one", which described how the spec tools reported a missing
-row before they began raising `ToolFailed` for one. The shape changed and the
-argument did not, but the reason is worth stating because the change looks like
-it closed the hole and did not. A missing row and a converted denial now share
-an `outcome` — both are `failed` — so the two are no longer told apart by the
-result's *shape*. They are still told apart by its *words*: one says the row is
-not there and the other says the tool failed. An oracle needs one bit, and a
-message is a place to find one.
+A missing row and a converted denial share an `outcome` — both are `failed` —
+so the two are not told apart by the result's *shape*. They are still told apart
+by its *words*: one says the row is not there and the other says the tool
+failed. An oracle needs one bit, and a message is a place to find one.
 
 The set is a project decision:
 
 ```python
-ToolFailureConfig(reraise=())  # convert everything (the old behaviour)
+ToolFailureConfig(reraise=())  # convert everything, denials included
 ToolFailureConfig(reraise=(PermissionDenied, LookupError))
 ```
 

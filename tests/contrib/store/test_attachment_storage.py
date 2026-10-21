@@ -1,8 +1,8 @@
 """Which ``Storage`` attachment bytes are written to.
 
 Agent uploads are user-supplied files a project usually wants somewhere private,
-and the field used to bind to the global default -- so the only way to move them
-was to move every other ``FileField`` in the project with them.
+and a field bound to the global default could only move them by moving every
+other ``FileField`` in the project with them.
 """
 
 from __future__ import annotations
@@ -29,9 +29,9 @@ def test_falls_back_to_the_projects_lazy_default() -> None:
 
 
 def test_the_model_field_follows_the_default_through_a_settings_change() -> None:
-    # The regression this shape exists to prevent: an ``override_settings`` for
-    # any storage-related key -- ``STATIC_URL`` counts -- used to split the field
-    # from ``default_storage`` permanently, for the life of the process.
+    # What this shape exists to prevent: an ``override_settings`` for any
+    # storage-related key -- ``STATIC_URL`` counts -- splitting the field from
+    # ``default_storage`` permanently, for the life of the process.
     field = StoredAttachment._meta.get_field("file")
     with override_settings(STATIC_URL="/other-static/"):
         assert field.storage is default_storage

@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
 from django.http import HttpRequest
 from django.test import RequestFactory
 
 from django_spec_agents.utils import (
     aauthorize,
+    acall_get_user,
     auth_error_response,
     authorize,
     call_get_user,
@@ -33,41 +35,27 @@ def test_sync_authorize_accepts_middleware_user() -> None:
     assert authorize(request, get_user=None, require_authenticated=True) is None
 
 
-def test_sync_authorize_predicate_forbids_with_403() -> None:
+@pytest.mark.parametrize(
+    ("is_authenticated", "is_staff", "expected"),
+    [
+        pytest.param(True, False, 403, id="predicate-forbids-with-403"),
+        pytest.param(True, True, None, id="predicate-allows-when-it-passes"),
+        # Anonymous + a staff predicate: the auth gate wins, so 401 and not 403.
+        pytest.param(False, False, 401, id="authenticated-gate-precedes-predicate"),
+    ],
+)
+def test_sync_authorize_predicate(
+    is_authenticated: bool, is_staff: bool, expected: int | None
+) -> None:
     request = factory.get("/agent/tools/")
-    request.user = SimpleNamespace(is_authenticated=True, is_staff=False)
+    request.user = SimpleNamespace(is_authenticated=is_authenticated, is_staff=is_staff)
     deny = authorize(
         request,
         get_user=None,
         require_authenticated=True,
         authorize=lambda r: r.user.is_staff,
     )
-    assert deny == 403
-
-
-def test_sync_authorize_predicate_allows_when_it_passes() -> None:
-    request = factory.get("/agent/tools/")
-    request.user = SimpleNamespace(is_authenticated=True, is_staff=True)
-    deny = authorize(
-        request,
-        get_user=None,
-        require_authenticated=True,
-        authorize=lambda r: r.user.is_staff,
-    )
-    assert deny is None
-
-
-def test_sync_authenticated_gate_precedes_predicate() -> None:
-    # Anonymous + a staff predicate → 401 (the auth gate wins), not 403.
-    request = factory.get("/agent/tools/")
-    request.user = SimpleNamespace(is_authenticated=False, is_staff=False)
-    deny = authorize(
-        request,
-        get_user=None,
-        require_authenticated=True,
-        authorize=lambda r: r.user.is_staff,
-    )
-    assert deny == 401
+    assert deny == expected
 
 
 def test_call_get_user_sync_hook() -> None:
@@ -146,8 +134,6 @@ def test_auth_error_response_maps_status_to_message() -> None:
 
 async def test_acall_get_user_awaits_a_native_async_hook() -> None:
     """An ``async def`` hook is awaited directly, not bridged off the loop."""
-    from django_spec_agents.utils import acall_get_user
-
     sentinel = object()
 
     async def hook(request: HttpRequest) -> object:
