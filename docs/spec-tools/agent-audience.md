@@ -1,0 +1,114 @@
+# Hide plumbing from the model
+
+A serializer written for your REST API is handed to the model verbatim when the
+same spec becomes a tool. Everything in it is equally visible, so records get
+referred to by primary key, a status reads as `IN_STOCK` rather than "In stock",
+and internal fields get narrated as if they were content.
+
+The marking travels to **both** halves of what the model sees. The payload is
+projected as it is rendered, and the tool's `return_schema` is generated from
+the same declaration — so a hidden field is absent from the schema as well as
+from the result, and a handle carries its description in both. A schema still
+advertising a field the render drops would be worse than no schema at all: the
+model asks for it, gets nothing back, and is told nothing about why.
+
+## Mark the fields
+
+The marking is `FieldMarking`, from
+[django-service-specs](https://artui.github.io/django-service-specs/), in DRF's
+per-field `style` bag under
+[djangorestframework-services](https://artui.github.io/djangorestframework-services/)'
+`MARKING` key. It reaches a `ModelSerializer` through
+`Meta.extra_kwargs`, so nothing has to be redeclared:
+
+```python
+from rest_framework import serializers
+from django_service_specs import FieldMarking
+from rest_framework_services import MARKING
+
+
+class WidgetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Widget
+        fields = ["id", "name", "price", "status"]
+        extra_kwargs = {
+            "id": {"style": {MARKING: FieldMarking.handle("Widget handle.")}},
+            "price": {"style": {MARKING: FieldMarking.hidden()}},
+            "name": {"style": {MARKING: FieldMarking.label()}},
+        }
+```
+
+Nothing changes at the toolset. A tool rendering through that serializer returns:
+
+```python
+{"items": [{"id": 1, "name": "Sprocket", "status": "In stock"}], "page": 1, ...}
+```
+
+(the [pagination envelope](quickstart.md#every-list-result-is-a-page) is the
+list-tool wrapper; the projection lands on the rows inside it, never on the
+envelope's own keys, which belong to no serializer).
+
+`price` is gone. `status` reads as a person would say it. `id` is untouched — a
+handle is another tool's input, so its value is never re-spelled.
+
+The derived instructions gain one line, and only when some tool in the toolset
+actually returns a handle:
+
+> Some tools return opaque identifier fields, described as such in the tool's
+> output. Pass them to other tools that ask for one; refer to records by their
+> name in anything you say, never by the identifier.
+
+A handle that declares no description of its own is described in the output
+schema with the field-level half of the same advice. Both sentences are yours to
+reword, or drop, through
+[`conventions=`](quickstart.md#changing-what-the-model-is-told): `handles` and
+`handle_field_description`.
+
+## One tool that needs what its siblings hide
+
+The serializer is the declaration and stays authoritative. The exception is a
+tool whose whole job is handing back something the others drop — a lookup
+returning the identifier a list view hides. That is an override, and it goes on
+the spec, as `field_audiences=`:
+
+```python
+from dataclasses import replace
+
+from django_service_specs import FieldMarking
+
+registry.register(
+    "lookup_widget",
+    replace(specs.lookup_widget, field_audiences={"price": FieldMarking()}),
+)
+```
+
+The marking becomes part of the spec's output declaration, so `SpecToolset`
+projects it whether it is handed the registry or `registry.specs()`, and so does
+an MCP server registering the same spec — which is the reason it lives there
+rather than in either constructor.
+`FieldMarking`'s axis is *audience*, not transport: an in-process toolset and an
+MCP server want the same thing as each other and something different from a
+browser, so a field hidden from one agent caller and visible to another is a bug
+you find in a transcript rather than in a test.
+
+A project that genuinely wants two agent audiences with different visibility
+does not want this. It wants two serializers.
+
+Two fields left claiming `FieldMarking.label()` raises `ImproperlyConfigured`
+when the toolset is built (`SpecToolset tool 'list_widgets': Output: both 'id'
+and 'name' are marked FieldMarking.label()...`): a record has one name. A
+`field_audiences` key naming a field the output does not carry is refused the
+same way, rather than projecting nothing. Both refusals are drf-services', from
+the spec's output declaration; the toolset prefixes them with the tool, since
+drf-services names only the fields.
+
+## What it costs
+
+Nothing per call. The markings are pure in the serializer class, like the tool
+schemas, so `SpecToolset` resolves them once at construction and reuses them.
+
+## Your REST API is unaffected
+
+DRF consults `style` only in `HTMLFormRenderer`, and only for its own keys. A
+marked-up serializer renders byte-identically behind a viewset — which is the
+point: one serializer, whichever consumer is reading.
