@@ -2775,8 +2775,8 @@ async def test_an_ordering_the_toolset_fills_is_refused_from_the_model(spec_kwar
     advertise, instead of being passed on to a selector that is handed the
     deployment's sort whatever the model asked for.
 
-    ``_spec_ordering_argument`` used to read the reflection without the names the
-    toolset fills, so it found ``ordering`` where the schema had dropped it. The
+    ``_spec_ordering_argument`` reads the reflection with the names the toolset
+    fills, so it agrees with the schema that ``ordering`` is gone. The
     pool-seed case holds ``pool_seeds`` reaching it from ``_pop_pagination``.
     """
     user = await User.objects.acreate(username="u")
@@ -2899,7 +2899,7 @@ async def test_the_same_service_runs_with_no_reporter_supplied():
 
 
 async def test_a_deps_type_without_a_progress_field_is_fine():
-    """A project's own deps class predates this field; a missing sink is normal."""
+    """A project's own deps class may carry no ``progress``; a missing sink is normal."""
     assert _default_get_progress(SimpleNamespace(deps=SimpleNamespace(user=None))) is None
     assert _default_get_progress(SimpleNamespace()) is None
 
@@ -2923,9 +2923,9 @@ async def test_a_call_is_timed_at_debug(caplog):
 async def test_a_denial_is_logged_at_warning_and_still_raises(caplog):
     """The one failure with no other trace.
 
-    A retry reaches the model and an ``{"error": …}`` reaches the answer, but a
+    A retry reaches the model and a failed call reaches its answer, but a
     denial aborts the run and is absorbed by whatever is driving it — so over
-    HTTP this is a `403` in the access log and here it was nothing at all.
+    HTTP this is a `403` in the access log and here it would be nothing at all.
     """
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"list_widgets": list_spec(permission_classes=[DenyAll])})
@@ -3026,8 +3026,8 @@ def test_an_omitted_limit_becomes_the_ceiling():
 
     assert len(_rows(_dispatch(list_spec(), user, {}, max_page_size=3))) == 3
     # With no ceiling configured, an omitted limit is the default page size --
-    # not "everything", which is what it used to mean and what made an
-    # unremarked truncation possible. Five rows fit inside one default page, so
+    # not "everything", which would make an unremarked truncation possible.
+    # Five rows fit inside one default page, so
     # they all come back, and ``hasNext`` says there is no more.
     page = _dispatch(list_spec(), user, {})
     assert len(_rows(page)) == 5
@@ -3050,11 +3050,11 @@ async def test_no_deadline_awaits_normally():
     assert await _with_deadline(_quick(), None, label="x") == "done"
 
 
-# --- the overridable middle (A2 / A3 / A6) -----------------------------------
+# --- the overridable middle --------------------------------------------------
 #
-# Everything between argument intake and result rendering used to be sealed in a
-# module-level private: a subclass could replace ``call_tool`` wholesale or
-# nothing at all. These cover the two seams and the two knobs that ride on them.
+# Everything between argument intake and result rendering is a seam, so a
+# subclass need not replace ``call_tool`` wholesale. These cover the two seams
+# and the two knobs that ride on them.
 
 
 class _Boom(Exception):
@@ -3062,7 +3062,7 @@ class _Boom(Exception):
 
 
 def test_an_unmapped_exception_still_aborts_the_run():
-    """The default is unchanged — a genuine bug must not become a tool result."""
+    """By default a genuine bug must not become a tool result."""
 
     def boom(user):
         """Boom."""
@@ -3147,7 +3147,7 @@ def test_the_most_specific_registration_wins():
 def test_the_map_overrides_a_built_in_arm():
     """Deliberate: the built-ins are this package's guess, not a law.
 
-    A ``ServiceError`` normally becomes ``{"error": …}``. A project that would
+    A ``ServiceError`` normally fails the call. A project that would
     rather the model retry must be able to say so, or the map is only half a
     seam.
     """
@@ -3170,7 +3170,7 @@ def test_the_map_overrides_a_built_in_arm():
 
 @pytest.mark.django_db
 def test_http_request_is_forwarded_to_the_offline_context():
-    """A3 — the parameter existed upstream all along and was never passed."""
+    """A configured ``http_request`` reaches the service as its ``request``."""
     request = RequestFactory().get("/", HTTP_X_TENANT="acme")
     seen = {}
 
@@ -3189,7 +3189,7 @@ def test_http_request_is_forwarded_to_the_offline_context():
 
 @pytest.mark.django_db
 def test_get_http_request_can_vary_the_request_per_run():
-    """The per-run form, mirroring ``get_user`` — the point of routing A3 through A2."""
+    """The per-run form, mirroring ``get_user``, routed through ``build_context``."""
     seen = {}
 
     def peek(user, request=None, **_):
@@ -3215,7 +3215,7 @@ def test_no_request_arrives_unless_one_was_configured():
 
 @pytest.mark.django_db
 def test_build_context_is_overridable_and_sees_the_run():
-    """A2 proper: a subclass reaches dispatch with the run's typed deps in hand."""
+    """A subclass reaches dispatch with the run's typed deps in hand."""
     seen = {}
 
     def peek(user, request=None, **_):
