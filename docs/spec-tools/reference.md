@@ -34,4 +34,4 @@ doubles for driving a toolset through a real run loop are in
 Test doubles for driving a toolset through a real `Agent` run loop. See
 [Running from a worker](background-runs.md#testing-it).
 
-::: django_spec_agents.spec_tools.testing
+::: django_spec_agents.testing

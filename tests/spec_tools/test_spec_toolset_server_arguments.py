@@ -32,7 +32,7 @@ from rest_framework_services import QueryParam, SelectorSpec, UrlKwarg
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
-from django_spec_agents.spec_tools.testing import tool_calling_model
+from django_spec_agents.testing import tool_calling_model
 from tests.spec_tools.test_spec_toolset import (
     _call,
     _dual_declared_spec,

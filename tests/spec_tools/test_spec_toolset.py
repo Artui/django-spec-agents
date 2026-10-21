@@ -94,7 +94,7 @@ from django_spec_agents.spec_tools.spec_toolset import (
     _spec_ordering_argument,
     _with_deadline,
 )
-from django_spec_agents.spec_tools.testing import (
+from django_spec_agents.testing import (
     instruction_capturing_model,
     tool_calling_model,
 )

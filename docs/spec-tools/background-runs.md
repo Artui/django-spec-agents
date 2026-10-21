@@ -183,7 +183,7 @@ is *not* it, since that means "derive one from the spec".
 ## Testing it
 
 The run loop is where the interesting failures live, and it needs a model.
-[`django_spec_agents.spec_tools.testing`](reference.md#testing) ships the two
+[`django_spec_agents.testing`](reference.md#testing) ships the two
 doubles this package's own suite uses — no provider, no network, no key:
 
 ```python
@@ -191,7 +191,7 @@ from pydantic_ai import Agent
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecToolset
-from django_spec_agents.spec_tools.testing import tool_calling_model
+from django_spec_agents.testing import tool_calling_model
 
 
 async def test_the_task_calls_the_tool():

@@ -26,7 +26,7 @@ from rest_framework_services import MARKING, QueryParam, SelectorSpec, ServiceSp
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
-from django_spec_agents.spec_tools.testing import instruction_capturing_model
+from django_spec_agents.testing import instruction_capturing_model
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import WidgetInputSerializer
 
