@@ -25,13 +25,13 @@ from django_service_specs import (
 )
 from pydantic_ai import Agent
 from rest_framework.exceptions import ValidationError as DRFValidationError
-from rest_framework.permissions import BasePermission
 from rest_framework_services import QueryParam, SelectorSpec, UrlKwarg
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
 from django_spec_agents.testing import tool_calling_model
 from tests.spec_tools.test_spec_toolset import (
+    RecordingPermission,
     _call,
     _dual_declared_spec,
     _input_schema_of,
@@ -44,19 +44,6 @@ from tests.spec_tools.test_spec_toolset import (
     ctx_for,
 )
 from tests.spec_tools.testapp.models import Widget
-
-
-class _RecordingPermission(BasePermission):
-    """Allows everything, and records the route captures and query string it was shown."""
-
-    seen: dict[str, Any] = {}
-
-    def has_permission(self, request: Any, view: Any) -> bool:
-        _RecordingPermission.seen = {
-            "kwargs": dict(view.kwargs),
-            "query_params": dict(request.query_params.lists()),
-        }
-        return True
 
 
 def vendors_in_scope(*, project_pk: str | None = None, draw_request_pk: str | None = None):
@@ -75,7 +62,7 @@ def any_vendors():
 
 
 def _scoped_spec(selector: Any = vendors_in_scope, **kwargs: Any) -> SelectorSpec:
-    kwargs.setdefault("permission_classes", [_RecordingPermission])
+    kwargs.setdefault("permission_classes", [RecordingPermission])
     kwargs.setdefault("reads", (UrlKwarg("project_pk"), UrlKwarg("draw_request_pk")))
     return _name_list_spec(selector, **kwargs)
 
@@ -200,7 +187,7 @@ def test_a_tool_with_no_channels_loses_the_bound_name_too():
         kind=SelectorKind.RETRIEVE,
         selector=entry_on_page,
         output_serializer=_NameSerializer,
-        permission_classes=[_RecordingPermission],
+        permission_classes=[RecordingPermission],
     )
     toolset = SpecToolset(
         {"entry": spec},
@@ -249,7 +236,7 @@ async def test_a_binding_fills_a_required_read_the_model_never_sends():
     result = await agent.run("go", deps=AgentDeps(user=user))
 
     assert _rows(_tool_return(result).content) == [{"name": "project=7"}]
-    assert _RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -270,7 +257,7 @@ async def test_the_bound_value_outranks_the_one_the_model_sends(caplog):
         result = await agent.run("go", deps=AgentDeps(user=user))
 
     assert _rows(_tool_return(result).content) == [{"name": "project=7"}]
-    assert _RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
     (record,) = [r for r in caplog.records if "dropped caller-supplied" in r.getMessage()]
     assert record.levelno == logging.WARNING
     assert "'vendors'" in record.getMessage()
@@ -296,7 +283,7 @@ async def test_a_withheld_name_takes_nothing_the_model_sends(caplog):
         )
 
     assert _rows(result) == [{"name": "project=7 draw=None"}]
-    assert _RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
     # Worded for both kinds of name: a withheld one is not a value the server
     # supplies, only one the model may not choose.
     assert (
@@ -330,7 +317,7 @@ async def test_a_bound_query_param_reaches_the_query_string():
 
     await _call(toolset, "vendors", user, {"fields": "secret"})
 
-    assert _RecordingPermission.seen["query_params"] == {"fields": ["name"]}
+    assert RecordingPermission.seen["query_params"] == {"fields": ["name"]}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -345,7 +332,7 @@ async def test_a_withheld_read_falls_back_to_its_declared_default():
 
     await _call(toolset, "vendors", user, {"fields": "secret"})
 
-    assert _RecordingPermission.seen["query_params"] == {"fields": ["name"]}
+    assert RecordingPermission.seen["query_params"] == {"fields": ["name"]}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -420,7 +407,7 @@ async def test_a_run_scoped_to_a_project_binds_it_and_withholds_the_sibling():
     user = await User.objects.acreate(username="u")
     registry = _registry(
         list_document_vendors=_scoped_spec(),
-        list_vendors=_name_list_spec(any_vendors, permission_classes=[_RecordingPermission]),
+        list_vendors=_name_list_spec(any_vendors, permission_classes=[RecordingPermission]),
     )
     recipe = _docs_recipe(registry, {"project_pk": "7"})
     toolset = recipe["toolset"]
@@ -439,7 +426,7 @@ async def test_a_run_scoped_to_a_project_binds_it_and_withholds_the_sibling():
     assert _rows(_tool_return(result).content) == [{"name": "project=7 draw=None"}]
     # Every reader of the call sees the one value: a permission class reading
     # the route included.
-    assert _RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
     schema = _input_schema_of(toolset, "list_document_vendors")
     assert not {"project_pk", "draw_request_pk"} & set(schema["properties"])
     # A tool reading no scope name has no binding.
@@ -591,7 +578,7 @@ async def test_a_malformed_value_for_a_bound_name_never_refuses_the_call():
     for a string it was never offered costs no retry, under ``REJECT`` too."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset(
-        {"vendors": _name_list_spec(vendors_of_project, permission_classes=[_RecordingPermission])},
+        {"vendors": _name_list_spec(vendors_of_project, permission_classes=[RecordingPermission])},
         tool_server_arguments={"vendors": ServerArguments(values={"project_pk": "7"})},
     )
 

@@ -4,13 +4,11 @@ import logging
 import sys
 from collections.abc import Callable
 from importlib.metadata import version
-from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
 import pytest
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
-from django.test import RequestFactory
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.capabilities import AbstractCapability, CapabilityOrdering
 from pydantic_ai.exceptions import ToolFailed, UnexpectedModelBehavior
@@ -39,6 +37,7 @@ from django_spec_agents.policy.failure.utils import PolicyToolFailed
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
+from tests.request_helpers import authed_request
 
 # pydantic-ai 2.54 moved every ``before`` / ``on_error`` / ``after`` hook inside
 # the ``wrap_tool_execute`` chain, which changes what a wrapper sees.
@@ -341,8 +340,7 @@ async def test_a_step_store_logs_the_tools_exception_not_the_policys() -> None:
     That event is the operator's record of the step, so it must name the tool's
     exception rather than text written for the model.
     """
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk="7")  # type: ignore[attr-defined]
+    request = authed_request()
     store = DefaultStepStore(request)
 
     await _composed(

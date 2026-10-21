@@ -7,22 +7,19 @@ from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_POOL_SEEDS,
-    SelectorKind,
     UnknownArguments,
 )
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
 from rest_framework.permissions import AllowAny
-from rest_framework_services import QueryParam, SelectorSpec, ServiceSpec
+from rest_framework_services import QueryParam, ServiceSpec
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.spec_tools.spec_toolset import UnguardedSpecWarning
 from django_spec_agents.testing import tool_calling_model
-from tests.spec_tools.test_spec_toolset import reading
-from tests.spec_tools.testapp.models import Widget
-from tests.spec_tools.testapp.serializers import WidgetSerializer
+from tests.spec_tools.test_spec_toolset import list_spec, reading, retrieve_spec
 
 # The wording the toolset says by default, for the tests about *whether* a line
 # is said. What each default says is pinned as text in ``test_default_wording.py``.
@@ -36,39 +33,9 @@ def _pagination_line(page_size: int) -> str:
 # --- specs under test --------------------------------------------------------
 
 
-def list_widgets(user):
-    """List widgets owned by the acting user."""
-    return Widget.objects.filter(owner=user)
-
-
-def get_widget(user, pk):
-    """Fetch a single widget by primary key."""
-    return Widget.objects.filter(owner=user, pk=pk)
-
-
 def ping(user):
     """Ping."""
     return {"ok": True}
-
-
-def list_spec(**kwargs):
-    kwargs.setdefault("permission_classes", [AllowAny])
-    return SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=list_widgets,
-        output_serializer=WidgetSerializer,
-        **kwargs,
-    )
-
-
-def retrieve_spec(**kwargs):
-    kwargs.setdefault("permission_classes", [AllowAny])
-    return SelectorSpec(
-        kind=SelectorKind.RETRIEVE,
-        selector=get_widget,
-        output_serializer=WidgetSerializer,
-        **kwargs,
-    )
 
 
 def ping_spec(**kwargs):

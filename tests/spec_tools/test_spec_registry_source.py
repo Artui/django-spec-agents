@@ -20,8 +20,7 @@ from rest_framework_services import (
 )
 
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
-from tests.spec_tools.test_spec_toolset import ctx_for
-from tests.spec_tools.test_spec_toolset_server_arguments import _RecordingPermission
+from tests.spec_tools.test_spec_toolset import RecordingPermission, ctx_for
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import AgentWidgetSerializer, WidgetSerializer
 
@@ -332,7 +331,7 @@ class TestTheEntrysOfflineContract:
         """
         spec = replace(
             _agent_list_spec(),
-            permission_classes=[_RecordingPermission],
+            permission_classes=[RecordingPermission],
             reads=(UrlKwarg("tenant_pk"), QueryParam(name="since")),
         )
         registry = SpecRegistry()
@@ -354,7 +353,5 @@ class TestTheEntrysOfflineContract:
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
         assert "tenant_pk" not in props
         assert "since" not in props
-        assert _RecordingPermission.seen == {
-            "kwargs": {"tenant_pk": "5"},
-            "query_params": {"since": ["2020"]},
-        }
+        assert RecordingPermission.seen["kwargs"] == {"tenant_pk": "5"}
+        assert RecordingPermission.seen["query_params"] == {"since": ["2020"]}

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -18,6 +17,7 @@ from django_spec_agents.contrib.store.default_attachment_store import DefaultAtt
 from django_spec_agents.contrib.store.models import StoredAttachment
 from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
+from tests.request_helpers import authed_request
 
 
 class _FakeStore:
@@ -171,8 +171,7 @@ async def test_a_row_whose_blob_is_gone_reaches_the_graceful_branch() -> None:
     row = await StoredAttachment.objects.aget(attachment_id=ref.id)
     await sync_to_async(default_storage.delete)(row.file.name)
 
-    request = RequestFactory().get("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk="7")
+    request = authed_request()
     read = _read_attachment(store, request)
 
     assert await read(ref.id) == f"No attachment with id {ref.id!r} is available."
