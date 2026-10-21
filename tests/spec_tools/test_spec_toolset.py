@@ -450,32 +450,30 @@ async def test_max_retries_default_and_override():
 # --- call_tool (async wrapper + identity) ------------------------------------
 
 
-async def test_call_tool_uses_default_deps_user():
-    seen = {}
+def _ping_spec() -> tuple[ServiceSpec, dict[str, Any]]:
+    """A spec whose service records, in the dict beside it, the user it ran as."""
+    seen: dict[str, Any] = {}
 
     def ping(user):
         """Ping."""
         seen["user"] = user
         return {"ok": True}
 
-    toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)}
-    )
+    return ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False), seen
+
+
+async def test_call_tool_uses_default_deps_user():
+    spec, seen = _ping_spec()
+    toolset = SpecToolset({"ping": spec})
     result = await toolset.call_tool("ping", {}, ctx_for("alice"), None)
     assert result == {"ok": True}
     assert seen["user"] == "alice"
 
 
 async def test_call_tool_honours_custom_get_user():
-    seen = {}
-
-    def ping(user):
-        """Ping."""
-        seen["user"] = user
-        return {"ok": True}
-
+    spec, seen = _ping_spec()
     toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)},
+        {"ping": spec},
         get_user=lambda ctx: ctx.principal,
     )
     await toolset.call_tool("ping", {}, ctx_for(principal="bob"), None)
@@ -1440,31 +1438,20 @@ def test_a_url_kwarg_may_share_a_selector_parameters_name():
 
 
 @pytest.mark.django_db
-def test_query_param_reaches_the_serializer_via_request_query_params():
+@pytest.mark.parametrize(
+    ("args", "declared", "seen"),
+    [
+        ({"fields": "id,name"}, QueryParam("fields"), "id,name"),
+        ({}, QueryParam("fields", default="id"), "id"),
+        ({}, QueryParam("fields"), None),
+    ],
+    ids=["sent", "default-seeded-when-omitted", "omitted-without-default-seeds-nothing"],
+)
+def test_query_param_reaches_the_serializer_via_request_query_params(args, declared, seen):
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(
-        _echo_list_spec(), user, {"fields": "id,name"}, query_params=(QueryParam("fields"),)
-    )
-    assert _rows(result) == [{"name": "a", "fields": "id,name"}]
-
-
-@pytest.mark.django_db
-def test_query_param_default_is_seeded_when_the_model_omits_it():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(
-        _echo_list_spec(), user, {}, query_params=(QueryParam("fields", default="id"),)
-    )
-    assert _rows(result) == [{"name": "a", "fields": "id"}]
-
-
-@pytest.mark.django_db
-def test_query_param_omitted_without_default_seeds_nothing():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(_echo_list_spec(), user, {}, query_params=(QueryParam("fields"),))
-    assert _rows(result) == [{"name": "a", "fields": None}]
+    result = _dispatch(_echo_list_spec(), user, args, query_params=(declared,))
+    assert _rows(result) == [{"name": "a", "fields": seen}]
 
 
 @pytest.mark.django_db
@@ -1514,16 +1501,8 @@ def test_query_param_is_popped_before_dispatch_so_reject_ignores_it():
 
 
 async def test_agent_run_executes_spec_tool_in_process():
-    seen = {}
-
-    def ping(user):
-        """Ping."""
-        seen["user"] = user
-        return {"ok": True}
-
-    toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)}
-    )
+    spec, seen = _ping_spec()
+    toolset = SpecToolset({"ping": spec})
     agent = Agent(tool_calling_model("ping"), deps_type=AgentDeps, toolsets=[toolset])
     result = await agent.run("go", deps=AgentDeps(user="alice"))
     assert result.output == "done"
@@ -6898,14 +6877,8 @@ async def test_enforce_result_bytes_override_can_bound_on_something_else():
 
 async def test_tool_call_log_lines_carry_run_correlation_and_usage(caplog):
     """Two concurrent runs interleave; without these fields nothing separates them."""
-
-    def ping(user):
-        """Ping."""
-        return {"ok": True}
-
-    toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)}
-    )
+    spec, _ = _ping_spec()
+    toolset = SpecToolset({"ping": spec})
     tools = await toolset.get_tools(None)
     ctx = ctx_for("u", run_id="run-abc", tool_call_id="call-xyz")
 
