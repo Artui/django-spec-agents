@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from django.http import HttpRequest
 
-from django_spec_agents.persistence.utils import safe_namespace_segment
+from django_spec_agents.persistence.utils import (
+    USER_NAMESPACE_PREFIX,
+    owner_id_for,
+    safe_namespace_segment,
+    session_key_for,
+)
 
-_USER_PREFIX = "u-"
 _ANONYMOUS_PREFIX = "anon-"
 
 
@@ -36,13 +40,10 @@ def memory_namespace(request: HttpRequest) -> str:
     stripping the offending characters maps ``tenant/42`` and ``tenant-42`` onto
     one namespace.
     """
-    user = getattr(request, "user", None)
-    if user is not None and getattr(user, "is_authenticated", False):
-        return safe_namespace_segment(_USER_PREFIX, str(user.pk))
-    session = request.session
-    if session.session_key is None:
-        session.create()
-    return safe_namespace_segment(_ANONYMOUS_PREFIX, str(session.session_key))
+    owner_id = owner_id_for(request)
+    if owner_id is not None:
+        return safe_namespace_segment(USER_NAMESPACE_PREFIX, owner_id)
+    return safe_namespace_segment(_ANONYMOUS_PREFIX, session_key_for(request))
 
 
 __all__ = ["memory_namespace"]

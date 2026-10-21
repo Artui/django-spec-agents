@@ -28,10 +28,10 @@ from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADA
 _TOOL_ARGS_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
 
 # The heading of the per-step list of tools an unmet operation condition left
-# out, worded as ``spec_tools`` words it for the spec-tools
-# route. A consumer can expose one spec either way, and the model is taught one
-# sentence for a missing operation; a test asserts it against that package's
-# real output, so a change on either side fails there rather than drifting.
+# out, worded as ``spec_tools`` words it. A consumer can expose one spec either
+# way, and the model is taught one sentence for a missing operation; a test
+# asserts it against ``spec_tools``' real output, so a change on either side
+# fails there rather than drifting.
 _UNAVAILABLE_INSTRUCTION = (
     "- These operations exist but cannot be performed right now, so they are not among your "
     "tools. If the user asks for one, say it is unavailable at the moment and give the reason "
@@ -44,7 +44,7 @@ class DRFMCPToolset(AbstractToolset[Any]):
 
     Built per request, so the agent acts as the request's logged-in user. Both
     schemas and execution route through drf-mcp's public in-process surface
-    (``MCPServer.list_tools`` / ``acall_tool``, drf-mcp 0.9+), so the advertised
+    (``MCPServer.list_tools`` / ``acall_tool``), so the advertised
     parameters, serializer validation and permissions match the HTTP transport
     exactly — without the network hop. Tool definitions carry the default
     ``kind="function"``, the in-process kind the run loop calls itself; an
@@ -54,8 +54,8 @@ class DRFMCPToolset(AbstractToolset[Any]):
     ``tools/list`` while an operation-scope affordance refuses it, and whether one
     does can change mid-run — an admin closes the books. So the definitions are
     listed once, with every tool the user may see, and each step asks drf-mcp
-    which of them a fresh listing would leave out (``aunavailable_tools``,
-    drf-mcp 0.48+): those are not offered that step, and the instructions name
+    which of them a fresh listing would leave out (``aunavailable_tools``):
+    those are not offered that step, and the instructions name
     each with its ``reason``, so a model asked for one can say why rather than
     guess or deny the operation exists. A server declaring no such condition
     answers that without leaving the event loop.
@@ -238,11 +238,10 @@ class DRFMCPToolset(AbstractToolset[Any]):
         )
         if isinstance(result, JsonRpcError):
             if result.code == JsonRpcErrorCode.INVALID_PARAMS:
-                # `-32602` is now a call drf-mcp could not dispatch at all: an
-                # unknown tool (it emitted `-32004` for that before 0.24.0) or
-                # `arguments` that are not an object. Argument values a tool
-                # refuses, a missing, unexpected or wrongly typed one, arrive
-                # as a `validation_error` result instead (since 0.50.0) and are
+                # `-32602` is a call drf-mcp could not dispatch at all: an
+                # unknown tool or `arguments` that are not an object. Argument
+                # values a tool refuses, a missing, unexpected or wrongly typed
+                # one, arrive as a `validation_error` result instead and are
                 # retried below. This is retried deliberately: `-32602` is by
                 # definition a fault in the request the model produced, and a
                 # wrong name is something it can change. pydantic-ai bounds the
@@ -274,13 +273,13 @@ class DRFMCPToolset(AbstractToolset[Any]):
                 # route raises for the same exception.
                 prompt = _missing_input_prompt(error)
                 raise ModelRetry(prompt)
-            # **Raised, not returned.** This returned ``{"error": error}`` as the
-            # tool's value, which pydantic-ai marks ``outcome="success"``: every
-            # refusal, missing row and timeout reached a transport streaming the
-            # run as a completed call, told apart from a real result only by the
-            # payload's wording. ``ToolFailed`` hands the model the same sentence,
-            # spends no retry budget and prepends no correction instructions, and
-            # marks the return ``outcome="failed"``.
+            # **Raised, not returned.** A returned ``{"error": error}`` is a
+            # tool value, which pydantic-ai marks ``outcome="success"``: every
+            # refusal, missing row and timeout would reach a transport streaming
+            # the run as a completed call, told apart from a real result only by
+            # the payload's wording. ``ToolFailed`` hands the model the same
+            # sentence, spends no retry budget and prepends no correction
+            # instructions, and marks the return ``outcome="failed"``.
             failure = _failure_message(error)
             raise ToolFailed(failure)
         return result.get("structuredContent", result.get("content"))
@@ -328,18 +327,17 @@ def _parse_tool_error(result: dict[str, Any]) -> dict[str, Any]:
 
 
 # The error keys that name a failure, in suffix order, with the label each is
-# written under. ``code`` is a refusal's stable name (drf-mcp 0.45+ sends it for
-# an ``ActionUnavailable``); ``failedStep`` is the chain step that failed.
+# written under. ``code`` is a refusal's stable name (drf-mcp sends it for an
+# ``ActionUnavailable``); ``failedStep`` is the chain step that failed.
 _FAILURE_LABELS: tuple[tuple[str, str], ...] = (("code", "code"), ("failedStep", "step"))
 
 
 def _failure_message(error: dict[str, Any]) -> str:
     """Compose the ``ToolFailed`` text: the server's sentence, then what names it.
 
-    While the error came back as a returned dict, ``code`` and ``failedStep`` were
-    keys the model could read. ``ToolFailed`` carries a string and nothing else,
-    so they ride as a suffix rather than being dropped. The ``(code: ...)`` form
-    is the one ``spec_tools`` writes for the same refusal
+    ``ToolFailed`` carries a string and nothing else, so ``code`` and
+    ``failedStep`` ride as a suffix rather than being dropped. The
+    ``(code: ...)`` form is the one ``spec_tools`` writes for the same refusal
     raised in process, so a model reads one wording whichever route a tool
     arrived by, and can match it to the ``code`` a row's ``affordances`` answer
     advertised. It is written for the model and for a person reading the tool
@@ -359,8 +357,8 @@ def _missing_input_prompt(error: dict[str, Any]) -> str:
     """Compose the ``ModelRetry`` text for ``input_required``: the service's
     message, plus the names it wants the answer back under.
 
-    Worded as ``spec_tools`` words the same request, for its
-    reason: ``requestedInput`` is a JSON-Schema *properties* mapping keyed by
+    Worded as ``spec_tools`` words the same request, for its reason:
+    ``requestedInput`` is a JSON-Schema *properties* mapping keyed by
     input name, the model is about to call the same tool again, and that tool's
     parameter schema already describes each argument. The names are what to add;
     a second, differently shaped description in prose is how a model ends up
