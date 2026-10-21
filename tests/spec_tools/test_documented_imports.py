@@ -52,6 +52,17 @@ def test_a_name_another_package_owns_is_not_re_exported(name):
     assert not hasattr(spec_tools, name)
 
 
+def test_the_spec_source_alias_stays_at_its_module_path():
+    """A subclass annotating its ``specs`` argument imports the alias from
+    ``spec_toolset``, where it is defined, and no ``__all__`` exports it."""
+    import django_spec_agents
+    from django_spec_agents.spec_tools import spec_toolset
+
+    assert spec_toolset.SpecSource is not None
+    for module in (django_spec_agents, spec_tools, spec_toolset):
+        assert "SpecSource" not in module.__all__
+
+
 def test_the_pages_teach_imports():
     # Guards the test below against a regex that silently matches nothing.
     assert len(_documented_imports()) >= 10
