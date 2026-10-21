@@ -41,6 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `django_spec_agents.types`; the root names are unchanged, and
   `django_spec_agents.constants` is gone.
 
+### Fixed
+
+- A tool registered with `@tool(name=...)` is now offered to the model under
+  that name. It was offered under the function's own name, so a destructive tool
+  carrying a `name=` override was never collected by `ToolGuard` and ran without
+  approval under an enabled guard, and the audit record and tool catalog named it
+  differently from each other. A `description=` override now reaches the
+  model too; a tool with neither override is offered exactly what it was.
+
 ### Removed
 
 - `SpecToolset` and `SpecCapability` no longer take the mount-level channel keywords

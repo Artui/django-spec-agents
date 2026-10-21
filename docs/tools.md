@@ -20,6 +20,16 @@ The name defaults to the function's name, and the description to the first
 paragraph of its docstring; both can be overridden. Registering a name twice
 raises `ValueError` rather than shadowing.
 
+The name you register is the name the model is offered, and the one the
+[tool guard](policy.md), the audit record and the tool catalog use. An explicit
+`description=` is what the model reads in place of the docstring, an empty one
+excepted: some supported Pydantic-AI versions treat it as none. A tool with
+no `description=` is offered exactly what Pydantic-AI derives from the
+docstring, which keeps every paragraph before the arguments section where the
+registry's own `description` keeps the first. A `description=` identical to
+that first paragraph is indistinguishable from none, so the model gets the
+fuller text.
+
 `ToolRegistry` state lives on the **instance** — a transport holds one, and
 tests build a fresh one per scenario. There is no global registry.
 

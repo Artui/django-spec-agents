@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import inspect
 from collections.abc import Callable
 from typing import Any, TypeVar
 
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.registry.types.tool_spec import ToolSpec
+from django_spec_agents.registry.utils import first_doc_paragraph
 from django_spec_agents.types.tool_category import ToolCategory
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -33,7 +33,7 @@ def tool(
         spec = ToolSpec(
             name=name or getattr(fn, "__name__", "<anonymous>"),
             fn=fn,
-            description=description if description is not None else _first_doc(fn),
+            description=description if description is not None else first_doc_paragraph(fn),
             destructive=destructive,
             category=category,
             confirm=confirm,
@@ -43,18 +43,6 @@ def tool(
         return fn
 
     return _decorator
-
-
-def _first_doc(fn: Callable[..., Any]) -> str:
-    doc = inspect.getdoc(fn)
-    if not doc:
-        return ""
-    paragraph: list[str] = []
-    for line in doc.splitlines():
-        if not line.strip():
-            break
-        paragraph.append(line)
-    return " ".join(paragraph).strip()
 
 
 __all__ = ["tool"]
