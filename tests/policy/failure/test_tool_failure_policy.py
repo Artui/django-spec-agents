@@ -90,9 +90,7 @@ def _asks_again(name: str = "boom", *, executions: list[str] | None = None) -> T
             executions.append(target)
         raise ModelRetry("try another target")
 
-    # ``name=`` on ``@tool`` would not do: the agent offers the function's own name.
-    asks.__name__ = name
-    tool(reg)(asks)
+    tool(reg, name=name)(asks)
     return reg
 
 
