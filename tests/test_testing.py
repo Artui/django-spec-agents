@@ -9,6 +9,10 @@ actually retries.
 
 from __future__ import annotations
 
+import os
+import pathlib
+import subprocess
+import sys
 from typing import Any
 
 import pytest
@@ -18,12 +22,48 @@ from rest_framework import serializers
 from rest_framework.permissions import AllowAny
 from rest_framework_services import ServiceSpec
 
-from django_spec_agents.spec_tools import AgentDeps, SpecToolset
-from django_spec_agents.spec_tools.testing import (
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
+from django_spec_agents.testing import (
     instruction_capturing_model,
     streaming_tool_calling_model,
     tool_calling_model,
 )
+
+_ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+# Run in a fresh interpreter: by collection time pytest-django has imported
+# Django REST Framework into this process, so a check made here proves nothing.
+_IMPORTS_OF_THE_DOUBLES = """
+import sys
+import django_spec_agents
+assert "django_spec_agents.testing" not in sys.modules, "the package root imported the doubles"
+import django_spec_agents.testing
+print(sorted(
+    name for name in sys.modules
+    if name.partition(".")[0] in ("rest_framework", "rest_framework_services")
+    or name.startswith("django_spec_agents.spec_tools")
+))
+"""
+
+
+def test_the_doubles_import_without_the_specs_extra():
+    """No settings module, so the doubles must import on pydantic-ai alone: a
+    module importing ``spec_tools`` would fail here at Django REST Framework's
+    settings, and one importing drf-services lazily would be listed. The
+    package root, imported first, must not have imported them."""
+    env = {key: value for key, value in os.environ.items() if key != "DJANGO_SETTINGS_MODULE"}
+    completed = subprocess.run(
+        [sys.executable, "-c", _IMPORTS_OF_THE_DOUBLES],
+        cwd=_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "[]"
 
 
 def _toolset(service, name="t"):

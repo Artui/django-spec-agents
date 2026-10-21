@@ -1,4 +1,4 @@
-# djangorestframework-pydantic-ai
+# Specs as tools
 
 Expose [`djangorestframework-services`](https://github.com/Artui/djangorestframework-services)
 services and selectors as a [Pydantic-AI](https://ai.pydantic.dev) toolset, so a

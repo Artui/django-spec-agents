@@ -426,10 +426,6 @@ filterwarnings = [
     "ignore:MCP tool .* is registered with no description",
     'ignore::SyntaxWarning:.*[/\\]pypeg2[/\\]',
     'ignore::DeprecationWarning:.*[/\\]pypeg2[/\\]',
-    # The suite still exercises the deprecated mount-level channel knobs, which
-    # stay supported for one minor. The tests about the deprecation itself use
-    # ``pytest.warns``, which records whatever this filter says.
-    "ignore:Spec(Toolset|Capability)'s .* deprecated:DeprecationWarning",
 ]
 
 [tool.coverage.run]

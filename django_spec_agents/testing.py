@@ -16,10 +16,16 @@ docs.
 **Test doubles, not fixtures.** Nothing here touches Django, the database or
 ``pytest``, so it composes with whatever a project already uses.
 
+**Pydantic-AI is the only thing it imports**, which is why it sits at the
+package's top level rather than under ``spec_tools``: a host-only install, with
+no ``[specs]`` extra and no Django REST Framework, can drive its own agents with
+these doubles. The package root never imports it.
+
 ```python
 from pydantic_ai import Agent
-from django_spec_agents.spec_tools import AgentDeps, SpecToolset
-from django_spec_agents.spec_tools.testing import tool_calling_model
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
+from django_spec_agents.testing import tool_calling_model
 
 agent = Agent(tool_calling_model("list_widgets"), deps_type=AgentDeps, toolsets=[toolset])
 result = await agent.run("go", deps=AgentDeps(user=user))
@@ -122,7 +128,7 @@ def streaming_tool_calling_model(
     know which the transport under it chose.
 
     ```python
-    from django_spec_agents.spec_tools.testing import streaming_tool_calling_model
+    from django_spec_agents.testing import streaming_tool_calling_model
 
     # An AG-UI endpoint, driven end to end.
     agent = Agent(streaming_tool_calling_model("refund_order", {"reference": "ENC-1"}))

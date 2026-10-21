@@ -14,17 +14,12 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 from rest_framework.permissions import AllowAny
-from rest_framework_services import SelectorSpec, ServiceSpec
+from rest_framework_services import QueryParam, SelectorSpec, ServiceSpec
 
-from django_spec_agents.spec_tools import (
-    AgentConventions,
-    AgentDeps,
-    QueryParam,
-    SpecCapability,
-    SpecToolset,
-    UrlKwarg,
-)
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.spec_tools.spec_toolset import UnguardedSpecWarning
+from tests.spec_tools.test_spec_toolset import reading
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import WidgetSerializer
 
@@ -179,7 +174,7 @@ def test_from_toolset_takes_a_description_too():
 
 
 def test_from_toolset_wraps_a_prebuilt_toolset():
-    toolset = SpecToolset({"list": list_spec()}, id="orders", query_params=[QueryParam("query")])
+    toolset = SpecToolset({"list": list_spec()}, id="orders")
     cap = SpecCapability.from_toolset(toolset)
     assert cap.get_toolset() is toolset
     assert cap.id == "orders"
@@ -189,12 +184,6 @@ def test_from_toolset_honours_defer_loading():
     toolset = SpecToolset({"go": ping_spec()})
     cap = SpecCapability.from_toolset(toolset, defer_loading=True)
     assert cap.defer_loading is True
-
-
-async def test_url_kwargs_forward_to_the_built_toolset():
-    cap = SpecCapability({"list": list_spec()}, url_kwargs=[UrlKwarg("parent_pk")])
-    tools = await cap.get_toolset().get_tools(None)
-    assert "parent_pk" in tools["list"].tool_def.parameters_json_schema["properties"]
 
 
 async def test_pool_seeds_forward_to_the_built_toolset():
@@ -301,16 +290,18 @@ def test_the_migration_escape_hatch_is_reachable_from_the_capability():
 async def test_a_bound_forwards_all_the_way_to_what_the_model_is_told():
     """One end-to-end forwarding case, on the arguments the model actually sees.
 
-    ``max_page_size`` and ``query_params`` both change the advertised schema —
-    one narrows a property the toolset contributes, the other adds one — so this
+    ``max_page_size`` and the spec's ``QueryParam`` read both change the
+    advertised schema — one narrows a property the toolset contributes, the other
+    adds one — so this
     asserts the values survived the hop rather than that an attribute was
     assigned somewhere. A bound a consumer only gets when they attach the toolset
     directly is one the consumers composing through a capability never get.
     """
     cap = SpecCapability(
-        {"list": list_spec()},
+        reading(
+            {"list": list_spec()}, {"list": [QueryParam("query", description="field selection")]}
+        ),
         max_page_size=50,
-        query_params=[QueryParam("query", description="field selection")],
     )
     tools = await cap.get_toolset().get_tools(None)
     schema = tools["list"].tool_def.parameters_json_schema["properties"]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -20,8 +20,6 @@ from django_spec_agents.spec_tools.spec_toolset import (
     UserExtractor,
 )
 from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
-from django_spec_agents.spec_tools.types.query_param import QueryParam
-from django_spec_agents.spec_tools.types.url_kwarg import UrlKwarg
 
 
 class SpecCapability(AbstractCapability[Any]):
@@ -96,10 +94,6 @@ class SpecCapability(AbstractCapability[Any]):
         get_user: UserExtractor | None = None,
         get_progress: ProgressExtractor | None = None,
         unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
-        query_params: Sequence[QueryParam] = (),
-        tool_query_params: Mapping[str, Sequence[QueryParam]] | None = None,
-        url_kwargs: Sequence[UrlKwarg] = (),
-        tool_url_kwargs: Mapping[str, Sequence[UrlKwarg]] | None = None,
         tool_server_arguments: Mapping[str, ServerArguments] | None = None,
         host: str | None = None,
         max_retries: int = 1,
@@ -125,10 +119,6 @@ class SpecCapability(AbstractCapability[Any]):
             get_user=get_user,
             get_progress=get_progress,
             unknown_arguments=unknown_arguments,
-            query_params=query_params,
-            tool_query_params=tool_query_params,
-            url_kwargs=url_kwargs,
-            tool_url_kwargs=tool_url_kwargs,
             tool_server_arguments=tool_server_arguments,
             host=host,
             max_retries=max_retries,
