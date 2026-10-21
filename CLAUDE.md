@@ -85,11 +85,10 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 
 1. **One exported class or function per file.** File name = `snake_case` of the symbol.
    `ToolRegistry` → `tool_registry.py`; `build_input_schema` → `build_input_schema.py`.
-   **Exception:** `django_spec_agents/constants.py` is the package's single home for
-   enums and constant-like module-level values, and is the only file allowed to export
-   multiple symbols. Django `models.py` is the other necessary exception — Django
-   requires models to live there, as it requires each management command to be a
-   class named `Command` in `management/commands/<command-name>.py`.
+   Enums and constant-like module-level values follow the same rule, one per file under
+   `types/`. **Exception:** Django `models.py`, because Django requires models to live
+   there, as it requires each management command to be a class named `Command` in
+   `management/commands/<command-name>.py`.
 2. **Private helpers used in only one file** stay there with a leading `_`.
 3. **Non-exported helpers shared across files** go into a sibling `utils.py`. Classes are
    allowed in `utils.py` if they are internal infrastructure.
