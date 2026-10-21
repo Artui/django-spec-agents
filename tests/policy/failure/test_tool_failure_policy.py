@@ -29,20 +29,13 @@ from django_spec_agents.policy.failure.types.tool_failure_config import ToolFail
 from django_spec_agents.policy.failure.utils import PolicyToolFailed
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 
 # pydantic-ai 2.54 moved every ``before`` / ``on_error`` / ``after`` hook inside
 # the ``wrap_tool_execute`` chain, which changes what a wrapper sees.
 _HOOKS_INSIDE_THE_WRAPPER = tuple(
     int(part) for part in version("pydantic-ai-slim").split(".")[:2]
 ) >= (2, 54)
-
-
-class _RecordingAudit:
-    def __init__(self) -> None:
-        self.events: list[Any] = []
-
-    def record(self, event: Any) -> None:
-        self.events.append(event)
 
 
 def _raising_registry() -> ToolRegistry:
@@ -125,7 +118,7 @@ async def test_the_operator_copy_is_never_redacted() -> None:
     policy's redacted copy. The default ``include_detail`` off is what makes
     the difference visible: the copy carries none of the original text.
     """
-    audit = _RecordingAudit()
+    audit = CapturingAuditLogger()
 
     await _agent(audit=audit).run("go", deps=AgentDeps(user=None))
 
@@ -382,7 +375,7 @@ async def test_another_capabilitys_retry_spends_the_tools_retry_budget(
     tool's exception.
     """
     hook = _ErrorHook(answer=ModelRetry("try another target"))
-    audit = _RecordingAudit()
+    audit = CapturingAuditLogger()
 
     with (
         caplog.at_level(logging.ERROR, logger="django_pydantic_agent.failure"),
@@ -416,7 +409,7 @@ async def test_a_tools_own_retry_with_no_budget_left_is_converted_into_a_failed_
         """Always asks again."""
         raise ModelRetry("try another target")
 
-    audit = _RecordingAudit()
+    audit = CapturingAuditLogger()
     agent = build_agent(
         reg, AgentConfig(model=TestModel(call_tools=["boom"]), retries=0, audit_logger=audit)
     )
