@@ -1661,14 +1661,15 @@ async def test_an_unresolved_target_marks_the_tool_return_failed(selector):
     assert part.content == "not found"
 
 
-async def test_a_dispatch_past_its_deadline_marks_the_tool_return_failed():
-    def crawl(user):
-        """Takes longer than the deadline."""
-        time.sleep(0.2)
-        return {}
+def _crawl(user):
+    """Takes longer than the deadline."""
+    time.sleep(0.2)
+    return {}
 
+
+async def test_a_dispatch_past_its_deadline_marks_the_tool_return_failed():
     result = await _run_one_tool(
-        ServiceSpec(service=crawl, permission_classes=[AllowAny], atomic=False),
+        ServiceSpec(service=_crawl, permission_classes=[AllowAny], atomic=False),
         name="crawl",
         dispatch_timeout=0.01,
     )
@@ -3933,10 +3934,7 @@ async def test_a_listing_time_condition_closes_the_connection_it_opened() -> Non
     already open when a dispatch starts reads as someone else's. So this lists,
     checks, then dispatches and checks again.
     """
-    assert not connection.is_in_memory_db(), (
-        "this test needs a database whose connection can actually be closed; "
-        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
-    )
+    _assert_a_close_is_observable()
     asked_on: dict[str, int] = {}
 
     def queries() -> bool:
@@ -6462,6 +6460,37 @@ def _dispatch_thread_state() -> tuple[int, bool]:
     return threading.get_ident(), connections["default"].connection is not None
 
 
+def _thread_recording_toolset() -> tuple[SpecToolset, dict[str, int]]:
+    """A one-tool toolset whose selector records, in the dict beside it, its thread."""
+    dispatched_on: dict[str, int] = {}
+
+    def _list_recording_its_thread(user: Any) -> Any:
+        """List every widget, recording which thread the dispatch ran on."""
+        del user  # the subject is the connection, not the scoping
+        dispatched_on["thread"] = threading.get_ident()
+        return Widget.objects.all()
+
+    toolset = SpecToolset(
+        {
+            "widgets": SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_list_recording_its_thread,
+                output_serializer=WidgetSerializer,
+                permission_classes=[AllowAny],
+            )
+        }
+    )
+    return toolset, dispatched_on
+
+
+def _assert_a_close_is_observable() -> None:
+    """Django's SQLite backend ignores ``close()`` on an in-memory database."""
+    assert not connection.is_in_memory_db(), (
+        "this test needs a database whose connection can actually be closed; "
+        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
+    )
+
+
 @pytest.mark.django_db
 @pytest.mark.parametrize("conn_max_age", [0, 60], ids=["no-reuse", "persistent-connections"])
 async def test_a_dispatch_closes_the_connection_it_opened_on_the_shared_thread(
@@ -6493,32 +6522,12 @@ async def test_a_dispatch_closes_the_connection_it_opened_on_the_shared_thread(
     """
     # Django's SQLite backend *ignores* ``close()`` on an in-memory database, to
     # avoid destroying it -- so under a ``:memory:`` test database this test
-    # could not tell a working fix from a no-op, which is exactly how an earlier
-    # attempt at this fix came out green without being verified. Assert the
+    # could not tell a working fix from a no-op, and a fix would come out green
+    # without being verified. Assert the
     # environment can observe a close before asserting anything about one.
-    assert not connection.is_in_memory_db(), (
-        "this test needs a database whose connection can actually be closed; "
-        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
-    )
+    _assert_a_close_is_observable()
 
-    dispatched_on: dict[str, int] = {}
-
-    def _list_recording_its_thread(user: Any) -> Any:
-        """List every widget, recording which thread the dispatch ran on."""
-        del user  # the subject is the connection, not the scoping
-        dispatched_on["thread"] = threading.get_ident()
-        return Widget.objects.all()
-
-    toolset = SpecToolset(
-        {
-            "widgets": SelectorSpec(
-                kind=SelectorKind.LIST,
-                selector=_list_recording_its_thread,
-                output_serializer=WidgetSerializer,
-                permission_classes=[AllowAny],
-            )
-        }
-    )
+    toolset, dispatched_on = _thread_recording_toolset()
     # Unsaved on purpose. Saving one would need a thread hop of its own -- the
     # ORM is closed to the event loop -- and a row written from the dispatch
     # thread commits on that thread's connection, outside the transaction this
@@ -6569,34 +6578,14 @@ def test_a_dispatch_leaves_a_connection_it_did_not_open_alone() -> None:
     connection and every remaining assertion would hold for the wrong reason --
     the test would pass while testing nothing.
     """
-    assert not connection.is_in_memory_db(), (
-        "this test needs a database whose connection can actually be closed; "
-        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
-    )
+    _assert_a_close_is_observable()
     # pytest-django runs a ``django_db`` test inside an atomic block, so the
     # connection this thread holds is the real thing this cleanup must not
     # touch -- open, and with a transaction on it.
     connection.ensure_connection()
     assert connection.in_atomic_block
 
-    dispatched_on: dict[str, int] = {}
-
-    def _list_recording_its_thread(user: Any) -> Any:
-        """List every widget, recording which thread the dispatch ran on."""
-        del user  # the subject is the connection, not the scoping
-        dispatched_on["thread"] = threading.get_ident()
-        return Widget.objects.all()
-
-    toolset = SpecToolset(
-        {
-            "widgets": SelectorSpec(
-                kind=SelectorKind.LIST,
-                selector=_list_recording_its_thread,
-                output_serializer=WidgetSerializer,
-                permission_classes=[AllowAny],
-            )
-        }
-    )
+    toolset, dispatched_on = _thread_recording_toolset()
     ctx = ctx_for(User(username="u"))
 
     async def _one_call() -> None:
@@ -6923,13 +6912,8 @@ async def test_a_forwarding_override_receives_the_carrier_through_kwargs():
 async def test_dispatch_timeout_log_line_carries_run_correlation(caplog):
     """A tool that intermittently times out is the one worth correlating."""
 
-    def crawl(user):
-        """Takes longer than the deadline."""
-        time.sleep(0.2)
-        return {}
-
     toolset = SpecToolset(
-        {"crawl": ServiceSpec(service=crawl, permission_classes=[AllowAny], atomic=False)},
+        {"crawl": ServiceSpec(service=_crawl, permission_classes=[AllowAny], atomic=False)},
         dispatch_timeout=0.01,
     )
     tools = await toolset.get_tools(None)
