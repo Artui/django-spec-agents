@@ -11,7 +11,7 @@ from django_service_specs import (
     UnknownArguments,
 )
 from pydantic_ai import Agent
-from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
 from rest_framework.permissions import AllowAny
 from rest_framework_services import QueryParam, SelectorSpec, ServiceSpec
@@ -19,6 +19,7 @@ from rest_framework_services import QueryParam, SelectorSpec, ServiceSpec
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.spec_tools.spec_toolset import UnguardedSpecWarning
+from django_spec_agents.testing import tool_calling_model
 from tests.spec_tools.test_spec_toolset import reading
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import WidgetSerializer
@@ -142,11 +143,9 @@ def test_a_description_reaches_the_deferred_catalog_entry():
     """The line a deferred capability is chosen by.
 
     Pydantic-AI's loader renders ``- {id}: {description}`` when a capability has
-    one and a bare ``- {id}`` when it does not, so a hardcoded ``None`` left
+    one and a bare ``- {id}`` when it does not, so a capability passing ``None`` leaves
     every deferred spec capability advertising a name and nothing else -- the
-    guess-or-load-everything outcome deferring exists to avoid. ``description=``
-    used to raise ``TypeError``, helpfully suggesting the unrelated per-tool
-    ``descriptions=``.
+    guess-or-load-everything outcome deferring exists to avoid.
     """
     cap = SpecCapability(
         {"go": ping_spec()},
@@ -198,16 +197,11 @@ async def test_pool_seeds_forward_to_the_built_toolset():
         seen["tenant"] = tenant
         return {"tenant": tenant}
 
-    def model_fn(messages, info):
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
-            return ModelResponse(parts=[TextPart("done")])
-        return ModelResponse(parts=[ToolCallPart(tool_name="stamp", args={})])
-
     cap = SpecCapability(
         {"stamp": ServiceSpec(service=stamp, atomic=False, permission_classes=[AllowAny])},
         pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda user: f"tenant-of-{user}"),
     )
-    agent = Agent(FunctionModel(model_fn), deps_type=AgentDeps, capabilities=[cap])
+    agent = Agent(tool_calling_model("stamp"), deps_type=AgentDeps, capabilities=[cap])
 
     result = await agent.run("go", deps=AgentDeps(user="acme"))
 
@@ -262,23 +256,17 @@ def test_a_shared_keyword_means_the_same_thing_on_both():
 
 
 def test_an_unguarded_spec_is_refused_through_the_capability_too():
-    """The check the capability path could not reach before 0.13.1.
-
-    Worth asserting on the wrapper and not only the toolset: the refusal is the
-    entire security content of ``require_permissions``, and it travelled through
-    a constructor that had never forwarded it.
-    """
+    """Worth asserting on the wrapper and not only the toolset: the refusal is the
+    entire security content of ``require_permissions``, and it travels through a
+    constructor that must forward it."""
     with pytest.raises(ImproperlyConfigured, match="no permission_classes"):
         SpecCapability({"list": list_spec(permission_classes=None)})
 
 
 def test_the_migration_escape_hatch_is_reachable_from_the_capability():
-    """``require_permissions=False`` — documented, and until now unavailable here.
-
-    A consumer with a large registry to migrate had no way to downgrade to the
-    warning short of dropping to ``from_toolset``, which the docstring never
-    told them to do.
-    """
+    """``require_permissions=False``: a consumer with a large registry to migrate
+    downgrades to the warning through the capability, without dropping to
+    ``from_toolset``."""
     with pytest.warns(UnguardedSpecWarning):
         cap = SpecCapability(
             {"list": list_spec(permission_classes=None)}, require_permissions=False
@@ -327,13 +315,8 @@ async def test_capability_executes_its_tool_in_process():
         seen["user"] = user
         return {"ok": True}
 
-    def model_fn(messages, info):
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
-            return ModelResponse(parts=[TextPart("done")])
-        return ModelResponse(parts=[ToolCallPart(tool_name="run", args={})])
-
     agent = Agent(
-        FunctionModel(model_fn),
+        tool_calling_model("run"),
         deps_type=AgentDeps,
         capabilities=[
             SpecCapability(
