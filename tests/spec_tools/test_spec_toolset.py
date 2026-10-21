@@ -189,9 +189,11 @@ def _dispatch(
     return toolset._call_spec(spec, user, dict(args or {}), ctx=ctx, **kwargs)
 
 
+# The three builders are guarded by default: ``require_permissions`` defaults to
+# True, so an unguarded spec is a construction error and every fixture would trip it.
+
+
 def list_spec(**kwargs):
-    # Guarded by default: ``require_permissions`` defaults to True, so an
-    # unguarded spec is a construction error and every fixture would trip it.
     kwargs.setdefault("permission_classes", [AllowAny])
     kwargs.setdefault("selector", list_widgets)
     return SelectorSpec(
@@ -202,8 +204,6 @@ def list_spec(**kwargs):
 
 
 def retrieve_spec(**kwargs):
-    # Guarded by default: ``require_permissions`` defaults to True, so an
-    # unguarded spec is a construction error and every fixture would trip it.
     kwargs.setdefault("permission_classes", [AllowAny])
     kwargs.setdefault("selector", get_widget)
     return SelectorSpec(
@@ -214,8 +214,6 @@ def retrieve_spec(**kwargs):
 
 
 def create_spec(**kwargs):
-    # Guarded by default: ``require_permissions`` defaults to True, so an
-    # unguarded spec is a construction error and every fixture would trip it.
     kwargs.setdefault("permission_classes", [AllowAny])
     return ServiceSpec(
         service=create_widget,
@@ -272,7 +270,7 @@ def reading(specs, reads):
 def _rows(result: Any) -> list[Any]:
     """The rows out of a list tool's page envelope.
 
-    Every list-selector result is a page as of the pagination change, so the
+    Every list-selector result is a page, so the
     tests that are about *what the rows are* unwrap it here rather than each
     re-deriving the wrapper. Asserting the four keys on the way through is what
     keeps this from hiding a regression in the envelope itself: a result that
@@ -293,20 +291,20 @@ async def test_instructions_carry_the_error_contract():
     instr = await SpecToolset({"go": create_spec()}).get_instructions(None)
     assert instr is not None
     assert _DEFAULTS.base in instr
-    # The block has to describe the shape the toolset actually produces. It named
-    # an ``{"error": …}`` payload while every terminal arm raised ``ToolFailed``,
-    # which is an instruction telling the model to look for a key that is never
-    # sent -- so the wording is asserted here rather than only in the constant.
+    # The block has to describe the shape the toolset actually produces: every
+    # terminal arm raises ``ToolFailed``, so an ``{"error": …}`` payload would tell
+    # the model to look for a key that is never sent. The wording is asserted here
+    # rather than only in the constant.
     assert '{"error"' not in instr
     assert "comes back as a failed call" in instr
     assert "unknown arguments are rejected" in instr
-    # A refusal's sentence now ends with the rule's code, and the block says so in
+    # A refusal's sentence ends with the rule's code, and the block says so in
     # the shape the call produces: the label as it appears, and the key the same
     # code was advertised under. Both halves, because an instruction naming only
     # the suffix leaves the model to guess what the name refers to.
     assert "`(code: <name>)`" in instr
     assert "`affordances`" in instr
-    # The meaning that predates the code is intact.
+    # A refusal is still final, code or no code.
     assert "that is a final answer, not a reason to retry" in instr
 
 
@@ -420,10 +418,9 @@ async def test_selector_without_docstring_has_no_description():
 def test_a_selector_spec_with_no_selector_is_refused_when_the_toolset_is_built():
     """drf-services refuses a top-level ``SelectorSpec`` with ``selector=None``
     wherever it compiles one, and the toolset compiles every spec while it is
-    built. Such a spec could never be dispatched off HTTP, so the toolset used
-    to build and then fail its first call; now the mount fails at startup with
-    drf-services' own refusal, prefixed with the tool it is about -- a mapping
-    of many specs otherwise leaves the reader to find which one."""
+    built. Such a spec could never be dispatched off HTTP, so the mount fails at
+    startup with drf-services' own refusal, prefixed with the tool it is about --
+    a mapping of many specs otherwise leaves the reader to find which one."""
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
         selector=None,
@@ -498,26 +495,21 @@ def test_list_selector_renders_owned_widgets():
 
 
 @pytest.mark.django_db
-def test_list_selector_limits_the_page():
+@pytest.mark.parametrize(
+    ("args", "rows", "envelope"),
+    [({"limit": 2}, 2, (1, 2, True)), ({"page": 2, "limit": 2}, 1, (2, 2, False))],
+    ids=["limits-the-page", "second-page"],
+)
+def test_list_selector_pages(args, rows, envelope):
     """A sort is the spec's to declare, so this fixture — which declares none —
     is about the slice alone. Ordering *through* pagination is asserted against
     the filter-owned specs further down, where a sort actually exists."""
     user = User.objects.create(username="u")
     for name, price in [("a", 3), ("b", 1), ("c", 2)]:
         Widget.objects.create(name=name, price=price, owner=user)
-    result = _dispatch(list_spec(), user, {"limit": 2})
-    assert len(_rows(result)) == 2
-    assert (result["page"], result["totalPages"], result["hasNext"]) == (1, 2, True)
-
-
-@pytest.mark.django_db
-def test_list_selector_second_page():
-    user = User.objects.create(username="u")
-    for name, price in [("a", 1), ("b", 2), ("c", 3)]:
-        Widget.objects.create(name=name, price=price, owner=user)
-    result = _dispatch(list_spec(), user, {"page": 2, "limit": 2})
-    assert len(_rows(result)) == 1
-    assert (result["page"], result["totalPages"], result["hasNext"]) == (2, 2, False)
+    result = _dispatch(list_spec(), user, args)
+    assert len(_rows(result)) == rows
+    assert (result["page"], result["totalPages"], result["hasNext"]) == envelope
 
 
 @pytest.mark.django_db
@@ -539,8 +531,7 @@ def _raises_http404(user, pk):
 
 
 #: The three ways a selector reports a missing row. Each must end as the same
-#: ``ToolFailed("not found")``; the kernel's dispatch answers ``Http404`` since
-#: django-service-specs 0.10.0, and below that floor the run raised instead.
+#: ``ToolFailed("not found")``; the kernel's dispatch is what answers ``Http404``.
 _MISSING_ROW_SELECTORS = pytest.mark.parametrize(
     "selector",
     [get_widget, _raises_does_not_exist, _raises_http404],
@@ -553,10 +544,9 @@ _MISSING_ROW_SELECTORS = pytest.mark.parametrize(
 def test_retrieve_selector_not_found_fails_the_call(selector):
     """An unresolved target is ``ToolFailed``, carrying the wording unchanged.
 
-    The message is what the model reads and it has not moved; what moved is that
-    the tool return is now marked ``outcome="failed"`` instead of ``"success"``
-    -- see ``test_a_business_failure_marks_the_tool_return_failed``, which reads
-    that marking off a real run."""
+    The message is what the model reads, and the tool return is marked
+    ``outcome="failed"`` -- see ``test_a_business_failure_marks_the_tool_return_failed``,
+    which reads that marking off a real run."""
     user = User.objects.create(username="u")
     with pytest.raises(ToolFailed) as caught:
         _dispatch(retrieve_spec(selector=selector), user, {"pk": 999})
@@ -584,8 +574,8 @@ def test_a_list_selector_that_raises_http404_fails_the_call(allow_none):
 @pytest.mark.django_db
 def test_an_http404_exception_map_entry_is_not_consulted_for_a_selector():
     """The kernel answers a selector's ``Http404`` before it can reach the
-    map, so the entry a consumer once registered by hand is redundant: the call
-    is the same ``ToolFailed`` and the handler never runs."""
+    map, so a consumer's entry for it is redundant: the call is the same
+    ``ToolFailed`` and the handler never runs."""
     user = User.objects.create(username="u")
     seen: list[BaseException] = []
 
@@ -626,8 +616,7 @@ def test_a_write_whose_instance_selector_finds_nothing_fails_the_call(selector):
 @_MISSING_ROW_SELECTORS
 def test_a_nullable_retrieve_that_finds_nothing_returns_none(selector):
     """Not the output serializer's blank row, which read to the model as a widget
-    with an empty name: drf-services renders a single ``None`` as ``None`` from
-    0.52.1, the floor that buys this."""
+    with an empty name: drf-services renders a single ``None`` as ``None``."""
     user = User.objects.create(username="u")
     spec = retrieve_spec(allow_none=True, selector=selector)
 
@@ -735,12 +724,8 @@ def test_denied_permission_raises():
 
 
 def test_shape_list_returns_a_page_rather_than_a_bare_slice():
-    """The defect this closes, at the helper that had it.
-
-    ``page`` / ``limit`` were advertised on every list tool and the shaper
-    answered with a bare slice: no total, no clamp, and nothing in the payload
-    saying more rows existed.
-    """
+    """``page`` / ``limit`` are advertised on every list tool, so the shaper
+    answers with a total and a clamp, and says whether more rows exist."""
     page = _shape_list([1, 2, 3, 4, 5], page=2, limit=2, max_page_size=None)
     assert page.items == [3, 4]
     assert (page.page, page.limit, page.total) == (2, 2, 5)
@@ -749,7 +734,7 @@ def test_shape_list_returns_a_page_rather_than_a_bare_slice():
 
 
 def test_shape_list_bounds_a_limitless_call_to_one_default_page():
-    """An omitted ``limit`` used to mean *everything*, unbounded and unremarked."""
+    """An omitted ``limit`` is one default page, never *everything*."""
     rows = list(range(DEFAULT_PAGE_SIZE + 1))
     page = _shape_list(rows, page=None, limit=None, max_page_size=None)
     assert page.items == rows[:DEFAULT_PAGE_SIZE]
@@ -758,8 +743,8 @@ def test_shape_list_bounds_a_limitless_call_to_one_default_page():
 
 
 def test_shape_list_clamps_the_limit_to_max_page_size():
-    """The clamp moved out of ``_pop_pagination`` and onto the slice, so the
-    ``totalPages`` reported is computed from the limit actually applied."""
+    """The clamp is applied on the slice, so the ``totalPages`` reported is
+    computed from the limit actually applied."""
     page = _shape_list([1, 2, 3, 4], page=None, limit=3, max_page_size=2)
     assert page.items == [1, 2]
     assert page.limit == 2
@@ -818,8 +803,8 @@ _ITEM = {"name": "a", "price": 1}
 
 
 def test_a_many_service_spec_builds_a_tool():
-    """It used to be refused at construction, because nothing a model sends is the
-    array it validates. The selector beside it is there because a ``SelectorSpec``
+    """Nothing a model sends is the array it validates, so the list travels under
+    one argument and the spec builds. The selector beside it is there because a ``SelectorSpec``
     has no ``many`` to read, so the checks asking which tools take a list have to
     pass over it rather than fail on it."""
     toolset = SpecToolset({"create_widgets": bulk_spec(), "list_widgets": list_spec()})
@@ -902,7 +887,7 @@ async def test_a_many_tool_advertises_the_array_it_returns():
 
     A ``many=True`` spec renders its list through an ``output_selector_spec``
     declared ``RETRIEVE``, the kind describing one row, so a return schema read
-    off that kind advertised an object while every payload was an array.
+    off that kind would advertise an object while every payload is an array.
     """
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset({"create_widgets": bulk_spec()})
@@ -1075,16 +1060,18 @@ def test_string_limit_is_coerced_to_int():
     assert len(_rows(result)) == 1
 
 
-@pytest.mark.parametrize("value", ["abc", "2.5", "-1", 0, -3, 2.0])
-def test_non_positive_int_limit_is_model_retry(value):
+@pytest.mark.parametrize(
+    ("argument", "value"),
+    [
+        *(("limit", value) for value in ["abc", "2.5", "-1", 0, -3, 2.0]),
+        # ``True`` is an ``int`` subclass but never a valid count.
+        ("page", True),
+    ],
+    ids=["limit-abc", "limit-2.5", "limit--1", "limit-0", "limit--3", "limit-2.0", "bool-page"],
+)
+def test_a_non_positive_int_page_or_limit_is_model_retry(argument, value):
     with pytest.raises(ModelRetry, match="positive integer"):
-        _dispatch(list_spec(), object(), {"limit": value})
-
-
-def test_bool_page_is_model_retry():
-    # ``True`` is an ``int`` subclass but never a valid count.
-    with pytest.raises(ModelRetry, match="positive integer"):
-        _dispatch(list_spec(), object(), {"page": True})
+        _dispatch(list_spec(), object(), {argument: value})
 
 
 # --- unknown-arguments knob --------------------------------------------------
@@ -1111,8 +1098,6 @@ def test_unknown_argument_ignored_when_configured():
 
 @pytest.mark.django_db(transaction=True)
 async def test_toolset_threads_the_unknown_arguments_knob():
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset(
         {"create_widget": create_spec()}, unknown_arguments=UnknownArguments.IGNORE
@@ -1135,14 +1120,12 @@ async def test_toolset_threads_the_unknown_arguments_knob():
 def test_passthrough_is_refused_when_the_toolset_is_built(policy, spelled):
     """A model's tool call is a flat object, and drf-services hands a callable
     only what its spec declares, so an argument outside that set has no channel
-    to reach it. Up to 0.35.x ``PASSTHROUGH`` forwarded a call's undeclared keys
-    (into a service's ``data``, for one); drf-services 0.58 retired it and
-    raises ``ValueError`` for it on every call, so the toolset refuses it at
-    build and the mount fails at startup.
+    to reach it. drf-services raises ``ValueError`` for ``PASSTHROUGH`` on every
+    call, so the toolset refuses it at build and the mount fails at startup.
 
     The raw value as well as the member, because ``UnknownArguments`` is a
     ``str`` enum and the guard admits the accepted values rather than excluding
-    the retired one: a string spelling of it must not slip past. ``"drop"``,
+    ``PASSTHROUGH``: a string spelling of it must not slip past. ``"drop"``,
     which names no policy at all, is refused the same way, so a misspelt setting
     fails at startup rather than reaching drf-services on the first call.
     """
