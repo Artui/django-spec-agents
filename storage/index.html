@@ -1,0 +1,2204 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Pydantic-AI agents for Django - a settings-agnostic agent host, and specs as agent tools behind the [specs] extra.">
+      
+      
+      
+        <link rel="canonical" href="https://artui.github.io/django-spec-agents/storage/">
+      
+      
+        <link rel="prev" href="../tools/">
+      
+      
+        <link rel="next" href="../policy/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Storage - django-spec-agents</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#storage" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="django-spec-agents" class="md-header__button md-logo" aria-label="django-spec-agents" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            django-spec-agents
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Storage
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Artui/django-spec-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/django-spec-agents
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="django-spec-agents" class="md-nav__button md-logo" aria-label="django-spec-agents" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    django-spec-agents
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Artui/django-spec-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/django-spec-agents
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent host
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agent host
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The contracts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#owner-scoping-is-the-security-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Owner scoping is the security boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-read_attachment-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The read_attachment tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#threads-key-by-owner_id-thread_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threads key by (owner_id, thread_id)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-ships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What ships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-reference-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The reference models
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The reference models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-app-label-and-upgrading-from-django-pydantic-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The app label, and upgrading from django-pydantic-agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#putting-attachments-somewhere-other-than-the-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting attachments somewhere other than the default
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-same-file-uploaded-twice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same file, uploaded twice
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attachment-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attachment lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintenance commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reclaiming-space-from-threads-that-inlined-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reclaiming space from threads that inlined files
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step persistence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step persistence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_runs-answers-oldest-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_runs answers oldest first
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-user-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-user memory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-user memory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-scoping-modes-and-which-one-you-get" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two scoping modes, and which one you get
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#turn-the-tool-guard-on-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turn the tool guard on first
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#namespace-is-the-user-agent_name-is-the-mount" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        namespace is the user, agent_name is the mount
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-store-adds-over-the-reference-implementations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the store adds over the reference implementations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#app-authored-facts-do-not-belong-in-the-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        App-authored facts do not belong in the store
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#erasure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Erasure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-must-be-inspectable-before-it-is-switched-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory must be inspectable before it is switched on
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integrations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/integrations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../spec-tools/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec tools
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spec tools
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/polymorphic-actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Polymorphic actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/agent-audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hide plumbing from the model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/background-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running from a worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The contracts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#owner-scoping-is-the-security-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Owner scoping is the security boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-read_attachment-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The read_attachment tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#threads-key-by-owner_id-thread_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threads key by (owner_id, thread_id)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-ships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What ships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-reference-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The reference models
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The reference models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-app-label-and-upgrading-from-django-pydantic-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The app label, and upgrading from django-pydantic-agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#putting-attachments-somewhere-other-than-the-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting attachments somewhere other than the default
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-same-file-uploaded-twice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same file, uploaded twice
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attachment-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attachment lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maintenance-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintenance commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reclaiming-space-from-threads-that-inlined-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reclaiming space from threads that inlined files
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step persistence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step persistence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_runs-answers-oldest-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_runs answers oldest first
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-user-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-user memory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-user memory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-scoping-modes-and-which-one-you-get" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two scoping modes, and which one you get
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#turn-the-tool-guard-on-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turn the tool guard on first
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#namespace-is-the-user-agent_name-is-the-mount" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        namespace is the user, agent_name is the mount
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-store-adds-over-the-reference-implementations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the store adds over the reference implementations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#app-authored-facts-do-not-belong-in-the-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        App-authored facts do not belong in the store
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#erasure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Erasure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-must-be-inspectable-before-it-is-switched-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory must be inspectable before it is switched on
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/Artui/django-spec-agents/edit/main/docs/storage.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="storage">Storage<a class="headerlink" href="#storage" title="Permanent link">&para;</a></h1>
+<p>Storage here is <strong>contracts plus reference implementations</strong>. The protocols are
+core because every transport needs the same persistence semantics; the HTTP
+<em>views</em> over them are not — a browser thread drawer and an agent-to-agent peer
+model the same history completely differently.</p>
+<h2 id="the-contracts">The contracts<a class="headerlink" href="#the-contracts" title="Permanent link">&para;</a></h2>
+<p>Two <code>Protocol</code>s, both <code>runtime_checkable</code>, both fully async so an implementation
+can use the async ORM or a network backend:</p>
+<ul>
+<li><strong><code>ConversationStore</code></strong> — <code>load</code> / <code>save</code> / <code>delete</code> a conversation, plus
+  listing metadata for a history drawer.</li>
+<li><strong><code>AttachmentStore</code></strong> — <code>save</code> / <code>open</code> / <code>delete</code> files a user attached.</li>
+</ul>
+<p>You pass an instance to your transport; nothing is resolved from a dotted path.</p>
+<h2 id="owner-scoping-is-the-security-boundary">Owner scoping is the security boundary<a class="headerlink" href="#owner-scoping-is-the-security-boundary" title="Permanent link">&para;</a></h2>
+<p>Both contracts are <strong>owner-scoped</strong>, and this is the part to get right in a
+custom implementation: a store filters by the acting user so one user can never
+read or delete another's data.</p>
+<p><code>AttachmentStore.open</code> returns <code>None</code> for a missing <strong>or cross-owner</strong> id rather
+than raising, so a caller maps both to a 404 — a cross-owner id must not be
+distinguishable from a missing one.</p>
+<p><code>AttachmentStore.save</code> deliberately validates nothing about size or type. That
+is the calling view's job, from its own config; the store just persists bytes
+and returns a durable <code>AttachmentRef</code>.</p>
+<h2 id="the-read_attachment-tool">The <code>read_attachment</code> tool<a class="headerlink" href="#the-read_attachment-tool" title="Permanent link">&para;</a></h2>
+<p>The bytes never travel on the wire. A transport that has an attachment store
+composes <code>build_attachment_toolset(store, request)</code> into the agent, and the
+model reaches a file server-side, by id, only when it asks — through the same
+owner-scoped <code>open</code> a download view would use.</p>
+<p>Reading one has three outcomes:</p>
+<table>
+<thead>
+<tr>
+<th>The attachment</th>
+<th>What the model gets</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Textual (<code>text/*</code>, JSON, XML, JavaScript, YAML, SVG) and valid UTF-8</td>
+<td>Its text, inline.</td>
+</tr>
+<tr>
+<td>A type providers can read — PDF, PNG, JPEG, GIF, WebP — within the size cap</td>
+<td>The bytes, as attached file content it can look at directly.</td>
+</tr>
+<tr>
+<td>Anything else: an unreadable type, an oversized file, undecodable "text"</td>
+<td>A one-line note with the name, type and size.</td>
+</tr>
+</tbody>
+</table>
+<p>Tune the middle row with <code>AttachmentInlineConfig</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">AttachmentInlineConfig</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.agent.attachment_toolset</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_attachment_toolset</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">build_attachment_toolset</span><span class="p">(</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">store</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">request</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">inline</span><span class="o">=</span><span class="n">AttachmentInlineConfig</span><span class="p">(</span><span class="n">max_bytes</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">),</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>The type list is an allowlist rather than "everything that is not text", and
+that is on purpose.</strong> Bytes a provider cannot interpret are worse than useless:
+a <code>.zip</code> or a <code>.exe</code> handed over as file content makes the provider reject the
+whole request, so a broad rule would trade a model that cannot read your PDF
+for a run that does not start.</p>
+<p><strong>The size cap is much smaller than any upload cap you would set</strong>, and for a
+different reason: it bounds what one <em>request</em> carries. An inlined file rides in
+a synthetic <code>user</code> message that the tool return serialises into, and that
+message stays in the run's history, so every further model request in the same
+run ships the file again. Base64 adds about a third — a 4 MiB PDF is roughly
+5.5 MiB of provider payload each time, in tokens, in latency, and in the memory
+the run holds it in.</p>
+<p>It does not cost the conversation. The bytes never travel on the event stream,
+so the client never receives them and the history it posts on the next turn
+carries none; whether they outlive the run is the transport's decision, and the
+AG-UI transport strips them on the way to storage. A <em>follow-up</em> question about
+the same file is answered by reading the attachment again, server-side. That is
+why the default sits at 4 MiB rather than at whatever your upload endpoint
+accepts.</p>
+<p>To never attach bytes:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">build_attachment_toolset</span><span class="p">(</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">store</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">request</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">inline</span><span class="o">=</span><span class="n">AttachmentInlineConfig</span><span class="p">(</span><span class="n">media_types</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">()),</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>AttachmentRef.mime</code> is client-declared, so the decision is made on a hint. The
+failure mode of a mislabelled file is a provider rejecting the request, not a
+disclosure — the store is owner-scoped either way.</p>
+<h2 id="threads-key-by-owner_id-thread_id">Threads key by <code>(owner_id, thread_id)</code><a class="headerlink" href="#threads-key-by-owner_id-thread_id" title="Permanent link">&para;</a></h2>
+<p>Which has a consequence worth knowing before you mount two endpoints: <strong>two
+transports sharing one store share one user's thread list.</strong> A conversation
+started at <code>/internal/agent</code> shows up in <code>/public/agent</code>'s history and can be
+resumed there — under the <em>public</em> agent's model, tools and guard policy.</p>
+<p><code>ScopedConversationStore</code> partitions them without a migration:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScopedConversationStore</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">internal</span> <span class="o">=</span> <span class="n">ScopedConversationStore</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">&quot;internal&quot;</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">public</span> <span class="o">=</span> <span class="n">ScopedConversationStore</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<p><strong><code>:</code> is reserved in a scope name and one containing it is refused.</strong> The
+partition <em>is</em> the key prefix <code>scope:</code>, so a scope name that extends another —
+<code>admin</code> and <code>admin:readonly</code> — makes the shorter scope's prefix match the
+longer one's threads: it lists them, and load, rename and delete resolve there
+too, silently and in both directions. Names that merely share a prefix
+(<code>admin</code> / <code>administrators</code>) are fine; the separator ends the scope.</p>
+<h2 id="what-ships">What ships<a class="headerlink" href="#what-ships" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Implementation</th>
+<th>Use it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NullConversationStore</code></td>
+<td>The default. <code>load</code> returns <code>None</code>, <code>save</code>/<code>delete</code> no-op — the server stays stateless and the conversation lives in the client's posted history. A transport treats this as "persistence off".</td>
+</tr>
+<tr>
+<td><code>NullAttachmentStore</code></td>
+<td>The default. Uploads off.</td>
+</tr>
+<tr>
+<td><code>DjangoSessionConversationStore</code></td>
+<td>Per-user persistence with <strong>no migration</strong> — conversations live in the Django session. Good for a demo or a small deployment.</td>
+</tr>
+<tr>
+<td><code>ModelConversationStore</code> / <code>ModelAttachmentStore</code></td>
+<td>Abstract model-backed bases to subclass against your own models.</td>
+</tr>
+<tr>
+<td><code>ScopedConversationStore</code></td>
+<td>Wraps any of the above to partition by scope.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-reference-models">The reference models<a class="headerlink" href="#the-reference-models" title="Permanent link">&para;</a></h2>
+<p>The base package ships <strong>no model of its own</strong>, so projects that don't opt in
+get no migration. To use the ready-made ones:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="s2">&quot;django_spec_agents.contrib.store&quot;</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">]</span>
+</span></code></pre></div>
+<p>Then <code>migrate</code>, and pass the matching store to your transport
+(<code>conversation_store=</code> / <code>attachment_store=</code> / <code>step_store=</code>). The app provides
+<code>DefaultConversationStore</code>, <code>DefaultAttachmentStore</code>, <code>DefaultStepStore</code> and
+<code>DefaultMemoryStore</code>, and each is imported <strong>from its own module</strong>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_attachment_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">DefaultAttachmentStore</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">)</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_conversation_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">DefaultConversationStore</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_step_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultStepStore</span>
+</span></code></pre></div>
+<p>The shorter <code>from django_spec_agents.contrib.store import DefaultConversationStore</code>
+is the natural guess and it does not exist. It cannot: this is a Django <em>app</em>, so
+<code>INSTALLED_APPS</code> imports the package itself, and a re-export there would import
+models before the app registry is ready — <code>AppRegistryNotReady</code> at startup, for
+every project, whether or not it uses the stores. The leaf path is the price of the
+package being importable at all.</p>
+<h3 id="the-app-label-and-upgrading-from-django-pydantic-agent">The app label, and upgrading from django-pydantic-agent<a class="headerlink" href="#the-app-label-and-upgrading-from-django-pydantic-agent" title="Permanent link">&para;</a></h3>
+<p>The app's label is <code>django_spec_agents_store</code>, so its nine tables are
+<code>django_spec_agents_store_&lt;model&gt;</code> and its content types, and the permissions
+hanging off them, sit under that label.</p>
+<p>The same app shipped in django-pydantic-agent as <code>django_pydantic_agent_store</code>.
+A database that installed it upgrades with the <code>migrate</code> a deploy runs anyway:
+swap the <code>INSTALLED_APPS</code> entry,</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="s2">&quot;django_spec_agents.contrib.store&quot;</span><span class="p">,</span>  <span class="c1"># was &quot;django_pydantic_agent.contrib.store&quot;</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">]</span>
+</span></code></pre></div>
+<p>and run <code>migrate</code>. The app's one migration sees the old tables and renames them in
+place: the tables, their constraints and named indexes, and the content types, so
+permissions, group grants and admin log entries come along by key. The old app's
+rows in <code>django_migrations</code> are deleted, and nothing is copied, so the rows are
+the ones you had.</p>
+<ul>
+<li><strong>The old install has to be at its last migration</strong>, <code>0005</code>, which shipped in
+  django-pydantic-agent 0.20. Short of it, <code>migrate</code> stops with
+  <code>OldInstallBehindError</code> and renames nothing: run <code>migrate</code> under
+  django-pydantic-agent first.</li>
+<li><strong>Rolling back is one command before the old pin goes back</strong>:
+  <code>migrate django_spec_agents_store zero</code> renames everything back and records the
+  old app's migrations again.</li>
+<li><strong>Some objects Django named itself keep the old names on PostgreSQL</strong>: the index
+  on an attachment's file, the check on its size, the link table's foreign keys and
+  each table's primary key and sequence. When a later migration drops or replaces
+  one of them, Django asks the database for the column's constraints rather than
+  computing the name, so the old names show only to a person reading the schema.
+  The exception is the <code>_like</code> index PostgreSQL keeps beside the file column,
+  which Django drops by a name it computes, so the upgrade renames it too. On
+  SQLite a constraint changes only by remaking its table, so there every name
+  comes out new.</li>
+</ul>
+<p><strong>Unapplying does the same on a database that never ran django-pydantic-agent.</strong>
+The migration cannot tell how it was applied, so on a fresh install
+<code>migrate django_spec_agents_store zero</code> does not drop the store's tables: it leaves
+them under django-pydantic-agent's names, records that package's five migrations
+in <code>django_migrations</code> and moves the content types to its label. To remove the
+store from such a database, drop those tables and delete those rows yourself.</p>
+<p>What the upgrade leaves alone is everything stored or configured outside the
+schema: the <a href="#putting-attachments-somewhere-other-than-the-default">attachment storage alias</a>
+and the stored files' <code>django_pydantic_agent/attachments/</code> prefix, the session key
+<code>DjangoSessionConversationStore</code> keeps conversations under, and the
+<code>django_pydantic_agent.audit</code> and <code>django_pydantic_agent.failure</code> loggers. Each
+keeps django-pydantic-agent's spelling, so a project's <code>STORAGES</code>, <code>LOGGING</code>, live
+sessions and stored files need nothing.</p>
+<p><code>DefaultAttachmentStore</code> keeps bytes in Django <code>Storage</code> and metadata in a row,
+so S3 and friends come free through <code>STORAGES</code> — you don't configure anything
+here beyond your normal Django storage backend.</p>
+<h3 id="putting-attachments-somewhere-other-than-the-default">Putting attachments somewhere other than the default<a class="headerlink" href="#putting-attachments-somewhere-other-than-the-default" title="Permanent link">&para;</a></h3>
+<p>Agent uploads are user-supplied files, and a project often wants them in a
+private bucket rather than wherever its other media goes. Name a backend under
+the <code>django_pydantic_agent_attachments</code> alias and attachments use it; leave the
+alias out and they use <code>default</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">STORAGES</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;BACKEND&quot;</span><span class="p">:</span> <span class="s2">&quot;django.core.files.storage.FileSystemStorage&quot;</span><span class="p">},</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="s2">&quot;staticfiles&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;BACKEND&quot;</span><span class="p">:</span> <span class="s2">&quot;django.contrib.staticfiles.storage.StaticFilesStorage&quot;</span><span class="p">},</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="s2">&quot;django_pydantic_agent_attachments&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="s2">&quot;BACKEND&quot;</span><span class="p">:</span> <span class="s2">&quot;myproject.storages.PrivateMediaStorage&quot;</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">},</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>The alias is resolved once, when the model's field is constructed, so it has to
+be in <code>STORAGES</code> before the app's models are imported — settings, in other
+words, which is where it already is.</p>
+<p><strong>Point it somewhere new and the old attachments do not come with it.</strong> Rows keep
+the path they were written with, and that path is asked of the <em>new</em> backend — so
+every attachment written before the switch reads as unavailable until you move
+the blobs across yourself. Re-uploading is not a shortcut: it writes fresh copies
+rather than finding the originals. Move the files, or accept the loss knowingly.</p>
+<p><strong>The bucket policy needs <code>s3:ListBucket</code></strong> if you point the alias at S3. Saving
+an attachment asks the backend whether a matching blob is already there, and with
+that permission S3 answers 404 for a key that is absent. Without it S3 answers
+403 instead, which django-storages re-raises — turning an upload that would have
+been deduplicated into a 500.</p>
+<p>A misspelled <code>BACKEND</code> raises rather than falling back to <code>default</code>. Silently
+writing user-supplied files to the public default over a one-character typo is
+the outcome this alias exists to prevent.</p>
+<p>Everything from here down is the <strong>reference implementation's</strong> behaviour, not
+the contract. <code>ConversationStore</code> and <code>AttachmentStore</code> stay id-based, the wire
+is unchanged, and a session-backed or S3-only store you plug in yourself owes
+none of this.</p>
+<h2 id="the-same-file-uploaded-twice">The same file, uploaded twice<a class="headerlink" href="#the-same-file-uploaded-twice" title="Permanent link">&para;</a></h2>
+<p><code>StoredAttachment</code> carries a <code>sha256</code> of the file's bytes, hashed in chunks at
+upload so a large file is never held in memory whole just to fingerprint it.
+When an upload matches one the same owner already has, the new row points at the
+blob already in storage instead of writing a second copy.</p>
+<p><strong>A row per upload, even on a hit.</strong> The row holds the <code>name</code> the composer shows
+on the chip, so the same bytes sent again as <code>contract-final.pdf</code> keep that name
+rather than inheriting the first upload's. What is shared is the file
+underneath; the bytes are removed only when the last row pointing at them goes.</p>
+<p><strong>Deduplication never crosses owners, and that is not an oversight.</strong> Sharing one
+copy of a document held by a hundred tenants would be the better trade on
+storage alone. It is not available: a cross-owner hit tells you another tenant
+holds a file whose bytes you already have, which is how you confirm that a named
+party is a customer, or where a leaked document came from. The lookup is scoped
+to one owner, and the index on the column leads with <code>owner_id</code> so the
+cross-tenant question is not even the cheap one to ask.</p>
+<p>Rows written before the column existed have no hash, so they cannot be matched
+until <code>agent_store_backfill_hashes</code> fills them in.</p>
+<h2 id="attachment-lifecycle">Attachment lifecycle<a class="headerlink" href="#attachment-lifecycle" title="Permanent link">&para;</a></h2>
+<p>An attachment is reachable as long as a conversation refers to it, and the
+reference is derived, not declared. Saving a conversation reconciles the
+<code>StoredConversation.attachments</code> relation from the attachment ids its own
+messages carry — the web component already puts them there, on the user message,
+as an <code>attachments</code> array of the refs it uploaded. No wire change and no client
+change: the ids are in the payload either way.</p>
+<p>The parse is total. A malformed entry degrades to "no reference" rather than
+raising inside a save, and an id is resolved only against its own owner's
+attachments, so a guessed or copied id links nothing.</p>
+<p>Two consequences:</p>
+<ul>
+<li><strong>Deleting a conversation deletes the attachments nothing else refers to</strong>, and
+  their bytes. One quoted by a second thread survives untouched.</li>
+<li><strong>An upload that was never sent belongs to no conversation</strong>, so no cascade
+  will ever reach it. <code>agent_store_prune_attachments</code> is what collects those.</li>
+</ul>
+<p><code>StoredAttachment.thread_id</code> is untouched by all of this and stays. It is a loose
+label a project may set; the relation, not the column, is what lifecycle runs on.</p>
+<p><strong>Nothing is ever deleted on a timer the library set up.</strong> Deletion happens on a
+cascade you can point at, or on a command you schedule. There is no TTL sweep.</p>
+<p>Deleting <code>StoredConversation</code> rows by another route — a queryset <code>delete()</code>, the
+admin — skips the cascade and leaves the attachments unreferenced. They are not
+stranded permanently; the prune command is exactly what collects them.</p>
+<h2 id="maintenance-commands">Maintenance commands<a class="headerlink" href="#maintenance-commands" title="Permanent link">&para;</a></h2>
+<p>The <code>contrib.store</code> app ships four, all of them opt-in and none of them
+scheduled for you:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent_store_backfill_hashes</code></td>
+<td>Hash attachments stored before the <code>sha256</code> column existed, so they can take part in deduplication. A missing blob is a reported skip, not a failure.</td>
+</tr>
+<tr>
+<td><code>agent_store_prune_attachments</code></td>
+<td>Delete unreferenced attachments older than <code>--older-than</code> (default <code>24h</code>).</td>
+</tr>
+<tr>
+<td><code>agent_store_strip_inline_bytes</code></td>
+<td>Rewrite stored conversations to drop inlined base64 file content.</td>
+</tr>
+<tr>
+<td><code>agent_store_purge_memory</code></td>
+<td>Erase every stored memory file for one owner.</td>
+</tr>
+</tbody>
+</table>
+<p>All four take <code>--dry-run</code>.</p>
+<p><strong><code>--older-than</code> is why the prune command is safe to run.</strong> References alone
+cannot tell an upload abandoned last month from one sitting in a composer right
+now — both have zero. The threshold is the floor on how long an upload must
+survive before it counts as abandoned, so set it to comfortably more than the
+longest a message may sit unsent in your product:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_prune_attachments<span class="w"> </span>--older-than<span class="w"> </span>7d<span class="w"> </span>--dry-run
+</span></code></pre></div>
+<h3 id="reclaiming-space-from-threads-that-inlined-files">Reclaiming space from threads that inlined files<a class="headerlink" href="#reclaiming-space-from-threads-that-inlined-files" title="Permanent link">&para;</a></h3>
+<p>A transport that hands the model an attachment inline serialises the file into
+the message list as base64, and the message list is persisted: a 2.6 MB PDF costs
+roughly 3.5 MB in one row, loaded whole every time the thread is opened.
+Transports have stopped writing them and strip them on the way in, but a row
+already written keeps its payload until something rewrites it:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_strip_inline_bytes<span class="w"> </span>--dry-run
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_strip_inline_bytes
+</span></code></pre></div>
+<p>It edits the JSON structurally rather than round-tripping it through a message
+type, because that round trip is exactly what would drop each message's <code>id</code> and
+the non-standard <code>attachments</code> array — the array that renders the chips and that
+the attachment relation is reconciled from. The bytes themselves are not lost:
+the attachment is untouched in the attachment store, and the model reaches it the
+way it always does, by id.</p>
+<h2 id="step-persistence">Step persistence<a class="headerlink" href="#step-persistence" title="Permanent link">&para;</a></h2>
+<p><code>DefaultStepStore</code> is the durable, owner-scoped equivalent of
+<code>pydantic-ai-harness</code>'s own <code>SqliteStepStore</code> / <code>FileStepStore</code>. Note the
+direction of the contract: it <strong>structurally satisfies harness's <code>StepStore</code>
+protocol</strong> — that protocol is upstream's, not this package's, and this package
+does not redeclare it. Owner scoping is entirely ours; no harness record carries
+one, which is what makes the store multi-tenant rather than a single-user
+ledger.</p>
+<p>It needs the <code>[harness]</code> extra, since the protocol it satisfies lives there.</p>
+<h3 id="list_runs-answers-oldest-first"><code>list_runs</code> answers oldest first<a class="headerlink" href="#list_runs-answers-oldest-first" title="Permanent link">&para;</a></h3>
+<p>Ascending <code>started_at</code> is upstream's documented protocol order — <code>StepStore</code>
+invites callers to take the most recent run with <code>[-1]</code> — so the store keeps it
+rather than serving the order a list happens to want to display. A UI showing
+recent runs first sorts where it renders; a store that reversed the contract
+would hand that idiom the oldest run instead, silently, and only where more than
+one run exists.</p>
+<p>Full signatures in the <a href="../reference/persistence/">persistence reference</a>.</p>
+<h2 id="per-user-memory">Per-user memory<a class="headerlink" href="#per-user-memory" title="Permanent link">&para;</a></h2>
+<p><code>pydantic-ai-harness</code> ships a complete memory capability — four tools
+(<code>write_memory</code>, <code>read_memory</code>, <code>delete_memory</code>, <code>search_memory</code>), a
+<code>MemoryStore</code> protocol, bounded injection, compare-and-set versioning and
+idempotency receipts. <strong>This package does not reimplement any of it.</strong> It ships
+one thing the harness cannot: a Django-backed store, and the scoping that makes
+it multi-tenant.</p>
+<p><code>DefaultMemoryStore</code> is that store, and the direction of the contract is the same
+as <code>DefaultStepStore</code>'s: it <strong>structurally satisfies harness's <code>MemoryStore</code>
+protocol</strong>, which is upstream's and is not redeclared here. It needs the
+<code>[harness]</code> extra.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="p">)</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Hand it to your transport the way you would any other capability —
+<code>AGUIServer(capabilities=[capability])</code> for django-ag-ui. There is no settings
+key and no new configuration surface: <code>AgentConfig.capabilities</code> already reaches
+<code>Agent(capabilities=...)</code>.</p>
+<p><strong>The resolver reads <code>ctx.deps</code>, not a request, and that is not incidental.</strong> A
+capability list is resolved <strong>once</strong>, at mount time, where no request exists — so
+nothing request-shaped can be closed over in it. Per-user scoping rides the <em>run</em>
+instead: pydantic-ai clones every capability per run, and <code>Memory</code> re-resolves
+its namespace in the clone, so one agent built once serves every caller. The
+transport sets <code>AgentDeps.user</code> from the authenticated request, so it is
+server-resolved and not something a client can choose.</p>
+<h3 id="two-scoping-modes-and-which-one-you-get">Two scoping modes, and which one you get<a class="headerlink" href="#two-scoping-modes-and-which-one-you-get" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Constructed as</th>
+<th>Owner is</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DefaultMemoryStore()</code></td>
+<td>the leading path segment — the namespace the capability resolved</td>
+<td>the usual case: a mount-time <code>capabilities=</code> list</td>
+</tr>
+<tr>
+<td><code>DefaultMemoryStore(request)</code></td>
+<td>resolved server-side from the request; the path's namespace is not consulted at all</td>
+<td>you build the store per request — a custom view</td>
+</tr>
+</tbody>
+</table>
+<p>The request-bound mode is strictly stronger: it partitions rows independently of
+the path, so a resolver reading anything user-controlled still cannot cross
+scopes (a <code>/</code> inside a resolved namespace is <em>accepted</em> by the harness and simply
+opens further segments). Reach for it if you have a request to hand. Otherwise
+pair the namespace-scoped mode with <code>memory_namespace_for_user</code>, which derives
+the segment from a user the server resolved, and the namespace is a boundary the
+client cannot choose either.</p>
+<p><code>allow_anonymous</code> applies only to the request-bound mode. Without a request there
+is no anonymity to detect, and the resolver decides what an anonymous caller is
+called — <code>memory_namespace_for_user</code> returns one shared <code>anon</code> namespace, since
+with no request there is no session to key a per-visitor bucket on. Transports
+that refuse anonymous callers by default (django-ag-ui does) never reach it.</p>
+<h3 id="turn-the-tool-guard-on-first">Turn the tool guard on first<a class="headerlink" href="#turn-the-tool-guard-on-first" title="Permanent link">&para;</a></h3>
+<p>Memory may be allowed to steer what the model <strong>says</strong>. It must not be allowed to
+decide what the model <strong>does</strong> — and memory is <em>durable</em>, model-written, and
+replayed into every later run, so a note that reads as an instruction keeps
+working long after whoever planted it has gone.</p>
+<p><code>ToolGuard</code> is what holds that line: it reads the <code>x-destructive</code> stamp
+server-side, so a memory-planted "call <code>refund_order</code> first" still hits the
+approval interrupt. With no <code>tool_guard</code>, <code>build_agent</code>'s own docstring is blunt
+that "every server-side tool here runs the moment the model calls it".</p>
+<p><strong>Enable <code>TOOL_GUARD</code> before you enable memory.</strong> A mount with memory on and the
+guard off is a durable, user-writable path to unattended destructive calls. Each
+setting is defensible alone; they are only wrong together.</p>
+<h3 id="namespace-is-the-user-agent_name-is-the-mount"><code>namespace</code> is the user, <code>agent_name</code> is the mount<a class="headerlink" href="#namespace-is-the-user-agent_name-is-the-mount" title="Permanent link">&para;</a></h3>
+<p>The harness composes the scope key as <code>f"{namespace}/{agent_name}"</code>, so two
+mounts sharing one store are partitioned by construction — <code>Memory(store,
+agent_name="internal")</code> and <code>Memory(store, agent_name="public")</code> — and no
+<code>ScopedMemoryStore</code> wrapper is needed the way it is for conversations and steps.</p>
+<p>Use one of the two shipped resolvers for the user half — <code>memory_namespace_for_user(ctx.deps.user)</code>
+at mount time, or <code>memory_namespace(request)</code> when you hold a request — rather
+than reaching for the owner id the other stores partition on. That id is
+<code>anon:&lt;session_key&gt;</code> for an anonymous request, and a colon is outside the
+alphabet the harness accepts for a path segment, so <code>Memory</code> raises
+<code>invalid memory path</code> — from namespace resolution, which sits <em>outside</em> the store
+read that <code>injection_errors</code> guards, so upstream's <code>"ignore"</code> default does not
+catch it and the whole run 500s.</p>
+<p>Both resolvers always return a valid segment: a segment-safe primary key is
+carried through readably behind a <code>u-</code> prefix, and anything else — an email
+primary key, a natural key with a slash — is replaced by a digest of it rather
+than sanitised, because sanitising maps <code>tenant/42</code> and <code>tenant-42</code> onto one
+namespace.</p>
+<h3 id="what-the-store-adds-over-the-reference-implementations">What the store adds over the reference implementations<a class="headerlink" href="#what-the-store-adds-over-the-reference-implementations" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Owner-partitioned rows</strong></td>
+<td>The harness's stores are single-tenant; the scope lives only in the path, and the path comes from a resolver the host wrote.</td>
+</tr>
+<tr>
+<td><strong>Fence-tag neutralisation on write</strong></td>
+<td>Injected memory is wrapped in <code>&lt;memory&gt;</code> markers, and upstream says plainly this "is not a hard prompt-injection boundary". A stored note containing the closing tag ends the block early, and everything after it reads as the user's own turn — durably, on every later run. Every write here escapes the angle brackets of both tags.</td>
+</tr>
+<tr>
+<td><strong>Per-owner ceilings</strong></td>
+<td><code>max_memory_size</code> bounds one file and the injection budget bounds what is <em>read</em>; nothing upstream caps how many files a namespace accumulates or how large they grow in total. <code>max_files</code> and <code>max_total_chars</code> do.</td>
+</tr>
+<tr>
+<td><strong>Anonymous degradation</strong></td>
+<td>The capability's hooks fire mid-run, so refusing by raising would abort it. Writes no-op and reads return empty unless the store is built with <code>allow_anonymous=True</code>.</td>
+</tr>
+<tr>
+<td><strong><code>purge(owner_id)</code></strong></td>
+<td>Erasure, which the protocol cannot express.</td>
+</tr>
+</tbody>
+</table>
+<p>Neutralisation happens on <code>write</code> rather than <code>read</code> on purpose: it makes the
+stored bytes safe for <em>every</em> consumer — the injection, <code>read_memory</code>,
+<code>search_memory</code>, an app-side read — and it keeps <code>write_memory</code>'s <code>old_text</code>
+replacement working, because the model edits against the same escaped text it was
+shown. It rewrites only the literal tag forms, never the word <code>memory</code>, which
+belongs in ordinary notes.</p>
+<h3 id="app-authored-facts-do-not-belong-in-the-store">App-authored facts do not belong in the store<a class="headerlink" href="#app-authored-facts-do-not-belong-in-the-store" title="Permanent link">&para;</a></h3>
+<p>The store has no provenance column, so a trusted fact written there becomes
+indistinguishable from a model-written one at read time — and it is quoted back
+inside the same <code>&lt;memory&gt;</code> framing that tells the model this is unverified
+background. A fact the operator vouches for belongs in the operator channel:
+your transport's instructions hook, or <code>AgentDeps</code> for something a tool should
+read. The missing provenance column is not a gap to fill; it is a boundary
+telling you which facts belong in it.</p>
+<h3 id="erasure">Erasure<a class="headerlink" href="#erasure" title="Permanent link">&para;</a></h3>
+<p>Memory is durable personal data written <em>about</em> a user, so an erasure request has
+to be able to reach it. The <code>MemoryStore</code> protocol has no bulk or prefix delete —
+composing <code>list_paths</code> with <code>delete</code> needs each path's current version, giving an
+unbounded read-then-delete loop a concurrent <code>write_memory</code> can lose to — so the
+store carries a non-protocol <code>purge(owner_id)</code> that is one statement, plus a
+command:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span><span class="m">42</span><span class="w"> </span>--dry-run
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span><span class="m">42</span>
+</span></code></pre></div>
+<p>It is deliberately <strong>not</strong> wired to a <code>post_delete</code> signal on your user model.
+Whether deleting an account erases its memory is a product policy; a library's
+job here is to make the operation possible.</p>
+<h3 id="memory-must-be-inspectable-before-it-is-switched-on">Memory must be inspectable before it is switched on<a class="headerlink" href="#memory-must-be-inspectable-before-it-is-switched-on" title="Permanent link">&para;</a></h3>
+<p>A model quietly accumulating durable notes about someone, replayed into every
+future session with no surface listing them, is what makes this feature feel
+spooky rather than tailored. The minimum honest surface is <strong>list, read and
+delete</strong>, and the protocol provides all three (<code>list_paths</code>, <code>read</code>, <code>delete</code>),
+so a host can build one. Do that before turning memory on for real users.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

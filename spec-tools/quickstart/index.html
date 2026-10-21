@@ -1,0 +1,2967 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Pydantic-AI agents for Django - a settings-agnostic agent host, and specs as agent tools behind the [specs] extra.">
+      
+      
+      
+        <link rel="canonical" href="https://artui.github.io/django-spec-agents/spec-tools/quickstart/">
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../spec-registry/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Quickstart - django-spec-agents</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#quickstart" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="django-spec-agents" class="md-header__button md-logo" aria-label="django-spec-agents" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            django-spec-agents
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Quickstart
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Artui/django-spec-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/django-spec-agents
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="django-spec-agents" class="md-nav__button md-logo" aria-label="django-spec-agents" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    django-spec-agents
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Artui/django-spec-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/django-spec-agents
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent host
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agent host
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/integrations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec tools
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spec tools
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-have-some-specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Have some specs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-build-the-toolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Build the toolset
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-run-an-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Run an agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#every-list-result-is-a-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every list result is a page
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-output-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The output schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-tool-asks-the-model-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a tool asks the model for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project-pool-seeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project pool seeds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-permission-class-sees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a permission class sees
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What a permission class sees">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-tool-catalog-is-not-permission-filtered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The tool catalog is not permission-filtered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-operation-that-is-unavailable-right-now-is-left-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An operation that is unavailable right now is left out
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changing-what-the-model-is-told" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changing what the model is told
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unexpected-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unexpected arguments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-list-as-input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A list as input
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ordering
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ordering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-list-selector-with-no-filter_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A list selector with no filter_set
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrating-from-ordering_fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating from ordering_fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-shaping-query-params" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read-shaping query params
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Read-shaping query params">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-a-list-tool-a-param-shapes-each-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a list tool, a param shapes each row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-selection-the-serializer-rejects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A selection the serializer rejects
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#url-derived-values-route-captures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL-derived values (route captures)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="URL-derived values (route captures)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-reflected-extras-key-is-not-a-route-capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A reflected **extras key is not a route capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#absolute-urls-file-and-hyperlinked-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Absolute URLs (file and hyperlinked fields)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-refused-affordance-names-its-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A refused affordance names its code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-the-failed-rows-raise-instead-of-returning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the failed rows raise instead of returning
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../polymorphic-actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Polymorphic actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hide plumbing from the model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../background-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running from a worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-have-some-specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Have some specs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-build-the-toolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Build the toolset
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-run-an-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Run an agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#every-list-result-is-a-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every list result is a page
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-output-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The output schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-tool-asks-the-model-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a tool asks the model for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project-pool-seeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project pool seeds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-permission-class-sees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a permission class sees
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What a permission class sees">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-tool-catalog-is-not-permission-filtered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The tool catalog is not permission-filtered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-operation-that-is-unavailable-right-now-is-left-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An operation that is unavailable right now is left out
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changing-what-the-model-is-told" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changing what the model is told
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unexpected-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unexpected arguments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-list-as-input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A list as input
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ordering
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ordering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-list-selector-with-no-filter_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A list selector with no filter_set
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#migrating-from-ordering_fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating from ordering_fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-shaping-query-params" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read-shaping query params
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Read-shaping query params">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-a-list-tool-a-param-shapes-each-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a list tool, a param shapes each row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-selection-the-serializer-rejects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A selection the serializer rejects
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#url-derived-values-route-captures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        URL-derived values (route captures)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="URL-derived values (route captures)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-reflected-extras-key-is-not-a-route-capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A reflected **extras key is not a route capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#absolute-urls-file-and-hyperlinked-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Absolute URLs (file and hyperlinked fields)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-refused-affordance-names-its-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A refused affordance names its code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-the-failed-rows-raise-instead-of-returning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the failed rows raise instead of returning
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/Artui/django-spec-agents/edit/main/docs/spec-tools/quickstart.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="quickstart">Quickstart<a class="headerlink" href="#quickstart" title="Permanent link">&para;</a></h1>
+<h2 id="1-have-some-specs">1. Have some specs<a class="headerlink" href="#1-have-some-specs" title="Permanent link">&para;</a></h2>
+<p><code>SpecToolset</code> works with the <code>ServiceSpec</code> and <code>SelectorSpec</code> objects you already
+define for <code>djangorestframework-services</code>. A read selector and a write service:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorKind</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_orders</span><span class="p">(</span><span class="n">user</span><span class="p">):</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;List the current user&#39;s orders.&quot;&quot;&quot;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="k">return</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">user</span><span class="p">)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">list_orders_spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">output_serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_order</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create an order for the current user.&quot;&quot;&quot;</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="k">return</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">)</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="n">create_order_spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_order</span><span class="p">,</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">OrderInputSerializer</span><span class="p">,</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">OrderSerializer</span><span class="p">,</span>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>    <span class="p">),</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="2-build-the-toolset">2. Build the toolset<a class="headerlink" href="#2-build-the-toolset" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="p">{</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">list_orders_spec</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="s2">&quot;create_order&quot;</span><span class="p">:</span> <span class="n">create_order_spec</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="p">}</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Each key is the tool name. The description comes from the selector/service
+docstring, the parameter schema from the selector's parameters or the service's
+input serializer and target lookup (see
+<a href="#what-a-tool-asks-the-model-for">What a tool asks the model for</a>), the
+<code>return_schema</code> from its output serializer, and the <code>readOnlyHint</code> annotation
+from the spec kind (selectors read, services mutate). List selectors
+additionally accept <code>page</code> and <code>limit</code> tool args, plus <code>ordering</code> where the
+selector's <a href="#ordering"><code>filter_set</code> declares one</a>.</p>
+<h2 id="3-run-an-agent">3. Run an agent<a class="headerlink" href="#3-run-an-agent" title="Permanent link">&para;</a></h2>
+<p>The acting user flows through <code>RunContext.deps</code>. The default
+<a href="../../reference/agent/#django_spec_agents.AgentDeps"><code>AgentDeps</code></a> carries it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentDeps</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="s2">&quot;anthropic:claude-opus-4-8&quot;</span><span class="p">,</span> <span class="n">deps_type</span><span class="o">=</span><span class="n">AgentDeps</span><span class="p">,</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="n">toolset</span><span class="p">])</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="s2">&quot;show me my last 5 orders, newest first&quot;</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">deps</span><span class="o">=</span><span class="n">AgentDeps</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">)</span>
+</span></code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">No request in sight?</p>
+<p><code>request.user</code> is the HTTP shape. A Celery task, a management command or a
+scheduled job resolves the acting user itself and passes it the same way —
+see <a href="../background-runs/">Running from a worker</a>, which also covers the one
+setting a fan-out genuinely needs.</p>
+</div>
+<p>For that request the model can call <code>list_orders</code> with
+<code>{"limit": 5, "ordering": "-created"}</code> and the toolset enforces permissions,
+runs the selector as <code>request.user</code>, hands <code>ordering</code> to the selector's
+<a href="#ordering"><code>filter_set</code></a>, slices the result, and renders it through
+<code>OrderSerializer</code>.</p>
+<h2 id="every-list-result-is-a-page">Every list result is a page<a class="headerlink" href="#every-list-result-is-a-page" title="Permanent link">&para;</a></h2>
+<p>A list selector answers with the pagination envelope, never a bare array:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="s2">&quot;items&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s2">&quot;total&quot;</span><span class="p">:</span> <span class="s2">&quot;48.00&quot;</span><span class="p">},</span> <span class="o">...</span><span class="p">],</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="s2">&quot;page&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">&quot;totalPages&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="s2">&quot;hasNext&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><code>limit</code> defaults to 100 rows and <code>page</code> to 1, so a tool over a large table
+returns its first hundred rows <strong>and says so</strong>. That is the point: a bare slice
+would leave a model asking for a collection with 50 of 51 rows and nothing in
+the answer telling it more existed. <code>hasNext</code> closes that gap — the model can
+ask for <code>page: 2</code>, or narrow the request with a filter, instead of answering
+from a page it took for the whole set.</p>
+<p>Because the toolset takes <code>page</code> and <code>limit</code> out of a list tool's call to serve
+the page, a list selector taking a parameter of either name is refused with
+<code>ImproperlyConfigured</code> when the <code>SpecToolset</code> is built: the parameter would never
+receive what the model sent, and one with a default would quietly run on it.
+Rename the parameter. A retrieve selector's <code>page</code> is not paginated and reaches
+it.</p>
+<p><code>max_page_size</code> caps <code>limit</code> and advertises itself as JSON-Schema <code>maximum</code>
+on it. A call naming no <code>limit</code> is served the smaller of 100 and the ceiling, and
+that is the default both the <code>limit</code> description and the toolset's instructions
+state, so with the toolset below the model reads "Defaults to 25" beside
+<code>maximum: 25</code>. A ceiling above 100 raises what a call may ask for, not what it
+gets by asking for nothing: the stated default stays 100.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">max_page_size</span><span class="o">=</span><span class="mi">25</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The same envelope is what the tool's <code>return_schema</code> describes, generated from
+the same spec — so the schema and the payload cannot disagree about it.</p>
+<h2 id="the-output-schema">The output schema<a class="headerlink" href="#the-output-schema" title="Permanent link">&para;</a></h2>
+<p>Each tool definition carries a <code>return_schema</code> derived from the spec's output
+serializer, projected the same way the payload is: a field marked
+<a href="../agent-audience/">hidden</a> is absent from both, and a marked handle carries its
+description in both.</p>
+<p>It is populated but <strong>not sent</strong> by default, because a return schema costs
+context on every turn of every run and only your model and your serializers say
+whether that trade is worth it. Pydantic-AI owns the opt-in, at either scope:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">)</span><span class="o">.</span><span class="n">include_return_schemas</span><span class="p">()])</span>
+</span></code></pre></div>
+<p>A spec with no <code>output_serializer</code> gets <code>None</code> rather than a guessed shape.</p>
+<p>A <code>return_schema</code> admits <code>null</code>, with the root <code>type</code> <code>["object", "null"]</code>,
+where the spec says dispatch may hand the model <code>None</code>, as drf-services'
+<code>can_present_nothing</code> answers it for every route that states an output schema:</p>
+<ul>
+<li>a retrieve selector declaring <code>allow_none=True</code>, when nothing matches;</li>
+<li>a service whose <code>output_selector_spec</code> re-reads through a <code>selector</code>, because
+  dispatch materializes the re-read with <code>.first()</code>, and a re-read that filters
+  out the row it wrote finds none;</li>
+<li>a service with nothing to re-read that declares <code>ServiceSpec(allow_none=True)</code>,
+  since dispatch then presents the service's own return, a <code>None</code> included.</li>
+</ul>
+<p><strong>A <code>None</code> the spec does not declare is still handed to the model.</strong> A service
+with nothing to re-read and no <code>allow_none=True</code> that returns <code>None</code> is
+presented as <code>None</code>, against a <code>return_schema</code> whose root is <code>"object"</code> and does
+not admit <code>null</code>. <code>ServiceSpec(allow_none=True)</code> is the declaration that admits
+it, so declare it on any such service that can return nothing.</p>
+<p><code>allow_none</code> on a service's nested <code>output_selector_spec</code> is not read, because
+dispatch does not read it, and a list result is never <code>null</code>, only empty. A
+service whose <code>output_selector_spec</code> declares <code>LIST</code> is an array whether or not
+it has a <code>selector</code> to re-read through: with none, dispatch presents the
+service's own return as the list, and a return that is not a set of rows, such
+as the one row a create returns, raises <code>ImproperlyConfigured</code> out of the run.
+Return the rows, or declare <code>RETRIEVE</code> to present one.</p>
+<h2 id="what-a-tool-asks-the-model-for">What a tool asks the model for<a class="headerlink" href="#what-a-tool-asks-the-model-for" title="Permanent link">&para;</a></h2>
+<p>A tool's parameter schema is the model's only account of what to send, and a
+selector's signature cannot say on its own which parameters the model sends and
+which the toolset fills. So the toolset says so when it builds the schema
+(through drf-services' <code>spec_to_json_schema(supplied=...)</code>):</p>
+<ul>
+<li><strong>A name the toolset fills is not advertised.</strong> That is drf-services' own
+  pool seeds (<code>request</code>, <code>user</code>, <code>progress</code> and the rest), every name registered
+  in <a href="#project-pool-seeds"><code>pool_seeds</code></a>, and the keys a <code>kwargs=</code> provider
+  returns when its return annotation is a <code>TypedDict</code>, less any it may decline
+  with <code>UNSET</code> (below). The annotation is read by drf-services'
+  <code>provider_keys</code>, the reader dispatch's own contract is stated in, so this
+  toolset and drf-mcp read a provider the same way. A <a href="#url-derived-values-route-captures"><code>UrlKwarg</code></a>
+  that declares a <code>default</code> fills its name too, so the selector's parameter of
+  that name is not required, but the <code>UrlKwarg</code> itself stays advertised, as the
+  optional argument it always is.</li>
+<li><strong>Every other parameter without a default is required.</strong> <code>get_widget(user, pk)</code>
+  is advertised as <code>{"properties": {"pk": {}}, "required": ["pk"]}</code>. A parameter
+  with a default stays optional, and <code>InputRequired</code> still makes one required.</li>
+<li><strong>A <code>kwargs=</code> provider without a <code>TypedDict</code> return annotation may fill any
+  parameter</strong>, a plain <code>dict</code> or a lambda included, so for its spec nothing is
+  required merely for lacking a default, though <code>InputRequired</code> still requires
+  one. So may a provider whose return annotation does not resolve. Only the
+  return annotation is read for the keys, so a parameter typed with a name
+  imported only under <code>TYPE_CHECKING</code> changes nothing, and a <code>TypedDict</code> value
+  that does not resolve makes only its own key one the provider may decline, so
+  that key stays advertised and the others are still filled. Annotate the
+  provider to have the rest required:</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProjectScope</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">ceiling</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">scope</span><span class="p">(</span><span class="n">view</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProjectScope</span><span class="p">:</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="c1"># ceiling is filled here, so the model is never asked for it.</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="n">ceiling_for</span><span class="p">(</span><span class="n">view</span><span class="o">.</span><span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;project_pk&quot;</span><span class="p">])}</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">list_spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">priced_under</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">scope</span><span class="p">)</span>
+</span></code></pre></div>
+<ul>
+<li><strong>A key whose value admits <code>UnsetType</code> is not one the toolset fills.</strong> A
+  provider may decline a key by returning drf-services' <code>UNSET</code> for it, which
+  drops the key from the pool and lets the model's value through, so
+  <code>ceiling: int | UnsetType</code> keeps <code>ceiling</code> advertised for the model to send,
+  and optional, since the provider may fill it instead. The provider's other
+  keys are still not asked for. It is the key's own value that has to admit
+  <code>UNSET</code>, as a union member: <code>regions: list[str | UnsetType]</code> always comes
+  back as a list, so <code>regions</code> is filled. A generic <code>TypedDict</code> is read with
+  what binds its type parameters, so <code>-&gt; Scope[str | UnsetType]</code> declines
+  <code>Scope</code>'s <code>tenant: T</code> as the written-out <code>tenant: str | UnsetType</code> does.
+  If the provider declines the key and the model has not sent it either,
+  drf-services refuses the call before the selector runs, and the model is
+  handed back <code>ceiling: This field is required.</code> to send it on its next
+  turn, as it is when an untyped provider leaves a parameter unfilled.
+  Where the selector can run without the value, give the parameter a default.</li>
+<li><strong>A name a
+  <a href="../reference/#django_spec_agents.spec_tools.SpecToolset"><code>build_context</code></a>
+  override fills has to be declared.</strong> An override is code the schema cannot
+  read, so a selector parameter it fills through <code>kwargs</code> (which become
+  <code>view.kwargs</code>) is advertised as required like any other parameter without a
+  default, and a call leaving it out is handed back before the override runs.
+  Mark the selector parameter with drf-services' <code>NotClientInput</code>: the name is
+  left out of the schema and the override fills it. A call that sends it
+  anyway is handed back as an <a href="#unexpected-arguments">unexpected argument</a> by
+  default where the selector's input set is closed (no <code>filter_set</code>, no
+  <code>**kwargs</code>). Otherwise, and under the other policies, drf-services drops the
+  model's value before the selector reads its arguments, so the value the
+  override writes is the one the selector receives.
+  Where the value can be resolved from what a seed resolver receives, register
+  it as a <a href="#project-pool-seeds">pool seed</a> and resolve it there instead:</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectorKind</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">NotClientInput</span><span class="p">,</span> <span class="n">SelectorSpec</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">NotClientInput</span><span class="p">]):</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;List the user&#39;s tasks in the run&#39;s project.&quot;&quot;&quot;</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">project_id</span><span class="o">=</span><span class="n">project_pk</span><span class="p">,</span> <span class="n">assignee</span><span class="o">=</span><span class="n">user</span><span class="p">)</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProjectScopedToolset</span><span class="p">(</span><span class="n">SpecToolset</span><span class="p">):</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">build_context</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">rest</span><span class="p">):</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>        <span class="n">scoped</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="p">(</span><span class="n">kwargs</span> <span class="ow">or</span> <span class="p">{}),</span> <span class="s2">&quot;project_pk&quot;</span><span class="p">:</span> <span class="n">current_project_pk</span><span class="p">(</span><span class="n">ctx</span><span class="p">)}</span>
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">build_context</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">ctx</span><span class="o">=</span><span class="n">ctx</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">scoped</span><span class="p">,</span> <span class="o">**</span><span class="n">rest</span><span class="p">)</span>
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
+</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="c1"># project_pk is marked NotClientInput and filled by the override, so the model</span>
+</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="c1"># is never asked for it, and a call that sends one is refused.</span>
+</span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">ProjectScopedToolset</span><span class="p">(</span>
+</span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>    <span class="p">{</span>
+</span><span id="__span-7-22"><a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>        <span class="s2">&quot;list_tasks&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-7-23"><a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">list_tasks</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">TaskSerializer</span>
+</span><span id="__span-7-24"><a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>        <span class="p">)</span>
+</span><span id="__span-7-25"><a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>    <span class="p">}</span>
+</span><span id="__span-7-26"><a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>A <code>UrlKwarg</code> with a <code>default</code> also keeps a call that leaves the name out from
+being refused, but it does not keep the name from the model. It stays
+advertised, as an optional argument the model can see and send, and the
+override's value replaces whatever the model sent, with nothing said to the
+model: a model that asks for one project is served another's rows.</p>
+<p><strong>A service tool also advertises its target lookup.</strong> drf-services hands the
+arguments it validates against the input serializer to the selector that
+resolves the row or the set, too, so that selector's parameters are reflected
+beside the serializer's fields by the same rules. It is the
+<code>collection_selector_spec</code> or the <code>instance_selector_spec</code>, whichever the
+service declares: drf-services refuses a spec declaring both when it is built,
+and any lookup beside <code>many=True</code>, so a <code>many=True</code> service's schema stays the
+list alone. A rename tool whose instance selector is
+<code>task_by_pk(user, *, pk)</code> asks for <code>pk</code> as well as the new title, and requires
+it. Where a lookup parameter and a serializer field share a name, the
+serializer's property is the one advertised, since the serializer validates
+the value, and the name is required if either requires it, since the lookup
+cannot run without it whatever a <code>partial</code> serializer says.</p>
+<p>A key that any callable in the call marks <code>NotClientInput</code>, the service, one
+of its <code>preconditions</code> or the lookup itself, is left out of what the lookup
+contributes, as drf-services' <code>server_owned_keys</code> names them: dispatch keeps the
+caller's value for it from every callable, and refuses it as an
+<a href="#unexpected-arguments">unexpected argument</a>, so the lookup naming it plainly
+does not make it the model's to send. A field the input serializer declares
+under such a name is still advertised, since the serializer validates it into
+<code>data</code> whatever a callable hides under the name.</p>
+<p>A service with no input serializer takes the model's arguments as its <code>data</code>
+bundle, under drf-services' default binding for a service, so its own
+parameters are not arguments: its schema lists its lookup's keys and nothing
+else, which is what an <a href="#unexpected-arguments">unexpected argument</a> check
+admits of it.</p>
+<p><strong>A call that leaves out a required selector parameter is handed back</strong>, the
+tool's own or its target lookup's, as <code>ModelRetry</code> naming each one left out,
+as in <code>Missing required argument(s): `pk`.</code>, the same sentence a required
+<code>UrlKwarg</code> gets, so the model corrects the call on its next turn. A required
+serializer field is checked by the serializer once the call runs, so a service
+call missing both <code>pk</code> and a field is told about <code>pk</code> first, and about the
+field on the turn after. A name a provider may fill is not checked before the
+call, since only the pool the call assembles can say whether it arrived, and
+drf-services checks that pool: a selector parameter nothing filled comes back
+as a retry naming it too, in drf-services' words for a missing field,
+<code>ceiling: This field is required.</code> A
+required parameter no argument could fill, such as one a precondition marks
+<code>NotClientInput</code> and nothing supplies, is a
+configuration error rather than something the model can correct, and fails as
+the callable's own <code>TypeError</code>.</p>
+<h2 id="custom-identity">Custom identity<a class="headerlink" href="#custom-identity" title="Permanent link">&para;</a></h2>
+<p>If your project carries identity on a richer deps object, hand the toolset a
+<code>get_user</code> extractor instead of using <code>AgentDeps</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">get_user</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">principal</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="project-pool-seeds">Project pool seeds<a class="headerlink" href="#project-pool-seeds" title="Permanent link">&para;</a></h2>
+<p>Over HTTP a service reads its tenant, locale or clock off <code>request</code>. Off HTTP
+there is no request carrying any of that, and drf-services'
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.pool.pool_seeds.PoolSeeds"><code>PoolSeeds</code></a> is the channel
+for it. Hand the registry to the toolset as <code>pool_seeds=</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_POOL_SEEDS</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">seeds</span> <span class="o">=</span> <span class="n">DEFAULT_POOL_SEEDS</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">tenant</span><span class="o">=</span><span class="k">lambda</span> <span class="n">user</span><span class="p">:</span> <span class="n">user</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">tenant</span><span class="p">)</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">pool_seeds</span><span class="o">=</span><span class="n">seeds</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Every dispatch the toolset makes is handed the registry. A service, a selector
+or an affordance's condition that declares <code>tenant</code> therefore receives the
+resolver's value, as it would from <code>dispatch_spec(pool_seeds=seeds)</code> called
+directly. The per-step check that
+<a href="#an-operation-that-is-unavailable-right-now-is-left-out">leaves out an unavailable operation</a>
+asks its conditions against the same seeds, so a step's catalog and the call's
+own refusal answer alike.</p>
+<p>A registered name is reserved the way <code>user</code> and <code>request</code> are:</p>
+<ul>
+<li><strong>The model cannot supply it.</strong> An argument of that name is not passed on and
+  is not refused as unknown either, so the callable always sees the resolver's
+  value.</li>
+<li><strong>A channel cannot declare it.</strong> A <code>QueryParam</code> or <code>UrlKwarg</code> with that name
+  raises <code>ImproperlyConfigured</code> when the toolset is built, as one named <code>user</code>
+  does. Dispatch strips a reserved name from the route captures it hands a
+  selector, so an accepted <code>UrlKwarg</code> would offer the model an argument that is
+  then dropped on every call.</li>
+<li><strong>No schema advertises it.</strong> A selector or target lookup declaring the seed
+  as a parameter does not offer it to the model, so the model is not asked for
+  a value the call would ignore. See
+  <a href="#what-a-tool-asks-the-model-for">What a tool asks the model for</a>.</li>
+</ul>
+<p>The registry applies to the whole toolset, with no per-tool or per-call form. A
+seed is ambient to the deployment, and what varies from call to call belongs in
+the resolver, which declares <code>user</code> or <code>request</code> to receive them.</p>
+<h2 id="what-a-permission-class-sees">What a permission class sees<a class="headerlink" href="#what-a-permission-class-sees" title="Permanent link">&para;</a></h2>
+<p>Every call is authorized by <code>spec.permission_classes</code>, run against a synthetic
+request and view. drf-services supports a permission class reading <code>request</code>,
+<code>view.action</code> and <code>view.kwargs</code> off HTTP — anything beyond those three (a
+<code>view.queryset</code>, as <code>DjangoModelPermissions</code> wants) is not available. Here is
+what this package puts in each:</p>
+<ul>
+<li><strong><code>request.user</code></strong> is the acting identity — <code>deps.user</code>, or whatever
+  <code>get_user</code> returns. A configured <code>http_request</code> never contributes an identity.</li>
+<li><strong><code>request.query_params</code></strong> holds exactly the <a href="#read-shaping-query-params">query
+  params</a> declared for that tool, and nothing else.
+  A tool that declares none dispatches with an empty query string even when the
+  toolset was given an <code>http_request</code>, so the ambient endpoint's own query
+  string can never reach a serializer or a <code>filter_set</code>.</li>
+<li><strong><code>view.action</code></strong> is the <strong>tool name</strong> — the key the spec is registered under
+  in the mapping you passed. Off HTTP there is no router to name an action, and
+  the tool name is the identity the model called, so it is the honest answer;
+  it is also what the MCP transport reports for the same spec. A permission
+  class branching on viewset action names (<code>"create"</code>, <code>"retrieve"</code>) will not
+  match one of those unless a tool happens to be named that — check the <code>else</code>
+  branch of such a class before exposing its spec, and rewrite <code>action</code> in a
+  <code>build_context</code> override if you need a specific one.</li>
+<li><strong><code>view.kwargs</code></strong> holds the <a href="#url-derived-values-route-captures">URL kwargs</a>
+  declared for that tool, the off-HTTP counterpart of a route's captures.</li>
+</ul>
+<h3 id="the-tool-catalog-is-not-permission-filtered">The tool catalog is not permission-filtered<a class="headerlink" href="#the-tool-catalog-is-not-permission-filtered" title="Permanent link">&para;</a></h3>
+<p><code>get_tools</code> advertises every spec to every run, except a tool whose <a href="#an-operation-that-is-unavailable-right-now-is-left-out">operation
+condition is unmet</a> at
+that step. A tool whose permissions will deny this caller is still listed — the
+denial happens on the call. That is
+deliberate: a permission whose answer depends on the arguments has none to read
+at listing time and would hide a tool the caller can actually use, the listing
+runs once per model step so a database-backed check would cost a query per spec
+per step, and a model that cannot see a tool cannot ask about it. A listing
+carries a name, a description and an input schema; no row data.</p>
+<p>If a deployment does want a narrower catalog, override <code>is_tool_listed</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">asgiref.sync</span><span class="w"> </span><span class="kn">import</span> <span class="n">sync_to_async</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">OpsOnlyToolset</span><span class="p">(</span><span class="n">SpecToolset</span><span class="p">):</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">is_tool_listed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ctx</span><span class="p">):</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;suspend_account&quot;</span><span class="p">:</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>            <span class="k">return</span> <span class="kc">True</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>        <span class="c1"># Django refuses ORM access on the event loop, so anything that</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>        <span class="c1"># queries has to go through a thread — as dispatch itself does.</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>        <span class="k">return</span> <span class="k">await</span> <span class="n">sync_to_async</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;ops&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">)()</span>
+</span></code></pre></div>
+<p>Hiding a tool is a disclosure decision, never an authorization one: the call is
+gated by <code>permission_classes</code> whatever this returns.</p>
+<h3 id="an-operation-that-is-unavailable-right-now-is-left-out">An operation that is unavailable right now is left out<a class="headerlink" href="#an-operation-that-is-unavailable-right-now-is-left-out" title="Permanent link">&para;</a></h3>
+<p>A spec's <code>Affordance</code> answered without a row, a callable <code>when</code> such as
+<code>lambda: Period.current().is_open</code> (see <a href="#a-refused-affordance-names-its-code">below</a>),
+is asked on every model step, and a tool whose condition is unmet is left out of
+that step's catalog. The arguments against filtering by permission do not apply
+to it. The condition reads only the seeds (the user, the request and any
+<a href="#project-pool-seeds">registered seed</a>), never an argument, so it cannot hide a tool the caller could
+have invoked with other arguments. Only the specs declaring one are asked, and a
+toolset declaring none pays nothing. And the model can still tell the user about
+the missing tool, because the instructions for that step end by naming each tool
+left out with its reason:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  - `post_invoice`: The books are closed.
+</span></code></pre></div>
+<p>The rest of the instructions are derived from the tools that step offers, so no
+line describes a tool it lacks. An <code>instructions=</code> override replaces those
+conventions but not this list, which is appended after the override: which
+tools a given step lacks is not something an override written in advance can
+say. The heading is the <code>unavailable_heading</code> field of
+<a href="#changing-what-the-model-is-told"><code>conventions=</code></a>, and setting it to <code>None</code>
+drops the heading and the list, with an override or without one.</p>
+<p>A few things follow from how it is asked:</p>
+<ul>
+<li><strong>An <code>is_tool_listed</code> override cannot put the tool back.</strong> The omission is
+  applied beside it rather than inside the default, so an override returning
+  <code>True</code> does not need to call <code>super()</code> to keep it.</li>
+<li><strong>Conditions run where a dispatch runs</strong>, in a thread under the toolset's
+  <code>thread_sensitive</code> and <code>executor</code>, so one that queries is fine. The connection
+  it opens is closed after it, as a dispatch's is.</li>
+<li><strong>The request a condition reads is built through <code>build_context</code></strong>, so a
+  condition reading <code>request</code> sees the same object when the catalog is listed as
+  at the call, including anything an override adds to it. That listing call
+  carries no arguments, no <code>action</code> and an empty query string.</li>
+<li><strong>A condition on the row (an ORM expression) is never asked here.</strong> There is
+  no row when the catalog is listed, so the call answers it for its own row.</li>
+<li><strong><code>get_tools</code> and <code>get_instructions</code> each ask once per step.</strong> A shared answer
+  would need a key scoping it to one run, and the run context has none that is
+  safe: <code>run_id</code> can be supplied by the caller and is reused when a failed run
+  is retried. A condition that flips between the two reads can leave one step's
+  catalog and instructions disagreeing about one tool.</li>
+</ul>
+<p>None of this changes the call. <code>dispatch_spec</code> enforces every affordance
+whatever was listed, a call against a listing that went stale is refused as
+<a href="#a-refused-affordance-names-its-code">below</a>, and a model calling a tool that
+was left out gets pydantic-ai's unknown-tool retry, which names the tools that do
+exist.</p>
+<h2 id="changing-what-the-model-is-told">Changing what the model is told<a class="headerlink" href="#changing-what-the-model-is-told" title="Permanent link">&para;</a></h2>
+<p>Every line of the instructions block, the heading of the unavailable list
+included, is a field of
+<a href="../reference/#django_spec_agents.spec_tools.AgentConventions"><code>AgentConventions</code></a>,
+and so are three sentences outside it: the description a handle field gets when
+it declares none, the sentence scoping a paged tool's read-shaping parameters,
+and the retry for a missing argument. <code>conventions=</code> changes them one line at a
+time. Each field defaults to the toolset's own wording, so <code>AgentConventions()</code>
+changes nothing, and leaving <code>conventions=</code> unset is the same as passing it.</p>
+<p>Nothing else the toolset writes is a field. The descriptions of the arguments it
+adds, such as <code>limit</code> and <code>page</code>, stay fixed, and so do its other retries: a
+<code>limit</code> or <code>page</code> that is not a positive integer, an <code>ordering</code> the tool does not
+take, a service asking for more input, and the opening of a
+<a href="#a-selection-the-serializer-rejects">render retry</a>, whose closing scope
+sentence is the one part that is a field.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConventions</span><span class="p">,</span> <span class="n">SpecToolset</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">specs</span><span class="p">,</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="n">conventions</span><span class="o">=</span><span class="n">AgentConventions</span><span class="p">(</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>        <span class="c1"># {page_size} is the page an omitted `limit` is served; a literal brace is doubled.</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>        <span class="n">pagination</span><span class="o">=</span><span class="p">(</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>            <span class="s2">&quot;- Collections come back one page at a time, as &quot;</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>            <span class="s1">&#39;{{&quot;items&quot;: [...], &quot;page&quot;: 1, &quot;totalPages&quot;: N, &quot;hasNext&quot;: true|false}}, &#39;</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>            <span class="s2">&quot;</span><span class="si">{page_size}</span><span class="s2"> items unless you pass `limit`. Ask for the next `page` while &quot;</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>            <span class="s2">&quot;`hasNext` is true.&quot;</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>        <span class="p">),</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>        <span class="n">handles</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># this audience never sees identifiers, so say nothing about them</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>    <span class="p">),</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>A field changes what a line says, never whether it appears.</strong> The toolset still
+decides that: the <code>pagination</code> line above is still absent from
+a toolset with no list tool, and the block is still re-derived on each step an
+<a href="#an-operation-that-is-unavailable-right-now-is-left-out">unmet condition</a> leaves
+a tool out, so an overridden line goes with the tool it describes. <code>None</code> drops a
+line wherever it would have been said.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Where it lands</th>
+<th>Said when</th>
+<th>Placeholders</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>base</code></td>
+<td>instructions, first</td>
+<td>always</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>pagination</code></td>
+<td>instructions</td>
+<td>some tool returns a page</td>
+<td><code>{page_size}</code></td>
+</tr>
+<tr>
+<td><code>ordering</code></td>
+<td>instructions</td>
+<td>some tool advertises a sort argument</td>
+<td><code>{names}</code></td>
+</tr>
+<tr>
+<td><code>handles</code></td>
+<td>instructions</td>
+<td>some tool's output marks a handle</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>read_shaping</code></td>
+<td>instructions</td>
+<td>some tool declares a <code>QueryParam</code></td>
+<td><code>{names}</code></td>
+</tr>
+<tr>
+<td><code>read_shaping_on_pages</code></td>
+<td>instructions, after <code>read_shaping</code></td>
+<td>that tool also returns a page</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>unavailable_heading</code></td>
+<td>instructions, last, above the tools left out</td>
+<td>a condition left a tool out this step</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>handle_field_description</code></td>
+<td>a handle field's output schema</td>
+<td>the field declares no description of its own</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>query_param_on_pages</code></td>
+<td>a <code>QueryParam</code>'s description, and the <a href="#a-selection-the-serializer-rejects">render retry</a></td>
+<td>the tool returns a page</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>missing_arguments</code></td>
+<td>the retry for a call missing an argument</td>
+<td>a selector parameter or a required <code>UrlKwarg</code> is left out</td>
+<td><code>{names}</code></td>
+</tr>
+</tbody>
+</table>
+<p>A few rules follow from what each field is:</p>
+<ul>
+<li><strong>Every field is a <code>str.format</code> template</strong>, placeholders or not, so a literal
+  brace is written twice everywhere. <code>{names}</code> is each name in backticks, joined
+  with <code>,</code> (sorted, except <code>ordering</code>'s, which follow the tools).</li>
+<li><strong>A typo fails at startup.</strong> A placeholder the field does not accept, an
+  unbalanced brace, or a format spec its value cannot take raises
+  <code>ImproperlyConfigured</code> naming the field when the <code>AgentConventions</code> is built.</li>
+<li><strong><code>None</code> on <code>read_shaping</code> drops <code>read_shaping_on_pages</code> too</strong>, because that
+  sentence continues it; <code>None</code> on <code>unavailable_heading</code> drops the list beneath
+  it. To drop a line, use <code>None</code>, not <code>""</code>, which leaves a blank line.
+  <code>missing_arguments</code> cannot be <code>None</code>, empty or only whitespace: it is the
+  retry's whole text.</li>
+<li><strong><code>missing_arguments</code> covers the two checks made before the input serializer
+  runs.</strong> A field the input serializer requires is still reported in the
+  serializer's own words, and a parameter a provider may fill and did not in
+  drf-services' (<code>ceiling: This field is required.</code>), since only the pool it
+  assembles can say the value never arrived.</li>
+</ul>
+<p><strong>Some lines state facts about behaviour, and an override owns keeping them
+true.</strong> <code>pagination</code> and <code>query_param_on_pages</code> name the page envelope's keys, and
+<code>base</code> says which failures come back as a retry and which as a failed call. The
+toolset goes on behaving as the defaults describe whatever the text says, so a
+rewording that drops or contradicts one of those facts tells the model something
+false.</p>
+<p><strong><code>conventions=</code> and <code>instructions=</code>.</strong> <code>instructions=</code> replaces the whole
+derived block, so changing one of its lines (<code>base</code> through
+<code>read_shaping_on_pages</code>) beside it would be ignored, and the toolset refuses the
+pair with <code>ImproperlyConfigured</code> naming the fields. The other four land outside
+the block and apply either way, <code>unavailable_heading</code> included, since the list of
+unavailable operations is appended after an override too. Prefer <code>conventions=</code>
+where it can say what you need: an override is a copy of the block, so it keeps
+advising about pagination on a step with no list tool, and it misses every
+correction a later release makes to the wording.</p>
+<p><code>SpecCapability</code> takes the same keyword, and
+<a href="../reference/#django_spec_agents.spec_tools.SpecCapability.from_toolset"><code>SpecCapability.from_toolset</code></a>
+keeps the conventions of the toolset it wraps. They reach this toolset's tools
+only: the MCP transport, djangorestframework-mcp-server, writes its own schemas
+and retries, so a model reading the same specs over MCP is told what that
+transport is configured to say.</p>
+<h2 id="unexpected-arguments">Unexpected arguments<a class="headerlink" href="#unexpected-arguments" title="Permanent link">&para;</a></h2>
+<p>By default the toolset <strong>rejects</strong> tool args outside a spec's declared input set
+— a key the model invented — surfacing them as a <code>ModelRetry</code> so the model
+self-corrects. A <code>filter_set</code>'s filters are declared names, so a key outside them
+and the selector's parameters is refused like any other. A selector taking a bare
+<code>**kwargs</code> declares no name, so nothing is refused, and nothing undeclared is
+handed to it either. Pass <code>unknown_arguments=</code> to change this:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnknownArguments</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="c1"># silently drop unexpected keys instead of rejecting them</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">unknown_arguments</span><span class="o">=</span><span class="n">UnknownArguments</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">)</span>
+</span></code></pre></div>
+<p><code>IGNORE</code> drops a key no parameter declares. Under either policy the key never
+reaches the callable: drf-services hands a callable only what its spec declares.
+<code>REJECT</code> and <code>IGNORE</code> are the two the toolset accepts. <code>PASSTHROUGH</code> raises
+<code>ImproperlyConfigured</code> when the toolset is built, because a tool call is one flat
+object and has no other channel to carry an undeclared name to the callable; to
+hand one over, declare it, as a <code>reads</code> entry, a serializer field or a parameter.</p>
+<p>A parameter marked <code>NotClientInput</code>
+is not the model's under any policy: <code>REJECT</code> refuses a value sent for it where
+the input set is closed, and everywhere else drf-services drops the value before
+any callable in the call reads it.</p>
+<h2 id="a-list-as-input">A list as input<a class="headerlink" href="#a-list-as-input" title="Permanent link">&para;</a></h2>
+<p>A <code>ServiceSpec</code> declaring <code>many=True</code> becomes a tool that takes its list as <strong>one
+named argument</strong>. Its input validates as a JSON array, and a model's tool
+arguments are always a JSON object, so the array travels under the argument the
+spec's <code>many_argument</code> names, <code>items</code> unless it names another:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_widgets</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create several widgets in one call.&quot;&quot;&quot;</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">Widget</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="o">**</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="n">create_widgets_spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_widgets</span><span class="p">,</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">WidgetInputSerializer</span><span class="p">,</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    <span class="n">many_argument</span><span class="o">=</span><span class="s2">&quot;widgets&quot;</span><span class="p">,</span>  <span class="c1"># optional; the default is &quot;items&quot;</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">WidgetSerializer</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    <span class="p">),</span>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>The model sends <code>{"widgets": [{...}, {...}]}</code> and the service receives the list,
+exactly as it would from a REST view's bare array body. The tool's parameter
+schema says so: an object with that one required property, an array of the item
+schema, carrying the list serializer's <code>allow_empty</code>, <code>min_length</code> and
+<code>max_length</code> as <code>minItems</code> / <code>maxItems</code>, and <code>additionalProperties: false</code>. A
+declared <code>QueryParam</code> or <code>UrlKwarg</code> is advertised beside it, since the toolset
+takes those out of the arguments before dispatch. The result is the rendered
+list, and the tool's <code>return_schema</code> describes it as an array even though the
+<code>output_selector_spec</code> is <code>RETRIEVE</code>.</p>
+<p>What the model is told when a call is wrong:</p>
+<ul>
+<li><strong>An invalid item</strong> comes back as a <code>ModelRetry</code> naming the argument, then the
+  invalid item's index, then the field, on every Django REST framework version
+  this package supports. The model reads <code>widgets[1].price: This field is
+  required.</code>, the same rendering every validation error gets, and corrects that
+  one item.</li>
+<li><strong>The argument missing, <code>null</code> or not a list</strong> comes back under the argument
+  in the words that field would use: <code>widgets: This field is required.</code></li>
+<li><strong>Any other argument sent beside the list</strong> comes back as
+  <code>Unexpected argument(s): 'note'.</code> under every <code>unknown_arguments</code> policy,
+  because the service receives only the list and the argument would have
+  nowhere to go. The policy still decides what happens to an undeclared key
+  inside an item.</li>
+</ul>
+<p>A <code>QueryParam</code> or <code>UrlKwarg</code> in the spec's <code>reads=</code> sharing the list's argument
+name is refused with <code>ImproperlyConfigured</code> when the spec is registered: it would
+be taken out of the arguments first and carry the list away with it.</p>
+<p>A tool that needs arguments <strong>beside</strong> its list cannot be <code>many=True</code>. Name the
+list as a field of the input serializer instead, and loop over it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">BulkWidgetInput</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="n">items</span> <span class="o">=</span> <span class="n">WidgetInputSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="n">dry_run</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The model sends <code>{"items": [...], "dry_run": true}</code>, and an invalid item comes
+back placing its errors at its index, as <code>items[1].price: ...</code>. Django REST
+framework keys them by index from 3.18 and lists them below it, with an empty
+entry for each valid item; the model reads the same line either way.</p>
+<h2 id="ordering">Ordering<a class="headerlink" href="#ordering" title="Permanent link">&para;</a></h2>
+<p><strong>The <code>filter_set</code> owns ordering.</strong> Declare a django-filter <code>OrderingFilter</code>
+named <code>ordering</code> on the selector's FilterSet and you are done:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">django_filters</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrderFilterSet</span><span class="p">(</span><span class="n">django_filters</span><span class="o">.</span><span class="n">FilterSet</span><span class="p">):</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="n">ordering</span> <span class="o">=</span> <span class="n">django_filters</span><span class="o">.</span><span class="n">OrderingFilter</span><span class="p">(</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>        <span class="n">fields</span><span class="o">=</span><span class="p">((</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;created&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;total_cents&quot;</span><span class="p">,</span> <span class="s2">&quot;total&quot;</span><span class="p">)),</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="p">)</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Order</span>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<p>drf-services reflects that filter into the tool's input schema as its public
+choices (<code>created</code>, <code>-created</code>, <code>total</code>, <code>-total</code>) — <code>OrderingFilter</code> subclasses
+<code>ChoiceFilter</code>, which the schema generator maps to a set of <code>const</code> options
+carrying the filter's own labels — so the model is told exactly what it may sort
+by, in the words the FilterSet uses. At call time the value is handed to
+the FilterSet as filter data: it validates the choice, applies its own
+<code>param_map</code>, and a value outside the enum comes back as a <code>ModelRetry</code>. The
+toolset contributes nothing and takes nothing away.</p>
+<p>One vocabulary, one declaration site, and the same ordering your HTTP views
+already serve.</p>
+<p>The filter's name is yours to pick — an <code>OrderingFilter</code> declared as <code>sorting</code>
+is found and used the same way. What the schema advertises is what the model may
+send, under whatever it is called.</p>
+<h3 id="a-list-selector-with-no-filter_set">A list selector with no <code>filter_set</code><a class="headerlink" href="#a-list-selector-with-no-filter_set" title="Permanent link">&para;</a></h3>
+<p>A selector that takes its own sort argument works too: declare it on the
+callable and it is reflected into the tool schema like any other parameter, and
+handed to the callable to apply.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_orders</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">ordering</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;-created_at&quot;</span><span class="p">):</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;List the acting user&#39;s orders.&quot;&quot;&quot;</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="k">return</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">customer</span><span class="o">=</span><span class="n">user</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="n">ordering</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Prefer the <code>FilterSet</code> where there is one: it validates the value against a
+published set of choices before anything reaches the ORM, while a bare parameter
+is only as safe as what the selector does with it.</p>
+<h3 id="migrating-from-ordering_fields">Migrating from <code>ordering_fields</code><a class="headerlink" href="#migrating-from-ordering_fields" title="Permanent link">&para;</a></h3>
+<p><code>SpecToolset(specs, ordering_fields=[...])</code> and its per-tool
+<code>tool_ordering_fields</code> form do not exist; passing either raises <code>TypeError</code> at
+construction. Move the names onto an
+<code>OrderingFilter</code> as <code>(orm_path, public_name)</code> pairs — the FilterSet at the top of
+this section is exactly <code>ordering_fields=["created_at", "total_cents"]</code>
+rewritten — and drop the argument.</p>
+<p>The vocabularies are not the same, and that is the point of the move: the
+knob's values were raw <strong>ORM paths</strong>, applied with <code>queryset.order_by</code> itself,
+while a FilterSet's choices are public names it maps through its own
+<code>param_map</code>. Picking public names is the migration's one decision — they are what the model sees, so give them the words a reader would
+use.</p>
+<h2 id="read-shaping-query-params">Read-shaping query params<a class="headerlink" href="#read-shaping-query-params" title="Permanent link">&para;</a></h2>
+<p><code>page</code> / <code>limit</code> are built in for list selectors and <code>ordering</code> comes from the
+<code>filter_set</code>, but a spec can declare its own request-level params, as
+<code>reads=[QueryParam(...)]</code> with
+<a href="../reference/#rest_framework_services.types.query_param.QueryParam"><code>QueryParam</code></a>. Built from
+the <a href="../spec-registry/#what-the-spec-declares-for-an-agent">registry</a> the spec is
+registered in, the toolset advertises each as a tool arg, then — instead of reaching the spec as an input — seeded
+into <code>request.query_params</code> over the off-HTTP path. That is for whatever reads
+<code>request.query_params</code> <strong>directly</strong>: django-restql field selection, or a custom
+serializer that branches on the query string.</p>
+<div class="admonition note">
+<p class="admonition-title">Declared on the spec, never on the toolset</p>
+<p>A read is the spec's to declare, so every transport and every mount reads
+the same answer; <code>SpecToolset</code> takes no channel declarations of its own,
+and passing <code>query_params=</code> or <code>tool_query_params=</code> is a
+<code>TypeError</code>. For a value the model may not choose, see
+<a href="../spec-registry/#arguments-the-server-supplies">arguments the server supplies</a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">You don't need this for <code>filter_set</code></p>
+<p>A <code>SelectorSpec.filter_set</code>'s fields are already generated into the tool's
+input schema (the <code>[filter]</code> extra) and flow through as ordinary <code>params</code> —
+which <code>dispatch_spec</code> hands the FilterSet as its <code>filter_data</code>. So the model
+can filter a list selector with no <code>QueryParam</code> declaration at all, and the
+same goes for <a href="#ordering">ordering</a>; <code>QueryParam</code> is only for params a
+serializer reads off <code>request.query_params</code>.</p>
+</div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecRegistry</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">QueryParam</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
+</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
+</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="c1"># A param several tools read is one declaration, in each spec&#39;s reads.</span>
+</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="n">RESTQL</span> <span class="o">=</span> <span class="n">QueryParam</span><span class="p">(</span><span class="s2">&quot;query&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;django-restql field selection&quot;</span><span class="p">)</span>
+</span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>
+</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-18-13"><a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+</span><span id="__span-18-14"><a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>    <span class="s2">&quot;list_orders&quot;</span><span class="p">,</span>
+</span><span id="__span-18-15"><a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>    <span class="n">replace</span><span class="p">(</span><span class="n">list_orders_spec</span><span class="p">,</span> <span class="n">reads</span><span class="o">=</span><span class="p">[</span><span class="n">RESTQL</span><span class="p">,</span> <span class="n">QueryParam</span><span class="p">(</span><span class="s2">&quot;detail&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;summary&quot;</span><span class="p">)]),</span>
+</span><span id="__span-18-16"><a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="p">)</span>
+</span><span id="__span-18-17"><a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>
+</span></code></pre></div>
+<p>A declared param is popped before dispatch, so <code>unknown_arguments</code> never flags
+it; a declared <code>default</code> is seeded when the model omits the arg or sends it as
+<code>null</code>, which never reaches the query string itself. (Names can't be
+<code>page</code> / <code>limit</code> / <code>ordering</code> — those are reserved transport keys. <code>ordering</code> is
+reserved even when a <code>filter_set</code> owns it: a declared channel pops the value at
+call time, so the FilterSet would never see it.)</p>
+<p>A spec's read of a name the tool already advertises as the call's own input, a
+selector parameter or <code>filter_set</code> field or a parameter of a service's
+<a href="#what-a-tool-asks-the-model-for">target lookup</a>, declares where that input
+comes from. The tool advertises the input once, and drf-services hands it the
+value and puts it on the query string too, from the registry and from
+<code>registry.specs()</code> alike (see
+<a href="../spec-registry/#what-the-spec-declares-for-an-agent">the registry page</a>). A
+service spec reading a name its input serializer takes as a writable field is
+refused by drf-services when the spec is built. A name a typed <code>kwargs=</code>
+provider declares it fills is not offered to the model as the selector's, so a
+read of it stays a parameter of the toolset's: a provider reading
+<code>request.query_params["status"]</code> into the selector's <code>status</code>, beside
+<code>QueryParam("status")</code>, is how to route the value to the selector.</p>
+<h3 id="on-a-list-tool-a-param-shapes-each-row">On a list tool, a param shapes each row<a class="headerlink" href="#on-a-list-tool-a-param-shapes-each-row" title="Permanent link">&para;</a></h3>
+<p>Every list tool returns a page, <code>{"items": [...], "page": 1, "totalPages": N,
+"hasNext": ...}</code>, but the serializer that reads a read-shaping param renders one
+row at a time and never sees the envelope. So a selection written against the
+documented shape, <code>fields=items</code> or django-restql's <code>{items{id, name}}</code>, asks
+each row for an <code>items</code> field it does not have. The toolset tells the model this in two places:</p>
+<ul>
+<li>each <code>QueryParam</code> on a list tool has "On a paged result it applies to each item
+  in <code>items</code>, never to the page envelope (<code>items</code>, <code>page</code>, <code>totalPages</code>,
+  <code>hasNext</code>)." appended to its description, or as its description when it
+  declares none; a retrieve tool's param is left as declared;</li>
+<li>the read-shaping line of the instructions the toolset derives says the same,
+  "On a tool that returns a page, they apply to each item in <code>items</code>, never to
+  the page itself.", when some list tool declares a <code>QueryParam</code>.</li>
+</ul>
+<p>An <code>instructions=</code> override replaces the derived block, and this line with it:
+an override written before this sentence existed does not gain it, so add the
+advice to your own text if your tools page and take a selection. Changing the
+lines you need with <a href="#changing-what-the-model-is-told"><code>conventions=</code></a> instead
+keeps this one, and both sentences are fields there (<code>read_shaping_on_pages</code> and
+<code>query_param_on_pages</code>).</p>
+<h3 id="a-selection-the-serializer-rejects">A selection the serializer rejects<a class="headerlink" href="#a-selection-the-serializer-rejects" title="Permanent link">&para;</a></h3>
+<p>A read-shaping param is the one argument used <strong>while the result is rendered</strong>
+rather than while the call runs, so it is the one that can fail after the work
+is done. When the output serializer raises a <code>ValidationError</code> (or a
+<code>ServiceValidationError</code>) while rendering, and the model supplied a value for at
+least one of the tool's read-shaping params, the model gets a retry naming the
+argument:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>`fields` was rejected while rendering the result: Unknown field `items`. On a
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>paged result it applies to each item in `items`, never to the page envelope
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>(`items`, `page`, `totalPages`, `hasNext`).
+</span></code></pre></div>
+<p>What follows the colon is the serializer's own message, verbatim. The toolset
+never reads a param's value, so this works the same for a <code>fields</code> your own
+serializer parses, for django-restql's <code>query</code>, or for anything else that raises.
+The last sentence is there only on a list tool. With several params supplied,
+all of them are named, since the serializer does not say which one it refused.
+<code>exception_map=</code> / <code>translate_exception</code> sees the error first, as on the dispatch
+path.</p>
+<p>The same error <strong>stays loud</strong>, and ends the run, when nothing the model
+sent shaped the render: no read-shaping value supplied, an explicit <code>null</code>, or a
+value that came from a declared <code>default</code>. A retry cannot fix a serializer that
+fails on its own or a default that is wrong, and would hide the bug behind the
+retry budget. Only validation errors are converted; an <code>AttributeError</code> in a
+serializer is a bug whatever the model sent.</p>
+<div class="admonition tip">
+<p class="admonition-title">Use strict selection on tools an agent calls</p>
+<p>This only works if the serializer says no. Make a name it does not know
+raise a <code>ValidationError</code> (django-restql does by default), and the model
+corrects itself in one retry.
+A tolerant selection, one that drops fields it cannot find, turns the same
+mistake into a page of empty rows, <code>"items": [{}, {}]</code>, which is a successful
+result as far as anything downstream can tell. The toolset cannot tell that
+apart from a real answer without knowing the param's grammar, so it does not
+try.</p>
+</div>
+<h2 id="url-derived-values-route-captures">URL-derived values (route captures)<a class="headerlink" href="#url-derived-values-route-captures" title="Permanent link">&para;</a></h2>
+<p>Over HTTP a nested route (<code>/projects/{project_pk}/widgets/</code>) supplies
+<code>project_pk</code> from the URL, and a selector reads it from <code>view.kwargs</code> — directly,
+or through a <code>spec.kwargs</code> provider that scopes by it (a tenant/role lookup). Off
+the HTTP path there is no route, so declare the capture on the spec, as
+<code>reads=[UrlKwarg(...)]</code> with
+<a href="../reference/#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a>. Built from the
+registry, the toolset advertises it as a tool arg, then popped and seeded into <code>build_offline_context(kwargs=…)</code>,
+from where drf-services spreads it into the selector / target pools —
+authoritative over the spec <code>params</code>, below a <code>spec.kwargs</code> provider (mirroring
+HTTP precedence exactly).</p>
+<div class="admonition note">
+<p class="admonition-title">Declared on the spec, never on the toolset</p>
+<p>As with <code>QueryParam</code>, <code>SpecToolset</code> takes no <code>url_kwargs=</code> or
+<code>tool_url_kwargs=</code>; passing either is a <code>TypeError</code>. A
+<code>UrlKwarg(default=...)</code> cannot stand in for a value the model must not
+choose, since it is only a default the model can override; bind the value with
+<a href="../spec-registry/#arguments-the-server-supplies"><code>tool_server_arguments</code></a>
+instead.</p>
+</div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrlKwarg</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">project</span> <span class="o">=</span> <span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;owning project&quot;</span><span class="p">)</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_widgets&quot;</span><span class="p">,</span> <span class="n">replace</span><span class="p">(</span><span class="n">list_widgets_spec</span><span class="p">,</span> <span class="n">reads</span><span class="o">=</span><span class="p">[</span><span class="n">project</span><span class="p">]))</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Reach for <code>UrlKwarg</code> when the value is <strong>request state</strong> rather than an ordinary
+argument to the callable — the axis is where the value has to land, not whether
+it is advertised:</p>
+<ul>
+<li>a scoping <code>spec.kwargs</code> provider that reads <code>view.kwargs</code> — the case ordinary
+  <code>params</code> cannot cover, because the provider reads <code>view.kwargs</code>, not <code>params</code>;</li>
+<li>a closed-surface spec whose route capture must be model-suppliable.</li>
+</ul>
+<p>Like <code>QueryParam</code>, a declared kwarg is popped before dispatch (so
+<code>unknown_arguments</code> never flags it) and its <code>default</code> is seeded when the model
+omits it. A kwarg with a <code>default</code> therefore fills a selector parameter of the
+same name, and the tool does not require it; one without a default reaches the
+selector only when the model sends it, so the selector's own signature still
+decides whether the tool requires it. A name can't be <code>page</code> / <code>limit</code> / <code>ordering</code>, nor one of drf-services'
+pool seeds (<code>request</code> / <code>user</code> / <code>data</code> / <code>instance</code> / <code>serializer</code> /
+<code>collection</code> / <code>progress</code> — a caller must not be able to route a value onto
+those) or a name
+registered in <a href="#project-pool-seeds"><code>pool_seeds</code></a>. One spec declaring a name as
+both a <code>QueryParam</code> and a <code>UrlKwarg</code> is refused by drf-services when the spec is
+built.</p>
+<p>A capture the spec genuinely cannot run without takes <code>required=True</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The name joins the tool's <code>required</code> list, so the model is told up front. Because
+a schema hint is only a hint — models omit required arguments routinely — a call
+that omits it raises <code>ModelRetry</code> naming the argument, giving the model a turn to
+supply it rather than failing deeper in. <code>required</code> can't be combined with a
+<code>default</code> (a default always satisfies the argument, so requiring it would be a
+no-op); that raises at construction.</p>
+<h3 id="a-reflected-extras-key-is-not-a-route-capture">A reflected <code>**extras</code> key is not a route capture<a class="headerlink" href="#a-reflected-extras-key-is-not-a-route-capture" title="Permanent link">&para;</a></h3>
+<p>A selector typed <code>def list_widgets(user, **extras: Unpack[WidgetExtras])</code> that
+reads <code>extras["project_pk"]</code> already has that key reflected into the tool schema
+by drf-services — no <code>UrlKwarg</code> needed <strong>for the selector itself</strong>, which
+receives it through <code>params</code>. Marking it <code>InputRequired</code> makes the model supply
+it; that is a <em>schema</em> statement and changes nothing about where the value lands.</p>
+<p>The two declarations answer different questions, and only one of them puts a
+value on the request:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>reflected <code>**extras</code> key (± <code>InputRequired</code>)</th>
+<th>registered <code>UrlKwarg</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>In the tool schema</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Can be required</td>
+<td>yes (<code>InputRequired</code>)</td>
+<td>yes (<code>required=True</code>, plus a <code>ModelRetry</code> when omitted)</td>
+</tr>
+<tr>
+<td>Reaches the selector</td>
+<td>yes, via <code>params</code></td>
+<td>yes, via the <code>view.kwargs</code> spread</td>
+</tr>
+<tr>
+<td>Reaches <code>view.kwargs</code></td>
+<td><strong>no</strong></td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Ranks above caller-supplied <code>params</code></td>
+<td>no — it <em>is</em> caller input</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p>So anything that reads request state rather than its own arguments — a
+<code>spec.kwargs</code> provider, <code>extend_queryset</code>, a permission class, an
+<code>output_serializer_context</code> provider — sees nothing for a reflected-only key. A
+scoping provider doing <code>view.kwargs.get("project_pk")</code> returns <code>None</code> and
+<strong>mis-scopes every call</strong> instead of failing, which is the failure mode worth
+naming: it is silent.</p>
+<p>Declare the <code>UrlKwarg</code> read as well when the value is scope, and bind it with
+<a href="../spec-registry/#arguments-the-server-supplies"><code>tool_server_arguments</code></a> when
+the model must not choose it. The read is a strict superset: the selector still
+receives the value in <code>**extras</code>, and the provider finds it on <code>view.kwargs</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServerArguments</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="c1"># project_pk reflected from WidgetExtras *and* read from the route:</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1">#   selector&#39;s extras -&gt; 7      view.kwargs -&gt; {&quot;project_pk&quot;: 7}</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>    <span class="s2">&quot;list_widgets&quot;</span><span class="p">,</span>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>    <span class="n">replace</span><span class="p">(</span><span class="n">list_widgets_spec</span><span class="p">,</span> <span class="n">reads</span><span class="o">=</span><span class="p">[</span><span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)]),</span>
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="p">)</span>
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span>
+</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>    <span class="n">registry</span><span class="p">,</span>
+</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>    <span class="n">tool_server_arguments</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;list_widgets&quot;</span><span class="p">:</span> <span class="n">ServerArguments</span><span class="p">(</span><span class="n">values</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;project_pk&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">})},</span>
+</span><span id="__span-22-12"><a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Declared and not bound, the name is advertised once, with one <code>required</code> entry
+(the <code>UrlKwarg</code> wins the merge over a reflected key of the same name), and the
+model supplies it. Bound, it leaves the schema, and whatever the model sends
+under it is dropped before the call.</p>
+<p>That split mirrors HTTP, where a route capture arrives in the URL and never in
+the body — which is what makes it unspoofable. Off the HTTP path, <code>params</code> are
+whatever the model chose; a <code>UrlKwarg</code> value outranks them, but the model chooses
+that value too unless the server binds it. If a provider scopes by it, it has to
+come through the channel that carries that precedence, with the value the
+server supplies.</p>
+<p><code>UrlKwarg</code> and <code>QueryParam</code> are
+<a href="https://github.com/Artui/djangorestframework-services/blob/main/rest_framework_services/types/url_kwarg.py">drf-services' types</a>,
+imported from <code>rest_framework_services</code>: the declaration is the same whichever
+transport carries it, so there is one class of each, and this package does not
+re-export them.</p>
+<h2 id="absolute-urls-file-and-hyperlinked-fields">Absolute URLs (file and hyperlinked fields)<a class="headerlink" href="#absolute-urls-file-and-hyperlinked-fields" title="Permanent link">&para;</a></h2>
+<p>Off the HTTP path there is no ambient request, so there is no origin to build
+absolute URLs from — and DRF's <code>FileField</code>, <code>HyperlinkedIdentityField</code>, and
+<code>HyperlinkedRelatedField</code> call <code>request.build_absolute_uri()</code> for every value.
+Name your origin and they resolve:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s2">&quot;https://app.example.com&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<p><code>host</code> accepts <code>"example.com"</code>, <code>"example.com:8000"</code>, or a full origin whose
+scheme decides whether links are https. It is toolset-wide, with no per-tool
+variant: an origin is a property of the deployment, not of a tool.</p>
+<p>Left unset, those fields produce <strong>relative</strong> URLs (<code>/media/doc.pdf</code>) — usable,
+and exactly what they fall back to on their own when no request is in the
+serializer context. Nothing is inferred: only your project knows its public
+origin, and a guess would emit confidently-wrong links that look valid.</p>
+<h2 id="error-handling">Error handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<p>The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:</p>
+<table>
+<thead>
+<tr>
+<th>drf-services outcome</th>
+<th>What the agent sees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ServiceValidationError</code> (bad input)</td>
+<td><code>ModelRetry</code> with the field errors, one <code>field: message</code> line each — the model self-corrects</td>
+</tr>
+<tr>
+<td>A read-shaping value the output serializer rejects while rendering</td>
+<td><code>ModelRetry</code> naming the argument — see <a href="#a-selection-the-serializer-rejects">A selection the serializer rejects</a></td>
+</tr>
+<tr>
+<td><code>ActionUnavailable</code> (an <code>Affordance</code> condition not met)</td>
+<td><code>ToolFailed</code> with the reason followed by the rule's code — <code>The books are closed. (code: books_closed)</code>; see below</td>
+</tr>
+<tr>
+<td><code>AdditionalInputRequired</code> (the service wants one more input)</td>
+<td><code>ModelRetry</code> with the service's message, ending in the names to supply (<code>Call this tool again, additionally supplying: `confirmed`.</code>) — see the warning below</td>
+</tr>
+<tr>
+<td><code>ServiceError</code> (business rule)</td>
+<td><code>ToolFailed</code> with the rule's own message — a failed result the model reads and reports</td>
+</tr>
+<tr>
+<td>Unresolved instance: a read's or a write's instance selector that finds no row, or raises <code>DoesNotExist</code> or Django's <code>Http404</code> (as <code>get_object_or_404</code> does)</td>
+<td><code>ToolFailed("not found")</code>, unless the spec sets <code>allow_none=True</code>, when the tool returns <code>None</code>. A list selector's <code>Http404</code>, usually from a parent it looked up, is <code>ToolFailed("not found")</code> whatever <code>allow_none</code> says; a list that finds no rows returns <code>[]</code>, and a <code>DoesNotExist</code> escaping a list selector is an error, not a not-found</td>
+</tr>
+<tr>
+<td>A dispatch past <code>dispatch_timeout</code></td>
+<td><code>ToolFailed</code> — abandoned, with the sentence telling the model to narrow and call again</td>
+</tr>
+<tr>
+<td>A rendered result over <code>max_result_bytes</code></td>
+<td><code>ToolFailed</code> — refused rather than truncated, since a partial payload looks complete</td>
+</tr>
+<tr>
+<td>Unexpected argument (default <code>REJECT</code>)</td>
+<td><code>ModelRetry</code> naming the unknown key</td>
+</tr>
+<tr>
+<td>A required argument left out: a selector parameter with no default, or a service's target lookup such as <code>pk</code></td>
+<td><code>ModelRetry</code> naming each such parameter left out; a missing serializer field is reported by the serializer when the call runs — see <a href="#what-a-tool-asks-the-model-for">What a tool asks the model for</a></td>
+</tr>
+<tr>
+<td>An invalid item in a <code>many=True</code> list</td>
+<td><code>ModelRetry</code> with the errors keyed under the list's argument, then the item's index — see <a href="#a-list-as-input">A list as input</a></td>
+</tr>
+<tr>
+<td>An argument sent beside a <code>many=True</code> list</td>
+<td><code>ModelRetry</code> naming it, whatever <code>unknown_arguments</code> says</td>
+</tr>
+<tr>
+<td>Non-integer <code>page</code> / <code>limit</code></td>
+<td><code>ModelRetry</code> — naming what is accepted</td>
+</tr>
+<tr>
+<td>An <code>ordering</code> sent to a list tool that advertises no sort at all</td>
+<td><code>ModelRetry</code> — saying the tool has none, rather than letting it fall through as an unknown key</td>
+</tr>
+<tr>
+<td>A <code>limit</code> over <code>max_page_size</code>, or a <code>page</code> past the last one</td>
+<td>Clamped, not refused — the envelope reports the <code>page</code> and <code>totalPages</code> actually served, so the clamp is visible rather than silent</td>
+</tr>
+<tr>
+<td>An <code>ordering</code> outside a <code>filter_set</code>'s <code>OrderingFilter</code> choices</td>
+<td><code>ModelRetry</code> — the FilterSet rejects it, which arrives as the <code>ValidationError</code> row above</td>
+</tr>
+<tr>
+<td>A FilterSet <code>param_map</code> target that isn't a real column</td>
+<td>Django's <code>FieldError</code> propagates — an author's error the model cannot correct by picking a different sort, and one that can't be checked at construction without a queryset</td>
+</tr>
+<tr>
+<td>Denied <code>permission_classes</code> (class-level <code>has_permission</code> <strong>or</strong> object-level <code>has_object_permission</code>)</td>
+<td><code>PermissionDenied</code> is raised and aborts the run — see the caveat below</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">A confirmation raised as <code>AdditionalInputRequired</code> is not a gate</p>
+<p>The retry for <code>AdditionalInputRequired</code> goes to the model, so the model can
+answer it: a spec that raises <code>AdditionalInputRequired("Confirm to
+proceed.", schema={"confirmed": ...})</code> gets its first call back as a retry,
+and the model may re-send the same call with <code>confirmed=true</code> and run the
+mutation. No person is asked at any point.</p>
+<p>Treat that confirmation as a prompt for missing input, not as a security
+boundary. An operation that needs a human decision has to be gated by an
+approval mechanism outside the spec: pydantic-ai's deferred-tool approval,
+or this package's <code>ToolGuard</code>. <code>ToolGuard</code>
+is <strong>off by default</strong>, and a tool named in its <code>exempt</code> list stays ungated
+even when it is also in <code>require_approval</code>. Every tool built from a mutating
+spec carries <code>readOnlyHint: False</code> in its <code>annotations</code> metadata (only a
+<code>SelectorSpec</code> reads <code>True</code>), so an approval policy keyed on that annotation
+covers them.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">A tool-failure policy does <em>not</em> change the last row</p>
+<p>"Aborts the run" is what a plain <code>pydantic_ai.Agent</code> does: nothing catches
+the exception, so it propagates out of <code>agent.run</code>. A tool-failure policy
+normally converts an escaping exception into a failed-tool result and lets
+the run continue — but this package's exempts an authorization
+refusal from exactly that, by default, and <code>django-ag-ui</code> inherits the
+exemption. So a denial aborts the run under those hosts too.</p>
+<p>That exemption is deliberate and worth knowing rather than working around:
+converting a denial would leave the run alive with the model free to try the
+next row, and a refusal a model can tell apart from a missing row turns a
+permission boundary into an existence oracle over rows the acting user
+cannot read — inside one turn, spending no retry budget.</p>
+<p>The denial itself is unaffected on every host: nothing is dispatched and no
+data is rendered.</p>
+</div>
+<div class="admonition danger">
+<p class="admonition-title">Your own exception has to <em>be</em> a <code>ServiceError</code></p>
+<p>Every row above is matched by type. A service that raises its own error
+class gets none of this unless that class derives from drf-services'
+<code>ServiceError</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceError</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">BookingError</span><span class="p">(</span><span class="n">ServiceError</span><span class="p">):</span>  <span class="c1"># not Exception</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Something the booking rules refuse.&quot;&quot;&quot;</span>
+</span></code></pre></div>
+<p>Deriving from <code>Exception</code> is the ordinary thing to reach for, and the
+failure is silent in a way worth spelling out, because it is not confined to
+the agent. The same exception escapes the DRF view as a <strong>500 for what is
+plainly a 409</strong>, escapes MCP as a protocol error, and aborts an agent run
+rather than settling the call as failed. Nothing warns — not at
+declaration, not at mount, not at dispatch.</p>
+<p>Two separate projects made this exact mistake and neither test suite could
+see it, because every write test asserted a path that succeeds. If a project
+genuinely cannot change its exception's base class, <code>exception_map=</code> is the
+other door: it takes the type and returns what the model should be told.</p>
+</div>
+<h3 id="a-refused-affordance-names-its-code">A refused affordance names its code<a class="headerlink" href="#a-refused-affordance-names-its-code" title="Permanent link">&para;</a></h3>
+<p>drf-services raises <code>ActionUnavailable</code> when one of a spec's <code>Affordance</code>
+conditions is not met, with the affordance's <code>reason</code> as the message and its
+<code>code</code> as an attribute. <code>ToolFailed</code> carries a message and nothing else, and that
+message is also what a transport forwards as the tool result, so the toolset puts
+both into it — the reason first, then the code, labelled:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">Affordance</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">post_invoice</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Post an invoice to the current period.&quot;&quot;&quot;</span>
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>    <span class="o">...</span>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>
+</span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>
+</span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="n">post_invoice_spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-25-11"><a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>    <span class="n">service</span><span class="o">=</span><span class="n">post_invoice</span><span class="p">,</span>
+</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">InvoiceInputSerializer</span><span class="p">,</span>
+</span><span id="__span-25-13"><a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>    <span class="n">affordances</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-25-14"><a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a>        <span class="n">Affordance</span><span class="p">(</span>
+</span><span id="__span-25-15"><a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a>            <span class="n">code</span><span class="o">=</span><span class="s2">&quot;books_closed&quot;</span><span class="p">,</span>
+</span><span id="__span-25-16"><a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>            <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;The books are closed.&quot;</span><span class="p">,</span>
+</span><span id="__span-25-17"><a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a>            <span class="n">when</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Period</span><span class="o">.</span><span class="n">current</span><span class="p">()</span><span class="o">.</span><span class="n">is_open</span><span class="p">,</span>
+</span><span id="__span-25-18"><a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a>        <span class="p">),</span>
+</span><span id="__span-25-19"><a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a>    <span class="p">],</span>
+</span><span id="__span-25-20"><a id="__codelineno-25-20" name="__codelineno-25-20" href="#__codelineno-25-20"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>While the period is closed the tool is <a href="#an-operation-that-is-unavailable-right-now-is-left-out">left out of the
+catalog</a>, so a run reaches
+this refusal only through a listing that went stale: the step was offered the tool,
+and the period closed before the call arrived. A condition on the row is refused
+the same way, and it is never asked when the catalog is listed. The failed tool
+result's content, which is what the model reads and what a transport streams, is:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>The books are closed. (code: books_closed)
+</span></code></pre></div>
+<p>The code is the part that connects the refusal to what the model may already have
+read. A selector naming the same spec in its own <code>affordances</code>
+(<code>affordances={"post_invoice": post_invoice_spec}</code>) answers it on each row it
+renders, under <code>affordances.post_invoice</code>, as
+<code>{"available": false, "code": "books_closed", "reason": "The books are closed."}</code>
+— and the reason is a sentence a project may reword while the code stays put. The
+conventions block <code>get_instructions</code> returns tells the model a refusal may end
+this way. A <code>ServiceError</code> or <code>ServiceConflict</code> raised by hand has
+no code and keeps its message exactly as written.</p>
+<p><strong>The suffix is written for the model and for a person reading a tool card, not
+for a program.</strong> It is meant to read the same on every agent transport serving
+these specs, and its wording is not an interface. A program that branches on the
+code reads <code>.code</code> off the exception instead: the <code>ActionUnavailable</code> is the
+<code>ToolFailed</code>'s <code>__cause__</code>, and <code>translate_exception</code> receives it before the
+toolset's own handling runs. A handler returned from there, or registered in
+<code>exception_map</code> for <code>ActionUnavailable</code> or any class above it, replaces the
+sentence along with the rest of the default.</p>
+<h3 id="why-the-failed-rows-raise-instead-of-returning">Why the failed rows raise instead of returning<a class="headerlink" href="#why-the-failed-rows-raise-instead-of-returning" title="Permanent link">&para;</a></h3>
+<p>Every <code>ToolFailed</code> row above is raised rather than returned as a
+<code>{"error": "..."}</code> dict. The model reads the same sentence either way, so the
+choice is not about what it sees — it is about what everything <em>else</em> sees.
+Pydantic-AI marks an ordinary return <code>outcome="success"</code> on the resulting
+<code>ToolReturnPart</code>; only a raised <code>ToolFailed</code> marks it <code>"failed"</code>. Returning the
+dict would make a refusal indistinguishable from an answer to a log, an audit
+record, or a transport streaming the call to a browser, all of which would have
+nothing but the payload's wording to go on.</p>
+<p><code>ToolFailed</code> keeps the two properties a returned dict would have: it spends none
+of the tool's retry budget, and it does not end the run. It also prepends no
+correction instructions, which <code>ModelRetry</code> does — right for a bad argument, and
+wrong for a conflict the model cannot argue with.</p>
+<p>If a failure is one your project would rather express as an ordinary result,
+<code>exception_map</code> still takes a handler that <strong>returns</strong> a value, and a returned
+value is still marked <code>"success"</code>.</p>
+<p>Each <code>ModelRetry</code> row consumes one unit of the tool's retry budget: after
+<code>max_retries</code> failed attempts (default <code>1</code>, pydantic-ai's function-tool
+default) the run aborts with <code>UnexpectedModelBehavior</code>. Raise it for models
+that need more attempts to converge:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

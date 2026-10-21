@@ -1,0 +1,1737 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Pydantic-AI agents for Django - a settings-agnostic agent host, and specs as agent tools behind the [specs] extra.">
+      
+      
+      
+        <link rel="canonical" href="https://artui.github.io/django-spec-agents/integrations/">
+      
+      
+        <link rel="prev" href="../policy/">
+      
+      
+        <link rel="next" href="../reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Integrations - django-spec-agents</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#integrations" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="django-spec-agents" class="md-header__button md-logo" aria-label="django-spec-agents" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            django-spec-agents
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Integrations
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Artui/django-spec-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/django-spec-agents
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="django-spec-agents" class="md-nav__button md-logo" aria-label="django-spec-agents" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    django-spec-agents
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Artui/django-spec-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/django-spec-agents
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent host
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agent host
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#which-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which bridge?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#specs-specs-as-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [specs] — specs as tools
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[specs] — specs as tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#declaring-specs-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring specs once
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drf-mcp-an-mcp-registry-as-a-toolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [drf-mcp] — an MCP registry as a toolset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[drf-mcp] — an MCP registry as a toolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-tool-that-cannot-run-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A tool that cannot run now
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#harness-upstream-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [harness] — upstream capabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[harness] — upstream capabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#long-runs-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long runs: compaction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#progressive-disclosure-agent-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Progressive disclosure: agent skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#also-available" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Also available
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#name-collisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Name collisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/integrations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../spec-tools/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec tools
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spec tools
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shared spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/polymorphic-actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Polymorphic actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/agent-audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hide plumbing from the model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/background-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running from a worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-tools/reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#which-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which bridge?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#specs-specs-as-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [specs] — specs as tools
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[specs] — specs as tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#declaring-specs-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring specs once
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drf-mcp-an-mcp-registry-as-a-toolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [drf-mcp] — an MCP registry as a toolset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[drf-mcp] — an MCP registry as a toolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-tool-that-cannot-run-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A tool that cannot run now
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#harness-upstream-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [harness] — upstream capabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[harness] — upstream capabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#long-runs-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long runs: compaction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#progressive-disclosure-agent-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Progressive disclosure: agent skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#also-available" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Also available
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#name-collisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Name collisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/Artui/django-spec-agents/edit/main/docs/integrations.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="integrations">Integrations<a class="headerlink" href="#integrations" title="Permanent link">&para;</a></h1>
+<p>Three optional extras, all lazily imported — the base install stays slim and
+none of these dependencies is pulled unless configured.</p>
+<p>Two of them are <strong>bridges</strong>: <code>[specs]</code> and <code>[drf-mcp]</code> expose an existing
+DRF surface as agent tools, so you don't re-declare your API as <code>@tool</code>
+functions. Both make the agent act as the <strong>logged-in user</strong> — the request is
+carried into every call, so your existing permission checks apply exactly as they
+would over HTTP.</p>
+<p>The third, <code>[harness]</code>, is a different shape: it brings in ready-made
+<strong>capabilities</strong> (compaction, agent skills, step persistence and more) that plug
+into the same <code>AgentConfig.capabilities</code> seam this package's own audit and
+tool-guard capabilities use.</p>
+<h2 id="which-bridge">Which bridge?<a class="headerlink" href="#which-bridge" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>[specs]</code></th>
+<th><code>[drf-mcp]</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Path</td>
+<td><code>drf-services</code> spec → tool, in process</td>
+<td><code>drf-mcp-server</code> registry → toolset, in process</td>
+</tr>
+<tr>
+<td>Needs an MCP server</td>
+<td><strong>No</strong></td>
+<td>Yes (but no network hop)</td>
+</tr>
+<tr>
+<td>Use when</td>
+<td>The agent is the consumer, and you have specs</td>
+<td>You already run an MCP server and want the same tools in the agent</td>
+</tr>
+</tbody>
+</table>
+<p>If you have <code>ServiceSpec</code> / <code>SelectorSpec</code> objects and no MCP server, take
+<code>[specs]</code>. If you already run an MCP server for external clients, take
+<code>[drf-mcp]</code> and get the identical tool surface without standing up a second one.</p>
+<h2 id="specs-specs-as-tools"><code>[specs]</code> — specs as tools<a class="headerlink" href="#specs-specs-as-tools" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>specs<span class="o">]</span>
+</span></code></pre></div>
+<p><code>build_spec_capability(specs, request, exclude_names=…)</code> returns a
+<code>SpecCapability</code> over the specs, bound to <code>request.user</code>. Each call runs through
+drf-services' transport-neutral surface and enforces the spec's own
+<code>permission_classes</code>.</p>
+<p>Choosing the capability over a bare toolset is deliberate. The tool-set
+conventions (list-tool <code>page</code> / <code>limit</code> / <code>ordering</code>, and the error contract)
+live on <code>SpecToolset.get_instructions()</code>, so they reach the model either way and
+the capability <em>delegates</em> rather than re-emitting them. What wrapping buys is
+the capability seam itself —
+<code>defer_loading</code>, and a uniform place to compose spec tools alongside audit and
+guard.</p>
+<p>A tool's input schema asks for what a call needs. A selector parameter with no
+default, which the toolset does not fill, is listed in <code>required</code>, and a
+single-item service advertises the lookup its target is resolved through, so a
+tool changing one row names the <code>pk</code> that picks it. A call that leaves such an
+argument out is a <code>ModelRetry</code> naming it, <code>Missing required argument(s): `pk`.</code>,
+so the model supplies it on the next turn rather than the run ending on the
+selector's <code>TypeError</code>. The <code>[specs]</code> route does both, and
+the <code>[drf-mcp]</code> route asks for the same arguments and retries the same omission.
+The extra is floored where a parameter a <code>kwargs=</code> provider
+declines, and the model left out, is retried the same way rather than reaching
+the selector, and where a selector parameter the toolset takes out of every
+call, a list selector's <code>page</code> or <code>limit</code> or a name a <code>QueryParam</code> also claims,
+makes <code>build_spec_capability</code> raise <code>ImproperlyConfigured</code> rather than
+advertising an argument whose value never arrives.</p>
+<h3 id="declaring-specs-once">Declaring specs once<a class="headerlink" href="#declaring-specs-once" title="Permanent link">&para;</a></h3>
+<p><code>specs</code> takes either a <code>name -&gt; spec</code> mapping or a <strong>spec registry</strong> —
+drf-services 0.27's <code>SpecRegistry</code>, the single declaration site for a project
+exposing the same specs over more than one transport:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.integrations.build_spec_capability</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_spec_capability</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">build_spec_capability</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The registry is matched <strong>structurally</strong>, through a <code>SpecSource</code> Protocol
+declaring only <code>specs() -&gt; dict</code>. This package names no drf-services type and
+depends on <code>pydantic-ai-slim</code> alone; drf-services arrives only with the extra.</p>
+<p>If you are writing a transport, normalise with <code>resolve_spec_mapping()</code> before
+you touch the argument. Iterating a registry yields <code>RegisteredSpec</code> <strong>records,
+not names</strong> — so a transport that reserves tool names by iterating the raw
+argument fills its collision set with dataclasses and silently stops detecting
+duplicates:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.integrations.resolve_spec_mapping</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_spec_mapping</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">specs</span> <span class="o">=</span> <span class="n">resolve_spec_mapping</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>  <span class="c1"># mapping or registry -&gt; mapping</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">seen</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">specs</span><span class="p">)</span>  <span class="c1"># names, as intended</span>
+</span></code></pre></div>
+<h2 id="drf-mcp-an-mcp-registry-as-a-toolset"><code>[drf-mcp]</code> — an MCP registry as a toolset<a class="headerlink" href="#drf-mcp-an-mcp-registry-as-a-toolset" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>drf-mcp<span class="o">]</span>
+</span></code></pre></div>
+<p><code>DRFMCPToolset</code> bridges a <code>drf-mcp-server</code> registry through drf-mcp's public
+in-process surface (<code>list_tools</code> / <code>acall_tool</code>), so its validation and
+permission checks apply as they would over HTTP — without the network hop and
+without reaching into handler internals.</p>
+<p>Tool schemas come from drf-mcp's own <code>tools/list</code> rather than being re-derived
+locally, so the bridge advertises the <strong>same</strong> merged <code>inputSchema</code> the HTTP
+transport would — including a selector tool's filter / ordering / pagination
+arguments and its <code>additionalProperties</code> policy, not just the input serializer's
+fields.</p>
+<p>That schema asks for what a call needs. A selector parameter with no default,
+which the server does not fill, is listed in <code>required</code>, so <code>get_row(*, pk)</code>
+requires <code>pk</code> rather than calling it optional. A service tool also advertises
+the target lookup its row is resolved through, its <code>collection_selector_spec</code>
+when it declares one and its <code>instance_selector_spec</code> otherwise, so a tool
+changing one row names the <code>pk</code> that picks it. A <code>many=True</code> service reads no
+target and advertises no lookup. <code>[specs]</code>
+builds its schemas the same way, so one
+spec asks a model for the same arguments by either route. The extra is floored
+where drf-mcp refuses at registration a selector parameter it takes out of every
+call, as <code>[specs]</code> refuses it when the toolset is built, so one spec is
+served by both routes or refused by both.</p>
+<h3 id="a-tool-that-cannot-run-now">A tool that cannot run now<a class="headerlink" href="#a-tool-that-cannot-run-now" title="Permanent link">&para;</a></h3>
+<p>A service's <code>affordances</code> can say when the operation is possible at all: a
+condition written as a callable reads only the user and the request, never the
+call's arguments, so while it is unmet every call is refused. drf-mcp leaves
+such a tool out of <code>tools/list</code>, and whether one is unmet can change mid-run.
+So the bridge lists definitions <strong>once</strong> per request, every tool the user may
+see included, and on <strong>every step</strong>:</p>
+<ul>
+<li>offers only the tools drf-mcp would list right now, asking it through
+  <code>MCPServer.aunavailable_tools</code>, so a tool that becomes
+  available mid-run is offered from the next step without listing again;</li>
+<li>names each tool it left out in the toolset's instructions, with the reason
+  its condition gives, so a model asked for one says why rather than guessing
+  or denying the operation exists:</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  - `close_books`: The books are closed.
+</span></code></pre></div>
+<p>That is word for word what <code>[specs]</code> says for the same spec, so the model
+is taught one sentence whichever way a spec is exposed. A server declaring no
+such condition adds nothing to the instructions and no thread hop per step.
+Nothing here is an authorization decision: the call enforces every condition,
+so a tool whose condition flips between the step offering it and the call is
+refused with its code, as below.</p>
+<h3 id="error-semantics">Error semantics<a class="headerlink" href="#error-semantics" title="Permanent link">&para;</a></h3>
+<p>The bridge follows MCP's protocol-vs-tool boundary, which decides whether the
+model gets to recover:</p>
+<ul>
+<li>a fault in the request the model produced → <code>ModelRetry</code>, so the model retries
+  with the field errors fixed, or with a real name (the retry lists the tools
+  this toolset advertises), instead of the run dying. drf-mcp answers arguments
+  it refuses with a tool-level <code>validation_error</code> result, and an unknown tool
+  name on JSON-RPC <code>-32602</code>; the bridge retries both. The retry is drf-mcp's
+  message, then its field detail as JSON, unless the message already names
+  every field in the detail, nested ones included, in which case the detail is
+  left off rather than read twice. A detail is sent whole or not at all, so
+  <code>Invalid arguments: {"a": ["A valid integer is required."]}</code> keeps it, since
+  that message names nothing. Refused arguments include one a selector
+  requires that the call left out, which the model reads as
+  <code>Missing required argument(s): `pk`.</code>, word for word what <code>[specs]</code>
+  raises for the same call. They also include a read-shaping <code>QueryParam</code> value (a
+  <code>fields</code> selection, say) the output serializer refuses while rendering, which
+  drf-mcp answers as a <code>validation_error</code> naming the argument and quoting
+  the serializer's reason; on a paged tool the likeliest one is a selection
+  written against the page envelope rather than one item;</li>
+<li>a tool-level <code>input_required</code> result (a service asking for more input, which
+  an in-process caller cannot be asked for mid-call) → <code>ModelRetry</code> naming the
+  arguments to add on the next call;</li>
+<li>every other tool-level failure (<code>service_error</code>, <code>not_found</code>, a timeout, an
+  oversized result) → <code>ToolFailed</code>, so the model reads the sentence and adapts,
+  no retry budget is spent, and the call is recorded <code>outcome="failed"</code> for
+  anything streaming the run;</li>
+<li>genuine protocol faults (auth, rate limits, an internal error) → a hard
+  <code>RuntimeError</code> that aborts the run: nothing the model can rewrite its way out
+  of.</li>
+</ul>
+<p>A refusal keeps what names it. <code>ToolFailed</code> carries a single string, so when
+drf-mcp serves an affordance refusal's <code>code</code>, or the chain step
+that failed, it rides as a suffix on the sentence:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>The books are closed. (code: books_closed)
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>The books are closed. (code: books_closed, step: void)
+</span></code></pre></div>
+<p>The first line is word for word what <code>[specs]</code> produces for the same
+refusal raised in process, so a spec reads the same to the model whichever way
+it is exposed, and the code matches the one a row's <code>affordances</code> answer
+advertised. The suffix is written for the model and for a person reading the
+tool call; a program that needs the code reads it from drf-mcp's result, or on
+the <code>[specs]</code> route off the exception through <code>translate_exception</code>, rather
+than parsing it out of the sentence.</p>
+<p>Bridged tools also carry destructiveness into the <a href="../policy/">tool guard</a>: the
+bridge maps each tool's <code>readOnlyHint</code> annotation onto <code>DESTRUCTIVE_METADATA_KEY</code>.</p>
+<p>A spec's own confirmation (<code>AdditionalInputRequired</code>) is the <code>input_required</code>
+retry above, which the model can answer itself, on this route and on
+<code>[specs]</code> alike. It is not an approval gate: see
+<a href="../policy/#what-is-gated-and-what-is-not">what is gated, and what is not</a>.</p>
+<h2 id="harness-upstream-capabilities"><code>[harness]</code> — upstream capabilities<a class="headerlink" href="#harness-upstream-capabilities" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>harness<span class="o">]</span>
+</span></code></pre></div>
+<p>The other two extras bridge <em>your</em> API into the agent. This one is different: it
+pulls in <a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>,
+a library of ready-made <strong>capabilities</strong> — the same seam this package's own audit
+and tool-guard capabilities use. Nothing here wraps or re-implements them; you
+construct one and hand it to <code>AgentConfig</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindow</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">)])</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">build_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+</span></code></pre></div>
+<p>That is the whole integration. <code>capabilities</code> takes live instances (never dotted
+paths), so a harness capability, a first-party one, and your own all compose the
+same way, and pydantic-ai orders them by their own <code>get_ordering()</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Version-sensitive</p>
+<p><code>pydantic-ai-harness</code> is 0.x and its minors may break, the <code>StepStore</code>
+protocol among them. Even so, the <code>[harness]</code>
+extra declares a <strong>floor and no upper bound</strong> (the number is in
+<code>pyproject.toml</code>). A one-minor ceiling over an upstream that releases this
+often made the package unresolvable on every harness release, whether or
+not anything broke. Three checks stand in for it instead:</p>
+<ul>
+<li><strong>The lock</strong> pins the harness and pydantic-ai every CI job runs against,
+  and is moved to the newest deliberately rather than left to drift.</li>
+<li><strong>The <code>lowest declared versions</code> job</strong> runs the suite on every pull
+  request against the oldest harness the extra allows, so the floor stays
+  true.</li>
+<li><strong>The weekly <code>upstream drift</code> run</strong> ignores the lock, resolves the newest
+  harness and pydantic-ai the extras allow, and runs the suite, so a
+  breaking release is found by a scheduled job rather than by you.</li>
+</ul>
+<p>Recent harness releases pin <code>pydantic-ai-slim</code> to one exact release, so
+with <code>[harness]</code> installed the harness version you resolve also decides
+your pydantic-ai version.</p>
+</div>
+<h3 id="long-runs-compaction">Long runs: compaction<a class="headerlink" href="#long-runs-compaction" title="Permanent link">&para;</a></h3>
+<p>A tool-heavy run grows its message history until it crowds the context window.
+The <code>compaction</code> module trims it, and the choice is mostly about cost:</p>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>Cost</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SlidingWindow(max_messages=80, keep_messages=40)</code></td>
+<td>free</td>
+<td>Drops the oldest messages once a threshold is crossed, preserving tool-call / tool-return pairs. No model calls.</td>
+</tr>
+<tr>
+<td><code>ClearToolResults(max_messages=60, keep_pairs=3)</code></td>
+<td>free</td>
+<td>Keeps the conversation shape but blanks old tool <em>results</em>, which are usually the bulk of the tokens.</td>
+</tr>
+<tr>
+<td><code>SummarizingCompaction(max_messages=60, keep_messages=20)</code></td>
+<td><strong>a model call</strong></td>
+<td>Replaces the trimmed span with an LLM-written summary, so older context survives in compressed form.</td>
+</tr>
+<tr>
+<td><code>TieredCompaction(tiers=[...], target_tokens=…)</code></td>
+<td>varies</td>
+<td>Applies cheaper strategies first, escalating only if still over target.</td>
+</tr>
+</tbody>
+</table>
+<p>Start with <code>SlidingWindow</code> — it is free and transparent. Reach for
+<code>SummarizingCompaction</code> only when losing the old turns outright actually hurts,
+since it spends a model call on every compaction.</p>
+<p>Trimming happens inside <code>before_model_request</code> and is deliberately invisible to
+the rest of the run: <strong>nothing is emitted when a compaction fires</strong>. A transport
+that wants to tell the user "earlier turns were condensed" has to observe it
+itself — <code>CompactionStrategy</code> is a one-method protocol
+(<code>compact(messages, ctx) -&gt; messages</code>), so a thin wrapper that compares its input
+to its output is the seam for that.</p>
+<h3 id="progressive-disclosure-agent-skills">Progressive disclosure: agent skills<a class="headerlink" href="#progressive-disclosure-agent-skills" title="Permanent link">&para;</a></h3>
+<p>A <em>skill</em> is a folder with a <code>SKILL.md</code> — a name, a description, and a body of
+instructions. <code>Skills</code> discovers them and exposes each as a <strong>deferred</strong>
+capability: the model sees only the name and description up front, and the body
+loads into context if it selects that skill. A dozen skills therefore cost a
+dozen one-line descriptions, not a dozen instruction blocks.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">Skills</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">Skills</span><span class="p">(</span><span class="s2">&quot;/srv/app/skills&quot;</span><span class="p">)],</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>directories</code> takes one path or several. Discovery scans <em>immediate</em> child
+directories for a <code>SKILL.md</code>, so <code>/srv/app/skills/summarise/SKILL.md</code> registers a
+skill named <code>summarise</code> (the frontmatter <code>name</code> wins over the directory name when
+both are present).</p>
+<p><code>include</code> / <code>exclude</code> select by exact skill name — and are <strong>validated against
+what was actually discovered</strong>, so <code>exclude={"draft-only"}</code> raises <code>ValueError</code>
+when no such skill exists rather than silently excluding nothing. That is the
+behaviour you want (a typo'd name fails loudly), but it does mean a selection
+list and a skills directory have to be kept in step.</p>
+<div class="admonition note">
+<p class="admonition-title">Instructions only, in v1</p>
+<p>Upstream loads the <code>SKILL.md</code> body and nothing else — bundled scripts and
+resources are deferred to a future sandbox integration. A skill that assumes
+it can execute its own files will not work yet.</p>
+</div>
+<p>Each skill becomes one capability whose <code>id</code> is the skill name, which is what a
+client needs to show "using skill X". Enumerate them with <code>skills.apply(visitor)</code>.</p>
+<h3 id="also-available">Also available<a class="headerlink" href="#also-available" title="Permanent link">&para;</a></h3>
+<p><code>step_persistence</code> (used by <a href="../storage/"><code>DefaultStepStore</code></a>), <code>subagents</code>,
+<code>code_mode</code>, <code>overflowing_tool_output</code>, <code>guardrails</code>, <code>filesystem</code>, <code>shell</code> and
+<code>ManagedPrompt</code> all compose the same way. None of them need support from this
+package — if it is a pydantic-ai capability, <code>capabilities=[...]</code> takes it.</p>
+<h2 id="name-collisions">Name collisions<a class="headerlink" href="#name-collisions" title="Permanent link">&para;</a></h2>
+<p>Both bridges take <code>exclude_names</code>, and precedence is fixed: the <code>@tool</code> registry
+wins, then drf-mcp, then spec tools. A duplicate that slipped through would make
+pydantic-ai raise <code>UserError</code> at run time, so the excluded set is threaded
+through composition instead.</p>
+<p>Full signatures in the <a href="../reference/integrations/">integrations reference</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
