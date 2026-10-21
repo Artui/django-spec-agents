@@ -29,7 +29,6 @@ import inspect
 import json
 import logging
 import re
-import sys
 import time
 import warnings
 from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
@@ -37,7 +36,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from functools import cached_property, lru_cache
-from types import FrameType, MappingProxyType
+from types import MappingProxyType
 from typing import Any, TypeGuard, cast
 
 from asgiref.sync import sync_to_async
@@ -100,11 +99,11 @@ from rest_framework_services import (
     unmet_operation_affordance,
 )
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
+from rest_framework_services.types.query_param import QueryParam
+from rest_framework_services.types.url_kwarg import UrlKwarg
 from rest_framework_services.types.validate_channel_names import validate_channel_names
 
 from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
-from django_spec_agents.spec_tools.types.query_param import QueryParam
-from django_spec_agents.spec_tools.types.url_kwarg import UrlKwarg
 
 Spec = ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
 # Widening the parameter beats a ``from_registry`` constructor, which would have
@@ -464,9 +463,29 @@ class SpecToolset(AbstractToolset[Any]):
     validates as a JSON array and a model's arguments are always an object, so the
     list travels under the argument ``ServiceSpec.many_argument`` names --
     ``items`` unless the spec names another -- and nothing may be sent beside it
-    but this toolset's own ``query_params`` / ``url_kwargs``. An invalid item comes
+    but the spec's own ``reads``. An invalid item comes
     back as a ``ModelRetry`` keyed under that argument and then by the item's
     index. The result is the rendered list, advertised as an array.
+
+    **What a tool reads off HTTP is the spec's to declare**, in its ``reads``,
+    where every transport and every mount reads the same answer; the toolset
+    reads them off the spec's ``SpecRegistry`` entry. A
+    [`QueryParam`][rest_framework_services.types.query_param.QueryParam] read
+    seeds ``request.query_params`` over the off-HTTP path, the extensible
+    generalization of ``page`` / ``limit`` / ``ordering``: it is advertised as a
+    tool argument, then popped at call time and handed to
+    ``build_offline_context(query_params=...)``, never to the spec as an input,
+    so ``unknown_arguments`` never sees it. It is for whatever reads
+    ``request.query_params`` **directly** -- django-restql field selection, a
+    serializer branching on the query string -- with no toolset awareness of the
+    library. A [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]
+    read is a URL route capture (``parent_pk``), seeded into
+    ``build_offline_context(kwargs=...)`` and spread by drf-services into the
+    selector and target pools, authoritative over ``params``: for a scoping
+    ``spec.kwargs`` provider reading ``view.kwargs``, which ``params`` alone
+    cannot cover. A value the model may not choose is not a read at all but
+    ``tool_server_arguments``, which keeps it from the model rather than
+    defaulting it.
 
     For anything the keywords below do not cover,
     [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context] and
@@ -521,7 +540,7 @@ class SpecToolset(AbstractToolset[Any]):
             derived, conditional and current.
         get_user: Reads the acting identity off the run context. Defaults to
             ``ctx.deps.user`` (the
-            [`AgentDeps`][django_spec_agents.spec_tools.AgentDeps] shape).
+            [`AgentDeps`][django_spec_agents.AgentDeps] shape).
         get_progress: Reads the run's ``ProgressReporter`` sink off the run
             context, for a spec that reports progress. Defaults to
             ``ctx.deps.progress``, tolerating a deps type without the field.
@@ -537,56 +556,6 @@ class SpecToolset(AbstractToolset[Any]):
             ``PASSTHROUGH`` raises ``ImproperlyConfigured`` here: a tool call
             has no channel that carries an undeclared name through to the
             callable, and drf-services refuses it on every call.
-        query_params: **Deprecated**, with ``tool_query_params``, ``url_kwargs``
-            and ``tool_url_kwargs``: passing any of them warns with
-            ``DeprecationWarning``, and they will be removed in the next minor
-            release. Declare each read on the spec, as ``reads=[QueryParam(...)]``
-            or ``reads=[UrlKwarg(...)]``, and build the toolset from the
-            ``SpecRegistry``; for a value the model may not choose, use
-            ``tool_server_arguments``. Read-shaping
-            [`QueryParam`][rest_framework_services.types.query_param.QueryParam]
-            args that seed
-            ``request.query_params`` over the off-HTTP path — the extensible
-            generalization of ``page`` / ``limit`` / ``ordering``. Each is
-            advertised as a tool arg, then popped at call time and handed to
-            ``build_offline_context(query_params=…)``, never to the spec as an
-            input, so ``unknown_arguments`` never sees it. For whatever reads
-            ``request.query_params`` **directly** — django-restql field
-            selection, a serializer branching on the query string — with no
-            toolset awareness of the library.
-        tool_query_params: ``query_params`` for one tool only, keyed by tool
-            name. A per-tool param overrides a toolset-wide one of the same name.
-
-            Both are **this mount's** declarations, and both override by name
-            the ``QueryParam`` reads the spec declares, which its registry
-            entry's ``OfflineContract`` carries. Where a project runs more than
-            one agent transport, the spec's ``reads`` are the better home: the
-            operation needs the identical params whichever transport calls it,
-            and declaring them per mount is how two mounts come to disagree.
-        url_kwargs:
-            [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] args
-            — URL route captures (``parent_pk``) seeded into
-            ``build_offline_context(kwargs=…)`` and spread by drf-services into
-            the selector / target pools, authoritative over ``params``.
-            Advertised then popped like ``query_params``. Use them for a
-            URL-derived value **not** already in the tool schema: a scoping
-            ``spec.kwargs`` provider reading ``view.kwargs`` (which ``params``
-            alone cannot cover), or a closed-surface route capture. A selector
-            reading the value from its ``**extras: Unpack[TypedDict]`` needs none
-            — drf-services reflects the key and delivers it through ``params`` —
-            though a key may be both reflected and registered, in which case the
-            ``UrlKwarg`` schema wins and the authoritative ``kwargs=`` spread
-            still reaches the selector. A name cannot be both a ``QueryParam``
-            and a ``UrlKwarg`` on one tool: a value cannot route to two channels.
-        tool_url_kwargs: ``url_kwargs`` for one tool only, same override rule,
-            and the same preference for the spec's own ``UrlKwarg`` reads where
-            a registry carries the spec.
-
-            **An override by name is true of what this toolset advertises,
-            routes and defaults, and of nothing drf-services reads.** The
-            spec's own declaration still checks the call, so a mount loosening
-            a spec's ``required`` read to optional advertises an argument the
-            call is then refused without.
         tool_server_arguments: Values the server supplies for a tool's
             arguments, and names it keeps from the model, keyed by tool name --
             a django-service-specs
@@ -678,8 +647,8 @@ class SpecToolset(AbstractToolset[Any]):
             serializer or scoping provider reading ``request.META`` finds
             something plausible. The acting identity is the user, and passing an
             authenticated request authorizes nothing. Its **query string never
-            reaches the spec**: every call replaces it with the declared
-            ``query_params`` for that tool, empty declaration included, so the
+            reaches the spec**: every call replaces it with the tool's declared
+            ``QueryParam`` reads, empty declaration included, so the
             ambient endpoint's own query string cannot shape a result. Its
             headers and ``META`` are what it contributes; drf-services wraps a
             copy, so nothing a dispatch does is visible on it afterwards.
@@ -720,18 +689,16 @@ class SpecToolset(AbstractToolset[Any]):
     Raises:
         ImproperlyConfigured: ``unknown_arguments`` is neither ``REJECT`` nor
             ``IGNORE``, a spec has no ``permission_classes`` and
-            ``require_permissions`` is set, a ``QueryParam`` / ``UrlKwarg``
-            declared here on a ``many=True`` spec's tool shares the name its
-            list travels under (a spec's own read of that name is refused by
-            drf-services when the spec compiles), one is named after a
-            registered pool seed, a selector takes a parameter that a list
-            tool's ``page`` / ``limit`` or a ``QueryParam`` declared here takes
-            out of the call before it runs (a spec's own ``QueryParam`` read of
-            an input's name is not one: it is where the input comes from, and
-            is served as the input), ``tool_server_arguments`` names something
-            django-service-specs' ``check_server_arguments`` refuses for the
-            tool's spec or withholds a name a ``UrlKwarg`` declared here
-            requires, ``instructions=`` is given beside a
+            ``require_permissions`` is set (a spec's own read of the name a
+            ``many=True`` spec's list travels under is refused by drf-services
+            when the spec compiles), a spec reads a registered pool seed's
+            name, a selector takes a parameter that a list tool's ``page`` /
+            ``limit`` takes out of the call before it runs (a spec's own
+            ``QueryParam`` read of an input's name is not one: it is where the
+            input comes from, and is served as the input),
+            ``tool_server_arguments`` names something django-service-specs'
+            ``check_server_arguments`` refuses for the tool's spec,
+            ``instructions=`` is given beside a
             ``conventions=`` that changes a line of the block it replaces, or
             drf-services refuses a spec while the toolset compiles it, reads
             its input schema or projects its output -- a ``SelectorSpec`` with
@@ -742,10 +709,9 @@ class SpecToolset(AbstractToolset[Any]):
         TypeError: A value in ``specs`` is not a drf-services ``ServiceSpec``
             or ``SelectorSpec`` -- a django-service-specs spec in a registry,
             say. The message names the tool and the constructors to use.
-        ValueError: A tool name is outside ``^[a-zA-Z0-9_-]{1,64}$``, a per-tool
-            mapping, ``tool_server_arguments`` included, names a tool this
-            toolset does not expose, or one name is
-            registered on both parameter channels.
+        ValueError: A tool name is outside ``^[a-zA-Z0-9_-]{1,64}$``, or a
+            per-tool mapping, ``tool_server_arguments`` included, names a tool
+            this toolset does not expose.
     """
 
     def __init__(
@@ -758,10 +724,6 @@ class SpecToolset(AbstractToolset[Any]):
         get_user: UserExtractor | None = None,
         get_progress: ProgressExtractor | None = None,
         unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
-        query_params: Sequence[QueryParam] = (),
-        tool_query_params: Mapping[str, Sequence[QueryParam]] | None = None,
-        url_kwargs: Sequence[UrlKwarg] = (),
-        tool_url_kwargs: Mapping[str, Sequence[UrlKwarg]] | None = None,
         tool_server_arguments: Mapping[str, ServerArguments] | None = None,
         host: str | None = None,
         max_retries: int = 1,
@@ -793,14 +755,6 @@ class SpecToolset(AbstractToolset[Any]):
         contracts = _resolve_contracts(specs)
         _validate_tool_names(resolved)
         _validate_permissions(resolved, require=require_permissions)
-        _validate_query_params(query_params, tool_query_params, resolved)
-        _validate_url_kwargs(url_kwargs, tool_url_kwargs, resolved)
-        _warn_mount_channels(
-            query_params=query_params,
-            tool_query_params=tool_query_params,
-            url_kwargs=url_kwargs,
-            tool_url_kwargs=tool_url_kwargs,
-        )
         # Checked once, here, with the seeds every call is dispatched with, so a
         # binding that cannot mean what it says fails the mount naming its tool.
         # A copy, so a mapping changed after this line binds nothing unchecked.
@@ -843,48 +797,27 @@ class SpecToolset(AbstractToolset[Any]):
             name: overrides.get(name, max_result_bytes)
             for name in self._specs
         }
-        # Effective declarations per tool, built once — they are static.
-        #
-        # The entry's contract is the base and this mount's constructor
-        # declarations override it by name: the contract says what the operation
-        # needs off HTTP, which every agent transport needs identically, while
-        # the constructor is one mount's word about one deployment.
+        # Effective declarations per tool, built once — they are static. The
+        # entry's contract is the only source: it says what the operation needs
+        # off HTTP, which every agent transport needs identically.
         self._tool_url_kwargs: dict[str, tuple[UrlKwarg, ...]] = {
-            name: _merge_url_kwargs(
-                _merge_url_kwargs(contracts.get(name, _NO_CONTRACT).url_kwargs, url_kwargs),
-                (tool_url_kwargs or {}).get(name, ()),
-            )
-            for name in self._specs
+            name: tuple(contracts.get(name, _NO_CONTRACT).url_kwargs) for name in self._specs
         }
         # Less the spec's own ``QueryParam`` reads of a name the tool already
         # advertises as its input: those are where the input comes from, not a
         # second channel for it, so they stay in the call for drf-services to
         # route, as a toolset built off ``registry.specs()`` leaves them (see
-        # ``_parameter_reads``). A mount declaring the same name is still a
-        # channel, and still refused as a shadow below.
+        # ``_parameter_reads``).
         self._tool_query_params: dict[str, tuple[QueryParam, ...]] = {}
         for name, spec in self._specs.items():
             entry_reads = contracts.get(name, _NO_CONTRACT).query_params
             with _refusals_name_the_tool(name):
                 routed = _parameter_reads(
-                    spec,
-                    entry_reads,
-                    self._tool_url_kwargs[name],
-                    pool_seeds=pool_seeds,
-                    registry=json_schema_registry,
+                    spec, entry_reads, pool_seeds=pool_seeds, registry=json_schema_registry
                 )
-            self._tool_query_params[name] = _merge_query_params(
-                _merge_query_params(
-                    tuple(qp for qp in entry_reads if qp.name not in routed), query_params
-                ),
-                (tool_query_params or {}).get(name, ()),
-            )
-        _validate_no_param_channel_overlap(self._tool_query_params, self._tool_url_kwargs)
-        _validate_withheld_channels(self._tool_url_kwargs, self._tool_server_arguments)
-        # Checked on the **merged** tuples, not the raw declarations: a
-        # toolset-wide and a per-tool entry of the same name are an intentional
-        # override, which the shared check would read as a duplicate in the
-        # pre-merge concatenation. Post-merge is also what reaches the schema.
+            self._tool_query_params[name] = tuple(qp for qp in entry_reads if qp.name not in routed)
+        # The transport's own reserved names and this toolset's registered pool
+        # seeds, neither of which the spec knows when it is built.
         for name in self._specs:
             _validate_channel_declarations(
                 name, self._tool_query_params[name], "query_params", seeds=pool_seeds
@@ -892,22 +825,7 @@ class SpecToolset(AbstractToolset[Any]):
             _validate_channel_declarations(
                 name, self._tool_url_kwargs[name], "url_kwargs", seeds=pool_seeds
             )
-        # Also post-merge, for the same reason and one more: a contract's
-        # declarations exist only in the merged tuples.
-        _validate_many_argument_channels(
-            self._specs, self._tool_query_params, self._tool_url_kwargs
-        )
-        # The spec's side of the same collisions, so post-merge as well. An
-        # entry's ``QueryParam`` naming an input was left out of the merge
-        # above, so what is refused here is a mount's declaration, including
-        # one re-declaring such a read.
-        _validate_inputs_a_channel_takes(
-            self._specs,
-            self._tool_query_params,
-            self._tool_url_kwargs,
-            pool_seeds=pool_seeds,
-            registry=json_schema_registry,
-        )
+        _validate_inputs_pagination_takes(self._specs, registry=json_schema_registry)
         # Agent markings are pure in the serializer, like the schemas below, so
         # they are resolved once rather than paying a serializer instantiation
         # on every tool call.
@@ -1154,7 +1072,7 @@ class SpecToolset(AbstractToolset[Any]):
         """The conventions block, built once and kept.
 
         A pure function of six attributes ``__init__`` assigns and nothing
-        reassigns -- the specs, the merged query-param declarations, the
+        reassigns -- the specs, the query-param declarations, the
         projections, the schema registry, the page ceiling and the conventions,
         which are frozen -- so recomputing
         it is recomputing the same string. Pydantic-AI asks for instructions on **every model
@@ -1830,111 +1748,6 @@ def _validate_tool_names(specs: Mapping[str, Spec]) -> None:
         )
 
 
-def _validate_query_params(
-    query_params: Sequence[QueryParam],
-    tool_query_params: Mapping[str, Sequence[QueryParam]] | None,
-    specs: Mapping[str, Spec],
-) -> None:
-    """Fail fast on a per-tool key naming a tool this toolset does not expose.
-
-    Runs before the merge, unlike the name-level checks in
-    ``_validate_channel_declarations``: the merge indexes by tool name, so a
-    typo'd key would otherwise be dropped silently.
-    """
-    for tool_name in tool_query_params or {}:
-        if tool_name not in specs:
-            raise ValueError(
-                f"tool_query_params references unknown tool {tool_name!r}; "
-                f"known tools: {sorted(specs)}."
-            )
-
-
-def _merge_query_params(
-    toolset_wide: Sequence[QueryParam], per_tool: Sequence[QueryParam]
-) -> tuple[QueryParam, ...]:
-    """Toolset-wide params, then per-tool overriding by name (per-tool wins)."""
-    merged: dict[str, QueryParam] = {qp.name: qp for qp in toolset_wide}
-    for qp in per_tool:
-        merged[qp.name] = qp
-    return tuple(merged.values())
-
-
-def _validate_url_kwargs(
-    url_kwargs: Sequence[UrlKwarg],
-    tool_url_kwargs: Mapping[str, Sequence[UrlKwarg]] | None,
-    specs: Mapping[str, Spec],
-) -> None:
-    """Fail fast on a per-tool key naming a tool this toolset does not expose.
-
-    See ``_validate_query_params`` — name-level checks run post-merge.
-    """
-    for tool_name in tool_url_kwargs or {}:
-        if tool_name not in specs:
-            raise ValueError(
-                f"tool_url_kwargs references unknown tool {tool_name!r}; "
-                f"known tools: {sorted(specs)}."
-            )
-
-
-def _warn_mount_channels(**declarations: object) -> None:
-    """Warn that the mount-level channel declarations passed here are deprecated.
-
-    A ``QueryParam`` or ``UrlKwarg`` read is the spec's to declare, in its
-    ``reads``, where every transport and every mount reads the same answer; a
-    second declaration per mount is how two mounts came to disagree about one
-    operation. What the knobs were also used for, a value the model may not
-    choose, is ``tool_server_arguments``, which keeps it from the model rather
-    than defaulting it. Warned only for a knob actually given.
-
-    Attributed to the first caller outside this package, so a toolset built
-    through ``SpecCapability`` points at the line that built the capability
-    (``test_a_mount_level_channel_declaration_is_deprecated``), and named for
-    the class that caller built: the module of the last frame of this package
-    the walk passes says which. Two conjuncts in the walk, each held by a test
-    that fails without it: ``f_back`` by
-    ``test_a_walk_reaching_the_bottom_of_the_stack_inside_this_package_still_warns``,
-    and ``_in_this_package``'s trailing dot by
-    ``test_a_package_whose_name_only_begins_like_this_one_is_the_caller``.
-    """
-    used = [name for name, value in declarations.items() if value]
-    if not used:
-        return
-    level = 1
-    frame = sys._getframe(1)
-    entry = frame
-    while frame.f_back is not None and _in_this_package(frame):
-        entry = frame
-        level += 1
-        frame = frame.f_back
-    owner = _ENTRY_POINTS.get(entry.f_globals.get("__name__", ""), "SpecToolset")
-    knobs = " and ".join(f"{name}=" for name in used)
-    warnings.warn(
-        f"{owner}'s {knobs} {'is' if len(used) == 1 else 'are'} deprecated and will be "
-        "removed in the next minor release. Declare each read on the spec, as "
-        "reads=[QueryParam(...)] or reads=[UrlKwarg(...)], and build the toolset from the "
-        "SpecRegistry the spec is registered in; to supply an argument's value, or to keep "
-        "it from the model, pass tool_server_arguments.",
-        DeprecationWarning,
-        stacklevel=level + 1,
-    )
-
-
-# The public classes taking the deprecated knobs, by the module whose frame is
-# the last of this package's on the way out. ``SpecToolset``'s own module is
-# the default, so only the class that builds one is listed.
-_ENTRY_POINTS = {"django_spec_agents.spec_tools.spec_capability": "SpecCapability"}
-
-
-def _in_this_package(frame: FrameType) -> bool:
-    """Whether ``frame`` runs code of this package, by its module's dotted name.
-
-    The trailing dot on both sides, so the package itself and its modules match
-    and a package whose name merely begins the same way does not.
-    """
-    module: str = frame.f_globals.get("__name__", "")
-    return f"{module}.".startswith("django_spec_agents.spec_tools.")
-
-
 def _validate_server_arguments(
     tool_server_arguments: Mapping[str, ServerArguments] | None,
     specs: Mapping[str, Spec],
@@ -1965,43 +1778,9 @@ def _validate_server_arguments(
     return bindings
 
 
-def _validate_withheld_channels(
-    tool_url_kwargs: Mapping[str, Sequence[UrlKwarg]],
-    bindings: Mapping[str, ServerArguments],
-) -> None:
-    """Refuse a withheld name one of the tool's ``UrlKwarg`` declarations requires.
-
-    The kernel's check reads the spec, and refuses a withheld read the spec
-    requires; a ``UrlKwarg(required=True)`` declared at this mount is invisible
-    to it. Withheld, the name never reaches ``_pop_url_kwargs``, which would
-    then refuse every call as missing an argument the model may not send.
-
-    Two conjuncts, each held by a test that fails without it:
-    ``test_a_withheld_name_takes_nothing_the_model_sends`` withholds a
-    ``UrlKwarg`` that is not required, and
-    ``test_a_binding_fills_a_required_read_the_model_never_sends`` binds, rather
-    than withholds, a required one. The refusal itself is
-    ``test_a_withheld_name_this_mount_declares_required_is_refused``.
-    """
-    for tool_name, server in bindings.items():
-        demanded = sorted(
-            uk.name
-            for uk in tool_url_kwargs[tool_name]
-            if uk.required and uk.name in server.withheld
-        )
-        if demanded:
-            raise ImproperlyConfigured(
-                f"SpecToolset tool {tool_name!r}: tool_server_arguments withholds "
-                f"{', '.join(demanded)}, which a UrlKwarg declared for the tool requires, so "
-                "every call would be refused as missing it. Bind a value instead, or drop "
-                "required=True."
-            )
-
-
 def _parameter_reads(
     spec: Spec,
     entry_reads: Sequence[QueryParam],
-    url_kwargs: Sequence[UrlKwarg],
     *,
     pool_seeds: PoolSeeds,
     registry: JsonSchemaRegistry,
@@ -2020,59 +1799,19 @@ def _parameter_reads(
     ``test_a_spec_read_naming_a_filter_set_field_is_served_alike_from_both_routes``
     and ``test_a_spec_read_naming_a_lookup_parameter_builds_from_both_routes``).
 
-    Read off ``_caller_schema``, the reader the tool's schema and the shadow
-    check are built from, so the three agree on which names are the model's.
-    That includes the tool's ``url_kwargs``: one with a ``default`` fills its
-    parameter, which is then not an input and leaves the spec's read a channel
-    of its own
-    (``test_a_mount_url_kwarg_over_a_read_the_tool_does_not_take_is_refused_from_the_registry``).
-    A serializer field needs no case: drf-services refuses a service spec whose
+    Read off ``_caller_schema``, the reader the tool's schema is built from, so
+    the two agree on which names are the model's. The tool's ``UrlKwarg`` reads
+    are not passed: a ``UrlKwarg`` changes the schema only under its own name,
+    and drf-services refuses a spec declaring one name as both a ``UrlKwarg``
+    and a ``QueryParam``. A serializer field needs no case: drf-services refuses a service spec whose
     read names one when the spec compiles.
     """
     if not entry_reads:
         return frozenset()
-    advertised = _caller_schema(spec, url_kwargs, pool_seeds=pool_seeds, registry=registry).get(
+    advertised = _caller_schema(spec, pool_seeds=pool_seeds, registry=registry).get(
         "properties", {}
     )
     return frozenset(qp.name for qp in entry_reads if qp.name in advertised)
-
-
-def _validate_many_argument_channels(
-    specs: Mapping[str, Spec],
-    tool_query_params: Mapping[str, Sequence[QueryParam]],
-    tool_url_kwargs: Mapping[str, Sequence[UrlKwarg]],
-) -> None:
-    """Refuse a declared channel named after the argument a tool's list travels under.
-
-    A ``QueryParam`` or ``UrlKwarg`` is popped out of the model's arguments before
-    dispatch, so one sharing ``spec.many_argument`` would take the list with it:
-    every call would reach drf-services without its list and come back as a retry
-    saying the argument is required -- the argument the model had just sent.
-
-    Its own check rather than ``many_argument`` added to the ``reserved`` names
-    handed to drf-services' shared validator, which would refuse the same
-    declaration with a list of the dispatcher's pool seeds and no word about the
-    list. ``ImproperlyConfigured``, as that validator raises for a channel name the
-    transport owns, which this is for one tool.
-    """
-    for tool_name, spec in specs.items():
-        if not _takes_a_list(spec):
-            continue
-        argument: str = spec.many_argument
-        channels: tuple[tuple[str, Sequence[QueryParam] | Sequence[UrlKwarg]], ...] = (
-            ("QueryParam", tool_query_params[tool_name]),
-            ("UrlKwarg", tool_url_kwargs[tool_name]),
-        )
-        for kind, declarations in channels:
-            if any(declaration.name == argument for declaration in declarations):
-                raise ImproperlyConfigured(
-                    f"SpecToolset tool {tool_name!r} takes its list under the argument "
-                    f"{argument!r} (its spec declares many=True), and a {kind} named "
-                    f"{argument!r} is declared for it too. A {kind} is taken out of the "
-                    "arguments before dispatch, so the list would never reach the service. "
-                    "Rename the declaration, or name the list's argument with "
-                    "ServiceSpec(many_argument=...)."
-                )
 
 
 # The names ``_pop_pagination`` takes out of every list tool's call. Not
@@ -2081,88 +1820,27 @@ def _validate_many_argument_channels(
 _PAGINATION_ARGUMENTS = frozenset({"page", "limit"})
 
 
-def _validate_inputs_a_channel_takes(
+def _validate_inputs_pagination_takes(
     specs: Mapping[str, Spec],
-    tool_query_params: Mapping[str, Sequence[QueryParam]],
-    tool_url_kwargs: Mapping[str, Sequence[UrlKwarg]],
     *,
-    pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
 ) -> None:
-    """Refuse a spec input that one of this toolset's own arguments takes away.
+    """Refuse a list selector's parameter that the pagination arguments take away.
 
     The spec's side of the collision ``_validate_channel_declarations`` refuses
     from the channel's. That check keeps a ``QueryParam`` or ``UrlKwarg`` off
-    ``page`` / ``limit``; this one keeps the spec's inputs off them, and off a
-    ``QueryParam``'s name, because an input of such a name registers, is
-    advertised, and then never receives what the model sent. A required one
-    failed every call carrying it; a defaulted one ran on its default whatever
-    the call asked for. Two cases, each refused with a default or without:
+    ``page`` / ``limit``; this one keeps the spec's inputs off them, because an
+    input of such a name registers, is advertised, and then never receives what
+    the model sent: ``_pop_pagination`` takes both out of every call to serve
+    the page. A required one failed every call carrying it; a defaulted one ran
+    on its default whatever the call asked for. Only a list tool paginates, so a
+    retrieve selector's ``page`` reaches it, and the condition is held by
+    ``test_a_retrieve_selector_keeps_a_parameter_named_page``. Read off the
+    spec's own reflected input, which no provider's keys narrow.
 
-    - on a list tool, a selector parameter named ``page`` or ``limit``, which
-      ``_pop_pagination`` takes out of every call to serve the page. Only a list
-      tool paginates, so a retrieve selector's ``page`` reaches it, and the
-      condition is held by ``test_a_retrieve_selector_keeps_a_parameter_named_page``.
-      Read off the spec's own reflected input, ``own`` below, which no
-      provider's keys narrow;
-    - on any tool, a name one of the tool's ``QueryParam`` declarations shares,
-      whose value ``_pop_query_params`` routes to ``request.query_params``
-      instead. Read below. An entry's own ``QueryParam`` read of such a name is
-      not among the declarations by now: ``_parameter_reads`` left it in the
-      call, where drf-services hands it to the input, so a refusal here is
-      always of a declaration this mount made.
-
-    **A ``QueryParam`` is checked against what the tool advertises as the
-    call's own input**, ``_caller_schema``'s properties, the reader the tool's
-    schema is built from, so the refusal and the schema cannot disagree about
-    which names are the model's. That is a selector's parameters and
-    ``filter_set`` fields
-    (``test_a_filter_set_field_a_query_param_shadows_is_refused``), or a
-    service's input serializer fields and its target lookup's parameters, read
-    under the binding the call is dispatched with. Each part of that set is held by a test
-    that fails without it, because the refusal is one branch whichever part
-    answers:
-
-    - **the target lookup's parameters**, which a service tool advertises
-      beside its serializer's fields, so the model sends them: a required one
-      was answered as a missing argument of a call that carried it, which an
-      agent resent until it ran out of retries, and a defaulted one resolved
-      the row on its default
-      (``test_a_lookup_parameter_a_query_param_takes_is_refused``);
-    - **less what a ``kwargs=`` provider declares it fills**, its
-      ``provider_keys`` ``filled`` set, which owns the parameter whatever the
-      model sends. A provider reading ``request.query_params`` into the
-      parameter is the ordinary way to route a query parameter to a selector,
-      and nothing is lost there
-      (``test_a_query_param_a_typed_provider_hands_the_selector_is_served``);
-    - **keeping a key the provider may decline**, and every key of a provider
-      whose keys cannot be read: on a call where it does not fill the key, only
-      the model can, and the ``QueryParam`` has popped the model's value
-      (``test_a_query_param_on_a_key_a_provider_may_leave_to_the_model_is_refused``);
-    - **less the keys the server keeps from the call**, ``server_owned_keys``,
-      which the model is never offered and dispatch never hands the caller's
-      value for, so a ``QueryParam`` of that name takes nothing
-      (``test_a_query_param_named_after_a_key_the_server_keeps_is_not_refused``);
-    - **and a service's input serializer fields**, which validate the arguments
-      left once the ``QueryParam`` has taken its own, whatever a callable hides
-      under the name (``test_a_serializer_field_a_query_param_shadows_is_refused``).
-
-    The tool's ``UrlKwarg`` declarations are passed, so the read is the
-    schema's own, and no test holds them: a ``UrlKwarg`` fills only its own
-    name, and one sharing a ``QueryParam``'s name is refused by
-    ``_validate_no_param_channel_overlap`` before this runs. A registered pool
-    seed is in the same position, refused as a ``QueryParam`` name by
-    ``_validate_channel_declarations``.
-
-    **No name is exempted for an input serializer, as drf-mcp exempts one.**
-    drf-mcp lays a selector tool's validated input back over the stripped
-    arguments, so a field it declares under the name does reach the selector.
-    A ``SelectorSpec`` declares no ``input_serializer`` and this toolset takes
-    none for a selector tool, so nothing here lays a stripped value back.
-
-    A ``UrlKwarg`` sharing a parameter's name stays allowed: its value reaches
-    the selector through ``view.kwargs``, the documented way to route a capture
-    the selector also reads.
+    A ``QueryParam`` the spec reads under an input's name is not refused here or
+    anywhere: ``_parameter_reads`` leaves it in the call, where drf-services
+    hands it to the input and the query string both.
     """
     for tool_name, spec in specs.items():
         # The first read of each spec's input schema, so drf-services' refusals
@@ -2175,58 +1853,21 @@ def _validate_inputs_a_channel_takes(
                 spec, phase="input", registry=registry, argument_binding=_ARGUMENT_BINDING
             )
         own = frozenset(cast("dict[str, Any]", schema).get("properties", {}))
-        label = f"SpecToolset tool {tool_name!r}"
         pagination = sorted(own & _PAGINATION_ARGUMENTS) if _is_list_selector(spec) else []
         if pagination:
             raise ImproperlyConfigured(
-                f"{label}: the selector takes parameter(s) {pagination!r}, but `page` and "
+                f"SpecToolset tool {tool_name!r}: the selector takes parameter(s) "
+                f"{pagination!r}, but `page` and "
                 "`limit` are a list tool's pagination arguments, which the toolset takes "
                 "out of the call before the selector runs, so the parameter would never "
                 "receive the model's value. Rename the parameter."
             )
-        advertised = _caller_schema(
-            spec, tool_url_kwargs[tool_name], pool_seeds=pool_seeds, registry=registry
-        ).get("properties", {})
-        shadowed = sorted(
-            frozenset(advertised)
-            & {query_param.name for query_param in tool_query_params[tool_name]}
-        )
-        if shadowed:
-            raise ImproperlyConfigured(
-                f"{label}: {_inputs_taken_by(spec, shadowed, own)} that the tool also "
-                "declares as a QueryParam. A QueryParam's value is taken out of the call "
-                "and routed to request.query_params before the spec runs, so the input "
-                "would never receive the model's value. Fill the parameter from "
-                "request.query_params with a kwargs= provider whose TypedDict declares "
-                "it, or read the value there in the callable and drop the input, or drop "
-                "the QueryParam so the argument reaches the spec."
-            )
-
-
-def _inputs_taken_by(spec: Spec, names: list[str], own: frozenset[str]) -> str:
-    """Which callable takes each name a ``QueryParam`` shadows, for the refusal.
-
-    A selector tool's names are the selector's. A service tool's are its own
-    where its input schema lists them, its serializer's fields, and otherwise
-    its target lookup's, which ``_caller_schema`` merged in beside them. The
-    lookup's wording is held by ``test_a_lookup_parameter_a_query_param_takes_is_refused``.
-    """
-    if isinstance(spec, SelectorSpec):
-        return f"the selector takes input(s) {names!r}"
-    served = [name for name in names if name in own]
-    looked_up = [name for name in names if name not in own]
-    parts: list[str] = []
-    if served:
-        parts.append(f"the service takes input(s) {served!r}")
-    if looked_up:
-        parts.append(f"its target lookup takes input(s) {looked_up!r}")
-    return " and ".join(parts)
 
 
 def _validate_channel_declarations(
     tool_name: str, declarations: Sequence[Any], kind: str, *, seeds: PoolSeeds
 ) -> None:
-    """Apply drf-services' shared channel checks to one tool's merged tuple.
+    """Apply drf-services' shared channel checks to one tool's declarations.
 
     Those cover the dispatcher's pool seeds (``request`` / ``user`` / ``data`` /
     …, which a caller must not be able to route a value onto) and the
@@ -2247,37 +1888,6 @@ def _validate_channel_declarations(
         declarations=declarations,
         reserved=_RESERVED_PARAM_NAMES | seeds.names,
     )
-
-
-def _merge_url_kwargs(
-    toolset_wide: Sequence[UrlKwarg], per_tool: Sequence[UrlKwarg]
-) -> tuple[UrlKwarg, ...]:
-    """Toolset-wide kwargs, then per-tool overriding by name (per-tool wins)."""
-    merged: dict[str, UrlKwarg] = {uk.name: uk for uk in toolset_wide}
-    for uk in per_tool:
-        merged[uk.name] = uk
-    return tuple(merged.values())
-
-
-def _validate_no_param_channel_overlap(
-    tool_query_params: Mapping[str, Sequence[QueryParam]],
-    tool_url_kwargs: Mapping[str, Sequence[UrlKwarg]],
-) -> None:
-    """Fail fast when a name is both a QueryParam and a UrlKwarg on one tool.
-
-    Both channels pop the arg at call time, so a shared name would route to only
-    one of ``query_params=`` / ``kwargs=`` (whichever pops first) — an ambiguity
-    the caller must resolve, not the toolset.
-    """
-    for tool_name, query_params in tool_query_params.items():
-        clash = sorted(
-            {qp.name for qp in query_params} & {uk.name for uk in tool_url_kwargs[tool_name]}
-        )
-        if clash:
-            raise ValueError(
-                f"name(s) {clash} are registered as both a QueryParam and a UrlKwarg on "
-                f"tool {tool_name!r}; a value cannot route to two channels."
-            )
 
 
 async def _with_deadline(
@@ -3103,8 +2713,7 @@ def _takes_a_list(spec: Spec) -> TypeGuard[ServiceSpec[Any, Any, Any]]:
     The ``isinstance`` is not a formality -- a ``SelectorSpec`` has no ``many`` to
     read -- and is held by every toolset exposing a selector. ``spec.many`` is held
     by ``test_a_service_tool_reads_its_output_serializer_one_level_down`` on the
-    return schema and ``test_a_channel_may_share_a_name_no_list_travels_under`` on
-    the channel check.
+    return schema.
     """
     return isinstance(spec, ServiceSpec) and spec.many
 
@@ -3608,7 +3217,7 @@ def _refusal_message(exc: ActionUnavailable) -> str:
 
     **Written for the model and for a person reading a tool card, not for a
     program.** The format is a convention across the family's agent transports
-    rather than this toolset's own -- django-pydantic-agent's drf-mcp bridge is
+    rather than this toolset's own -- this package's drf-mcp bridge is
     meant to render the same refusal as the same text, so changing it here means
     changing it there. A program that branches on the code should read ``.code``
     off the exception instead, either in
