@@ -1,5 +1,5 @@
 """``AgentDeps`` — the default dependency carrier a
-[`SpecToolset`][rest_framework_pydantic_ai.SpecToolset] reads."""
+[`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] reads."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from django_service_specs import ProgressReporter
 @dataclass
 class AgentDeps:
     """Dependencies a Pydantic-AI agent passes to a
-    [`SpecToolset`][rest_framework_pydantic_ai.SpecToolset].
+    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset].
 
     Pass an instance as ``deps`` when running the agent:
 

@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+from typing import Any, cast
+
+from django.http import HttpRequest
+from pydantic_ai.messages import BinaryContent, ToolReturn
+from pydantic_ai.toolsets.function import FunctionToolset
+
+from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
+
+# Non-``text/*`` content types whose bytes are still UTF-8 text worth inlining.
+_TEXTUAL_MIMES = frozenset(
+    {
+        "application/json",
+        "application/xml",
+        "application/javascript",
+        "application/x-yaml",
+        "image/svg+xml",
+    }
+)
+
+
+def build_attachment_toolset(
+    store: AttachmentStore,
+    request: HttpRequest,
+    *,
+    inline: AttachmentInlineConfig | None = None,
+) -> FunctionToolset[None]:
+    """Build a per-request toolset exposing ``read_attachment`` over ``store``.
+
+    The request is captured in a closure so ``store.open`` stays owner-scoped to
+    the acting user: the model can only read files that user uploaded, never
+    another's by id. Attachments therefore travel the wire as lightweight refs
+    and the bytes are reached here, server-side, only when the model asks.
+
+    ``inline`` decides which binary types come back as file content and how large
+    a file may be before it is described rather than attached; ``None`` takes the
+    [`AttachmentInlineConfig`][django_spec_agents.AttachmentInlineConfig]
+    defaults. Read its docstring before widening either — inlined bytes go to the
+    provider on every model request left in the run.
+    """
+    resolved = AttachmentInlineConfig() if inline is None else inline
+
+    async def read_attachment(attachment_id: str) -> str | ToolReturn:
+        """Read a file the user attached to this conversation.
+
+        Pass the ``id`` from an attachment chip on the user's message. A textual
+        file comes back as its text. A binary file whose type can be read —
+        a PDF or an image — comes back as attached file content, so read it
+        directly rather than asking the user to send it again. A file that is
+        too large, or of a type that cannot be read, comes back as a short note
+        giving its name, type and size.
+
+        **Attached file content lasts for the turn that asked for it.** Whether
+        it survives into a later turn depends on how the caller stores history,
+        and under some transports it does not. So if an earlier turn read a file
+        and you no longer have its contents, call this again with the same id
+        rather than saying you cannot see it — the file is still there.
+        """
+        opened = await store.open(attachment_id, request=request)
+        if opened is None:
+            return f"No attachment with id {attachment_id!r} is available."
+        return _render(opened, resolved)
+
+    # ``read_attachment`` takes no ``RunContext``, and pydantic-ai's
+    # ``FunctionToolset`` overloads only type the ctx-taking form.
+    return FunctionToolset([cast("Any", read_attachment)], id="django-pydantic-agent-attachments")
+
+
+def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | ToolReturn:
+    """Decoded text, else the bytes as file content, else a one-line manifest."""
+    ref = opened.ref
+    # Read under a ``with`` so the streaming handle is always closed.
+    with opened.content as handle:
+        data = handle.read()
+    text = _as_text(data, ref.mime)
+    if text is not None:
+        # Capped on the same budget as the binary branch. What ``max_bytes``
+        # bounds is one request, and a decoded 9 MiB CSV reaches the provider
+        # and stays in the run's history exactly as 9 MiB of PDF would -- the
+        # decode changes the encoding, not the cost. Measured on the bytes read
+        # rather than the decoded string so one rule covers both branches and
+        # a multi-byte file is not judged by its character count.
+        if len(data) > inline.max_bytes:
+            return (
+                f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes), over the "
+                f"{inline.max_bytes}-byte limit for returning a file's contents; "
+                "it was described rather than read."
+            )
+        return text
+    if ref.mime in inline.media_types:
+        # Cap against the bytes in hand, not ``ref.size``: a store's declared
+        # size need not match what it hands back, and only bytes reach the
+        # provider.
+        if len(data) <= inline.max_bytes:
+            # The two halves have different lifetimes, and only this one is
+            # guaranteed to survive the turn. ``return_value`` is what the
+            # transport streams and a client transcript keeps; the
+            # ``BinaryContent`` beside it does not travel the event stream at
+            # all, so a transport seeding later turns from that transcript --
+            # which is the ordinary case, not an exotic one -- replays this
+            # sentence with nothing attached to it. Said plainly, because the
+            # observed failure is a model reading "its contents are attached"
+            # in a later turn, finding nothing, and answering *about* the
+            # document rather than calling the tool again.
+            return ToolReturn(
+                return_value=(
+                    f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes); "
+                    "its contents are attached to this tool result, for this "
+                    "turn. Call read_attachment again with the same id if a "
+                    "later turn needs them."
+                ),
+                content=[BinaryContent(data=data, media_type=ref.mime)],
+            )
+        return (
+            f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes), over the "
+            f"{inline.max_bytes}-byte limit for attaching a file's contents; "
+            "it was described rather than attached."
+        )
+    return (
+        f"[{ref.name}] is a {ref.mime or 'binary'} file ({ref.size} bytes); "
+        "its content is not text and was not inlined."
+    )
+
+
+def _as_text(content: bytes, mime: str) -> str | None:
+    """UTF-8 text for a textual content type, or ``None`` when binary/undecodable."""
+    if not (mime.startswith("text/") or mime in _TEXTUAL_MIMES):
+        return None
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+__all__ = ["build_attachment_toolset"]

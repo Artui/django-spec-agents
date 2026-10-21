@@ -58,7 +58,7 @@ repos:
         name: "forbid mypy-style '# type: ignore' (the package type-checks with ty)"
         entry: '(?<!`)# type:\s*ignore'
         language: pygrep
-        files: '^django_pydantic_agent/.*\.py$'
+        files: '^django_spec_agents/.*\.py$'
 
       - id: forbid-marker-glyphs
         name: "forbid emoji / marker glyphs in code, docs and changelogs"

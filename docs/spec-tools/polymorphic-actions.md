@@ -20,7 +20,7 @@ and `PolymorphicServiceSpec.specs` is a public `Mapping[str, ServiceSpec]`
 
 ```python
 from rest_framework_services import PolymorphicServiceSpec, ServiceSpec
-from rest_framework_pydantic_ai import SpecToolset
+from django_spec_agents.spec_tools import SpecToolset
 
 moderate = PolymorphicServiceSpec(
     discriminator=lambda *, data: data["op"],  # HTTP-only; unused here

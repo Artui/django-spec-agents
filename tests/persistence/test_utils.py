@@ -5,8 +5,8 @@ from django.contrib.sessions.backends.cache import SessionStore
 from django.http import HttpRequest
 from django.test import RequestFactory, override_settings
 
-from django_pydantic_agent.persistence.anonymous_operation_error import AnonymousOperationError
-from django_pydantic_agent.persistence.utils import (
+from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.utils import (
     derive_preview,
     derive_title,
     owner_id_for,

@@ -7,8 +7,8 @@ import pytest
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import default_storage
 
-from django_pydantic_agent.contrib.store.models import StoredAttachment, StoredConversation
-from django_pydantic_agent.contrib.store.utils import (
+from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
+from django_spec_agents.contrib.store.utils import (
     delete_attachments,
     hash_file,
     preview_attachment_deletion,

@@ -2,7 +2,7 @@
 
 The page used to name the three stores with no path at all, one line under an
 ``INSTALLED_APPS`` snippet, which reads as an invitation to
-``from django_pydantic_agent.contrib.store import DefaultConversationStore`` — a
+``from django_spec_agents.contrib.store import DefaultConversationStore`` — a
 spelling that raises. django-ag-ui's own configuration page had it right, which is
 why nobody noticed: the wrong page was the one a newcomer reaches first.
 
@@ -30,7 +30,7 @@ STORES = (
 
 # An import statement inside a fenced Python block, over one line or several.
 _IMPORT = re.compile(
-    r"^from\s+(django_pydantic_agent[\w.]*)\s+import\s+\(?\s*([\w,\s]+?)\s*\)?$",
+    r"^from\s+(django_spec_agents[\w.]*)\s+import\s+\(?\s*([\w,\s]+?)\s*\)?$",
     re.MULTILINE,
 )
 
@@ -83,7 +83,7 @@ def test_the_page_does_not_teach_the_package_level_import(store: str) -> None:
     the *statement* a reader would write: reaching the attribute through importlib
     raises ``AttributeError``, which is not what anybody sees.
     """
-    assert _documented_imports()[store] != "django_pydantic_agent.contrib.store"
+    assert _documented_imports()[store] != "django_spec_agents.contrib.store"
 
     with pytest.raises(ImportError):
-        exec(f"from django_pydantic_agent.contrib.store import {store}", {})
+        exec(f"from django_spec_agents.contrib.store import {store}", {})

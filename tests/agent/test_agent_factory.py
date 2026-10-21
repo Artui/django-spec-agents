@@ -3,11 +3,11 @@ from __future__ import annotations
 from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.models.test import TestModel
 
-from django_pydantic_agent.agent.agent_factory import build_agent
-from django_pydantic_agent.agent.types.agent_config import AgentConfig
-from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.types.agent_config import AgentConfig
+from django_spec_agents.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 
 
 class _CapturingLogger:
@@ -151,8 +151,8 @@ async def test_no_audit_logger_is_a_noop_default() -> None:
 
 
 def test_tool_guard_is_composed_when_enabled() -> None:
-    from django_pydantic_agent.policy.guard.tool_guard import ToolGuard
-    from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
+    from django_spec_agents.policy.guard.tool_guard import ToolGuard
+    from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 
     reg = ToolRegistry()
 
@@ -171,8 +171,8 @@ def test_tool_guard_is_composed_when_enabled() -> None:
 
 
 def test_tool_guard_is_absent_when_disabled() -> None:
-    from django_pydantic_agent.policy.guard.tool_guard import ToolGuard
-    from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
+    from django_spec_agents.policy.guard.tool_guard import ToolGuard
+    from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 
     agent = build_agent(
         ToolRegistry(),

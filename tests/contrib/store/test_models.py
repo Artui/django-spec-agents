@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django_pydantic_agent.contrib.store.models import (
+from django_spec_agents.contrib.store.models import (
     ConversationAttachment,
     StoredAttachment,
     StoredConversation,

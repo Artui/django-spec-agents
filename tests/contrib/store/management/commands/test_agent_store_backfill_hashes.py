@@ -8,7 +8,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.management import call_command
 
-from django_pydantic_agent.contrib.store.models import StoredAttachment
+from django_spec_agents.contrib.store.models import StoredAttachment
 
 pytestmark = pytest.mark.django_db
 

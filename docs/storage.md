@@ -48,8 +48,8 @@ Reading one has three outcomes:
 Tune the middle row with `AttachmentInlineConfig`:
 
 ```python
-from django_pydantic_agent import AttachmentInlineConfig
-from django_pydantic_agent.agent.attachment_toolset import build_attachment_toolset
+from django_spec_agents import AttachmentInlineConfig
+from django_spec_agents.agent.attachment_toolset import build_attachment_toolset
 
 toolset = build_attachment_toolset(
     store,
@@ -104,7 +104,7 @@ resumed there — under the *public* agent's model, tools and guard policy.
 `ScopedConversationStore` partitions them without a migration:
 
 ```python
-from django_pydantic_agent import ScopedConversationStore
+from django_spec_agents import ScopedConversationStore
 
 internal = ScopedConversationStore(store, scope="internal")
 public = ScopedConversationStore(store, scope="public")
@@ -135,7 +135,7 @@ get no migration. To use the ready-made ones:
 ```python
 INSTALLED_APPS = [
     ...,
-    "django_pydantic_agent.contrib.store",
+    "django_spec_agents.contrib.store",
 ]
 ```
 
@@ -145,19 +145,19 @@ Then `migrate`, and pass the matching store to your transport
 `DefaultMemoryStore`, and each is imported **from its own module**:
 
 ```python
-from django_pydantic_agent.contrib.store.default_attachment_store import (
+from django_spec_agents.contrib.store.default_attachment_store import (
     DefaultAttachmentStore,
 )
-from django_pydantic_agent.contrib.store.default_conversation_store import (
+from django_spec_agents.contrib.store.default_conversation_store import (
     DefaultConversationStore,
 )
-from django_pydantic_agent.contrib.store.default_memory_store import (
+from django_spec_agents.contrib.store.default_memory_store import (
     DefaultMemoryStore,
 )
-from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 ```
 
-The shorter `from django_pydantic_agent.contrib.store import DefaultConversationStore`
+The shorter `from django_spec_agents.contrib.store import DefaultConversationStore`
 is the natural guess and it does not exist. It cannot: this is a Django *app*, so
 `INSTALLED_APPS` imports the package itself, and a re-export there would import
 models before the app registry is ready — `AppRegistryNotReady` at startup, for
@@ -347,8 +347,8 @@ protocol**, which is upstream's and is not redeclared here. It needs the
 ```python
 from pydantic_ai_harness.memory import Memory
 
-from django_pydantic_agent import memory_namespace_for_user
-from django_pydantic_agent.contrib.store.default_memory_store import (
+from django_spec_agents import memory_namespace_for_user
+from django_spec_agents.contrib.store.default_memory_store import (
     DefaultMemoryStore,
 )
 

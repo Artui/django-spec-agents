@@ -10,8 +10,8 @@ import pytest
 from pydantic import BaseModel
 from pydantic_ai.ui import StateHandler
 
-from django_pydantic_agent.agent.types.agent_config import AgentConfig
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
+from django_spec_agents.agent.types.agent_config import AgentConfig
+from django_spec_agents.agent.types.agent_deps import AgentDeps
 
 
 class _Doc(BaseModel):

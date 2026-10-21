@@ -5,7 +5,7 @@ import pickle
 import pytest
 from pydantic_ai.exceptions import ToolFailed
 
-from django_pydantic_agent.policy.failure.utils import PolicyToolFailed
+from django_spec_agents.policy.failure.utils import PolicyToolFailed
 
 # What the policy raises is observed from real runs in
 # ``test_tool_failure_policy.py``. These hold the two claims the subclass's

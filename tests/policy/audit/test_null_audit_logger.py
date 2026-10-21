@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
-from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
+from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 
 
 def test_null_audit_logger_drops_events() -> None:

@@ -16,9 +16,9 @@ from django.core.files.storage import (
 )
 from django.test import override_settings
 
-from django_pydantic_agent.constants import ATTACHMENT_STORAGE_ALIAS
-from django_pydantic_agent.contrib.store.attachment_storage import attachment_storage
-from django_pydantic_agent.contrib.store.models import StoredAttachment
+from django_spec_agents.constants import ATTACHMENT_STORAGE_ALIAS
+from django_spec_agents.contrib.store.attachment_storage import attachment_storage
+from django_spec_agents.contrib.store.models import StoredAttachment
 
 
 def test_falls_back_to_the_projects_lazy_default() -> None:

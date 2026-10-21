@@ -26,7 +26,7 @@ test:
 
 lint:
 	uv run ruff check .
-	uv run ty check django_pydantic_agent
+	uv run ty check django_spec_agents
 
 lint-fix:
 	uv run ruff check --fix .
@@ -38,7 +38,7 @@ format-check:
 	uv run ruff format --check --diff .
 
 type-check:
-	uv run ty check django_pydantic_agent
+	uv run ty check django_spec_agents
 
 deps-bump:
 	uvx uv-upx upgrade run --profile with_pinned
@@ -58,10 +58,10 @@ release-bump:
 	@echo "Bumped to $(VERSION). Edit CHANGELOG.md to fill the new section,"
 	@echo "review with 'git diff', then run 'make release-publish'."
 
-# Release pipeline. Version lives in django_pydantic_agent/version.py
+# Release pipeline. Version lives in django_spec_agents/version.py
 # (pyproject pulls it in via [tool.hatch.version] dynamic).
-RELEASE_PACKAGE_NAME := django-pydantic-agent
-RELEASE_VERSION_FILES := django_pydantic_agent/version.py|^__version__[^=]*= *
+RELEASE_PACKAGE_NAME := django-spec-agents
+RELEASE_VERSION_FILES := django_spec_agents/version.py|^__version__[^=]*= *
 
 release-publish:
 	@PACKAGE_NAME='$(RELEASE_PACKAGE_NAME)' \

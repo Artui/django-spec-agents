@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from django.http import HttpRequest
 from django.test import RequestFactory
 
-from django_pydantic_agent.utils import (
+from django_spec_agents.utils import (
     aauthorize,
     auth_error_response,
     authorize,
@@ -146,7 +146,7 @@ def test_auth_error_response_maps_status_to_message() -> None:
 
 async def test_acall_get_user_awaits_a_native_async_hook() -> None:
     """An ``async def`` hook is awaited directly, not bridged off the loop."""
-    from django_pydantic_agent.utils import acall_get_user
+    from django_spec_agents.utils import acall_get_user
 
     sentinel = object()
 

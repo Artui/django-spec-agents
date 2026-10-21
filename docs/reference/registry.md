@@ -5,27 +5,27 @@ narrative.
 
 ## `ToolRegistry`
 
-::: django_pydantic_agent.ToolRegistry
+::: django_spec_agents.ToolRegistry
 
 ## `tool`
 
-::: django_pydantic_agent.tool
+::: django_spec_agents.tool
 
 ## `ToolSpec`
 
-::: django_pydantic_agent.ToolSpec
+::: django_spec_agents.ToolSpec
 
 ## `ToolBinding`
 
-::: django_pydantic_agent.ToolBinding
+::: django_spec_agents.ToolBinding
 
 ## `build_input_schema`
 
-::: django_pydantic_agent.build_input_schema
+::: django_spec_agents.build_input_schema
 
 ## `ToolCategory`
 
-::: django_pydantic_agent.ToolCategory
+::: django_spec_agents.ToolCategory
 
 ## Schema and metadata keys
 
@@ -34,7 +34,7 @@ schema. `DESTRUCTIVE_METADATA_KEY` is different: it rides pydantic-ai's tool
 metadata and is read **server-side** by the [tool guard](policy.md), which needs
 destructiveness for tools whose flag doesn't come from the `@tool` registry.
 
-::: django_pydantic_agent.constants
+::: django_spec_agents.constants
     options:
       members:
         - X_DESTRUCTIVE_KEY

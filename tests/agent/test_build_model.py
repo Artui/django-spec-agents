@@ -7,7 +7,7 @@ from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 
-from django_pydantic_agent.agent.build_model import build_model
+from django_spec_agents.agent.build_model import build_model
 
 # A module-level provider instance referenced by dotted path in one test.
 DOTTED_PROVIDER = AnthropicProvider(api_key="from-a-passed-instance")

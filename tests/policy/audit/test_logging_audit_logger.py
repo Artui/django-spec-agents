@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 
-from django_pydantic_agent.policy.audit.logging_audit_logger import LoggingAuditLogger
-from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.audit.logging_audit_logger import LoggingAuditLogger
+from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 
 
 def test_success_logs_at_info(caplog) -> None:  # noqa: ANN001

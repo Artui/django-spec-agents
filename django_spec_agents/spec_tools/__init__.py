@@ -1,12 +1,11 @@
 """Expose djangorestframework-services specs as a Pydantic-AI toolset."""
 
-from rest_framework_pydantic_ai.spec_capability import SpecCapability
-from rest_framework_pydantic_ai.spec_toolset import SpecToolset
-from rest_framework_pydantic_ai.types.agent_conventions import AgentConventions
-from rest_framework_pydantic_ai.types.agent_deps import AgentDeps
-from rest_framework_pydantic_ai.types.query_param import QueryParam
-from rest_framework_pydantic_ai.types.url_kwarg import UrlKwarg
-from rest_framework_pydantic_ai.version import __version__
+from django_spec_agents.spec_tools.spec_capability import SpecCapability
+from django_spec_agents.spec_tools.spec_toolset import SpecToolset
+from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
+from django_spec_agents.spec_tools.types.agent_deps import AgentDeps
+from django_spec_agents.spec_tools.types.query_param import QueryParam
+from django_spec_agents.spec_tools.types.url_kwarg import UrlKwarg
 
 __all__ = [
     "AgentConventions",
@@ -15,5 +14,4 @@ __all__ = [
     "SpecCapability",
     "SpecToolset",
     "UrlKwarg",
-    "__version__",
 ]

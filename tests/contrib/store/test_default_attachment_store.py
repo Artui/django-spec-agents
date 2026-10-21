@@ -8,8 +8,8 @@ import pytest
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile, UploadedFile
 
-from django_pydantic_agent.contrib.store.default_attachment_store import DefaultAttachmentStore
-from django_pydantic_agent.contrib.store.models import StoredAttachment
+from django_spec_agents.contrib.store.default_attachment_store import DefaultAttachmentStore
+from django_spec_agents.contrib.store.models import StoredAttachment
 
 pytestmark = pytest.mark.django_db
 

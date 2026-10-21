@@ -6,7 +6,7 @@ The whole package is one shape: a [`ToolRegistry`](tools.md) and an
 `AgentConfig` go in, a `pydantic_ai.Agent` comes out.
 
 ```python
-from django_pydantic_agent import AgentConfig, ToolRegistry, build_agent, tool
+from django_spec_agents import AgentConfig, ToolRegistry, build_agent, tool
 
 registry = ToolRegistry()
 
@@ -131,7 +131,7 @@ string or a `Model` instance.
 installed. The extras exist for exactly that:
 
 ```bash
-pip install django-pydantic-agent[anthropic]   # or [openai], [google]
+pip install django-spec-agents[anthropic]   # or [openai], [google]
 ```
 
 ## Replacing construction entirely

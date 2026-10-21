@@ -10,7 +10,7 @@ for AG-UI over SSE, `django-a2a` for agent-to-agent) owns its settings namespace
 builds an `AgentConfig`, and hands it down.
 
 ```bash
-pip install django-pydantic-agent
+pip install django-spec-agents
 ```
 
 ## Is this the package you want?

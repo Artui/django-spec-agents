@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from django.test import RequestFactory
 
-from django_pydantic_agent.persistence.null_conversation_store import NullConversationStore
-from django_pydantic_agent.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.persistence.types.conversation import Conversation
 
 
 async def test_null_store_is_a_noop() -> None:

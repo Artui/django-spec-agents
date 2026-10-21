@@ -12,12 +12,12 @@ from django.http import HttpRequest
 from django.test import RequestFactory
 from pydantic_ai.messages import BinaryContent, ToolReturn
 
-from django_pydantic_agent.agent.attachment_toolset import build_attachment_toolset
-from django_pydantic_agent.agent.types.attachment_inline_config import AttachmentInlineConfig
-from django_pydantic_agent.contrib.store.default_attachment_store import DefaultAttachmentStore
-from django_pydantic_agent.contrib.store.models import StoredAttachment
-from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
-from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.agent.attachment_toolset import build_attachment_toolset
+from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.contrib.store.default_attachment_store import DefaultAttachmentStore
+from django_spec_agents.contrib.store.models import StoredAttachment
+from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
+from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
 
 
 class _FakeStore:

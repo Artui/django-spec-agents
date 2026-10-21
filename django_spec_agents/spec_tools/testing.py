@@ -18,8 +18,8 @@ docs.
 
 ```python
 from pydantic_ai import Agent
-from rest_framework_pydantic_ai import AgentDeps, SpecToolset
-from rest_framework_pydantic_ai.testing import tool_calling_model
+from django_spec_agents.spec_tools import AgentDeps, SpecToolset
+from django_spec_agents.spec_tools.testing import tool_calling_model
 
 agent = Agent(tool_calling_model("list_widgets"), deps_type=AgentDeps, toolsets=[toolset])
 result = await agent.run("go", deps=AgentDeps(user=user))
@@ -122,7 +122,7 @@ def streaming_tool_calling_model(
     know which the transport under it chose.
 
     ```python
-    from rest_framework_pydantic_ai.testing import streaming_tool_calling_model
+    from django_spec_agents.spec_tools.testing import streaming_tool_calling_model
 
     # An AG-UI endpoint, driven end to end.
     agent = Agent(streaming_tool_calling_model("refund_order", {"reference": "ENC-1"}))

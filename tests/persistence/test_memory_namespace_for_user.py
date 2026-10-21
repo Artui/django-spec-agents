@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic_ai_harness.memory._store import validate_store_path
 
-from django_pydantic_agent.persistence.memory_namespace_for_user import memory_namespace_for_user
+from django_spec_agents.persistence.memory_namespace_for_user import memory_namespace_for_user
 
 
 def _user(pk: str) -> SimpleNamespace:

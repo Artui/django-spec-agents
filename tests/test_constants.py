@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django_pydantic_agent.constants import (
+from django_spec_agents.constants import (
     X_CATEGORY_KEY,
     X_CONFIRM_KEY,
     X_DESTRUCTIVE_KEY,

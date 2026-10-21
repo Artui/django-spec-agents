@@ -4,12 +4,12 @@ from typing import Any
 
 from pydantic_ai.tools import ToolDefinition
 
-from django_pydantic_agent.constants import DESTRUCTIVE_METADATA_KEY
-from django_pydantic_agent.policy.guard.tool_guard import ToolGuard
-from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
-from django_pydantic_agent.registry.build_input_schema import build_input_schema
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.constants import DESTRUCTIVE_METADATA_KEY
+from django_spec_agents.policy.guard.tool_guard import ToolGuard
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_spec_agents.registry.build_input_schema import build_input_schema
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 
 
 def _registry() -> ToolRegistry:
@@ -193,8 +193,9 @@ async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
     process is presented as a transport swap, so the gate has to survive it.
     """
     from rest_framework.permissions import AllowAny
-    from rest_framework_pydantic_ai import SpecToolset
     from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
+
+    from django_spec_agents.spec_tools import SpecToolset
 
     def create_order(user: Any) -> dict[str, Any]:
         """Create an order."""

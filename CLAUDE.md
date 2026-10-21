@@ -28,7 +28,7 @@ Provides:
 ### The one rule that defines this package
 
 **The core reads no Django settings.** There is no `DJANGO_*` lookup anywhere in
-`django_pydantic_agent`. Its public input is an `AgentConfig` dataclass; each
+`django_spec_agents`. Its public input is an `AgentConfig` dataclass; each
 transport owns its own settings namespace, builds an `AgentConfig`, and hands it
 down.
 
@@ -74,7 +74,7 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 | --- | --- |
 | `make init` | `uv sync --all-groups` + install pre-commit hooks |
 | `make test` | pytest with 100% line+branch coverage gate |
-| `make lint` | `ruff check .` + `ty check django_pydantic_agent` |
+| `make lint` | `ruff check .` + `ty check django_spec_agents` |
 | `make format` | `ruff format .` |
 | `make docs-serve` | live-reload mkdocs at `localhost:8000` |
 | `make docs-build` | `mkdocs build --strict` |
@@ -85,7 +85,7 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 
 1. **One exported class or function per file.** File name = `snake_case` of the symbol.
    `ToolRegistry` → `tool_registry.py`; `build_input_schema` → `build_input_schema.py`.
-   **Exception:** `django_pydantic_agent/constants.py` is the package's single home for
+   **Exception:** `django_spec_agents/constants.py` is the package's single home for
    enums and constant-like module-level values, and is the only file allowed to export
    multiple symbols. Django `models.py` is the other necessary exception — Django
    requires models to live there, as it requires each management command to be a
@@ -103,7 +103,7 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 7. **Always `from __future__ import annotations`** at the top of any file with type
    annotations. Python 3.10+, so no PEP 695 `type` statements.
 8. **Absolute imports only.** Imports are ordered stdlib → third-party → first-party
-   (`django_pydantic_agent`). Within each block, alphabetical.
+   (`django_spec_agents`). Within each block, alphabetical.
 9. **NEVER use relative imports.** `from . import x`, `from .foo import bar`, any dotted-
    relative form is forbidden everywhere in the package, including `__init__.py`.
 10. **Types and functionality live in separate sub-packages.** When a directory contains both
@@ -132,10 +132,10 @@ are fine — module-level **mutable** state is not.
 
 ## Tests
 
-- `make test` runs pytest with `--cov=django_pydantic_agent --cov-fail-under=100`
+- `make test` runs pytest with `--cov=django_spec_agents --cov-fail-under=100`
   (line + branch). Restructure rather than reach for `# pragma: no cover`.
 - Test layout mirrors the source tree under `tests/`.
-  `django_pydantic_agent/foo/bar.py` → `tests/foo/test_bar.py`.
+  `django_spec_agents/foo/bar.py` → `tests/foo/test_bar.py`.
 - `tests/conftest_settings.py` is the Django settings module pytest uses (set via
   `DJANGO_SETTINGS_MODULE` in `pyproject.toml`).
 - Async tests: `async def test_...` with pytest-asyncio (`asyncio_mode = "auto"`).
@@ -145,11 +145,11 @@ are fine — module-level **mutable** state is not.
 
 ## Lint and types
 
-- `make lint` runs `ruff check .` + `ty check django_pydantic_agent`. CI fails on either.
+- `make lint` runs `ruff check .` + `ty check django_spec_agents`. CI fails on either.
 - `ruff format` is the source of truth for layout.
 - Pre-commit runs `make lint-fix`, `make format`, `make type-check`. Commits must be clean
   before push — never `--no-verify`.
-- `ty` is scoped to `django_pydantic_agent/` only (not tests).
+- `ty` is scoped to `django_spec_agents/` only (not tests).
 
 **Four of these rules are enforced, not remembered.** `ruff` carries the
 future-annotations import (`isort.required-imports`, with `__init__.py` and

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
-from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
+from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
 
 
 def test_pairs_ref_with_bytes() -> None:

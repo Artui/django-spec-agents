@@ -5,7 +5,7 @@ copy drifts: two copies once validated the same declaration against different
 reserved-name sets, so ``UrlKwarg("user")`` was legal for one and rejected by
 the other.
 
-The import path here is preserved permanently — ``from rest_framework_pydantic_ai
+The import path here is preserved permanently — ``from django_spec_agents.spec_tools
 import UrlKwarg`` keeps working. New code may import from either location; they
 are the same class.
 """

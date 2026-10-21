@@ -4,7 +4,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory
 
-from django_pydantic_agent.persistence.null_attachment_store import NullAttachmentStore
+from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 
 
 async def test_open_returns_none() -> None:

@@ -8,40 +8,40 @@ See [Policy](../policy.md) for the narrative.
 
 ### `AuditLogger`
 
-::: django_pydantic_agent.AuditLogger
+::: django_spec_agents.AuditLogger
 
 ### `AuditEvent`
 
-::: django_pydantic_agent.AuditEvent
+::: django_spec_agents.AuditEvent
 
 ### `AuditCapability`
 
-::: django_pydantic_agent.AuditCapability
+::: django_spec_agents.AuditCapability
 
 ### `NullAuditLogger`
 
-::: django_pydantic_agent.NullAuditLogger
+::: django_spec_agents.NullAuditLogger
 
 ### `LoggingAuditLogger`
 
-::: django_pydantic_agent.LoggingAuditLogger
+::: django_spec_agents.LoggingAuditLogger
 
 ## Tool guard
 
 ### `ToolGuardConfig`
 
-::: django_pydantic_agent.ToolGuardConfig
+::: django_spec_agents.ToolGuardConfig
 
 ### `ToolGuard`
 
-::: django_pydantic_agent.ToolGuard
+::: django_spec_agents.ToolGuard
 
 ## Tool failure
 
 ### `ToolFailureConfig`
 
-::: django_pydantic_agent.ToolFailureConfig
+::: django_spec_agents.ToolFailureConfig
 
 ### `ToolFailurePolicy`
 
-::: django_pydantic_agent.ToolFailurePolicy
+::: django_spec_agents.ToolFailurePolicy

@@ -4,10 +4,10 @@ from django.contrib.sessions.backends.signed_cookies import SessionStore
 from django.http import HttpRequest
 from django.test import RequestFactory
 
-from django_pydantic_agent.persistence.django_session_conversation_store import (
+from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
-from django_pydantic_agent.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.conversation import Conversation
 
 
 def _request() -> HttpRequest:

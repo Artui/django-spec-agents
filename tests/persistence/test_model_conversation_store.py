@@ -5,9 +5,9 @@ from types import SimpleNamespace
 from django.http import HttpRequest
 from django.test import RequestFactory
 
-from django_pydantic_agent.persistence.model_conversation_store import ModelConversationStore
-from django_pydantic_agent.persistence.types.conversation import Conversation
-from django_pydantic_agent.persistence.types.conversation_meta import ConversationMeta
+from django_spec_agents.persistence.model_conversation_store import ModelConversationStore
+from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 
 
 def _authed_request(pk: str = "7") -> HttpRequest:

@@ -27,8 +27,8 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework_services import MARKING, SelectorSpec, ServiceSpec
 
-from rest_framework_pydantic_ai import AgentDeps, QueryParam, SpecCapability, SpecToolset
-from tests.testapp.models import Widget
+from django_spec_agents.spec_tools import AgentDeps, QueryParam, SpecCapability, SpecToolset
+from tests.spec_tools.testapp.models import Widget
 
 _BASE = (
     "The following tools call Django REST Framework services and selectors.\n"

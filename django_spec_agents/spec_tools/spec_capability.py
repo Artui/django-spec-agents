@@ -11,7 +11,7 @@ from django_service_specs import DEFAULT_POOL_SEEDS, PoolSeeds, ServerArguments,
 from pydantic_ai.capabilities import AbstractCapability
 from rest_framework_services import DEFAULT_JSON_SCHEMA_REGISTRY, JsonSchemaRegistry
 
-from rest_framework_pydantic_ai.spec_toolset import (
+from django_spec_agents.spec_tools.spec_toolset import (
     ExceptionHandler,
     HttpRequestExtractor,
     ProgressExtractor,
@@ -19,15 +19,15 @@ from rest_framework_pydantic_ai.spec_toolset import (
     SpecToolset,
     UserExtractor,
 )
-from rest_framework_pydantic_ai.types.agent_conventions import AgentConventions
-from rest_framework_pydantic_ai.types.query_param import QueryParam
-from rest_framework_pydantic_ai.types.url_kwarg import UrlKwarg
+from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
+from django_spec_agents.spec_tools.types.query_param import QueryParam
+from django_spec_agents.spec_tools.types.url_kwarg import UrlKwarg
 
 
 class SpecCapability(AbstractCapability[Any]):
     """A Pydantic-AI capability exposing drf-services specs as tools.
 
-    [`SpecToolset`][rest_framework_pydantic_ai.SpecToolset] is a first-class toolset you
+    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] is a first-class toolset you
     can attach directly (``Agent(toolsets=[SpecToolset(...)])``), and it already
     exposes the tools *and* teaches the model its conventions. This wraps one to
     add the two capability-only knobs, ``defer_loading`` and the
@@ -47,7 +47,7 @@ class SpecCapability(AbstractCapability[Any]):
         )
 
     or wrap an already-built toolset with
-    [`from_toolset`][rest_framework_pydantic_ai.SpecCapability.from_toolset]
+    [`from_toolset`][django_spec_agents.spec_tools.SpecCapability.from_toolset]
     (the compose path). Either way the exposed tool set and instructions are the
     toolset's.
 
@@ -55,7 +55,7 @@ class SpecCapability(AbstractCapability[Any]):
     That is a guarantee rather than a list, enforced name-by-name by the
     forwarding tests: a knob added to the toolset and forgotten here is not a
     missing feature but an *unreachable* one for every consumer composing through
-    a capability. See [`SpecToolset`][rest_framework_pydantic_ai.SpecToolset] for what
+    a capability. See [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] for what
     each does; the safety-relevant ones are ``require_permissions``,
     ``max_result_bytes``, ``max_page_size`` and ``dispatch_timeout``.
 
@@ -157,7 +157,7 @@ class SpecCapability(AbstractCapability[Any]):
         description: str | None = None,
     ) -> SpecCapability:
         """Wrap an already-built
-        [`SpecToolset`][rest_framework_pydantic_ai.SpecToolset] (the compose
+        [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] (the compose
         path).
 
         The capability adopts the toolset's ``id``, and its tools and

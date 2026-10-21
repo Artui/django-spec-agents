@@ -15,13 +15,13 @@ generated from the live source, nothing duplicated by hand.
 
 ## Public surface
 
-Everything below is importable from the top-level `django_pydantic_agent`
+Everything below is importable from the top-level `django_spec_agents`
 package. The two integration bridges are the exception: they live under
-`django_pydantic_agent.integrations` and are imported lazily, so they are not
+`django_spec_agents.integrations` and are imported lazily, so they are not
 re-exported at the root.
 
 ```python
-from django_pydantic_agent import (
+from django_spec_agents import (
     # agent
     AgentConfig,
     AgentFactoryFn,

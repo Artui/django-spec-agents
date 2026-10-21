@@ -14,10 +14,10 @@ from pydantic_ai import ModelRetry
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework_services import PolymorphicServiceSpec, SelectorSpec, ServiceSpec
 
-from rest_framework_pydantic_ai import QueryParam, SpecCapability, SpecToolset, UrlKwarg
-from tests.test_spec_toolset import ctx_for
-from tests.testapp.models import Widget
-from tests.testapp.serializers import AgentWidgetSerializer, WidgetSerializer
+from django_spec_agents.spec_tools import QueryParam, SpecCapability, SpecToolset, UrlKwarg
+from tests.spec_tools.test_spec_toolset import ctx_for
+from tests.spec_tools.testapp.models import Widget
+from tests.spec_tools.testapp.serializers import AgentWidgetSerializer, WidgetSerializer
 
 
 def list_widgets(user):

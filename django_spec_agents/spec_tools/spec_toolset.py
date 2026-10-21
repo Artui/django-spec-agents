@@ -102,9 +102,9 @@ from rest_framework_services import (
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
 from rest_framework_services.types.validate_channel_names import validate_channel_names
 
-from rest_framework_pydantic_ai.types.agent_conventions import AgentConventions
-from rest_framework_pydantic_ai.types.query_param import QueryParam
-from rest_framework_pydantic_ai.types.url_kwarg import UrlKwarg
+from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
+from django_spec_agents.spec_tools.types.query_param import QueryParam
+from django_spec_agents.spec_tools.types.url_kwarg import UrlKwarg
 
 Spec = ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
 # Widening the parameter beats a ``from_registry`` constructor, which would have
@@ -141,7 +141,7 @@ Raising anything else aborts the run, which is the right answer for a genuine
 bug.
 """
 
-logger = logging.getLogger("rest_framework_pydantic_ai")
+logger = logging.getLogger("django_spec_agents.spec_tools")
 """The package's one logger.
 
 A dispatch behind a DRF view leaves an access-log line; the same spec called by
@@ -188,7 +188,7 @@ def _usage_extra(ctx: RunContext[Any]) -> dict[str, Any]:
     ``Agent.run``, which can stop the run; a toolset can only refuse the next
     tool call, which is the wrong instrument and a second place for the limit to
     live. ``ctx.usage_limits`` is readable from an
-    [`enforce_result_bytes`][rest_framework_pydantic_ai.SpecToolset.enforce_result_bytes]
+    [`enforce_result_bytes`][django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes]
     override for a project that wants to taper its results as a run gets long.
     """
     usage = ctx.usage
@@ -469,8 +469,8 @@ class SpecToolset(AbstractToolset[Any]):
     index. The result is the rendered list, advertised as an array.
 
     For anything the keywords below do not cover,
-    [`build_context`][rest_framework_pydantic_ai.SpecToolset.build_context] and
-    [`translate_exception`][rest_framework_pydantic_ai.SpecToolset.translate_exception]
+    [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context] and
+    [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
     are overridable and both receive the live ``RunContext``, which is how
     per-run typed deps reach dispatch.
 
@@ -493,11 +493,11 @@ class SpecToolset(AbstractToolset[Any]):
             names come from it; everything else here is transport-specific, which
             the registry deliberately carries none of.
         id: Identifies this toolset, and keys a wrapping
-            [`SpecCapability`][rest_framework_pydantic_ai.SpecCapability]'s
+            [`SpecCapability`][django_spec_agents.spec_tools.SpecCapability]'s
             ``defer_loading`` catalog entry — so give each projection of one
             registry its own.
         instructions: Replaces the conventions block
-            [`get_instructions`][rest_framework_pydantic_ai.SpecToolset.get_instructions]
+            [`get_instructions`][django_spec_agents.spec_tools.SpecToolset.get_instructions]
             derives from the specs. ``None`` derives it. What it does **not**
             replace is the per-step list of operations that are unavailable right
             now, which is appended after it whenever an operation condition leaves
@@ -513,7 +513,7 @@ class SpecToolset(AbstractToolset[Any]):
             ``handle_field_description``, ``query_param_on_pages`` and
             ``missing_arguments`` -- apply with or without it.
         conventions: The wording the model is told, one line per field -- an
-            [`AgentConventions`][rest_framework_pydantic_ai.AgentConventions].
+            [`AgentConventions`][django_spec_agents.spec_tools.AgentConventions].
             ``None`` is ``AgentConventions()``, today's wording. A field changes
             what its line says and never whether it appears, which the toolset
             still decides per step; ``None`` on a field drops its line. Unlike
@@ -521,7 +521,7 @@ class SpecToolset(AbstractToolset[Any]):
             derived, conditional and current.
         get_user: Reads the acting identity off the run context. Defaults to
             ``ctx.deps.user`` (the
-            [`AgentDeps`][rest_framework_pydantic_ai.AgentDeps] shape).
+            [`AgentDeps`][django_spec_agents.spec_tools.AgentDeps] shape).
         get_progress: Reads the run's ``ProgressReporter`` sink off the run
             context, for a spec that reports progress. Defaults to
             ``ctx.deps.progress``, tolerating a deps type without the field.
@@ -1026,7 +1026,7 @@ class SpecToolset(AbstractToolset[Any]):
         declaring one are asked, so a toolset that declares none pays nothing,
         not even a thread hop. And the model can still ask about what it cannot
         see, because
-        [`get_instructions`][rest_framework_pydantic_ai.SpecToolset.get_instructions]
+        [`get_instructions`][django_spec_agents.spec_tools.SpecToolset.get_instructions]
         names every tool left out this way together with its reason, which is
         what it needs to tell the user why rather than guess.
 
@@ -1052,7 +1052,7 @@ class SpecToolset(AbstractToolset[Any]):
         reads can leave one step's catalog and its instructions disagreeing
         about one tool; the call's own enforcement is authoritative either way.
 
-        Override [`is_tool_listed`][rest_framework_pydantic_ai.SpecToolset.is_tool_listed]
+        Override [`is_tool_listed`][django_spec_agents.spec_tools.SpecToolset.is_tool_listed]
         when a deployment does want a narrower catalog.
         """
         unavailable = await self._unavailable_operations(ctx)
@@ -1246,7 +1246,7 @@ class SpecToolset(AbstractToolset[Any]):
         ``unmet_operation_affordance``.
 
         **The pool is built the way the call's is.** The request comes from
-        [`build_context`][rest_framework_pydantic_ai.SpecToolset.build_context],
+        [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context],
         the seam the call builds its request through, so a condition reading
         ``request`` sees the same kind of object -- a DRF ``Request`` around the
         configured ``http_request`` or a synthetic one -- and whatever an
@@ -1922,7 +1922,7 @@ def _warn_mount_channels(**declarations: object) -> None:
 # The public classes taking the deprecated knobs, by the module whose frame is
 # the last of this package's on the way out. ``SpecToolset``'s own module is
 # the default, so only the class that builds one is listed.
-_ENTRY_POINTS = {"rest_framework_pydantic_ai.spec_capability": "SpecCapability"}
+_ENTRY_POINTS = {"django_spec_agents.spec_tools.spec_capability": "SpecCapability"}
 
 
 def _in_this_package(frame: FrameType) -> bool:
@@ -1932,7 +1932,7 @@ def _in_this_package(frame: FrameType) -> bool:
     and a package whose name merely begins the same way does not.
     """
     module: str = frame.f_globals.get("__name__", "")
-    return f"{module}.".startswith("rest_framework_pydantic_ai.")
+    return f"{module}.".startswith("django_spec_agents.spec_tools.")
 
 
 def _validate_server_arguments(
@@ -3209,7 +3209,7 @@ def _call_spec(
     the ORM stays off the event loop.
 
     The six keyword seams are what
-    [`SpecToolset`][rest_framework_pydantic_ai.SpecToolset] threads its
+    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] threads its
     overridable methods through; the defaults keep this function usable on its
     own. ``build_context`` and ``translate_exception`` cover the front half of a
     call, and ``shape_page`` / ``render_output`` / ``output_extras`` /
@@ -3221,7 +3221,7 @@ def _call_spec(
 
     ``output_extras`` is called with the whole ``DispatchResult`` as
     ``dispatch_result=``, unconditionally and by every route --
-    [`SpecToolset`][rest_framework_pydantic_ai.SpecToolset] binds its public
+    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] binds its public
     method here untouched. A seam supplied by a caller must accept that keyword.
 
     ``action`` becomes ``view.action`` on the synthetic view, so a permission
@@ -3550,7 +3550,7 @@ def _enforce_result_bytes(
     ``extra`` carries the caller's log correlation. Defaulted rather than
     required because this function is also the standalone bound in ``_call_spec``,
     which has no ``RunContext`` to derive one from;
-    [`SpecToolset.enforce_result_bytes`][rest_framework_pydantic_ai.SpecToolset.enforce_result_bytes]
+    [`SpecToolset.enforce_result_bytes`][django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes]
     always supplies it.
     """
     if max_bytes is None:
@@ -3612,7 +3612,7 @@ def _refusal_message(exc: ActionUnavailable) -> str:
     meant to render the same refusal as the same text, so changing it here means
     changing it there. A program that branches on the code should read ``.code``
     off the exception instead, either in
-    [`translate_exception`][rest_framework_pydantic_ai.SpecToolset.translate_exception]
+    [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
     or on the ``ToolFailed``'s ``__cause__``. Parsing it back out of the sentence
     couples that program to wording this function is free to change.
     """
@@ -3635,7 +3635,7 @@ def _format_validation_detail(detail: Any) -> str:
     ``non_field_errors`` -- is the line on its own, because printing that key
     would read as the name of an argument to fix. The ``code`` is dropped: it is
     for programs, and a program reads it off the exception in
-    [`translate_exception`][rest_framework_pydantic_ai.SpecToolset.translate_exception].
+    [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception].
     """
     return "\n".join(_validation_detail_lines(detail, path=""))
 
@@ -3987,7 +3987,7 @@ def _render_output(
     reads it as "derive one from the spec", which projects anyway and costs a
     serializer instantiation. The way out is to render with ``render_spec_output``
     instead, which is the whole reason this step is a seam -- see
-    [`SpecToolset.render_output`][rest_framework_pydantic_ai.SpecToolset.render_output].
+    [`SpecToolset.render_output`][django_spec_agents.spec_tools.SpecToolset.render_output].
     """
     return render_for_audience(
         spec,

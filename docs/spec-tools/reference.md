@@ -5,15 +5,15 @@ The public API is six symbols, all importable from the package root, plus a
 
 ## `SpecToolset`
 
-::: rest_framework_pydantic_ai.SpecToolset
+::: django_spec_agents.spec_tools.SpecToolset
 
 ## `SpecCapability`
 
-::: rest_framework_pydantic_ai.SpecCapability
+::: django_spec_agents.spec_tools.SpecCapability
 
 ## `AgentConventions`
 
-::: rest_framework_pydantic_ai.AgentConventions
+::: django_spec_agents.spec_tools.AgentConventions
 
 ## `QueryParam`
 
@@ -25,11 +25,11 @@ The public API is six symbols, all importable from the package root, plus a
 
 ## `AgentDeps`
 
-::: rest_framework_pydantic_ai.AgentDeps
+::: django_spec_agents.spec_tools.AgentDeps
 
 ## `testing`
 
 Test doubles for driving a toolset through a real `Agent` run loop. See
 [Running from a worker](background-runs.md#testing-it).
 
-::: rest_framework_pydantic_ai.testing
+::: django_spec_agents.spec_tools.testing

@@ -18,8 +18,8 @@ class AgentConventions:
     Every field defaults to the sentence the toolset says today, so
     ``AgentConventions()`` changes nothing and ``AgentConventions(pagination=...)``
     changes exactly one line. Pass it as ``conventions=`` to
-    [`SpecToolset`][rest_framework_pydantic_ai.SpecToolset] or
-    [`SpecCapability`][rest_framework_pydantic_ai.SpecCapability]; leaving that
+    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] or
+    [`SpecCapability`][django_spec_agents.spec_tools.SpecCapability]; leaving that
     unset is the same as passing ``AgentConventions()``.
 
     **What is a field:** every line of the instructions block, the heading of its

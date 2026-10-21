@@ -15,8 +15,8 @@ from pydantic_ai_harness.memory import (
 )
 from pydantic_ai_harness.memory._capability import _MEMORY_DATA_PREFIX, _MEMORY_DATA_SUFFIX
 
-from django_pydantic_agent.contrib.store.default_memory_store import DefaultMemoryStore
-from django_pydantic_agent.contrib.store.models import StoredMemory, StoredMemoryOperation
+from django_spec_agents.contrib.store.default_memory_store import DefaultMemoryStore
+from django_spec_agents.contrib.store.models import StoredMemory, StoredMemoryOperation
 
 # transaction=True: the store writes through ``sync_to_async``, so its ORM calls
 # run on a different connection than a transaction-wrapped test would roll back.

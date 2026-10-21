@@ -10,7 +10,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.utils import timezone
 
-from django_pydantic_agent.contrib.store.models import StoredAttachment, StoredConversation
+from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
 
 pytestmark = pytest.mark.django_db
 

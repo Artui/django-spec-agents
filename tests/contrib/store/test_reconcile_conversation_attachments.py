@@ -5,8 +5,8 @@ from typing import Any
 import pytest
 from django.core.files.base import ContentFile
 
-from django_pydantic_agent.contrib.store.models import StoredAttachment, StoredConversation
-from django_pydantic_agent.contrib.store.reconcile_conversation_attachments import (
+from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
+from django_spec_agents.contrib.store.reconcile_conversation_attachments import (
     reconcile_conversation_attachments,
 )
 

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from django_pydantic_agent.policy.audit.null_audit_logger import NullAuditLogger
-from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
-from django_pydantic_agent.policy.audit.types.audit_logger import AuditLogger
+from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
+from django_spec_agents.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 
 
 def test_audit_event_is_frozen() -> None:

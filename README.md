@@ -22,7 +22,7 @@ and hands it down:
 - **django-a2a** — agent-to-agent (planned).
 
 ```bash
-pip install django-pydantic-agent
+pip install django-spec-agents
 ```
 
 Most projects install a **transport** and get this as a dependency. Reach for it
@@ -30,7 +30,7 @@ directly when you are building a transport, sharing agent construction between
 two of them, or embedding an agent with no HTTP surface at all.
 
 ```python
-from django_pydantic_agent import AgentConfig, ToolRegistry, build_agent, tool
+from django_spec_agents import AgentConfig, ToolRegistry, build_agent, tool
 
 registry = ToolRegistry()
 

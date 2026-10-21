@@ -6,9 +6,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile, UploadedFile
 from django.http import HttpRequest
 from django.test import RequestFactory
 
-from django_pydantic_agent.persistence.model_attachment_store import ModelAttachmentStore
-from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
-from django_pydantic_agent.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.persistence.model_attachment_store import ModelAttachmentStore
+from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
+from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
 
 
 def _authed_request(pk: str = "7") -> HttpRequest:

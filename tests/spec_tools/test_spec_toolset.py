@@ -72,7 +72,7 @@ from rest_framework_services import (
 )
 from typing_extensions import NotRequired, TypedDict, Unpack
 
-from rest_framework_pydantic_ai import (
+from django_spec_agents.spec_tools import (
     AgentConventions,
     AgentDeps,
     QueryParam,
@@ -80,7 +80,7 @@ from rest_framework_pydantic_ai import (
     UrlKwarg,
     spec_toolset,
 )
-from rest_framework_pydantic_ai.spec_toolset import (
+from django_spec_agents.spec_tools.spec_toolset import (
     UndescribedToolWarning,
     UnguardedSpecWarning,
     _build_tool_def,
@@ -98,12 +98,12 @@ from rest_framework_pydantic_ai.spec_toolset import (
     _spec_ordering_argument,
     _with_deadline,
 )
-from rest_framework_pydantic_ai.testing import (
+from django_spec_agents.spec_tools.testing import (
     instruction_capturing_model,
     tool_calling_model,
 )
-from tests.testapp.models import Widget
-from tests.testapp.serializers import (
+from tests.spec_tools.testapp.models import Widget
+from tests.spec_tools.testapp.serializers import (
     AgentWidgetSerializer,
     WidgetInputSerializer,
     WidgetSerializer,
@@ -3155,7 +3155,7 @@ async def test_a_call_is_timed_at_debug(caplog):
     toolset = SpecToolset({"list_widgets": list_spec()})
     tools = await toolset.get_tools(None)
 
-    with caplog.at_level(logging.DEBUG, logger="rest_framework_pydantic_ai"):
+    with caplog.at_level(logging.DEBUG, logger="django_spec_agents.spec_tools"):
         await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
 
     assert "Tool 'list_widgets' on toolset 'drf-specs' took" in caplog.text
@@ -3176,7 +3176,7 @@ async def test_a_denial_is_logged_at_warning_and_still_raises(caplog):
     tools = await toolset.get_tools(None)
 
     with (
-        caplog.at_level(logging.WARNING, logger="rest_framework_pydantic_ai"),
+        caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"),
         pytest.raises(PermissionDenied),
     ):
         await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
@@ -7135,7 +7135,7 @@ async def test_tool_call_log_lines_carry_run_correlation_and_usage(caplog):
     tools = await toolset.get_tools(None)
     ctx = ctx_for("u", run_id="run-abc", tool_call_id="call-xyz")
 
-    with caplog.at_level(logging.DEBUG, logger="rest_framework_pydantic_ai"):
+    with caplog.at_level(logging.DEBUG, logger="django_spec_agents.spec_tools"):
         await toolset.call_tool("ping", {}, ctx, tools["ping"])
 
     record = next(r for r in caplog.records if "took" in r.getMessage())
@@ -7158,7 +7158,7 @@ async def test_permission_denial_log_line_carries_run_correlation(caplog):
     tools = await toolset.get_tools(None)
 
     with (
-        caplog.at_level(logging.WARNING, logger="rest_framework_pydantic_ai"),
+        caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"),
         pytest.raises(PermissionDenied),
     ):
         await toolset.call_tool("peek", {}, ctx_for("u", run_id="run-denied"), tools["peek"])
@@ -7315,7 +7315,7 @@ async def test_dispatch_timeout_log_line_carries_run_correlation(caplog):
     tools = await toolset.get_tools(None)
 
     with (
-        caplog.at_level(logging.WARNING, logger="rest_framework_pydantic_ai"),
+        caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"),
         pytest.raises(ToolFailed, match="was abandoned"),
     ):
         await toolset.call_tool(
@@ -7338,7 +7338,7 @@ async def test_result_bound_log_line_carries_run_correlation(caplog):
     tools = await toolset.get_tools(None)
 
     with (
-        caplog.at_level(logging.WARNING, logger="rest_framework_pydantic_ai"),
+        caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"),
         pytest.raises(ToolFailed),
     ):
         await toolset.call_tool(

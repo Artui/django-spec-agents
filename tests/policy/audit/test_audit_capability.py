@@ -36,19 +36,19 @@ from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_harness import CodeMode
 from pydantic_ai_harness import guardrails as harness_guardrails
 from rest_framework.permissions import AllowAny
-from rest_framework_pydantic_ai import SpecCapability
 from rest_framework_services import ServiceSpec
 
-from django_pydantic_agent.agent.agent_factory import build_agent
-from django_pydantic_agent.agent.types.agent_config import AgentConfig
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.policy.audit.audit_capability import AuditCapability
-from django_pydantic_agent.policy.audit.types.audit_event import AuditEvent
-from django_pydantic_agent.policy.failure.tool_failure_policy import ToolFailurePolicy
-from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
-from django_pydantic_agent.policy.guard.types.tool_guard_config import ToolGuardConfig
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.types.agent_config import AgentConfig
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.policy.audit.audit_capability import AuditCapability
+from django_spec_agents.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
+from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.spec_tools import SpecCapability
 
 # Every scenario below is a real agent run: a real ``Agent``, real capabilities
 # and pydantic-ai's own hook dispatch. Which hook encloses which is the

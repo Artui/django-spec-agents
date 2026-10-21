@@ -40,7 +40,7 @@ create_order_spec = ServiceSpec(
 ## 2. Build the toolset
 
 ```python
-from rest_framework_pydantic_ai import SpecToolset
+from django_spec_agents.spec_tools import SpecToolset
 
 toolset = SpecToolset(
     {
@@ -62,11 +62,11 @@ selector's [`filter_set` declares one](#ordering).
 ## 3. Run an agent
 
 The acting user flows through `RunContext.deps`. The default
-[`AgentDeps`](reference.md#rest_framework_pydantic_ai.AgentDeps) carries it:
+[`AgentDeps`](reference.md#django_spec_agents.spec_tools.AgentDeps) carries it:
 
 ```python
 from pydantic_ai import Agent
-from rest_framework_pydantic_ai import AgentDeps
+from django_spec_agents.spec_tools import AgentDeps
 
 agent = Agent("anthropic:claude-opus-4-8", deps_type=AgentDeps, toolsets=[toolset])
 
@@ -235,7 +235,7 @@ list_spec = SelectorSpec(kind=SelectorKind.LIST, selector=priced_under, kwargs=s
   turn, as it is when an untyped provider leaves a parameter unfilled.
   Where the selector can run without the value, give the parameter a default.
 - **A name a
-  [`build_context`](reference.md#rest_framework_pydantic_ai.SpecToolset)
+  [`build_context`](reference.md#django_spec_agents.spec_tools.SpecToolset)
   override fills has to be declared.** An override is code the schema cannot
   read, so a selector parameter it fills through `kwargs` (which become
   `view.kwargs`) is advertised as required like any other parameter without a
@@ -493,7 +493,7 @@ exist.
 
 Every line of the instructions block, the heading of the unavailable list
 included, is a field of
-[`AgentConventions`](reference.md#rest_framework_pydantic_ai.AgentConventions),
+[`AgentConventions`](reference.md#django_spec_agents.spec_tools.AgentConventions),
 and so are three sentences outside it: the description a handle field gets when
 it declares none, the sentence scoping a paged tool's read-shaping parameters,
 and the retry for a missing argument. `conventions=` changes them one line at a
@@ -508,7 +508,7 @@ take, a service asking for more input, and the opening of a
 sentence is the one part that is a field.
 
 ```python
-from rest_framework_pydantic_ai import AgentConventions, SpecToolset
+from django_spec_agents.spec_tools import AgentConventions, SpecToolset
 
 toolset = SpecToolset(
     specs,
@@ -582,7 +582,7 @@ advising about pagination on a step with no list tool, and it misses every
 correction a later release makes to the wording.
 
 `SpecCapability` takes the same keyword, and
-[`SpecCapability.from_toolset`](reference.md#rest_framework_pydantic_ai.SpecCapability.from_toolset)
+[`SpecCapability.from_toolset`](reference.md#django_spec_agents.spec_tools.SpecCapability.from_toolset)
 keeps the conventions of the toolset it wraps. They reach this toolset's tools
 only: the MCP transport, djangorestframework-mcp-server, writes its own schemas
 and retries, so a model reading the same specs over MCP is told what that
@@ -756,7 +756,7 @@ use.
 `page` / `limit` are built in for list selectors and `ordering` comes from the
 `filter_set`, but a spec can declare its own request-level params, as
 `reads=[QueryParam(...)]` with
-[`QueryParam`](reference.md#rest_framework_pydantic_ai.QueryParam). Built from
+[`QueryParam`](reference.md#django_spec_agents.spec_tools.QueryParam). Built from
 the [registry](spec-registry.md#what-the-spec-declares-for-an-agent) the spec is
 registered in, the toolset advertises each as a tool arg, then — instead of reaching the spec as an input — seeded
 into `request.query_params` over the off-HTTP path. That is for whatever reads
@@ -783,7 +783,7 @@ from dataclasses import replace
 
 from django_service_specs import SpecRegistry
 
-from rest_framework_pydantic_ai import QueryParam, SpecToolset
+from django_spec_agents.spec_tools import QueryParam, SpecToolset
 
 # A param several tools read is one declaration, in each spec's reads.
 RESTQL = QueryParam("query", description="django-restql field selection")
@@ -906,7 +906,7 @@ Over HTTP a nested route (`/projects/{project_pk}/widgets/`) supplies
 or through a `spec.kwargs` provider that scopes by it (a tenant/role lookup). Off
 the HTTP path there is no route, so declare the capture on the spec, as
 `reads=[UrlKwarg(...)]` with
-[`UrlKwarg`](reference.md#rest_framework_pydantic_ai.UrlKwarg). Built from the
+[`UrlKwarg`](reference.md#django_spec_agents.spec_tools.UrlKwarg). Built from the
 registry, the toolset advertises it as a tool arg, then popped and seeded into `build_offline_context(kwargs=…)`,
 from where drf-services spreads it into the selector / target pools —
 authoritative over the spec `params`, below a `spec.kwargs` provider (mirroring
@@ -922,7 +922,7 @@ HTTP precedence exactly).
     instead.
 
 ```python
-from rest_framework_pydantic_ai import UrlKwarg
+from django_spec_agents.spec_tools import UrlKwarg
 
 project = UrlKwarg("project_pk", type="integer", description="owning project")
 registry.register("list_widgets", replace(list_widgets_spec, reads=[project]))
@@ -1028,7 +1028,7 @@ server supplies.
 [drf-services' types](https://github.com/Artui/djangorestframework-services/blob/main/rest_framework_services/types/url_kwarg.py),
 re-exported here — the declaration is the same whichever transport carries it,
 and this package's copy had drifted from the MCP transport's on which names each
-reserved. `from rest_framework_pydantic_ai import UrlKwarg, QueryParam` keeps
+reserved. `from django_spec_agents.spec_tools import UrlKwarg, QueryParam` keeps
 working. Requires `djangorestframework-services>=0.28.1`.
 
 ## Absolute URLs (file and hyperlinked fields)

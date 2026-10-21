@@ -29,7 +29,7 @@ If you have `ServiceSpec` / `SelectorSpec` objects and no MCP server, take
 ## `[spec-tools]` — specs as tools
 
 ```bash
-pip install django-pydantic-agent[spec-tools]
+pip install django-spec-agents[specs]
 ```
 
 `build_spec_capability(specs, request, exclude_names=…)` returns a
@@ -67,7 +67,7 @@ drf-services 0.27's `SpecRegistry`, the single declaration site for a project
 exposing the same specs over more than one transport:
 
 ```python
-from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability
+from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 
 capability = build_spec_capability(registry, request)
 ```
@@ -83,7 +83,7 @@ argument fills its collision set with dataclasses and silently stops detecting
 duplicates:
 
 ```python
-from django_pydantic_agent.integrations.resolve_spec_mapping import resolve_spec_mapping
+from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 
 specs = resolve_spec_mapping(source)  # mapping or registry -> mapping
 seen.update(specs)  # names, as intended
@@ -92,7 +92,7 @@ seen.update(specs)  # names, as intended
 ## `[drf-mcp]` — an MCP registry as a toolset
 
 ```bash
-pip install django-pydantic-agent[drf-mcp]
+pip install django-spec-agents[drf-mcp]
 ```
 
 `DRFMCPToolset` bridges a `drf-mcp-server` registry through drf-mcp's public
@@ -209,7 +209,7 @@ retry above, which the model can answer itself, on this route and on
 ## `[harness]` — upstream capabilities
 
 ```bash
-pip install django-pydantic-agent[harness]
+pip install django-spec-agents[harness]
 ```
 
 The other two extras bridge *your* API into the agent. This one is different: it

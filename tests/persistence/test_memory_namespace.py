@@ -7,8 +7,8 @@ from django.http import HttpRequest
 from django.test import RequestFactory
 from pydantic_ai_harness.memory._store import validate_store_path
 
-from django_pydantic_agent.persistence.memory_namespace import memory_namespace
-from django_pydantic_agent.persistence.utils import resolve_owner_id
+from django_spec_agents.persistence.memory_namespace import memory_namespace
+from django_spec_agents.persistence.utils import resolve_owner_id
 
 # The harness composes the key as ``<namespace>/<agent_name>/<file>``, so a
 # namespace is only usable if a path built from it validates.

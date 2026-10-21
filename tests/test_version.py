@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django_pydantic_agent import __version__
+from django_spec_agents import __version__
 
 
 def test_version_is_exported() -> None:

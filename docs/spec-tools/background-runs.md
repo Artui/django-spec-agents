@@ -20,7 +20,7 @@ from celery import shared_task
 from django.contrib.auth import get_user_model
 from pydantic_ai import Agent
 
-from rest_framework_pydantic_ai import AgentDeps, SpecToolset
+from django_spec_agents.spec_tools import AgentDeps, SpecToolset
 
 toolset = SpecToolset({"list_orders": list_orders_spec})
 agent = Agent("anthropic:claude-opus-4-8", deps_type=AgentDeps, toolsets=[toolset])
@@ -55,7 +55,7 @@ into a different `user` has no authorization boundary at all.
 
 !!! warning "`http_request=` is not an identity"
 
-    [`http_request=` / `get_http_request=`](reference.md#rest_framework_pydantic_ai.SpecToolset)
+    [`http_request=` / `get_http_request=`](reference.md#django_spec_agents.spec_tools.SpecToolset)
     exist so a serializer or scoping provider reading `request.META` finds
     something plausible. Nothing downstream re-derives the acting user from it.
     Passing an authenticated request authorizes nothing, and leaning on it would
@@ -112,7 +112,7 @@ toolset = SpecToolset(
 Nobody is watching a background run, so the log line is the whole record. Every
 tool call logs at `DEBUG` (`WARNING` for a permission denial, which is otherwise
 traceless — the run loop absorbs it into a message) on the
-`rest_framework_pydantic_ai` logger, and carries correlation fields in `extra`:
+`django_spec_agents.spec_tools` logger, and carries correlation fields in `extra`:
 
 | Field | |
 | --- | --- |
@@ -132,7 +132,7 @@ misbehaving call produces (a dispatch timeout, a result over its byte ceiling).
 LOGGING = {
     "version": 1,
     "loggers": {
-        "rest_framework_pydantic_ai": {"level": "DEBUG", "handlers": ["json"]},
+        "django_spec_agents.spec_tools": {"level": "DEBUG", "handlers": ["json"]},
     },
 }
 ```
@@ -144,7 +144,7 @@ place for the limit to live.
 
 The limits are still *readable* from a tool call, though, and one thing is worth
 doing with them: `ctx.usage_limits` reaches an
-[`enforce_result_bytes`](reference.md#rest_framework_pydantic_ai.SpecToolset.enforce_result_bytes)
+[`enforce_result_bytes`](reference.md#django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes)
 override, so a project can taper how much a call is allowed to return as the run
 consumes its budget. That is shaping a result, not enforcing a limit — the run
 still stops where `Agent.run` says it does.
@@ -166,13 +166,13 @@ a correctness one, and in a fan-out it is multiplied by every concurrent run.
 
 Six overridable methods cover a tool call end to end. The front half —
 `build_context` and `translate_exception` — is documented under
-[`SpecToolset`](reference.md#rest_framework_pydantic_ai.SpecToolset); the back
+[`SpecToolset`](reference.md#django_spec_agents.spec_tools.SpecToolset); the back
 half is `shape_page`, `render_output`, `output_extras` and
 `enforce_result_bytes`. All six receive the live `RunContext`, which is the
 point: a run's typed deps are usually what needs to reach them.
 
 The one worth knowing about before you need it is
-[`render_output`](reference.md#rest_framework_pydantic_ai.SpecToolset.render_output).
+[`render_output`](reference.md#django_spec_agents.spec_tools.SpecToolset.render_output).
 By default a result is rendered through the spec's serializer **and projected**
 for the agent audience. If a background job feeds one spec's output into the
 next, project the handles away and the next step has nothing to key on. Rendering
@@ -182,14 +182,14 @@ is *not* it, since that means "derive one from the spec".
 ## Testing it
 
 The run loop is where the interesting failures live, and it needs a model.
-[`rest_framework_pydantic_ai.testing`](reference.md#testing) ships the two
+[`django_spec_agents.spec_tools.testing`](reference.md#testing) ships the two
 doubles this package's own suite uses — no provider, no network, no key:
 
 ```python
 from pydantic_ai import Agent
 
-from rest_framework_pydantic_ai import AgentDeps, SpecToolset
-from rest_framework_pydantic_ai.testing import tool_calling_model
+from django_spec_agents.spec_tools import AgentDeps, SpecToolset
+from django_spec_agents.spec_tools.testing import tool_calling_model
 
 
 async def test_the_task_calls_the_tool():

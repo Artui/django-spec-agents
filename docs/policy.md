@@ -10,7 +10,7 @@ Set an `audit_logger` on the config and `build_agent` composes an
 `AuditCapability`:
 
 ```python
-from django_pydantic_agent import AgentConfig, LoggingAuditLogger, build_agent
+from django_spec_agents import AgentConfig, LoggingAuditLogger, build_agent
 
 agent = build_agent(registry, AgentConfig(model=..., audit_logger=LoggingAuditLogger()))
 ```
@@ -140,7 +140,7 @@ tools get the same confirmation gate a web component already applies to
 client-registered ones.
 
 ```python
-from django_pydantic_agent import AgentConfig, ToolGuardConfig
+from django_spec_agents import AgentConfig, ToolGuardConfig
 
 config = AgentConfig(
     model=...,
@@ -239,7 +239,7 @@ config = AgentConfig(model="openai:gpt-4o")  # on by default
 Turn it off to restore the old behaviour, or opt into detail:
 
 ```python
-from django_pydantic_agent import ToolFailureConfig
+from django_spec_agents import ToolFailureConfig
 
 AgentConfig(model=..., tool_failure=ToolFailureConfig(enabled=False))
 AgentConfig(model=..., tool_failure=ToolFailureConfig(include_detail=True))

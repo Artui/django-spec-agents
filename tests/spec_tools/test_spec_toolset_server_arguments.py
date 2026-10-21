@@ -30,15 +30,15 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import BasePermission
 from rest_framework_services import SelectorSpec
 
-from rest_framework_pydantic_ai import (
+from django_spec_agents.spec_tools import (
     AgentDeps,
     QueryParam,
     SpecCapability,
     SpecToolset,
     UrlKwarg,
 )
-from rest_framework_pydantic_ai.testing import tool_calling_model
-from tests.test_spec_toolset import (
+from django_spec_agents.spec_tools.testing import tool_calling_model
+from tests.spec_tools.test_spec_toolset import (
     _call,
     _dual_declared_spec,
     _input_schema_of,
@@ -50,7 +50,7 @@ from tests.test_spec_toolset import (
     _tool_return,
     ctx_for,
 )
-from tests.testapp.models import Widget
+from tests.spec_tools.testapp.models import Widget
 
 
 class _RecordingPermission(BasePermission):
@@ -291,7 +291,7 @@ async def test_the_bound_value_outranks_the_one_the_model_sends(caplog):
         tool_calling_model("vendors", {"project_pk": "99"}), deps_type=AgentDeps, toolsets=[toolset]
     )
 
-    with caplog.at_level(logging.WARNING, logger="rest_framework_pydantic_ai"):
+    with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
         result = await agent.run("go", deps=AgentDeps(user=user))
 
     assert _rows(_tool_return(result).content) == [{"name": "project=7"}]
@@ -315,7 +315,7 @@ async def test_a_withheld_name_takes_nothing_the_model_sends(caplog):
         _registry(vendors=_scoped_spec()), tool_server_arguments={"vendors": _SCOPED}
     )
 
-    with caplog.at_level(logging.WARNING, logger="rest_framework_pydantic_ai"):
+    with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
         result = await _call(
             toolset, "vendors", user, {"project_pk": "99", "draw_request_pk": "null"}
         )
@@ -337,7 +337,7 @@ async def test_nothing_is_logged_when_the_model_sends_no_server_name(caplog):
         _registry(vendors=_scoped_spec()), tool_server_arguments={"vendors": _SCOPED}
     )
 
-    with caplog.at_level(logging.WARNING, logger="rest_framework_pydantic_ai"):
+    with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
         await _call(toolset, "vendors", user, {})
 
     assert "dropped caller-supplied" not in caplog.text
@@ -419,7 +419,9 @@ async def test_a_bound_selection_the_render_rejects_is_the_server_s_error_not_a_
 # The function is the registry page's own example, run as written, so the page
 # cannot drift from what these tests hold.
 
-_DOCS_PAGE = Path(__file__).resolve().parent.parent / "docs" / "spec-registry.md"
+_DOCS_PAGE = (
+    Path(__file__).resolve().parent.parent.parent / "docs" / "spec-tools" / "spec-registry.md"
+)
 
 
 def _docs_recipe(registry: SpecRegistry, scope: Mapping[str, str]) -> dict[str, Any]:
@@ -637,12 +639,12 @@ def _probe(module: str) -> dict[str, Any]:
 
 def test_a_package_whose_name_only_begins_like_this_one_is_the_caller():
     """The frame walk skips this package's modules by dotted name, so a package
-    named ``rest_framework_pydantic_ai_extras`` is outside it and is the line the
+    named ``django_spec_agents.spec_tools_extras`` is outside it and is the line the
     warning names. Holds the trailing dot in ``_in_this_package``: a bare prefix
     match would skip this caller too and name the test instead."""
-    (warning,) = _probe("rest_framework_pydantic_ai_extras")["build"]()
+    (warning,) = _probe("django_spec_agents.spec_tools_extras")["build"]()
 
-    assert warning.filename == "<rest_framework_pydantic_ai_extras>"
+    assert warning.filename == "<django_spec_agents.spec_tools_extras>"
 
 
 def test_a_walk_reaching_the_bottom_of_the_stack_inside_this_package_still_warns():
@@ -656,13 +658,13 @@ def test_a_walk_reaching_the_bottom_of_the_stack_inside_this_package_still_warns
     done.acquire()
 
     _thread.start_new_thread(
-        _probe("rest_framework_pydantic_ai.probe")["run_as_thread"], (outcome, done)
+        _probe("django_spec_agents.spec_tools.probe")["run_as_thread"], (outcome, done)
     )
 
     assert done.acquire(timeout=30)
     assert "error" not in outcome, outcome.get("error")
     (warning,) = outcome["warnings"]
-    assert warning.filename == "<rest_framework_pydantic_ai.probe>"
+    assert warning.filename == "<django_spec_agents.spec_tools.probe>"
 
 
 def tasks_in_status(*, status: str = "open"):

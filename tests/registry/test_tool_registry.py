@@ -6,10 +6,10 @@ from typing import Any
 import pytest
 from pydantic_ai import RunContext
 
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.constants import ToolCategory
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
-from django_pydantic_agent.registry.types.tool_spec import ToolSpec
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.constants import ToolCategory
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.types.tool_spec import ToolSpec
 
 
 def make_spec(name: str = "noop") -> ToolSpec:

@@ -5,7 +5,7 @@
 A tool is a plain typed callable registered on a `ToolRegistry`:
 
 ```python
-from django_pydantic_agent import ToolCategory, ToolRegistry, tool
+from django_spec_agents import ToolCategory, ToolRegistry, tool
 
 registry = ToolRegistry()
 
@@ -75,7 +75,7 @@ tools, `@tool(summary=…)` then a prettified name; for drf-mcp tools,
 `display_name` then `title` then a prettified name.
 
 ```python
-from django_pydantic_agent import build_tool_catalog
+from django_spec_agents import build_tool_catalog
 
 catalog = build_tool_catalog(registry, drf_mcp_server=server, service_specs=specs)
 ```
@@ -106,7 +106,7 @@ normally and the frontend shows a prettified name.
 projects that want a tool's schema outside the registration flow:
 
 ```python
-from django_pydantic_agent import build_input_schema
+from django_spec_agents import build_input_schema
 
 schema = build_input_schema(find_order, destructive=False, category=ToolCategory.UI_READ)
 ```

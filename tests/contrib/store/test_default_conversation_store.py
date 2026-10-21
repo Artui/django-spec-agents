@@ -6,9 +6,9 @@ import pytest
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
-from django_pydantic_agent.contrib.store.default_conversation_store import DefaultConversationStore
-from django_pydantic_agent.contrib.store.models import StoredAttachment, StoredConversation
-from django_pydantic_agent.persistence.types.conversation import Conversation
+from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
+from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
+from django_spec_agents.persistence.types.conversation import Conversation
 
 pytestmark = pytest.mark.django_db
 

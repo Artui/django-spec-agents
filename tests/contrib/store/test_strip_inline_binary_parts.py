@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from django_pydantic_agent.contrib.store.strip_inline_binary_parts import strip_inline_binary_parts
+from django_spec_agents.contrib.store.strip_inline_binary_parts import strip_inline_binary_parts
 
 
 def _document_part(value: str = "UERGQllURVM=") -> dict[str, Any]:

@@ -5,9 +5,9 @@ from typing import Any, Union
 
 from pydantic_ai import RunContext
 
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.constants import ToolCategory
-from django_pydantic_agent.registry.build_input_schema import build_input_schema
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.constants import ToolCategory
+from django_spec_agents.registry.build_input_schema import build_input_schema
 
 
 class _Custom:

@@ -1,7 +1,7 @@
 """The harness memory capability composed with this package, executed.
 
 Nothing here is a unit: the point is that ``pydantic_ai_harness.memory.Memory``,
-[`memory_namespace`][django_pydantic_agent.memory_namespace] and
+[`memory_namespace`][django_spec_agents.memory_namespace] and
 ``DefaultMemoryStore`` compose into a run without any of the three knowing about
 the others, and that the two failure modes the store exists to close really are
 closed on the path a host would take. Both are asserted against a real
@@ -22,16 +22,16 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, UserProm
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai_harness.memory import Memory
 
-from django_pydantic_agent.agent.agent_factory import build_agent
-from django_pydantic_agent.agent.types.agent_config import AgentConfig
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.contrib.store.default_memory_store import DefaultMemoryStore
-from django_pydantic_agent.persistence.memory_namespace import memory_namespace
-from django_pydantic_agent.persistence.memory_namespace_for_user import (
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.types.agent_config import AgentConfig
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.contrib.store.default_memory_store import DefaultMemoryStore
+from django_spec_agents.persistence.memory_namespace import memory_namespace
+from django_spec_agents.persistence.memory_namespace_for_user import (
     memory_namespace_for_user,
 )
-from django_pydantic_agent.persistence.utils import resolve_owner_id
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.persistence.utils import resolve_owner_id
+from django_spec_agents.registry.tool_registry import ToolRegistry
 
 pytestmark = pytest.mark.django_db(transaction=True)
 

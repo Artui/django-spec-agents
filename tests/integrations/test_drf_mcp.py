@@ -22,9 +22,9 @@ from rest_framework_mcp.schema import PAGED_QUERY_PARAM_SCOPE
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability
-from django_pydantic_agent.integrations.drf_mcp import DRFMCPToolset, _retry_message
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.integrations.build_spec_capability import build_spec_capability
+from django_spec_agents.integrations.drf_mcp import DRFMCPToolset, _retry_message
 from tests.integrations.drf_server import BOOKS, REFUSED_SPEC, server
 from tests.integrations.drf_server_lookup import lookup_server
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS

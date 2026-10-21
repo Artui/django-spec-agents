@@ -19,15 +19,15 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness.step_persistence import StepPersistence
 
-from django_pydantic_agent.agent.agent_factory import build_agent
-from django_pydantic_agent.agent.types.agent_config import AgentConfig
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
-from django_pydantic_agent.policy.failure.tool_failure_policy import ToolFailurePolicy
-from django_pydantic_agent.policy.failure.types.tool_failure_config import ToolFailureConfig
-from django_pydantic_agent.policy.failure.utils import PolicyToolFailed
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.types.agent_config import AgentConfig
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
+from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
+from django_spec_agents.policy.failure.utils import PolicyToolFailed
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 
 # pydantic-ai 2.54 moved every ``before`` / ``on_error`` / ``after`` hook inside
 # the ``wrap_tool_execute`` chain, which changes what a wrapper sees.

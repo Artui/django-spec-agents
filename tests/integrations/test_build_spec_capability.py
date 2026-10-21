@@ -15,8 +15,8 @@ from pydantic_ai.usage import RunUsage
 from rest_framework.permissions import AllowAny
 from rest_framework_services import ServiceSpec
 
-from django_pydantic_agent.agent.types.agent_deps import AgentDeps
-from django_pydantic_agent.integrations.build_spec_capability import build_spec_capability
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
 
 
@@ -146,7 +146,7 @@ def test_exclude_names_apply_to_a_registry_too() -> None:
 
 def _capture_source(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
     """Record what this builder actually hands to ``SpecCapability``."""
-    import rest_framework_pydantic_ai
+    import django_spec_agents.spec_tools
 
     captured: list[Any] = []
 
@@ -154,7 +154,7 @@ def _capture_source(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
         captured.append(source)
         return SimpleNamespace()
 
-    monkeypatch.setattr(rest_framework_pydantic_ai, "SpecCapability", _stub)
+    monkeypatch.setattr(django_spec_agents.spec_tools, "SpecCapability", _stub)
     return captured
 
 

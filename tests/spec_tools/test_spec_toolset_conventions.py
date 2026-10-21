@@ -24,7 +24,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework_services import MARKING, SelectorSpec, ServiceSpec
 
-from rest_framework_pydantic_ai import (
+from django_spec_agents.spec_tools import (
     AgentConventions,
     AgentDeps,
     QueryParam,
@@ -32,9 +32,9 @@ from rest_framework_pydantic_ai import (
     SpecToolset,
     UrlKwarg,
 )
-from rest_framework_pydantic_ai.testing import instruction_capturing_model
-from tests.testapp.models import Widget
-from tests.testapp.serializers import WidgetInputSerializer
+from django_spec_agents.spec_tools.testing import instruction_capturing_model
+from tests.spec_tools.testapp.models import Widget
+from tests.spec_tools.testapp.serializers import WidgetInputSerializer
 
 _DEFAULTS = AgentConventions()
 _FIELDS = [field.name for field in fields(AgentConventions)]

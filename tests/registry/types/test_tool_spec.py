@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from django_pydantic_agent.constants import ToolCategory
-from django_pydantic_agent.registry.types.tool_binding import ToolBinding
-from django_pydantic_agent.registry.types.tool_spec import ToolSpec
+from django_spec_agents.constants import ToolCategory
+from django_spec_agents.registry.types.tool_binding import ToolBinding
+from django_spec_agents.registry.types.tool_spec import ToolSpec
 
 
 def test_tool_spec_defaults_and_frozen() -> None:

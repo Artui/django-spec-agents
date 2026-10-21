@@ -16,7 +16,7 @@ from pydantic_ai.models.function import FunctionModel
 from rest_framework.permissions import AllowAny
 from rest_framework_services import SelectorSpec, ServiceSpec
 
-from rest_framework_pydantic_ai import (
+from django_spec_agents.spec_tools import (
     AgentConventions,
     AgentDeps,
     QueryParam,
@@ -24,9 +24,9 @@ from rest_framework_pydantic_ai import (
     SpecToolset,
     UrlKwarg,
 )
-from rest_framework_pydantic_ai.spec_toolset import UnguardedSpecWarning
-from tests.testapp.models import Widget
-from tests.testapp.serializers import WidgetSerializer
+from django_spec_agents.spec_tools.spec_toolset import UnguardedSpecWarning
+from tests.spec_tools.testapp.models import Widget
+from tests.spec_tools.testapp.serializers import WidgetSerializer
 
 # The wording the toolset says by default, for the tests about *whether* a line
 # is said. What each default says is pinned as text in ``test_default_wording.py``.

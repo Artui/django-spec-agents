@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from django.test import RequestFactory
 
-from django_pydantic_agent.persistence.scoped_conversation_store import ScopedConversationStore
-from django_pydantic_agent.persistence.types.conversation import Conversation
-from django_pydantic_agent.persistence.types.conversation_meta import ConversationMeta
+from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
+from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 
 
 class _MemoryStore:

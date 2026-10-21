@@ -7,8 +7,8 @@ from typing import Any
 from rest_framework.permissions import AllowAny
 from rest_framework_services import ServiceSpec, SpecRegistry
 
-from django_pydantic_agent.integrations.resolve_spec_mapping import resolve_spec_mapping
-from django_pydantic_agent.integrations.types.spec_source import SpecSource
+from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
+from django_spec_agents.integrations.types.spec_source import SpecSource
 
 
 def _ok(user: Any) -> dict[str, Any]:

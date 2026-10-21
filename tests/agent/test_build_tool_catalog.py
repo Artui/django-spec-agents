@@ -4,8 +4,8 @@ from typing import Any
 
 from django.test import override_settings
 
-from django_pydantic_agent import ToolRegistry, tool
-from django_pydantic_agent.agent.build_tool_catalog import build_tool_catalog
+from django_spec_agents import ToolRegistry, tool
+from django_spec_agents.agent.build_tool_catalog import build_tool_catalog
 from tests.agent.catalog_server import server as _DRF
 from tests.integrations.drf_specs import SPECS as _SPECS
 

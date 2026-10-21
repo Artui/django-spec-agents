@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from django_pydantic_agent.persistence.types.conversation_meta import ConversationMeta
+from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 
 
 def test_defaults() -> None:

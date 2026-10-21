@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from django_pydantic_agent.persistence.types.attachment_ref import AttachmentRef
+from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 
 
 def test_url_defaults_to_none() -> None:

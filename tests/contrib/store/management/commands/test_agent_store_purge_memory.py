@@ -5,7 +5,7 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 
-from django_pydantic_agent.contrib.store.models import StoredMemory, StoredMemoryOperation
+from django_spec_agents.contrib.store.models import StoredMemory, StoredMemoryOperation
 
 pytestmark = pytest.mark.django_db
 

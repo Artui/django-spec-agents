@@ -4,7 +4,7 @@ from django_service_specs import FieldMarking
 from rest_framework import serializers
 from rest_framework_services import MARKING
 
-from tests.testapp.models import Widget
+from tests.spec_tools.testapp.models import Widget
 
 
 class WidgetSerializer(serializers.ModelSerializer):

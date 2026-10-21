@@ -5,8 +5,8 @@ from dataclasses import FrozenInstanceError, fields
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-from rest_framework_pydantic_ai import AgentConventions
-from rest_framework_pydantic_ai.types import agent_conventions
+from django_spec_agents.spec_tools import AgentConventions
+from django_spec_agents.spec_tools.types import agent_conventions
 
 _FIELDS = [field.name for field in fields(AgentConventions)]
 

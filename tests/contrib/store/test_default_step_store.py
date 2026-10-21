@@ -21,8 +21,8 @@ from pydantic_ai_harness.step_persistence import (
     ToolEffectRecord,
 )
 
-from django_pydantic_agent.contrib.store.default_step_store import DefaultStepStore
-from django_pydantic_agent.contrib.store.models import StoredRun, StoredSnapshot, StoredToolEffect
+from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
+from django_spec_agents.contrib.store.models import StoredRun, StoredSnapshot, StoredToolEffect
 
 # transaction=True: the store writes through ``sync_to_async``, so its ORM calls
 # run on a different connection than a transaction-wrapped test would roll back —

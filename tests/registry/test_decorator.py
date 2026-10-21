@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from django_pydantic_agent.constants import ToolCategory
-from django_pydantic_agent.registry.decorator import tool
-from django_pydantic_agent.registry.tool_registry import ToolRegistry
+from django_spec_agents.constants import ToolCategory
+from django_spec_agents.registry.decorator import tool
+from django_spec_agents.registry.tool_registry import ToolRegistry
 
 
 def test_decorator_uses_function_name_and_docstring() -> None:
