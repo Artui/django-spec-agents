@@ -6,38 +6,22 @@ from typing import Any
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
-from pydantic_ai import Agent
-from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
-from pydantic_ai.models.function import AgentInfo, FunctionModel
-from pydantic_ai.models.test import TestModel
-from pydantic_ai.tools import RunContext
-from pydantic_ai.usage import RunUsage
 from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec
+from rest_framework_services import ServiceSpec, SpecRegistry
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
-
-
-def _ctx(deps: AgentDeps) -> RunContext[AgentDeps]:
-    """A real ``RunContext``, not a stand-in shaped like one.
-
-    These tests used a ``SimpleNamespace`` carrying only ``deps``, which is every
-    field the code under test read at the time. It broke the moment
-    the spec tools started stamping run correlation on its log
-    lines and reached for ``run_id`` / ``conversation_id`` / ``run_step`` /
-    ``tool_call_id`` -- fields a real context has always had. A double describing
-    less than the real producer agrees with the caller right up until the caller
-    reads one more field, so this builds the genuine article and lets pydantic-ai
-    own its own defaults.
-    """
-    return RunContext(deps=deps, model=TestModel(), usage=RunUsage())
+from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
 
 
 def _ok(user: Any) -> dict[str, Any]:
     """A no-op spec service."""
     return {"ok": True}
+
+
+def _open_spec() -> ServiceSpec:
+    return ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
 
 
 def test_an_unguarded_spec_is_refused_rather_than_exposed() -> None:
@@ -53,12 +37,15 @@ def test_an_unguarded_spec_is_refused_rather_than_exposed() -> None:
         build_spec_capability({"ping": ServiceSpec(service=_ok, atomic=False)})
 
 
-def test_excludes_registry_names() -> None:
-    spec = ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
-    capability = build_spec_capability(
-        {"ping": spec, "dup": spec},
-        exclude_names=frozenset({"dup"}),
-    )
+@pytest.mark.parametrize("as_registry", [False, True], ids=["mapping", "registry"])
+def test_exclude_names_drops_the_names_the_registry_owns(as_registry: bool) -> None:
+    source: Any = {"ping": _open_spec(), "dup": _open_spec()}
+    if as_registry:
+        source = SpecRegistry()
+        source.register("ping", _open_spec())
+        source.register("dup", _open_spec())
+
+    capability = build_spec_capability(source, exclude_names=frozenset({"dup"}))
     # The registry-owned name is dropped (registry wins the collision); the
     # capability's underlying toolset exposes only the surviving name.
     assert set(capability.get_toolset()._specs) == {"ping"}
@@ -66,13 +53,11 @@ def test_excludes_registry_names() -> None:
 
 async def test_carries_the_spec_conventions_to_the_model() -> None:
     # The conventions (the error contract, the list-tool pagination args) reach
-    # the system prompt from the *toolset*, not the capability. PAI 0.6.0 moved
-    # them onto ``SpecToolset.get_instructions()`` so they land whether a toolset
-    # is attached directly or wrapped here, and made the capability delegate —
-    # it returns None so pydantic-ai doesn't collect the same block twice.
-    capability = build_spec_capability(
-        {"ping": ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])}
-    )
+    # the system prompt from the *toolset*, not the capability.
+    # ``SpecToolset.get_instructions()`` carries them so they land whether a
+    # toolset is attached directly or wrapped here, and the capability returns
+    # None so pydantic-ai doesn't collect the same block twice.
+    capability = build_spec_capability({"ping": _open_spec()})
     assert capability.get_instructions() is None
 
     instructions = await capability.get_toolset().get_instructions(None)
@@ -81,8 +66,8 @@ async def test_carries_the_spec_conventions_to_the_model() -> None:
 
 
 async def test_binds_the_acting_user_from_the_run_deps() -> None:
-    """The whole point of the change: the user arrives on ``ctx.deps``, so
-    nothing closes over a request and the capability is request-independent."""
+    """The user arrives on ``ctx.deps``, so nothing closes over a request and the
+    capability is request-independent."""
     seen: dict[str, Any] = {}
 
     def ping(user: Any) -> dict[str, Any]:
@@ -96,14 +81,13 @@ async def test_binds_the_acting_user_from_the_run_deps() -> None:
     )
 
     toolset = capability.get_toolset()
-    ctx = _ctx(AgentDeps(user=user))
+    ctx = run_context(AgentDeps(user=user))
     assert await toolset.call_tool("ping", {}, ctx, None) == {"ok": True}
     assert seen["user"] is user
 
 
 async def test_one_capability_serves_two_users() -> None:
-    """What the request closure made impossible — the same capability, two runs,
-    two acting users. This is what unblocks reusing a built agent."""
+    """The same capability, two runs, two acting users: a built agent can be reused."""
     seen: list[Any] = []
 
     def whoami(user: Any) -> dict[str, Any]:
@@ -117,30 +101,17 @@ async def test_one_capability_serves_two_users() -> None:
     toolset = capability.get_toolset()
 
     alice, bob = SimpleNamespace(name="alice"), SimpleNamespace(name="bob")
-    await toolset.call_tool("whoami", {}, _ctx(AgentDeps(user=alice)), None)
-    await toolset.call_tool("whoami", {}, _ctx(AgentDeps(user=bob)), None)
+    await toolset.call_tool("whoami", {}, run_context(AgentDeps(user=alice)), None)
+    await toolset.call_tool("whoami", {}, run_context(AgentDeps(user=bob)), None)
 
     assert seen == [alice, bob]
 
 
 def test_accepts_a_spec_registry() -> None:
-    from rest_framework_services import SpecRegistry
-
     registry = SpecRegistry()
-    registry.register("ping", ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny]))
+    registry.register("ping", _open_spec())
 
     capability = build_spec_capability(registry)
-    assert set(capability.get_toolset()._specs) == {"ping"}
-
-
-def test_exclude_names_apply_to_a_registry_too() -> None:
-    from rest_framework_services import SpecRegistry
-
-    registry = SpecRegistry()
-    registry.register("ping", ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny]))
-    registry.register("dup", ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny]))
-
-    capability = build_spec_capability(registry, exclude_names=frozenset({"dup"}))
     assert set(capability.get_toolset()._specs) == {"ping"}
 
 
@@ -172,13 +143,11 @@ class TestARegistryIsNotFlattened:
     def test_the_registry_reaches_the_capability_as_a_registry(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from rest_framework_services import SpecRegistry
-
         captured = _capture_source(monkeypatch)
         registry = SpecRegistry()
         registry.register(
             "ping",
-            ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny]),
+            _open_spec(),
             tags=("read",),
         )
 
@@ -193,18 +162,14 @@ class TestARegistryIsNotFlattened:
     def test_narrowing_by_exclude_names_keeps_it_a_registry(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from rest_framework_services import SpecRegistry
-
         captured = _capture_source(monkeypatch)
         registry = SpecRegistry()
         registry.register(
             "ping",
-            ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny]),
+            _open_spec(),
             tags=("read",),
         )
-        registry.register(
-            "dup", ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
-        )
+        registry.register("dup", _open_spec())
 
         build_spec_capability(registry, exclude_names=frozenset({"dup"}))
 
@@ -216,7 +181,7 @@ class TestARegistryIsNotFlattened:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         captured = _capture_source(monkeypatch)
-        spec = ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
+        spec = _open_spec()
 
         build_spec_capability({"ping": spec, "dup": spec}, exclude_names=frozenset({"dup"}))
 
@@ -227,9 +192,9 @@ async def test_a_specs_progress_reports_reach_the_runs_sink() -> None:
     """The other half of what rides ``ctx.deps``.
 
     ``SpecToolset`` reads its reporter off ``ctx.deps.progress`` exactly as it
-    reads the user off ``ctx.deps.user``. With no such field the reports resolved
-    to drf-services' no-op and a long-running spec reported into nothing, with no
-    warning anywhere.
+    reads the user off ``ctx.deps.user``. With no such field the reports would
+    resolve to drf-services' no-op and a long-running spec would report into
+    nothing, with no warning anywhere.
     """
     reports: list[tuple[int, int | None, str | None]] = []
 
@@ -250,26 +215,11 @@ async def test_a_specs_progress_reports_reach_the_runs_sink() -> None:
             )
         }
     )
-    ctx = _ctx(AgentDeps(user=SimpleNamespace(name="alice"), progress=sink))
+    ctx = run_context(AgentDeps(user=SimpleNamespace(name="alice"), progress=sink))
 
     await capability.get_toolset().call_tool("import_rows", {}, ctx, None)
 
     assert reports == [(45, 100, "importing rows")]
-
-
-# Each tool reads its row through a selector taking ``pk`` with no default: the
-# selector spec's own selector, and the service spec's target lookup. A call
-# leaving ``pk`` out is corrected by sending it.
-_LOOKUP_CALLS = [
-    pytest.param("get_row", {}, {"pk": 1}, {"id": 1, "name": "first"}, id="selector"),
-    pytest.param(
-        "rename_row",
-        {"name": "second"},
-        {"pk": 1, "name": "second"},
-        {"id": 1, "name": "second"},
-        id="service-target-lookup",
-    ),
-]
 
 
 @pytest.mark.parametrize("name", ["get_row", "rename_row"])
@@ -282,14 +232,14 @@ async def test_a_selector_parameter_without_a_default_is_required(name: str) -> 
     called ``pk`` optional and ``rename_row`` never mentioned it, so a model
     had no reason to send the one argument the call cannot run without.
     """
-    ctx = _ctx(AgentDeps(user=AnonymousUser()))
+    ctx = run_context(AgentDeps(user=AnonymousUser()))
     tools = await build_spec_capability(LOOKUP_SPECS).get_toolset().get_tools(ctx)
     schema = tools[name].tool_def.parameters_json_schema
     assert "pk" in schema["properties"]
     assert "pk" in schema.get("required", [])
 
 
-@pytest.mark.parametrize(("name", "omitted", "corrected", "row"), _LOOKUP_CALLS)
+@pytest.mark.parametrize(("name", "omitted", "corrected", "row"), LOOKUP_CALLS)
 async def test_a_call_missing_a_selector_argument_is_one_retry_then_the_row(
     name: str, omitted: dict[str, Any], corrected: dict[str, Any], row: dict[str, Any]
 ) -> None:
@@ -300,21 +250,9 @@ async def test_a_call_missing_a_selector_argument_is_one_retry_then_the_row(
     argument the model could have supplied. Driven through a real run, so the
     retry is what the model reads.
     """
-    calls = iter([omitted, corrected])
-
-    def model_fn(messages: list, info: AgentInfo) -> ModelResponse:
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
-            return ModelResponse(parts=[TextPart("done")])
-        return ModelResponse(parts=[ToolCallPart(tool_name=name, args=next(calls))])
-
-    agent = Agent(
-        FunctionModel(model_fn),
-        deps_type=AgentDeps,
-        capabilities=[build_spec_capability(LOOKUP_SPECS)],
+    retries, returns = await run_omission_then_correction(
+        name, omitted, corrected, capabilities=[build_spec_capability(LOOKUP_SPECS)]
     )
-    result = await agent.run("read the row", deps=AgentDeps(user=AnonymousUser()))
 
-    parts = [part for message in result.all_messages() for part in message.parts]
-    retries = [part.content for part in parts if part.part_kind == "retry-prompt"]
     assert retries == ["Missing required argument(s): `pk`."]
-    assert [part.content for part in parts if isinstance(part, ToolReturnPart)] == [row]
+    assert returns == [row]
