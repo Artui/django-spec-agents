@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 from asgiref.sync import sync_to_async
-from django.http import HttpRequest
-from django.test import RequestFactory, override_settings
+from django.test import override_settings
 from pydantic_ai import ModelRetry
 from pydantic_ai_harness.memory import (
     MemoryConflictError,
@@ -17,6 +14,7 @@ from pydantic_ai_harness.memory._capability import _MEMORY_DATA_PREFIX, _MEMORY_
 
 from django_spec_agents.contrib.store.default_memory_store import DefaultMemoryStore
 from django_spec_agents.contrib.store.models import StoredMemory, StoredMemoryOperation
+from tests.request_helpers import anonymous_request, authed_request
 
 # transaction=True: the store writes through ``sync_to_async``, so its ORM calls
 # run on a different connection than a transaction-wrapped test would roll back.
@@ -25,20 +23,8 @@ pytestmark = pytest.mark.django_db(transaction=True)
 _PATH = "u-7/main/MEMORY.md"
 
 
-def _authed(pk: str = "7") -> HttpRequest:
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
-    return request
-
-
-def _anon() -> HttpRequest:
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=False, pk=None)  # type: ignore[attr-defined]
-    return request
-
-
 def _store(pk: str = "7", **kwargs: object) -> DefaultMemoryStore:
-    return DefaultMemoryStore(_authed(pk), **kwargs)  # type: ignore[arg-type]
+    return DefaultMemoryStore(authed_request(pk), **kwargs)  # type: ignore[arg-type]
 
 
 def _operation(identifier: str = "op-1", fingerprint: str = "fp-1") -> MemoryOperation:
@@ -155,7 +141,7 @@ async def test_neutralisation_is_idempotent_so_an_edit_still_matches() -> None:
 
 
 async def test_an_anonymous_request_degrades_instead_of_aborting_the_run() -> None:
-    store = DefaultMemoryStore(_anon())
+    store = DefaultMemoryStore(anonymous_request())
 
     mutation = await store.write(_PATH, "- a note", expected_version=None)
 
@@ -170,7 +156,7 @@ async def test_an_anonymous_request_degrades_instead_of_aborting_the_run() -> No
 
 
 async def test_an_anonymous_delete_reports_nothing_was_there() -> None:
-    store = DefaultMemoryStore(_anon())
+    store = DefaultMemoryStore(anonymous_request())
 
     mutation = await store.delete(_PATH, expected_version=None)
 
@@ -182,7 +168,7 @@ async def test_an_anonymous_delete_reports_nothing_was_there() -> None:
 async def test_an_anonymous_request_persists_when_the_store_allows_it() -> None:
     from django.contrib.sessions.backends.cache import SessionStore
 
-    request = _anon()
+    request = anonymous_request()
     request.session = SessionStore()  # type: ignore[attr-defined]
     store = DefaultMemoryStore(request, allow_anonymous=True)
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from django.contrib.sessions.backends.cache import SessionStore
 from django.http import HttpRequest
@@ -14,51 +16,30 @@ from django_spec_agents.persistence.utils import (
 )
 
 
+def _request_for(*, is_authenticated: bool, pk: int | None) -> HttpRequest:
+    request = RequestFactory().get("/")
+    request.user = SimpleNamespace(is_authenticated=is_authenticated, pk=pk)  # type: ignore[attr-defined]
+    return request
+
+
+def _anon_request() -> HttpRequest:
+    return _request_for(is_authenticated=False, pk=None)
+
+
 def test_owner_id_none_when_no_user() -> None:
     assert owner_id_for(RequestFactory().get("/")) is None
 
 
 def test_owner_id_for_authenticated_user() -> None:
-    request = RequestFactory().get("/")
-
-    class _User:
-        is_authenticated = True
-        pk = 42
-
-    request.user = _User()  # type: ignore[attr-defined]
-    assert owner_id_for(request) == "42"
+    assert owner_id_for(_request_for(is_authenticated=True, pk=42)) == "42"
 
 
 def test_owner_id_none_for_anonymous_user() -> None:
-    request = RequestFactory().get("/")
-
-    class _Anon:
-        is_authenticated = False
-        pk = None
-
-    request.user = _Anon()  # type: ignore[attr-defined]
-    assert owner_id_for(request) is None
-
-
-def _anon_request() -> HttpRequest:
-    request = RequestFactory().get("/")
-
-    class _Anon:
-        is_authenticated = False
-        pk = None
-
-    request.user = _Anon()  # type: ignore[attr-defined]
-    return request
+    assert owner_id_for(_anon_request()) is None
 
 
 def test_resolve_owner_id_returns_pk_for_authenticated_user() -> None:
-    request = RequestFactory().get("/")
-
-    class _User:
-        is_authenticated = True
-        pk = 42
-
-    request.user = _User()  # type: ignore[attr-defined]
+    request = _request_for(is_authenticated=True, pk=42)
     assert resolve_owner_id(request, allow_anonymous=False) == "42"
 
 
@@ -127,8 +108,6 @@ def test_derive_preview_empty_when_no_text() -> None:
 
 def test_derive_helpers_accept_object_style_records() -> None:
     """The stored shape is JSON, but a transport may hand objects straight through."""
-    from types import SimpleNamespace
-
     messages = [
         SimpleNamespace(role="assistant", content="welcome"),
         SimpleNamespace(role="user", content="book a flight"),
