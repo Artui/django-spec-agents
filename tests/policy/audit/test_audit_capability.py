@@ -4,7 +4,7 @@ import asyncio
 import gc
 import logging
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from importlib.metadata import version
 from typing import Any
@@ -128,7 +128,7 @@ def _scripted(*rounds: list[ToolCallPart]) -> FunctionModel:
     return FunctionModel(respond)
 
 
-def ping() -> str:
+async def ping() -> str:
     """Ping."""
     return "pong"
 
@@ -154,12 +154,12 @@ async def _run_with(
             pass
 
 
-def _flaky_once() -> tuple[Callable[[int], str], list[str]]:
+def _flaky_once() -> tuple[Callable[[int], Awaitable[str]], list[str]]:
     """A tool that fails its first call and finds on every later one, with the
     outcome of each call it has had."""
     ran: list[str] = []
 
-    def flaky(n: int) -> str:
+    async def flaky(n: int) -> str:
         """Fails the first time."""
         if not ran:
             ran.append("failed")

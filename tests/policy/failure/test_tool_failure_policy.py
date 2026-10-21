@@ -85,13 +85,13 @@ def _asks_again(name: str = "boom", *, executions: list[str] | None = None) -> T
     keeping the targets it was called with in ``executions``."""
     reg = ToolRegistry()
 
-    def asks(target: str) -> str:
+    async def asks(target: str) -> str:
         """Always asks again."""
         if executions is not None:
             executions.append(target)
         raise ModelRetry("try another target")
 
-    # The agent offers the model the function's own name.
+    # ``name=`` on ``@tool`` would not do: the agent offers the function's own name.
     asks.__name__ = name
     tool(reg)(asks)
     return reg
