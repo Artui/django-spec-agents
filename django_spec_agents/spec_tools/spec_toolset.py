@@ -11,7 +11,7 @@ the transport owns (pagination, registered query params and URL kwargs), build
 the off-HTTP context, enforce ``spec.permission_classes`` — ``dispatch_spec``
 deliberately does not, so a naive adapter would skip authorization — then
 dispatch and render. The failure-kind mapping onto the model loop lives in the
-same function's arms, and is tabulated for callers in ``docs/quickstart.md``.
+same function's arms, and is tabulated for callers in ``docs/spec-tools/quickstart.md``.
 
 **Every failure this toolset decides is terminal is *raised*, never returned.**
 Pydantic-AI marks an ordinary return ``outcome="success"``, so a refusal handed
@@ -214,9 +214,9 @@ def _resolve_specs(specs: SpecSource) -> Mapping[str, Spec]:
     for name, spec in resolved.items():
         # Checked rather than trusted, because the registry's type admits it and
         # nothing downstream would say what went wrong: a django-service-specs
-        # spec has no ``permission_classes``, and the first internal that reads
-        # one died with an ``AttributeError`` naming neither the tool nor the
-        # fix. ``TypeError`` because the value is the wrong kind, not a
+        # spec has no ``permission_classes``, and the first internal to read one
+        # would raise an ``AttributeError`` naming neither the tool nor the fix.
+        # ``TypeError`` because the value is the wrong kind, not a
         # misconfiguration of a right one. A mapping is held to the same check:
         # its annotation says the same thing, and ty is not the only caller.
         # Each member of the tuple is held by the suite at large: without
@@ -283,7 +283,7 @@ def _resolve_contracts(specs: SpecSource) -> Mapping[str, OfflineContract]:
     are where a project that also runs an MCP server has already said so. The
     entry answers them as ``agent_contract``, and this toolset reads them there.
 
-    A bare mapping is read as carrying none, as it always was: its toolset
+    A bare mapping is read as carrying none: its toolset
     declares its channels in the constructor. The spec in it still carries its
     ``reads``, so drf-services admits and routes a value sent under one of
     those names -- only the tool's schema does not advertise it.
@@ -328,11 +328,8 @@ _PAGE_PARAM_SCHEMA: dict[str, Any] = {
     "minimum": 1,
     "description": "1-based page number.",
 }
-# ``page`` no longer says "requires `limit`", because it no longer does: every
-# list result is a page, so an omitted ``limit`` is the default page size rather
-# than "everything". The pair used to be advertised and then not honoured — the
-# schema claimed pagination while the payload was a bare list — and the wording
-# was the last place that claim was still qualified.
+# ``page`` does not say "requires `limit`": every list result is a page, so an
+# omitted ``limit`` is the default page size rather than "everything".
 
 
 def _served_page_size(max_page_size: int | None) -> int:
@@ -342,9 +339,8 @@ def _served_page_size(max_page_size: int | None) -> int:
     instructions are written at construction, long before any call: an omitted
     ``limit`` is ``DEFAULT_PAGE_SIZE``, then clamped *down* to the ceiling and
     never raised to it. So ``max_page_size=3`` serves 3 and ``max_page_size=500``
-    still serves 100. The number used to be formatted into a module-level string
-    from ``DEFAULT_PAGE_SIZE`` alone, and a toolset with a lower ceiling told the
-    model "Defaults to 100" beside ``maximum: 3``.
+    still serves 100. Stated from ``DEFAULT_PAGE_SIZE`` alone, a toolset with a
+    lower ceiling would tell the model "Defaults to 100" beside ``maximum: 3``.
 
     It describes the default ``shape_page``. An override that serves a different
     page size to an omitted ``limit`` has to say so in its own descriptions.
@@ -443,11 +439,10 @@ class SpecToolset(AbstractToolset[Any]):
     ``{"items": [...], "page": 1, "totalPages": N, "hasNext": bool}`` — never a
     bare list — with at most
     [`DEFAULT_PAGE_SIZE`][django_service_specs.DEFAULT_PAGE_SIZE]
-    rows unless ``max_page_size`` lowers it. That is the input contract this
-    toolset has always published being honoured: ``page`` and ``limit`` were
-    advertised on every list tool and the payload was a bare slice, so a model
-    asking for a collection got 50 of 51 rows with nothing saying more existed.
-    ``hasNext`` is what it was missing.
+    rows unless ``max_page_size`` lowers it, which is what the ``page`` and
+    ``limit`` arguments every list tool advertises promise. ``hasNext`` is what
+    tells a model asking for a collection that more rows exist than it was
+    shown.
 
     **Filtering needs no declaration here, and ordering belongs to the
     ``filter_set``.** A ``SelectorSpec.filter_set``'s fields are already
@@ -495,8 +490,7 @@ class SpecToolset(AbstractToolset[Any]):
 
     Args:
         specs: The ``name -> spec`` mapping to expose, one tool per key. A
-            ``SpecRegistry`` is accepted anywhere the mapping is (drf-services
-            0.27+) — the shared
+            ``SpecRegistry`` is accepted anywhere the mapping is — the shared
             declaration site for a project exposing the same specs over more than
             one transport, so the agent reads the source MCP and the HTTP views
             read. **Prefer the registry over ``registry.specs()``**: an entry
@@ -506,8 +500,9 @@ class SpecToolset(AbstractToolset[Any]):
             the mapping advertises none of the spec's reads. drf-services still
             admits and routes a value sent under one of those names, but the
             model is not told it may send one. ``field_audiences`` is part of the
-            spec's output declaration and is projected either way. A filtered view is itself a registry, so several toolsets can
-            be projected from one declaration with no shared state
+            spec's output declaration and is projected either way. A filtered
+            view is itself a registry, so several toolsets can be projected from
+            one declaration with no shared state
             (``SpecToolset(registry.by_tag("read"), id="reads")``). Only the
             names come from it; everything else here is transport-specific, which
             the registry deliberately carries none of.
@@ -533,7 +528,7 @@ class SpecToolset(AbstractToolset[Any]):
             ``missing_arguments`` -- apply with or without it.
         conventions: The wording the model is told, one line per field -- an
             [`AgentConventions`][django_spec_agents.spec_tools.AgentConventions].
-            ``None`` is ``AgentConventions()``, today's wording. A field changes
+            ``None`` is ``AgentConventions()``, the default wording. A field changes
             what its line says and never whether it appears, which the toolset
             still decides per step; ``None`` on a field drops its line. Unlike
             ``instructions=``, an override of one line leaves every other line
@@ -746,9 +741,10 @@ class SpecToolset(AbstractToolset[Any]):
         _validate_unknown_arguments(unknown_arguments)
         resolved = _resolve_specs(specs)
         # Compiled here, first, so a spec drf-services refuses fails the mount
-        # naming its tool, before any check below reads it. Held by ``test_a_selector_spec_with_no_selector_is_refused_when_the_
-        # toolset_is_built``, whose refusal nothing before dispatch would
-        # otherwise raise with the tool's name.
+        # naming its tool, before any check below reads it. Held by
+        # ``test_a_selector_spec_with_no_selector_is_refused_when_the_toolset_is_built``,
+        # whose refusal nothing before dispatch would otherwise raise with the
+        # tool's name.
         for name, spec in resolved.items():
             with _refusals_name_the_tool(name):
                 kernel_spec(spec)
@@ -786,11 +782,7 @@ class SpecToolset(AbstractToolset[Any]):
         self._executor = executor
         overrides: Mapping[str, int | None] = tool_max_result_bytes or {}
         for tool_name in overrides:
-            if tool_name not in self._specs:
-                raise ValueError(
-                    f"tool_max_result_bytes references unknown tool {tool_name!r}; "
-                    f"known tools: {sorted(self._specs)}."
-                )
+            _refuse_an_unknown_tool("tool_max_result_bytes", tool_name, self._specs)
         self._tool_max_result_bytes: dict[str, int | None] = {
             # ``.get`` with the toolset default, so a stored ``None`` wins over
             # it: an explicit "no ceiling here" is not an absent key.
@@ -830,7 +822,7 @@ class SpecToolset(AbstractToolset[Any]):
         # they are resolved once rather than paying a serializer instantiation
         # on every tool call.
         #
-        # **Built before the tool definitions, which now read them.** A tool's
+        # **Built before the tool definitions, which read them.** A tool's
         # ``return_schema`` describes the payload the model actually receives,
         # and that payload is projected — so the schema has to be projected by
         # the same declaration, or it would advertise a field the render drops.
@@ -1072,12 +1064,12 @@ class SpecToolset(AbstractToolset[Any]):
         """The conventions block, built once and kept.
 
         A pure function of six attributes ``__init__`` assigns and nothing
-        reassigns -- the specs, the query-param declarations, the
-        projections, the schema registry, the page ceiling and the conventions,
-        which are frozen -- so recomputing
-        it is recomputing the same string. Pydantic-AI asks for instructions on **every model
-        step**, and the derivation walks each list spec through
-        ``spec_to_json_schema`` to find what that spec calls its sort.
+        reassigns -- the specs, the query-param declarations, the projections,
+        the schema registry, the page ceiling and the conventions, which are
+        frozen -- so recomputing it is recomputing the same string. Pydantic-AI
+        asks for instructions on **every model step**, and the derivation walks
+        each list spec through ``spec_to_json_schema`` to find what that spec
+        calls its sort.
 
         This is tidiness, not a fix: the measured cost is tens of microseconds
         per spec, against model round trips measured in seconds. What earns the
@@ -1090,23 +1082,18 @@ class SpecToolset(AbstractToolset[Any]):
         ``_specs`` after the first ``get_instructions`` is describing tools the
         block will not mention. Nothing in this package mutates it, and the
         public ``specs`` property is read-only precisely so nothing outside can.
+
+        Derived by the method the per-step memo wraps, called directly so the
+        full set is kept here rather than in that memo.
         """
-        return _derive_instructions(
-            self._specs,
-            {name: self._offered_query_params(name) for name in self._specs},
-            self._projections,
-            registry=self._json_schema_registry,
-            page_size=_served_page_size(self._max_page_size),
-            pool_seeds=self._pool_seeds,
-            conventions=self._conventions,
-        )
+        return self._derive_instructions_without(frozenset())
 
     def _derive_instructions_without(self, omitted: frozenset[str]) -> str | None:
         """The conventions block for the tools a step offers, ``omitted`` aside.
 
         Reached through ``_instructions_without``, the per-instance memo
-        ``__init__`` wraps it in, and only when some tool *is* omitted -- the
-        full set is ``_derived_instructions``, cached for the toolset's life.
+        ``__init__`` wraps it in, when some tool *is* omitted, and directly by
+        ``_derived_instructions`` for the full set, cached for the toolset's life.
         The lines naming what was omitted are not part of it: they carry each
         tool's ``reason``, and rendering them per step keeps this memo a
         function of which tools are offered and nothing else.
@@ -1384,10 +1371,8 @@ class SpecToolset(AbstractToolset[Any]):
         return None
 
     # The back half of a call: everything between the dispatch returning and the
-    # tool result going back to the model. These were module-level privates
-    # reached only from a module-level function, so a project wanting to change
-    # any one of them had to replace ``call_tool`` wholesale or nothing at all --
-    # the same gap 0.14.0 closed on the front half.
+    # tool result going back to the model. Each step is its own override, so a
+    # project changing one need not replace ``call_tool`` wholesale.
 
     def shape_page(
         self,
@@ -1448,7 +1433,7 @@ class SpecToolset(AbstractToolset[Any]):
         override is how a project that means it says so.
         """
         del ctx  # unused by the default; present so an override has it
-        return _render_output(
+        return render_for_audience(
             spec,
             value,
             projection=projection,
@@ -1488,7 +1473,7 @@ class SpecToolset(AbstractToolset[Any]):
         and it carries the whole result rather than the one field: ``instance``
         (the pre-mutation target, resolved once, so an override reading it cannot
         get a different answer by resolving again) and ``data`` (the validated
-        input) were dropped on the same floor. The loss it repairs is conditional
+        input), which the default pool leaves out too. The need is conditional
         -- with no ``output_selector_spec`` the service's return *is* ``value``,
         and only a re-fetch replacing ``value`` puts the flags out of reach -- but
         the upsert that wants ``created`` is exactly the spec that re-fetches.
@@ -1521,9 +1506,8 @@ class SpecToolset(AbstractToolset[Any]):
 
         **The default raises ``ToolFailed``**; an override is free to return a
         value instead, and that value becomes the tool's result marked
-        ``outcome="success"``. Delegating to ``super()`` and inspecting what comes
-        back is the one shape that changed -- the refusal used to be a returned
-        ``{"error": …}`` and is now an exception.
+        ``outcome="success"``. An override delegating to ``super()`` sees the
+        refusal as an exception, not as a returned value.
 
         ``ctx`` is not merely passed through to an override here: the default
         reads this run's correlation fields off it and stamps them on the
@@ -1537,12 +1521,10 @@ class SpecToolset(AbstractToolset[Any]):
     def _call_spec(
         self, spec: Spec, user: Any, args: dict[str, Any], *, ctx: RunContext[Any], **kw: Any
     ) -> Any:
-        """Bind the six seams to this run, then run the shared pipeline.
+        """Bind the six seams to this run, then run the module-level pipeline.
 
-        Separate from the module-level function of the same name because that one
-        has to stay usable without a toolset. The toolset's ``conventions`` are
-        bound here too, beside the seams, so every route into a call words its
-        retries the same way.
+        The toolset's ``conventions`` are bound here too, beside the seams, so
+        every route into a call words its retries the same way.
         """
         return _call_spec(
             spec,
@@ -1571,9 +1553,9 @@ class SpecToolset(AbstractToolset[Any]):
         ``thread_sensitive=True`` the dispatch runs on asgiref's process-wide
         ``single_thread_executor``, so the connection it opens there outlives
         the call, the toolset and the agent, with nothing that will ever close
-        it. Two separate projects hit this and could not fix it from outside,
-        because ``django.db.connections`` is thread-local: only asgiref's thread
-        can close asgiref's connection. The symptom lands somewhere else
+        it. A project cannot fix this from outside, because
+        ``django.db.connections`` is thread-local: only asgiref's thread can
+        close asgiref's connection. The symptom lands somewhere else
         entirely — a test session that will not drop its database because it "is
         being accessed by other users", naming neither this package nor the
         thread holding the handle.
@@ -1705,18 +1687,15 @@ def _validate_descriptions(
 ) -> dict[str, str]:
     """Resolve each tool's description, warning about the ones that say nothing.
 
-    A key naming a tool this toolset does not expose is a typo and raises, on the
-    same reasoning as ``tool_query_params``: dropping it silently would leave the
+    A key naming a tool this toolset does not expose is a typo and raises, as
+    every per-tool mapping's does: dropping it silently would leave the
     tool carrying the description its author thought they had replaced.
 
     Warning rather than raising for a blank one, unlike the permission check: an
     undescribed tool degrades an answer, an unguarded one exposes data.
     """
     for tool_name in descriptions or {}:
-        if tool_name not in specs:
-            raise ValueError(
-                f"descriptions references unknown tool {tool_name!r}; known tools: {sorted(specs)}."
-            )
+        _refuse_an_unknown_tool("descriptions", tool_name, specs)
     resolved: dict[str, str] = {}
     blank: list[str] = []
     for name, spec in specs.items():
@@ -1736,6 +1715,14 @@ def _validate_descriptions(
             stacklevel=3,
         )
     return resolved
+
+
+def _refuse_an_unknown_tool(knob: str, tool_name: str, specs: Mapping[str, Spec]) -> None:
+    """``ValueError`` when a per-tool mapping's key names a tool this toolset does not expose."""
+    if tool_name not in specs:
+        raise ValueError(
+            f"{knob} references unknown tool {tool_name!r}; known tools: {sorted(specs)}."
+        )
 
 
 def _validate_tool_names(specs: Mapping[str, Spec]) -> None:
@@ -1768,11 +1755,7 @@ def _validate_server_arguments(
     """
     bindings = dict(tool_server_arguments or {})
     for tool_name, server in bindings.items():
-        if tool_name not in specs:
-            raise ValueError(
-                f"tool_server_arguments references unknown tool {tool_name!r}; "
-                f"known tools: {sorted(specs)}."
-            )
+        _refuse_an_unknown_tool("tool_server_arguments", tool_name, specs)
         with _refusals_name_the_tool(tool_name):
             check_server_arguments(specs[tool_name], server, pool_seeds=pool_seeds)
     return bindings
@@ -1788,13 +1771,13 @@ def _parameter_reads(
     """The spec's own ``QueryParam`` reads naming an input the tool already advertises.
 
     Such a read declares where a selector parameter, a ``filter_set`` field or
-    a target lookup's parameter comes from; it is not a second argument. drf-services routes a value sent
-    under a declared read to the parameter of that name and to the query
-    string both, so the toolset leaves it in the call rather than taking it
-    out as one of its own channels, which would hand the parameter nothing.
-    That is what a toolset built off ``registry.specs()``, which reads no
-    channels off the entry, has always done, so both routes advertise the
-    name once, as the input, and serve it alike
+    a target lookup's parameter comes from; it is not a second argument.
+    drf-services routes a value sent under a declared read to the parameter of
+    that name and to the query string both, so the toolset leaves it in the
+    call rather than taking it out as one of its own channels, which would hand
+    the parameter nothing. That is what a toolset built off
+    ``registry.specs()``, which reads no channels off the entry, does too, so
+    both routes advertise the name once, as the input, and serve it alike
     (``test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both_routes``,
     ``test_a_spec_read_naming_a_filter_set_field_is_served_alike_from_both_routes``
     and ``test_a_spec_read_naming_a_lookup_parameter_builds_from_both_routes``).
@@ -1803,8 +1786,8 @@ def _parameter_reads(
     the two agree on which names are the model's. The tool's ``UrlKwarg`` reads
     are not passed: a ``UrlKwarg`` changes the schema only under its own name,
     and drf-services refuses a spec declaring one name as both a ``UrlKwarg``
-    and a ``QueryParam``. A serializer field needs no case: drf-services refuses a service spec whose
-    read names one when the spec compiles.
+    and a ``QueryParam``. A serializer field needs no case: drf-services
+    refuses a service spec whose read names one when the spec compiles.
     """
     if not entry_reads:
         return frozenset()
@@ -1832,9 +1815,9 @@ def _validate_inputs_pagination_takes(
     ``page`` / ``limit``; this one keeps the spec's inputs off them, because an
     input of such a name registers, is advertised, and then never receives what
     the model sent: ``_pop_pagination`` takes both out of every call to serve
-    the page. A required one failed every call carrying it; a defaulted one ran
-    on its default whatever the call asked for. Only a list tool paginates, so a
-    retrieve selector's ``page`` reaches it, and the condition is held by
+    the page. A required one would fail every call carrying it; a defaulted one
+    would run on its default whatever the call asked for. Only a list tool
+    paginates, so a retrieve selector's ``page`` reaches it, and the condition is held by
     ``test_a_retrieve_selector_keeps_a_parameter_named_page``. Read off the
     spec's own reflected input, which no provider's keys narrow.
 
@@ -1910,14 +1893,9 @@ async def _with_deadline(
     same reason the byte ceiling's is: the model can respond to it by asking for
     less, and killing the run denies it the chance. It is not a ``ModelRetry``
     either -- a retry budget is finite, and a run should not die because a model
-    spent it on progressively narrower queries against a slow table.
-
-    **A returned ``{"error": …}`` had those two properties as well, and lost a
-    third.** Pydantic-AI marks a returned value ``outcome="success"``, so an
-    abandoned call was indistinguishable on the wire from one that answered --
-    the deadline fired, the operator's log line was written, and the client drew
-    a completed call. The exception says the same sentence to the model and says
-    "failed" to everything downstream of it.
+    spent it on progressively narrower queries against a slow table. Raised
+    rather than returned, as the module docstring says of every terminal
+    failure.
 
     ``extra`` is the caller's log correlation, threaded in rather than derived:
     this is a module-level helper with no ``RunContext``, and its one call site
@@ -2006,22 +1984,21 @@ An allow-list rather than a check for the one refused member, because
 ``UnknownArguments`` is a ``str`` enum and a policy arrives as whatever a
 project's settings hold: ``"passthrough"`` compares equal to the member. A
 member a later django-service-specs release adds is refused too, until this
-toolset is taught what to do with it. ``test_reject_and_ignore_still_build`` holds each member here, one
-parameter apiece.
+toolset is taught what to do with it. ``test_reject_and_ignore_still_build``
+holds each member here, one parameter apiece.
 """
 
 
 def _validate_unknown_arguments(unknown_arguments: UnknownArguments) -> None:
     """Refuse a policy this toolset cannot carry out, at construction.
 
-    ``PASSTHROUGH`` is the one there is. Up to 0.35.x it forwarded the undeclared
-    keys of a call - into a service's ``data``, for one - and drf-services 0.58
-    retired it: it raises ``ValueError`` for the policy on every call, so the
-    toolset refuses it here, at build, rather than on the first tool call. The
-    reason is not drf-services' alone. A model's tool call is one flat object and the toolset hands drf-services
-    every key in it as an argument, so there is no second channel an undeclared
-    name could travel through to reach the callable; the declaration is what
-    makes a name an argument.
+    ``PASSTHROUGH`` is the one there is. drf-services raises ``ValueError`` for
+    it on every call, so the toolset refuses it here, at build, rather than on
+    the first tool call. The reason is not drf-services' alone. A model's tool
+    call is one flat object and the toolset hands drf-services every key in it
+    as an argument, so there is no second channel an undeclared name could
+    travel through to reach the callable; the declaration is what makes a name
+    an argument.
     """
     if unknown_arguments in _ACCEPTED_UNKNOWN_ARGUMENTS:
         return
@@ -2255,16 +2232,15 @@ def _return_schema(
     collection*. A ``ServiceSpec`` whose
     ``output_selector_spec`` is a LIST returns a bare array here — the toolset
     paginates list *selectors* only — so claiming the envelope for it would
-    re-introduce, one spec kind over, exactly the schema-versus-payload
-    disagreement this release exists to close.
+    advertise a shape its payload never has.
 
     ``affordances`` declares the object the render adds to every item when the
     selector spec it renders through declares them: per name, whether the
     operation is available and, when it is not, the ``code`` -- enumerated from
-    the declaration -- and ``reason``. Leaving it out advertised items without the
-    key while every payload carried it -- the same disagreement, over the one key
-    that tells a model what it can do next. A spec declaring none passes ``None``
-    and its schema is unchanged.
+    the declaration -- and ``reason``. Left out, the schema would advertise items
+    without the key while every payload carries it -- the same disagreement, over
+    the one key that tells a model what it can do next. A spec declaring none
+    passes ``None`` and its schema is unchanged.
 
     ``None`` for a spec with no ``output_serializer`` is the correct answer and
     not a gap: drf-services refuses to fabricate a shape it cannot derive, and a
@@ -2273,8 +2249,8 @@ def _return_schema(
     ``kind`` is ``LIST`` for a ``many=True`` service whatever its
     ``output_selector_spec`` declares. That selector is ``RETRIEVE`` by
     convention, because its kind describes one row, while drf-services renders
-    the list it returns as a list; the kind alone advertised an object for a
-    payload that is always an array. Otherwise the kind is the rendered spec's,
+    the list it returns as a list; the kind alone would advertise an object for
+    a payload that is always an array. Otherwise the kind is the rendered spec's,
     which is the kind dispatch presents: a single-row service declaring a
     ``LIST`` output is an array whether or not that output has a ``selector`` to
     re-read through, since dispatch presents the service's own return as the
@@ -2421,7 +2397,7 @@ def _without(schema: dict[str, Any], names: frozenset[str]) -> dict[str, Any]:
     """``schema`` with ``names`` out of its ``properties`` and its ``required``.
 
     The schema itself when there is nothing to take out, so a tool no binding
-    names is advertised exactly as before. Otherwise a new mapping, never an
+    names is advertised unchanged. Otherwise a new mapping, never an
     edit of the one passed in, which may be drf-services' own. A ``required``
     left empty is dropped, as a merge requiring nothing writes none.
     """
@@ -2452,8 +2428,8 @@ def _caller_schema(
     hands the arguments it validates against the serializer to the selector that
     resolves the row or the set as well, and its unknown-argument check admits
     what that selector declares. Described by the serializer alone, a tool
-    renaming a row never told the model about the ``pk`` naming which row, and a
-    call without one reached the lookup as a ``TypeError``.
+    renaming a row would never tell the model about the ``pk`` naming which
+    row, and a call without one would reach the lookup as a ``TypeError``.
 
     **A serializer field sharing its name with a lookup parameter keeps the
     serializer's property**: the serializer validates the value, so its
@@ -2477,7 +2453,7 @@ def _caller_schema(
     the lookup marks, and asked of the service's spec rather than the nested
     lookup's, the set has the others too. Dispatch drops the caller's value for
     each before the lookup reads it and ``REJECT`` refuses it, so advertising
-    one offered an argument every call carrying it was refused for
+    one would offer an argument every call carrying it is refused for
     (``test_a_key_a_precondition_hides_is_not_advertised_beside_the_lookup``).
     **A field the input serializer declares under such a name stays**, because
     the serializer's properties are overlaid after the subtraction: the field is
@@ -2620,9 +2596,9 @@ def _selector_inputs(
       ``provider_keys`` reads them: its ``filled`` set. Held by
       ``test_a_name_a_typed_provider_returns_is_not_asked_for``.
 
-    **The provider's annotation is read by drf-services, not here.** This
-    toolset and drf-mcp each kept a copy of that reader, and the copies drifted
-    from each other and from dispatch. What the reading decides is held on the
+    **The provider's annotation is read by drf-services, not here**, so this
+    toolset, drf-mcp and dispatch read it one way and a copy here could only
+    drift from theirs. What the reading decides is held on the
     tool definition the model sees, one test per shape:
     ``test_a_key_holding_unset_inside_a_container_is_not_offered_to_the_model``,
     ``test_an_annotation_imported_only_for_type_checking_leaves_the_keys_readable``,
@@ -2730,17 +2706,14 @@ def _spec_ordering_argument(
     they cannot disagree** — the invariant being *whatever the schema advertises,
     the dispatch must deliver*.
 
-    **Returns the name rather than a yes/no, and that is the fix.** This used to
-    ask whether the reflected schema contained the literal ``"ordering"``, which
-    silently assumed the one name the documentation happens to suggest.
-    A project following that to the letter is fine; a project whose
-    ``OrderingFilter`` is called ``sorting`` was not. The sort still applied —
-    the FilterSet reads ``params`` either way — but the usage instruction was
-    dropped, and the value was never popped out of the callable's kwarg pool, so
-    a selector declaring ``**kwargs`` received a read-shaping argument it never
-    asked for. Which is precisely the hazard
-    :func:`_pop_filter_ordering` exists to prevent, arriving through the door it
-    was watching.
+    **Returns the name rather than a yes/no.** Asking only whether the
+    reflected schema contains the literal ``"ordering"`` would assume the one
+    name the documentation happens to suggest. For a project whose
+    ``OrderingFilter`` is called ``sorting`` the sort would still apply — the
+    FilterSet reads ``params`` either way — but the usage instruction would be
+    dropped, and the value never popped out of the callable's kwarg pool, so a
+    selector declaring ``**kwargs`` would receive a read-shaping argument it
+    never asked for: the hazard :func:`_pop_filter_ordering` exists to prevent.
 
     **Duck-typed, not an ``isinstance`` test against ``django_filters``.**
     django-filter is an optional extra this package never imports, and a spec's
@@ -2763,7 +2736,7 @@ def _spec_ordering_argument(
     names this toolset fills. A selector whose ``ordering`` parameter a typed
     provider or a registered seed fills is offered no sort, so no instruction
     may teach one and a sort the model sends anyway is refused. Read without
-    them, this answered ``"ordering"`` for a property the schema had dropped:
+    them, this would answer ``"ordering"`` for a property the schema dropped:
     held by ``test_an_ordering_the_toolset_fills_is_refused_from_the_model`` and
     ``test_an_ordering_the_toolset_fills_gets_no_usage_line``. Without
     ``url_kwargs``, because they cannot change the answer: no ``UrlKwarg`` may
@@ -2804,12 +2777,12 @@ def _call_spec(
     host: str | None = None,
     json_schema_registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    build_context: _ContextBuilder = build_offline_context,
-    translate_exception: _ExceptionTranslator | None = None,
-    shape_page: _PageShaper | None = None,
-    render_output: _OutputRenderer | None = None,
-    output_extras: _ExtrasBuilder | None = None,
-    enforce_result_bytes: _ResultBounder | None = None,
+    build_context: _ContextBuilder,
+    translate_exception: _ExceptionTranslator,
+    shape_page: _PageShaper,
+    render_output: _OutputRenderer,
+    output_extras: _ExtrasBuilder,
+    enforce_result_bytes: _ResultBounder,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
 ) -> Any:
     """Run ``spec`` under an off-HTTP context and render the result.
@@ -2819,14 +2792,10 @@ def _call_spec(
 
     The six keyword seams are what
     [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] threads its
-    overridable methods through; the defaults keep this function usable on its
-    own. ``build_context`` and ``translate_exception`` cover the front half of a
-    call, and ``shape_page`` / ``render_output`` / ``output_extras`` /
-    ``enforce_result_bytes`` the back half.
-
-    They are ``None``-defaulted rather than bound to their module-level
-    implementations in the signature because those are defined below this
-    function, and a default expression is evaluated at ``def`` time.
+    overridable methods through, bound to the run: ``build_context`` and
+    ``translate_exception`` cover the front half of a call, and ``shape_page`` /
+    ``render_output`` / ``output_extras`` / ``enforce_result_bytes`` the back
+    half.
 
     ``output_extras`` is called with the whole ``DispatchResult`` as
     ``dispatch_result=``, unconditionally and by every route --
@@ -2839,10 +2808,6 @@ def _call_spec(
     ``conventions`` words the two retries this function writes itself: a missing
     argument, and a read-shaping value the render rejected on a paged tool.
     """
-    shape: _PageShaper = shape_page or _shape_list
-    render: _OutputRenderer = render_output or _render_output
-    extras_for: _ExtrasBuilder = output_extras or _output_extras
-    bound: _ResultBounder = enforce_result_bytes or _enforce_result_bytes
     # **The server's arguments before anything reads the call.** Before the
     # required-arguments check below, so a required read the binding fills is
     # not refused as missing (``test_a_binding_fills_a_required_read_the_model_never_sends``);
@@ -2857,7 +2822,7 @@ def _call_spec(
     # **Then against the arguments as the model sent them.** A selector -- the
     # tool's own, or the lookup a service resolves its target through -- that is
     # called without a parameter it has no default for raises ``TypeError``,
-    # which used to escape the run. The names are the ones the tool's schema
+    # which would escape the run. The names are the ones the tool's schema
     # requires of the selector, from the same reflection, and a name a channel
     # fills is never among them: the channel's own declaration answers for it.
     # Nor is one a provider only may fill, which only the assembled pool can
@@ -2961,7 +2926,7 @@ def _call_spec(
         # ``except`` clause instead, every arm below it becomes unreachable — the
         # ``raise`` for an unclaimed exception leaves the ``try`` entirely rather
         # than trying the next clause.
-        handler = translate_exception(exc) if translate_exception is not None else None
+        handler = translate_exception(exc)
         if handler is not None:
             return handler(exc)
         if isinstance(exc, DRFValidationError | ServiceValidationError):
@@ -2983,14 +2948,10 @@ def _call_spec(
             # rule that refused — a conflict, a state the operation cannot run
             # against — is ``ToolFailed``'s own description: the call is done, it
             # failed definitively, and the model should adapt rather than repeat
-            # it. Returning a value instead made the failure *unreadable one hop
-            # out*: pydantic-ai marks an ordinary return ``outcome="success"``,
-            # so a transport streaming the result had nothing but the payload's
-            # wording to tell a refusal from a row, and every one of them
-            # rendered as a completed call. ``ToolFailed`` carries the same
-            # sentence to the model, spends no retry budget, and prepends no
-            # correction instructions — the three properties the returned dict
-            # was chosen for — while marking the return ``outcome="failed"``.
+            # it. ``ToolFailed`` spends no retry budget and prepends no
+            # correction instructions, and marks the return ``outcome="failed"``
+            # where a returned value would read as a success one hop out (see
+            # the module docstring).
             if isinstance(exc, ActionUnavailable):
                 # **Inside this branch, not ahead of it, and still behind the
                 # consumer's map.** A subclass of ``ServiceConflict`` and so of
@@ -2998,17 +2959,16 @@ def _call_spec(
                 # and the only difference is what the sentence carries. The
                 # message is the only channel -- ``ToolFailed`` takes nothing
                 # else, and it is what a transport forwards as the result -- so
-                # a refusal that dropped its ``code`` here left the model reading
-                # a reason it could not tie to the ``affordances`` answer naming
-                # the same rule, with the name surviving only on ``__cause__``,
-                # where no model looks.
+                # a refusal that dropped its ``code`` here would leave the model
+                # reading a reason it could not tie to the ``affordances`` answer
+                # naming the same rule, with the name surviving only on
+                # ``__cause__``, where no model looks.
                 raise ToolFailed(_refusal_message(exc)) from exc
             raise ToolFailed(str(exc)) from exc
         raise
 
     if result.kind == "not_found":
-        # "a missing resource" is the first case ``ToolFailed`` names, and the
-        # wording the model reads is the one it read before. Raised here rather
+        # "a missing resource" is the first case ``ToolFailed`` names. Raised here rather
         # than in the ``except`` arm because drf-services reports an unresolved
         # target as a *result kind*, not an exception.
         raise ToolFailed("not found")
@@ -3023,7 +2983,7 @@ def _call_spec(
         # plain-string ``order_by`` eagerly — so a ``filter_set`` whose
         # ``param_map`` names something that is not a column raises inside
         # ``dispatch_spec``, not at this line. An arm here would never fire.
-        page = shape(
+        page = shape_page(
             value,
             page=page_args.page,
             limit=page_args.limit,
@@ -3031,20 +2991,17 @@ def _call_spec(
         )
         value = page.items
     many = result.kind == "list"
-    # **The carrier, not the three fields read above.** ``result.kind`` and
-    # ``result.value`` were all this function ever took off the dispatch, so
-    # ``service_result`` (an upsert's ``created``), ``instance`` (the
-    # pre-mutation target) and ``data`` (the validated input) reached no seam at
-    # all -- and ``output_extras`` documents itself as the escape hatch for
-    # exactly the first of those. Handing over the whole result closes the three
-    # together and costs nothing: it is already in scope.
+    # **The carrier, not only the fields read above**, so ``service_result`` (an
+    # upsert's ``created``), ``instance`` (the pre-mutation target) and ``data``
+    # (the validated input) reach the ``output_extras`` seam. It costs nothing:
+    # it is already in scope.
     #
     # Built ahead of the render rather than as its argument so the ``try`` below
     # holds the render and nothing else. Nothing here reads the query string,
     # so an error out of it is never the caller's to correct.
-    extras = extras_for(spec, value, many=many, dispatch_result=result)
+    extras = output_extras(spec, value, many=many, dispatch_result=result)
     try:
-        rendered = render(
+        rendered = render_output(
             spec,
             value,
             projection=projection,
@@ -3057,15 +3014,15 @@ def _call_spec(
         # **A read-shaping param is the one caller input used while rendering**,
         # not while dispatching -- a ``fields`` or ``query`` selection is read
         # by the output serializer's ``to_representation`` -- so a bad one fails
-        # here, after the ``try`` above has closed, and used to escape the run
-        # as a raw ``ValidationError``. Wrapped around the call rather than
-        # inside ``_render_output`` so a consumer's ``render_output`` override
-        # is covered too.
+        # here, after the ``try`` above has closed, and would escape the run as
+        # a raw ``ValidationError``. Wrapped around the call rather than
+        # inside the default ``render_output`` so a consumer's override is
+        # covered too.
         #
         # The consumer's map first, and its handler's value returned as-is,
         # exactly as on the dispatch path: one ``translate_exception`` should not
         # have to know which half of the call an error came from.
-        handler = translate_exception(exc) if translate_exception is not None else None
+        handler = translate_exception(exc)
         if handler is not None:
             return handler(exc)
         # **Only when the caller shaped the render.** With no read-shaping value
@@ -3102,7 +3059,7 @@ def _call_spec(
     # Measured on the envelope, because the envelope is what is sent. It adds
     # three small scalars and the "there is more" signal the model needs in
     # order to act on a refusal that tells it to lower `limit`.
-    return bound(rendered, max_bytes=max_result_bytes, label=label)
+    return enforce_result_bytes(rendered, max_bytes=max_result_bytes, label=label)
 
 
 def _apply_server_arguments(
@@ -3134,7 +3091,7 @@ def _enforce_result_bytes(
     *,
     max_bytes: int | None,
     label: str,
-    extra: Mapping[str, Any] | None = None,
+    extra: Mapping[str, Any],
 ) -> Any:
     """Return ``payload``, or raise a model-readable refusal when it is over budget.
 
@@ -3146,21 +3103,13 @@ def _enforce_result_bytes(
     narrow the request and it *can*, but a retry budget is finite and a run
     should not die because a model spent it on progressively smaller queries.
     Also logged at ``WARNING``, since a bound that fires invisibly reads to an
-    operator as "the tool is broken".
+    operator as "the tool is broken". The dispatch did succeed, but the result
+    was refused and no data reached the model, so ``failed`` is the truthful
+    marking.
 
-    **The refusal used to be a returned ``{"error": …}``, which understated it
-    by exactly one field.** The dispatch did succeed; the result was refused,
-    and no data reached the model. Pydantic-AI marks a returned value
-    ``outcome="success"``, so a caller one hop out saw a completed call carrying
-    a payload it had no way to read as a refusal. ``failed`` is the truthful
-    marking for a call that produced nothing usable, and it costs the model
-    nothing: the sentence it reads is unchanged.
-
-    ``extra`` carries the caller's log correlation. Defaulted rather than
-    required because this function is also the standalone bound in ``_call_spec``,
-    which has no ``RunContext`` to derive one from;
+    ``extra`` carries the caller's log correlation, which
     [`SpecToolset.enforce_result_bytes`][django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes]
-    always supplies it.
+    reads off its ``RunContext``.
     """
     if max_bytes is None:
         return payload
@@ -3231,8 +3180,8 @@ def _refusal_message(exc: ActionUnavailable) -> str:
 def _format_validation_detail(detail: Any) -> str:
     """A DRF or service validation detail as text a model can act on.
 
-    ``str(exc.detail)`` is what the retry carried before, and for a DRF error that
-    is the Python repr of its ``ErrorDetail`` objects --
+    Not ``str(exc.detail)``, which for a DRF error is the Python repr of its
+    ``ErrorDetail`` objects --
     ``{'name': [ErrorDetail(string='This field is required.', code='required')]}``
     -- which spends the model's attention on a class name and a ``code`` it has no
     use for, around the one sentence it needs.
@@ -3340,11 +3289,10 @@ def _pop_pagination(
     about a page's bounds; this is about bad input, and only the second is a
     policy.
 
-    Clamping ``limit`` to ``max_page_size`` is therefore **not** done here any
-    more: ``paginate_output(max_page_size=…)`` applies it at the slice, where the
-    ``totalPages`` the caller is told about is computed from the same number. Two
-    clamps meant two places for that number to be, and only one of them was ever
-    reported back.
+    Clamping ``limit`` to ``max_page_size`` is therefore **not** done here:
+    ``paginate_output(max_page_size=…)`` applies it at the slice, where the
+    ``totalPages`` the caller is told about is computed from the same number, so
+    there is one place for that number to be.
 
     **``ordering`` is left entirely alone for a spec that advertises it**, so the
     value reaches the ``filter_set`` — or the selector callable — that declared
@@ -3395,10 +3343,8 @@ def _pop_filter_ordering(
     advertised it there is no FilterSet to reach, so the value stays in
     ``params`` — popping it would starve the one thing that asked for it.
 
-    **The name is asked for rather than assumed.** A FilterSet whose
-    ``OrderingFilter`` is called anything other than ``ordering`` used to fall
-    through here, leaving its value in the callable's kwarg pool — the exact
-    surprise the paragraph above says this function exists to prevent.
+    **The name is asked for rather than assumed**, so a FilterSet whose
+    ``OrderingFilter`` is called anything other than ``ordering`` is routed too.
     """
     if not isinstance(spec, SelectorSpec) or spec.filter_set is None:
         return None
@@ -3412,13 +3358,10 @@ def _pop_filter_ordering(
 def _declares_default(default: Any) -> bool:
     """Whether a ``QueryParam`` / ``UrlKwarg`` actually declares a default.
 
-    Tolerates both sentinels the sister package has used for "no default": plain
-    ``None`` up to drf-services 0.43, and ``UNSET`` from 0.44, where the change was
-    made so that ``default=None`` could mean an explicit null. Checking only
-    ``is not None`` reads ``UNSET`` as a real value and hands the sentinel object
-    to the spec as an argument -- and, for a ``required=True`` kwarg, satisfies the
-    requiredness check with it. Written to accept either so this package keeps
-    working across that boundary without a floor raise.
+    Neither ``None`` nor ``UNSET`` is one. Checking only ``is not None`` would
+    read ``UNSET`` as a real value and hand the sentinel object to the spec as an
+    argument -- and, for a ``required=True`` kwarg, satisfy the requiredness
+    check with it.
     """
     return default is not None and default is not UNSET
 
@@ -3446,10 +3389,10 @@ def _pop_query_params(query_params: Sequence[QueryParam], args: dict[str, Any]) 
     **An explicit ``None`` is omitted, not forwarded.** ``QueryParam`` documents
     it that way -- ``{"fields": null}`` is how a model says it chose not to fill
     the param, and the ``default`` still applies -- and the stringifying above
-    is why it matters: forwarded, the null reached the serializer as the four
-    characters ``None``, which a strict selection parser refuses as malformed,
-    ending a run over an argument the model had declined to send. Popped either
-    way, so ``unknown_arguments`` never sees the key.
+    is why it matters: forwarded, the null would reach the serializer as the
+    four characters ``None``, which a strict selection parser refuses as
+    malformed, ending a run over an argument the model had declined to send.
+    Popped either way, so ``unknown_arguments`` never sees the key.
     """
     values: dict[str, Any] = {}
     for query_param in query_params:
@@ -3549,23 +3492,14 @@ def _refuse_unadvertised_ordering(value: Any) -> None:
 def _shape_list(
     value: Any, *, page: int | None, limit: int | None, max_page_size: int | None
 ) -> OutputPage:
-    """Paginate a list selector's queryset and force it to evaluate.
+    """Paginate a list selector's queryset with ``paginate_output``, then force it to evaluate.
 
-    The slicing itself is ``paginate_output``, drf-services' shared shaper, which
-    also counts the rows and clamps both bounds. This function is what is left
-    once that moved out: force evaluation.
-
-    **No sorting happens here.** Ordering belongs to whatever the spec declared
-    it on, which has already applied it to the (lazy) queryset by the time this
-    runs; a second ``order_by`` from the transport would replace that sort rather
-    than compose with it.
-
-    Forces evaluation (``list(...)``) so that *nothing downstream* holds a lazy
-    queryset once this returns: a serializer re-evaluating one would run the
-    query a second time, and the envelope's counts and its rows could then come
-    from two different reads. ``replace`` rather than mutation because
-    ``OutputPage`` is frozen, and here rather than at the call site because the
-    guarantee belongs to whatever produces the page.
+    Forced (``list(...)``) so that *nothing downstream* holds a lazy queryset
+    once this returns: a serializer re-evaluating one would run the query a
+    second time, and the envelope's counts and its rows could then come from two
+    different reads. ``replace`` rather than mutation because ``OutputPage`` is
+    frozen, and here rather than at the call site because the guarantee belongs
+    to whatever produces the page.
     """
     shaped: OutputPage = paginate_output(
         value,
@@ -3574,39 +3508,6 @@ def _shape_list(
         max_page_size=max_page_size,
     )
     return replace(shaped, items=list(shaped.items))
-
-
-def _render_output(
-    spec: Spec,
-    value: Any,
-    *,
-    projection: AudienceProjection | None,
-    many: bool,
-    request: Any,
-    view: Any,
-    extras: dict[str, Any],
-) -> Any:
-    """Render a dispatch result for the model to read.
-
-    The default is drf-services' ``render_for_audience`` -- ``render_spec_output``
-    plus the serializer's audience markings -- with the projection this toolset
-    built once at registration rather than derived per call.
-
-    **Passing ``projection=None`` is not an opt-out**: ``render_for_audience``
-    reads it as "derive one from the spec", which projects anyway and costs a
-    serializer instantiation. The way out is to render with ``render_spec_output``
-    instead, which is the whole reason this step is a seam -- see
-    [`SpecToolset.render_output`][django_spec_agents.spec_tools.SpecToolset.render_output].
-    """
-    return render_for_audience(
-        spec,
-        value,
-        projection=projection,
-        many=many,
-        request=request,
-        view=view,
-        extras=extras,
-    )
 
 
 def _output_extras(

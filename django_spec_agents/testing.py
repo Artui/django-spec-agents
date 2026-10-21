@@ -8,10 +8,8 @@ is fed back for another attempt instead of aborting, that the toolset's
 ``Agent`` needs a model.
 
 ``FunctionModel`` is the model with no provider and no network behind it, and
-the two recipes here are the ones this package's own suite grew and then kept
-re-deriving. They lived in a test file, which is to say outside the wheel, so
-every consumer wanting the same coverage wrote them again from the pydantic-ai
-docs.
+the recipes here are the ones a consumer wanting the same coverage would
+otherwise re-derive from the pydantic-ai docs.
 
 **Test doubles, not fixtures.** Nothing here touches Django, the database or
 ``pytest``, so it composes with whatever a project already uses.
@@ -119,9 +117,7 @@ def streaming_tool_calling_model(
     consumer reaching for the double next door to test what its browser
     receives gets a run that dies before the toolset is touched -- and the
     transport redacts the reason, so what reaches the client is "The run
-    failed", naming nothing. The one release whose entire subject is what a
-    consumer sees downstream of a tool call could not be tested downstream of a
-    tool call.
+    failed", naming nothing.
 
     Both functions are supplied, which ``FunctionModel`` allows: the same double
     then serves a streamed run and a non-streamed one, so a test does not have to
@@ -150,10 +146,10 @@ def streaming_tool_calling_model(
             # one delta is a valid stream a reassembling client handles the same
             # way.
             yield {0: DeltaToolCall(name=part.tool_name, json_args=part.args_as_json_str())}
-        elif isinstance(part, TextPart):
-            yield part.content
-        else:  # pragma: no cover - `_next_response` emits only these two.
-            raise AssertionError(f"the double produced an unstreamable part: {part!r}")
+            return
+        # `_next_response` emits only these two parts.
+        assert isinstance(part, TextPart), f"the double produced an unstreamable part: {part!r}"
+        yield part.content
 
     return FunctionModel(model_fn, stream_function=stream_fn)
 

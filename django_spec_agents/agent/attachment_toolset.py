@@ -77,12 +77,10 @@ def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | T
         data = handle.read()
     text = _as_text(data, ref.mime)
     if text is not None:
-        # Capped on the same budget as the binary branch. What ``max_bytes``
-        # bounds is one request, and a decoded 9 MiB CSV reaches the provider
-        # and stays in the run's history exactly as 9 MiB of PDF would -- the
-        # decode changes the encoding, not the cost. Measured on the bytes read
-        # rather than the decoded string so one rule covers both branches and
-        # a multi-byte file is not judged by its character count.
+        # Capped on the same budget as the binary branch, for the reason
+        # ``AttachmentInlineConfig`` gives. Measured on the bytes read rather
+        # than the decoded string so one rule covers both branches and a
+        # multi-byte file is not judged by its character count.
         if len(data) > inline.max_bytes:
             return (
                 f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes), over the "

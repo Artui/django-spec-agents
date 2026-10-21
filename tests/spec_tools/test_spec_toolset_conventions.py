@@ -10,26 +10,28 @@ from __future__ import annotations
 
 import json
 from dataclasses import fields
-from types import SimpleNamespace
 from typing import Any
 
-import django_filters
 import pytest
 from django.core.exceptions import ImproperlyConfigured
-from django_service_specs import DEFAULT_PAGE_SIZE, Affordance, FieldMarking, SelectorKind
+from django_service_specs import DEFAULT_PAGE_SIZE, Affordance, SelectorKind
 from pydantic_ai import Agent, ModelRetry
-from pydantic_ai.usage import RunUsage
-from rest_framework import serializers
-from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny
-from rest_framework_services import MARKING, QueryParam, SelectorSpec, ServiceSpec, UrlKwarg
+from rest_framework_services import QueryParam, SelectorSpec, ServiceSpec, UrlKwarg
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.testing import instruction_capturing_model
 from tests.spec_tools.test_spec_toolset import reading
-from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.testapp.serializers import WidgetInputSerializer
+from tests.spec_tools.wording_specs import (
+    HandledWidget,
+    Picky,
+    approve,
+    one,
+    run_context,
+    selector_specs,
+)
 
 _DEFAULTS = AgentConventions()
 _FIELDS = [field.name for field in fields(AgentConventions)]
@@ -46,66 +48,6 @@ _PLACEHOLDERS = {"pagination": ("page_size",), "ordering": ("names",)} | {
 _UNAVAILABLE_ITEM = "\n  - `approve`: The books are closed."
 
 
-def _ctx() -> Any:
-    """The fields of a live ``RunContext`` the toolset reads."""
-    return SimpleNamespace(
-        deps=AgentDeps(user=None),
-        run_id="run-1",
-        conversation_id="conv-1",
-        run_step=1,
-        tool_call_id="call-1",
-        usage=RunUsage(),
-    )
-
-
-class _SortedWidgets(django_filters.FilterSet):
-    ordering = django_filters.OrderingFilter(fields=(("name", "name"),))
-
-    class Meta:
-        model = Widget
-        fields = []
-
-
-class _HandledWidget(serializers.ModelSerializer):
-    """An ``id`` marked as a handle with no wording of its own, so the fallback answers."""
-
-    class Meta:
-        model = Widget
-        fields = ["id", "name"]
-        extra_kwargs = {"id": {"style": {MARKING: FieldMarking.handle()}}}
-
-
-class _Picky(serializers.Serializer):
-    """A row that refuses any ``fields`` selection, in its own words."""
-
-    name = serializers.CharField()
-
-    def to_representation(self, instance: Any) -> Any:
-        if self.context["request"].query_params.get("fields"):
-            raise DRFValidationError("Unknown field `items`.")
-        return super().to_representation(instance)
-
-
-def _rows(**_: Any) -> list[dict[str, str]]:
-    """Two plain rows, so the render runs without a database."""
-    return [{"name": "a"}, {"name": "b"}]
-
-
-def _widgets(**_: Any) -> Any:
-    """A queryset, which a ``filter_set`` requires; never evaluated here."""
-    return Widget.objects.none()
-
-
-def _one(*, pk: int) -> Widget:
-    """A lookup with no default for ``pk``."""
-    return Widget(pk=pk, name="w")
-
-
-def _approve(**_: Any) -> dict[str, bool]:
-    """Approve the pending invoices."""
-    return {"approved": True}
-
-
 def _make(**data: Any) -> dict[str, Any]:
     """Make a widget."""
     return data
@@ -113,7 +55,7 @@ def _make(**data: Any) -> dict[str, Any]:
 
 def _conditioned(when: Any, **kwargs: Any) -> ServiceSpec:
     return ServiceSpec(
-        service=_approve,
+        service=approve,
         atomic=False,
         affordances=[Affordance(code="books_closed", reason="The books are closed.", when=when)],
         permission_classes=[AllowAny],
@@ -124,29 +66,11 @@ def _conditioned(when: Any, **kwargs: Any) -> ServiceSpec:
 def _every_line() -> dict[str, Any]:
     """A spec map that turns on every line of the block and the unavailable list."""
     return {
-        "list_widgets": SelectorSpec(
-            kind=SelectorKind.LIST,
-            selector=_rows,
-            output_serializer=_Picky,
-            permission_classes=[AllowAny],
-        ),
-        "sorted_widgets": SelectorSpec(
-            kind=SelectorKind.LIST,
-            selector=_widgets,
-            output_serializer=_Picky,
-            filter_set=_SortedWidgets,
-            permission_classes=[AllowAny],
-        ),
-        "get_widget": SelectorSpec(
-            kind=SelectorKind.RETRIEVE,
-            selector=_one,
-            output_serializer=_HandledWidget,
-            permission_classes=[AllowAny],
-        ),
+        **selector_specs(),
         "scoped_widget": SelectorSpec(
             kind=SelectorKind.RETRIEVE,
-            selector=_one,
-            output_serializer=_Picky,
+            selector=one,
+            output_serializer=Picky,
             permission_classes=[AllowAny],
         ),
         "make_widget": ServiceSpec(
@@ -174,15 +98,15 @@ def _toolset(**kwargs: Any) -> SpecToolset:
 
 async def _retry(toolset: SpecToolset, tools: dict[str, Any], name: str, args: dict) -> str:
     with pytest.raises(ModelRetry) as raised:
-        await toolset.call_tool(name, args, _ctx(), tools[name])
+        await toolset.call_tool(name, args, run_context(), tools[name])
     return raised.value.message
 
 
 async def _surfaces(**kwargs: Any) -> dict[str, Any]:
     """Everything the model can read from ``_toolset(**kwargs)``, by where it lands."""
     toolset = _toolset(**kwargs)
-    tools = await toolset.get_tools(_ctx())
-    surfaces: dict[str, Any] = {"instructions": await toolset.get_instructions(_ctx())}
+    tools = await toolset.get_tools(run_context())
+    surfaces: dict[str, Any] = {"instructions": await toolset.get_instructions(run_context())}
     for name, tool in tools.items():
         surfaces[f"params:{name}"] = json.dumps(
             tool.tool_def.parameters_json_schema, ensure_ascii=False
@@ -330,7 +254,7 @@ async def test_a_declared_param_description_keeps_its_place_ahead_of_a_changed_s
         ),
         conventions=AgentConventions(query_param_on_pages="Per row."),
     )
-    tools = await toolset.get_tools(_ctx())
+    tools = await toolset.get_tools(run_context())
 
     schema = tools["list_widgets"].tool_def.parameters_json_schema
     assert schema["properties"]["fields"]["description"] == "Which fields. Per row."
@@ -402,7 +326,7 @@ async def test_an_overridden_line_still_appears_only_when_a_tool_can_act_on_it()
         conventions=every_line,
     )
 
-    assert await toolset.get_instructions(_ctx()) == "House base."
+    assert await toolset.get_instructions(run_context()) == "House base."
 
 
 async def test_an_overridden_line_follows_a_tool_a_condition_leaves_out():
@@ -421,7 +345,7 @@ async def test_an_overridden_line_follows_a_tool_a_condition_leaves_out():
                 "approve": _conditioned(
                     lambda: books["open"],
                     output_selector_spec=SelectorSpec(
-                        kind=SelectorKind.RETRIEVE, output_serializer=_HandledWidget
+                        kind=SelectorKind.RETRIEVE, output_serializer=HandledWidget
                     ),
                 ),
             },
@@ -432,9 +356,9 @@ async def test_an_overridden_line_follows_a_tool_a_condition_leaves_out():
         ),
     )
 
-    closed = await toolset.get_instructions(_ctx())
+    closed = await toolset.get_instructions(run_context())
     books["open"] = True
-    opened = await toolset.get_instructions(_ctx())
+    opened = await toolset.get_instructions(run_context())
 
     assert closed == f"{_DEFAULTS.base}\nClosed:{_UNAVAILABLE_ITEM}"
     assert opened == f"{_DEFAULTS.base}\nHandles.\nShape with `fields`."
@@ -445,7 +369,7 @@ async def test_a_block_with_every_line_dropped_is_no_instructions_at_all():
         {"scoped_widget": _every_line()["scoped_widget"]}, conventions=AgentConventions(base=None)
     )
 
-    assert await toolset.get_instructions(_ctx()) is None
+    assert await toolset.get_instructions(run_context()) is None
 
 
 @pytest.mark.parametrize("route", ["toolsets", "capability", "capability_from_toolset"])
@@ -464,7 +388,7 @@ async def test_an_agent_takes_no_instructions_from_a_toolset_that_says_nothing(r
         {"list_widgets": [QueryParam("fields")]},
     )
     toolset = SpecToolset(specs, **options)
-    assert await toolset.get_instructions(_ctx()) is None
+    assert await toolset.get_instructions(run_context()) is None
     attached: dict[str, Any] = {
         "toolsets": {"toolsets": [toolset]},
         "capability": {"capabilities": [SpecCapability(specs, **options)]},
@@ -489,7 +413,7 @@ async def test_with_every_line_dropped_the_unavailable_list_stands_alone():
         {"approve": _conditioned(lambda: False)}, conventions=AgentConventions(base=None)
     )
 
-    assert await toolset.get_instructions(_ctx()) == (
+    assert await toolset.get_instructions(run_context()) == (
         f"{_DEFAULTS.unavailable_heading}{_UNAVAILABLE_ITEM}"
     )
 
@@ -539,10 +463,10 @@ async def test_a_dropped_heading_drops_the_unavailable_list_after_an_override_to
         conventions=AgentConventions(unavailable_heading=None),
     )
 
-    assert await kept.get_instructions(_ctx()) == (
+    assert await kept.get_instructions(run_context()) == (
         f"House rules.\n{_DEFAULTS.unavailable_heading}{_UNAVAILABLE_ITEM}"
     )
-    assert await dropped.get_instructions(_ctx()) == "House rules."
+    assert await dropped.get_instructions(run_context()) == "House rules."
 
 
 def test_the_refusal_reaches_through_the_capability():
@@ -592,7 +516,7 @@ async def test_the_quickstart_example_says_what_it_shows():
         conventions=conventions,
     )
 
-    assert await toolset.get_instructions(_ctx()) == (
+    assert await toolset.get_instructions(run_context()) == (
         f"{_DEFAULTS.base}\n"
         "- Collections come back one page at a time, as "
         '{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}, '

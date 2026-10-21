@@ -84,10 +84,10 @@ async def test_list_empty_session_is_empty() -> None:
     assert await DjangoSessionConversationStore().list(request=_request()) == []
 
 
-async def test_list_tolerates_legacy_entry_without_timestamp() -> None:
+async def test_list_tolerates_an_entry_without_a_timestamp() -> None:
     store = DjangoSessionConversationStore()
     request = _request()
-    # A row written before updated_at tracking — no "updated_at" key.
+    # An entry with no "updated_at" key.
     request.session["django_pydantic_agent_conversations"] = {
         "old": {"messages": [], "owner_id": None}
     }
@@ -129,16 +129,16 @@ async def test_exists_reflects_session_presence() -> None:
 async def test_list_orders_newest_first_and_applies_limit() -> None:
     store = DjangoSessionConversationStore()
     request = _request()
-    # Two saved threads carry ``updated_at``; a legacy entry saved without one
+    # Two saved threads carry ``updated_at``; an entry stored without one
     # sorts last (exercises the ``updated_at is None`` sort branch).
     await store.save(Conversation(thread_id="t1"), request=request)
     await store.save(Conversation(thread_id="t2"), request=request)
-    request.session["django_pydantic_agent_conversations"]["legacy"] = {
+    request.session["django_pydantic_agent_conversations"]["undated"] = {
         "messages": [],
         "owner_id": None,
     }
     request.session.modified = True
 
     metas = await store.list(request=request)
-    assert metas[-1].thread_id == "legacy"  # no timestamp → last
+    assert metas[-1].thread_id == "undated"  # no timestamp → last
     assert len(await store.list(request=request, limit=1)) == 1

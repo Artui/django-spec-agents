@@ -1,20 +1,9 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
-from django.http import HttpRequest
-from django.test import RequestFactory
-
 from django_spec_agents.persistence.model_conversation_store import ModelConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
-
-
-def _authed_request(pk: str = "7") -> HttpRequest:
-    """A request whose user resolves to ``owner_id == pk`` (no DB / session)."""
-    request = RequestFactory().get("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
-    return request
+from tests.request_helpers import authed_request
 
 
 class _DictStore(ModelConversationStore):
@@ -35,7 +24,7 @@ class _DictStore(ModelConversationStore):
 
 async def test_base_wraps_sync_ops_with_owner_scoping() -> None:
     store = _DictStore()
-    request = _authed_request()
+    request = authed_request()
     conv = Conversation(thread_id="t1")
 
     await store.save(conv, request=request)
@@ -48,7 +37,7 @@ async def test_base_wraps_sync_ops_with_owner_scoping() -> None:
 
 async def test_list_defaults_to_empty_for_subclasses_that_dont_override() -> None:
     # ``_DictStore`` doesn't override ``_list`` — listing stays opt-in.
-    assert await _DictStore().list(request=_authed_request()) == []
+    assert await _DictStore().list(request=authed_request()) == []
 
 
 class _ListableStore(_DictStore):
@@ -63,7 +52,7 @@ class _ListableStore(_DictStore):
 
 async def test_list_uses_subclass_override_and_owner_scoping() -> None:
     store = _ListableStore()
-    request = _authed_request()
+    request = authed_request()
     await store.save(Conversation(thread_id="t1"), request=request)
     await store.save(Conversation(thread_id="t2"), request=request)
     store.rows[("99", "other")] = Conversation(thread_id="other")  # a different owner
@@ -73,7 +62,7 @@ async def test_list_uses_subclass_override_and_owner_scoping() -> None:
 
 
 async def test_rename_defaults_to_noop_for_subclasses_that_dont_override() -> None:
-    assert await _DictStore().rename("t1", "x", request=_authed_request()) is None
+    assert await _DictStore().rename("t1", "x", request=authed_request()) is None
 
 
 class _RenamableStore(_DictStore):
@@ -87,13 +76,13 @@ class _RenamableStore(_DictStore):
 
 async def test_rename_uses_subclass_override_with_owner_scoping() -> None:
     store = _RenamableStore()
-    await store.rename("t1", "Renamed", request=_authed_request())
+    await store.rename("t1", "Renamed", request=authed_request())
     assert store.renames == [("7", "t1", "Renamed")]
 
 
 async def test_exists_defaults_to_the_fetch_probe() -> None:
     store = _DictStore()
-    request = _authed_request()
+    request = authed_request()
     await store.save(Conversation(thread_id="t1"), request=request)
     assert await store.exists("t1", request=request) is True
     assert await store.exists("absent", request=request) is False

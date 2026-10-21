@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
@@ -37,9 +38,7 @@ class DefaultConversationStore(ModelConversationStore):
     """
 
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None:
-        row = StoredConversation.objects.filter(
-            owner_id=owner_id or "", thread_id=thread_id
-        ).first()
+        row = _thread_rows(thread_id, owner_id).first()
         if row is None:
             return None
         return Conversation(
@@ -81,7 +80,7 @@ class DefaultConversationStore(ModelConversationStore):
         skips this and leaves the attachments unreferenced, which is what
         ``agent_store_prune_attachments`` collects.
         """
-        rows = StoredConversation.objects.filter(owner_id=owner_id or "", thread_id=thread_id)
+        rows = _thread_rows(thread_id, owner_id)
         referenced = list(
             StoredAttachment.objects.filter(conversations__in=rows)
             .distinct()
@@ -114,14 +113,15 @@ class DefaultConversationStore(ModelConversationStore):
     def _exists(self, thread_id: str, owner_id: str | None) -> bool:
         # Metadata-only, unlike the base's ``_fetch`` fallback: no message body
         # is deserialized.
-        return StoredConversation.objects.filter(
-            owner_id=owner_id or "", thread_id=thread_id
-        ).exists()
+        return _thread_rows(thread_id, owner_id).exists()
 
     def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
-        StoredConversation.objects.filter(owner_id=owner_id or "", thread_id=thread_id).update(
-            title=title
-        )
+        _thread_rows(thread_id, owner_id).update(title=title)
+
+
+def _thread_rows(thread_id: str, owner_id: str | None) -> QuerySet[StoredConversation]:
+    """The owner's row for ``thread_id``, as a queryset; anonymous is stored as ``""``."""
+    return StoredConversation.objects.filter(owner_id=owner_id or "", thread_id=thread_id)
 
 
 __all__ = ["DefaultConversationStore"]

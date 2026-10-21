@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.types.tool_category import ToolCategory
@@ -49,40 +51,31 @@ def test_decorator_overrides_take_precedence() -> None:
     assert binding.input_schema["x-summary"] == "Custom action"
 
 
-def test_decorator_handles_missing_docstring() -> None:
+@pytest.mark.parametrize(
+    ("docstring", "description"),
+    [
+        (None, ""),
+        # No blank line, so the paragraph loop runs out rather than breaking.
+        (
+            "Single line, no blank line - loop exhausts without a break.",
+            "Single line, no blank line - loop exhausts without a break.",
+        ),
+        (
+            "First line of summary\n    continues onto a second line.\n\n    Second paragraph.\n",
+            "First line of summary continues onto a second line.",
+        ),
+    ],
+    ids=["missing", "single-line", "first-paragraph-only"],
+)
+def test_decorator_describes_a_tool_by_its_docstrings_first_paragraph(
+    docstring: str | None, description: str
+) -> None:
     reg = ToolRegistry()
 
-    @tool(reg)
-    def bare() -> None:
+    def fn() -> None:
         return None
 
-    assert reg.get("bare").spec.description == ""
+    fn.__doc__ = docstring
+    tool(reg)(fn)
 
-
-def test_decorator_single_line_docstring_no_blank_line() -> None:
-    reg = ToolRegistry()
-
-    @tool(reg)
-    def oneliner() -> None:
-        "Single line, no blank line — loop exhausts without a break."
-
-    assert (
-        reg.get("oneliner").spec.description
-        == "Single line, no blank line — loop exhausts without a break."
-    )
-
-
-def test_decorator_strips_to_first_paragraph() -> None:
-    reg = ToolRegistry()
-
-    @tool(reg)
-    def multi() -> None:
-        """First line of summary
-        continues onto a second line.
-
-        Second paragraph.
-        """
-
-    assert (
-        reg.get("multi").spec.description == "First line of summary continues onto a second line."
-    )
+    assert reg.get("fn").spec.description == description

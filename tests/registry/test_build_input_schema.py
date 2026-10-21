@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Union
 
+import pytest
 from pydantic_ai import RunContext
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -40,32 +41,32 @@ def test_primitive_parameters() -> None:
     assert "x-destructive" not in schema
 
 
-def test_destructive_and_category_extensions() -> None:
+@pytest.mark.parametrize(
+    ("kwargs", "stamped", "absent"),
+    [
+        (
+            {"destructive": True, "category": ToolCategory.UI_WRITE},
+            {"x-destructive": True, "x-category": "ui_write"},
+            "x-confirm",
+        ),
+        (
+            {"destructive": True, "confirm": "Activate this project?"},
+            {"x-confirm": "Activate this project?"},
+            "x-summary",
+        ),
+        ({"summary": "Query orders"}, {"x-summary": "Query orders"}, "x-confirm"),
+    ],
+    ids=["destructive-and-category", "confirm", "summary"],
+)
+def test_extensions_are_stamped_only_when_supplied(
+    kwargs: dict[str, Any], stamped: dict[str, Any], absent: str
+) -> None:
     def fn(value: str) -> None:
         del value
 
-    schema = build_input_schema(fn, destructive=True, category=ToolCategory.UI_WRITE)
-    assert schema["x-destructive"] is True
-    assert schema["x-category"] == "ui_write"
-    # No x-confirm unless a confirm prompt is supplied.
-    assert "x-confirm" not in schema
-
-
-def test_confirm_extension() -> None:
-    def fn(value: str) -> None:
-        del value
-
-    schema = build_input_schema(fn, destructive=True, confirm="Activate this project?")
-    assert schema["x-confirm"] == "Activate this project?"
-    assert "x-summary" not in schema
-
-
-def test_summary_extension() -> None:
-    def fn(value: str) -> None:
-        del value
-
-    schema = build_input_schema(fn, summary="Query orders")
-    assert schema["x-summary"] == "Query orders"
+    schema = build_input_schema(fn, **kwargs)
+    assert {key: schema[key] for key in stamped} == stamped
+    assert absent not in schema
 
 
 def test_container_types() -> None:
@@ -141,9 +142,8 @@ def test_no_defaults_omits_required() -> None:
 
 class TestTheRunContextParameterIsNotAToolArgument:
     """``ctx: RunContext[...]`` is how a tool reaches the acting user, and
-    pydantic-ai supplies it. The derivation used to emit it as a property with an
-    empty schema and add it to ``required``, so a schema handed to a client or to
-    another model advertised a phantom argument the model had to invent."""
+    pydantic-ai supplies it. Emitting it as a property would hand a client or
+    another model a schema advertising a phantom argument it would have to invent."""
 
     def test_a_run_context_first_parameter_is_skipped(self) -> None:
         def find_order(ctx: RunContext[AgentDeps], order_id: int) -> None:

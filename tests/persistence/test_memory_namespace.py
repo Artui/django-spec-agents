@@ -9,16 +9,11 @@ from pydantic_ai_harness.memory._store import validate_store_path
 
 from django_spec_agents.persistence.memory_namespace import memory_namespace
 from django_spec_agents.persistence.utils import resolve_owner_id
+from tests.request_helpers import authed_request
 
 # The harness composes the key as ``<namespace>/<agent_name>/<file>``, so a
 # namespace is only usable if a path built from it validates.
 _AGENT_SEGMENT = "main"
-
-
-def _authed(pk: str) -> HttpRequest:
-    request = RequestFactory().post("/")
-    request.user = SimpleNamespace(is_authenticated=True, pk=pk)  # type: ignore[attr-defined]
-    return request
 
 
 def _anon(session_key: str | None = "abc123") -> HttpRequest:
@@ -68,7 +63,7 @@ def test_the_owner_id_the_other_stores_use_is_not_a_valid_namespace() -> None:
     ],
 )
 def test_every_authenticated_namespace_is_a_valid_path_segment(pk: str) -> None:
-    validate_store_path(_path(memory_namespace(_authed(pk))))
+    validate_store_path(_path(memory_namespace(authed_request(pk))))
 
 
 def test_an_anonymous_namespace_is_a_valid_path_segment() -> None:
@@ -86,7 +81,7 @@ def test_a_session_is_created_when_the_browser_has_none() -> None:
 def test_a_segment_safe_primary_key_is_carried_through_readably() -> None:
     """Kept legible on purpose: an operator reading a stored path should be able
     to tell whose it is without a lookup table."""
-    assert memory_namespace(_authed("7")) == "u-7"
+    assert memory_namespace(authed_request("7")) == "u-7"
 
 
 def test_two_primary_keys_differing_only_in_unsafe_characters_stay_apart() -> None:
@@ -96,22 +91,24 @@ def test_two_primary_keys_differing_only_in_unsafe_characters_stay_apart() -> No
     ``tenant-42`` onto one namespace, which is two users reading each other's
     memory — the exact failure the resolver exists to prevent.
     """
-    assert memory_namespace(_authed("tenant/42")) != memory_namespace(_authed("tenant-42"))
+    assert memory_namespace(authed_request("tenant/42")) != memory_namespace(
+        authed_request("tenant-42")
+    )
 
 
 def test_an_over_long_primary_key_is_digested_because_the_prefix_no_longer_fits() -> None:
     """200 characters is a valid segment; ``u-`` plus 200 is not."""
-    namespace = memory_namespace(_authed("x" * 200))
+    namespace = memory_namespace(authed_request("x" * 200))
 
     assert namespace != f"u-{'x' * 200}"
     assert len(namespace) == len("u-") + 40
 
 
 def test_an_anonymous_and_an_authenticated_namespace_cannot_collide() -> None:
-    assert memory_namespace(_anon()) != memory_namespace(_authed("abc123"))
+    assert memory_namespace(_anon()) != memory_namespace(authed_request("abc123"))
 
 
 def test_the_resolver_is_stable_for_the_same_identifier() -> None:
-    assert memory_namespace(_authed("person@example.com")) == memory_namespace(
-        _authed("person@example.com")
+    assert memory_namespace(authed_request("person@example.com")) == memory_namespace(
+        authed_request("person@example.com")
     )

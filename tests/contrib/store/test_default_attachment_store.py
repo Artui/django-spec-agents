@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from io import BytesIO
+from typing import Any
 
 import pytest
 from django.core.files.storage import default_storage
@@ -53,6 +54,13 @@ def _distinct_blobs() -> int:
     return StoredAttachment.objects.values("file").distinct().count()
 
 
+def _bytes_of(store: DefaultAttachmentStore, attachment_id: str, owner_id: str = "7") -> bytes:
+    opened = store._open(attachment_id, owner_id)
+    assert opened is not None
+    with opened.content as handle:
+        return handle.read()
+
+
 def test_save_then_open_round_trips() -> None:
     store = DefaultAttachmentStore()
     ref = store._save(_upload(), "7")
@@ -79,28 +87,22 @@ def test_open_is_owner_scoped() -> None:
     assert store._open(ref.id, "99") is None
 
 
-def test_save_strips_path_from_name() -> None:
-    store = DefaultAttachmentStore()
-    ref = store._save(_upload(name="sub/dir/notes.txt"), "7")
-    assert ref.name == "notes.txt"
-
-
-def test_save_without_name_falls_back() -> None:
-    store = DefaultAttachmentStore()
-    ref = store._save(_upload(name=None), "7")
-    assert ref.name == "attachment"
-
-
-def test_save_without_content_type_stores_empty_mime() -> None:
-    store = DefaultAttachmentStore()
-    ref = store._save(_upload(content_type=None), "7")
-    assert ref.mime == ""
-
-
-def test_save_empty_file_has_zero_size() -> None:
-    store = DefaultAttachmentStore()
-    ref = store._save(_upload(content=b""), "7")
-    assert ref.size == 0
+@pytest.mark.parametrize(
+    ("upload_kwargs", "field", "expected"),
+    [
+        pytest.param(
+            {"name": "sub/dir/notes.txt"}, "name", "notes.txt", id="path-stripped-from-name"
+        ),
+        pytest.param({"name": None}, "name", "attachment", id="no-name-falls-back"),
+        pytest.param({"content_type": None}, "mime", "", id="no-content-type-stores-empty-mime"),
+        pytest.param({"content": b""}, "size", 0, id="empty-file-has-zero-size"),
+    ],
+)
+def test_save_normalises_what_the_upload_leaves_out(
+    upload_kwargs: dict[str, Any], field: str, expected: object
+) -> None:
+    ref = DefaultAttachmentStore()._save(_upload(**upload_kwargs), "7")
+    assert getattr(ref, field) == expected
 
 
 def test_anonymous_owner_normalized_to_empty_string() -> None:
@@ -159,10 +161,7 @@ def test_reuploading_the_same_bytes_reuses_the_blob() -> None:
     assert _stored_name(first.id) == _stored_name(second.id)
     assert _distinct_blobs() == 1
 
-    opened = store._open(second.id, "7")
-    assert opened is not None
-    with opened.content as handle:
-        assert handle.read() == b"hello"
+    assert _bytes_of(store, second.id) == b"hello"
 
 
 def test_different_bytes_are_not_deduplicated() -> None:
@@ -190,10 +189,7 @@ def test_a_multi_chunk_upload_is_hashed_and_stored_whole() -> None:
     row = StoredAttachment.objects.get(attachment_id=ref.id)
     assert row.sha256 == hashlib.sha256(content).hexdigest()
     # Hashing consumed the stream; the bytes still reached storage in full.
-    opened = store._open(ref.id, "7")
-    assert opened is not None
-    with opened.content as handle:
-        assert handle.read() == content
+    assert _bytes_of(store, ref.id) == content
 
 
 def test_removing_one_of_two_rows_sharing_a_blob_keeps_the_file() -> None:
@@ -204,10 +200,7 @@ def test_removing_one_of_two_rows_sharing_a_blob_keeps_the_file() -> None:
     store._remove(first.id, "7")
 
     assert store._open(first.id, "7") is None
-    surviving = store._open(second.id, "7")
-    assert surviving is not None
-    with surviving.content as handle:
-        assert handle.read() == b"hello"
+    assert _bytes_of(store, second.id) == b"hello"
 
 
 def test_removing_the_last_row_sharing_a_blob_deletes_the_file() -> None:
@@ -226,9 +219,9 @@ def test_removing_the_last_row_sharing_a_blob_deletes_the_file() -> None:
 #
 # Rows outlive blobs: a lifecycle rule expires a key, a dump is restored beside an
 # empty bucket, a backend is migrated underneath. The row is then a promise the
-# storage cannot keep, and the two defects below used to compound -- the read
-# raised where the contract says ``None``, and the re-upload that should have
-# repaired it adopted the same dead path and wrote nothing.
+# storage cannot keep. Two things must hold: the read answers ``None`` where the
+# contract says so rather than raising, and the re-upload that repairs it writes
+# fresh bytes rather than adopting the dead path.
 
 
 def test_open_reports_a_missing_blob_as_unavailable() -> None:
@@ -263,14 +256,11 @@ def test_a_re_upload_repairs_an_owner_whose_blob_went_missing() -> None:
     default_storage.delete(dead)
 
     # The user's natural recovery. Identical bytes hash identically, so this is
-    # exactly the upload that used to match the dead twin and write nothing.
+    # exactly the upload that would otherwise adopt the dead twin's path and write nothing.
     second = store._save(_upload(content=b"hello"), "7")
 
     assert default_storage.exists(_stored_name(second.id))
-    opened = store._open(second.id, "7")
-    assert opened is not None
-    with opened.content as handle:
-        assert handle.read() == b"hello"
+    assert _bytes_of(store, second.id) == b"hello"
 
 
 def test_deduplication_still_skips_the_write_when_the_blob_is_there(
@@ -340,10 +330,7 @@ def test_a_twin_carrying_no_path_is_not_adopted() -> None:
     ref = store._save(_upload(content=b"hello"), "7")
 
     assert _stored_name(ref.id) != ""
-    opened = store._open(ref.id, "7")
-    assert opened is not None
-    with opened.content as handle:
-        assert handle.read() == b"hello"
+    assert _bytes_of(store, ref.id) == b"hello"
 
 
 def test_rows_sharing_one_dead_path_cost_a_single_existence_check(
@@ -377,7 +364,7 @@ def test_rows_sharing_one_dead_path_cost_a_single_existence_check(
 
 def test_the_store_logs_under_its_module_path() -> None:
     # Unlike the audit and failure loggers, nothing configures this one by name,
-    # so it follows the module rather than keeping the old package's spelling.
+    # so it follows the module path.
     from django_spec_agents.contrib.store import default_attachment_store
 
     assert default_attachment_store.logger.name == (

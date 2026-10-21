@@ -4,7 +4,7 @@ import asyncio
 import gc
 import logging
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from importlib.metadata import version
 from typing import Any
@@ -50,6 +50,7 @@ from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardCon
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import SpecCapability
+from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 
 # Every scenario below is a real agent run: a real ``Agent``, real capabilities
 # and pydantic-ai's own hook dispatch. Which hook encloses which is the
@@ -64,27 +65,19 @@ _HOOKS_INSIDE_THE_WRAPPER = tuple(
 ) >= (2, 54)
 
 
-class _CapturingLogger:
-    def __init__(self) -> None:
-        self.events: list[AuditEvent] = []
-
-    def record(self, event: AuditEvent) -> None:
-        self.events.append(event)
-
-
 class _RaisingLogger:
     def record(self, event: AuditEvent) -> None:
         raise RuntimeError("sink down")
 
 
-def _records(sink: _CapturingLogger) -> list[tuple[str, str, bool, str | None, int | None]]:
+def _records(sink: CapturingAuditLogger) -> list[tuple[str, str, bool, str | None, int | None]]:
     """Each record as ``(tool, arguments, success, error, result_size)``."""
     return [(e.tool_name, e.arguments_repr, e.success, e.error, e.result_size) for e in sink.events]
 
 
 def _agent(
     *tools: Callable[..., Any],
-    sink: _CapturingLogger,
+    sink: CapturingAuditLogger,
     capabilities: Sequence[AbstractCapability[Any]] = (),
     tool_failure: bool = True,
     model: Any = None,
@@ -133,6 +126,67 @@ def _scripted(*rounds: list[ToolCallPart]) -> FunctionModel:
         return ModelResponse(parts=[TextPart("done")])
 
     return FunctionModel(respond)
+
+
+async def ping() -> str:
+    """Ping."""
+    return "pong"
+
+
+def _toolset_agent(
+    fn: Callable[..., Any], *capabilities: AbstractCapability[Any]
+) -> Agent[Any, Any]:
+    """An agent over one tool in a plain toolset, with ``capabilities`` and no
+    ``build_agent``, so the order is the one the caller composed by hand."""
+    return Agent(
+        TestModel(call_tools=[fn.__name__]),
+        toolsets=[FunctionToolset([fn])],
+        capabilities=list(capabilities),
+    )
+
+
+async def _run_with(
+    agent: Agent[AgentDeps, Any], capabilities: Sequence[AbstractCapability[Any]]
+) -> None:
+    """One run with ``capabilities`` passed to it alone, which sort after the agent's own."""
+    async with agent.iter("go", deps=_deps(), capabilities=list(capabilities)) as run:
+        async for _ in run:
+            pass
+
+
+def _flaky_once() -> tuple[Callable[[int], Awaitable[str]], list[str]]:
+    """A tool that fails its first call and finds on every later one, with the
+    outcome of each call it has had."""
+    ran: list[str] = []
+
+    async def flaky(n: int) -> str:
+        """Fails the first time."""
+        if not ran:
+            ran.append("failed")
+            raise ValueError("first")
+        ran.append("found")
+        return "found"
+
+    return flaky, ran
+
+
+def _lookup_with_n_0_then_1() -> FunctionModel:
+    """A model calling ``lookup`` with ``n=0``, and with ``n=1`` once that is answered."""
+    return _scripted(
+        [ToolCallPart(tool_name="lookup", args={"n": 0}, tool_call_id="first")],
+        [ToolCallPart(tool_name="lookup", args={"n": 1}, tool_call_id="second")],
+    )
+
+
+def _delegating_to(inner: Agent[Any, Any], audit: AuditCapability) -> Agent[Any, Any]:
+    """An agent whose one tool runs ``inner`` to completion, with ``audit`` composed."""
+
+    async def delegate(n: int) -> str:
+        """The outer tool."""
+        await inner.run("go")
+        return "delegated"
+
+    return _toolset_agent(delegate, audit)
 
 
 # Capabilities shaped like pydantic-ai-harness's: a guardrail that vetoes with
@@ -236,9 +290,6 @@ class _WrapRewriteArgs(AbstractCapability[Any]):
 
 
 class _Recover(AbstractCapability[Any]):
-    def __init__(self) -> None:
-        self.seen: list[Exception] = []
-
     async def on_tool_execute_error(
         self,
         ctx: RunContext[Any],
@@ -248,7 +299,6 @@ class _Recover(AbstractCapability[Any]):
         args: Any,
         error: Exception,
     ) -> Any:
-        self.seen.append(error)
         return "recovered"
 
 
@@ -333,42 +383,28 @@ def test_audit_declares_innermost_ordering() -> None:
     """Innermost, so its ``before_tool_execute`` runs after every other one and
     its ``on_tool_execute_error`` and ``after_tool_execute`` before every other
     one. Those are the two moments either side of the tool itself."""
-    ordering = AuditCapability(_CapturingLogger()).get_ordering()
+    ordering = AuditCapability(CapturingAuditLogger()).get_ordering()
     assert ordering is not None
     assert ordering.position == "innermost"
 
 
 async def test_records_toolset_tools_not_just_registry_tools() -> None:
     # The capability hooks the run loop, so tools contributed by a composed
-    # toolset (drf-mcp / spec / attachment / skills) are audited too — the old
-    # per-tool wrapper saw only registry tools.
+    # toolset (drf-mcp / spec / attachment / skills) are audited too, not only
+    # registry tools.
     def triple(n: int) -> int:
         """Triple a number."""
         return n * 3
 
-    audit = _CapturingLogger()
-    agent = Agent(
-        TestModel(call_tools=["triple"]),
-        toolsets=[FunctionToolset([triple])],
-        capabilities=[AuditCapability(audit)],
-    )
-    await agent.run("triple 2")
+    audit = CapturingAuditLogger()
+    await _toolset_agent(triple, AuditCapability(audit)).run("triple 2")
     assert _records(audit) == [("triple", '{"n": 0}', True, None, 1)]
 
 
 async def test_stamps_ip_and_organization_onto_events() -> None:
-    def ping() -> str:
-        """Ping."""
-        return "pong"
-
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     capability = AuditCapability(audit, ip_address="10.0.0.7", organization_id="acme")
-    agent = Agent(
-        TestModel(call_tools=["ping"]),
-        toolsets=[FunctionToolset([ping])],
-        capabilities=[capability],
-    )
-    await agent.run("ping")
+    await _toolset_agent(ping, capability).run("ping")
     event = audit.events[0]
     assert event.ip_address == "10.0.0.7"
     assert event.organization_id == "acme"
@@ -381,8 +417,8 @@ async def test_the_runs_deps_supply_the_ip() -> None:
     request — and the failure mode if a transport builds once anyway is silent:
     every record carries the IP of whoever arrived first.
     """
-    audit = _CapturingLogger()
-    agent = _pinging_agent(AuditCapability(audit, ip_address="10.0.0.7"))
+    audit = CapturingAuditLogger()
+    agent = _toolset_agent(ping, AuditCapability(audit, ip_address="10.0.0.7"))
 
     await agent.run("ping", deps=_deps("203.0.113.9"))
     await agent.run("ping", deps=_deps("198.51.100.4"))
@@ -391,8 +427,8 @@ async def test_the_runs_deps_supply_the_ip() -> None:
 
 
 async def test_a_run_with_no_ip_falls_back_to_the_constructed_one() -> None:
-    audit = _CapturingLogger()
-    agent = _pinging_agent(AuditCapability(audit, ip_address="10.0.0.7"))
+    audit = CapturingAuditLogger()
+    agent = _toolset_agent(ping, AuditCapability(audit, ip_address="10.0.0.7"))
 
     await agent.run("ping", deps=_deps())
 
@@ -402,24 +438,12 @@ async def test_a_run_with_no_ip_falls_back_to_the_constructed_one() -> None:
 async def test_deps_without_an_ip_field_are_not_an_error() -> None:
     """The deps type is the host's to choose — a project's own class need not
     carry the field, and `None` deps are what pydantic-ai passes by default."""
-    audit = _CapturingLogger()
-    agent = _pinging_agent(AuditCapability(audit, ip_address="10.0.0.7"))
+    audit = CapturingAuditLogger()
+    agent = _toolset_agent(ping, AuditCapability(audit, ip_address="10.0.0.7"))
 
     await agent.run("ping", deps=object())
 
     assert audit.events[0].ip_address == "10.0.0.7"
-
-
-def _pinging_agent(capability: AuditCapability) -> Agent[Any, Any]:
-    def ping() -> str:
-        """Ping."""
-        return "pong"
-
-    return Agent(
-        TestModel(call_tools=["ping"]),
-        toolsets=[FunctionToolset([ping])],
-        capabilities=[capability],
-    )
 
 
 @pytest.mark.parametrize("tool_failure", [False, True], ids=["policy-off", "policy-on"])
@@ -435,7 +459,7 @@ async def test_a_raising_tool_is_recorded_by_its_own_exception(tool_failure: boo
         """Look a thing up."""
         raise ValueError("kaboom")
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(lookup, sink=audit, tool_failure=tool_failure)
 
     if tool_failure:
@@ -470,7 +494,7 @@ async def test_a_tools_own_tool_failed_is_recorded_as_it_propagated(
         except ValueError as error:
             raise ToolFailed("model copy") from error
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(lookup, sink=audit)
     with caplog.at_level(logging.ERROR, logger="django_pydantic_agent.failure"):
         await agent.run("go", deps=_deps())
@@ -492,11 +516,8 @@ async def test_a_model_retry_is_recorded_as_it_propagated() -> None:
             raise ModelRetry("n must be positive")
         return "found"
 
-    audit = _CapturingLogger()
-    model = _scripted(
-        [ToolCallPart(tool_name="lookup", args={"n": 0}, tool_call_id="first")],
-        [ToolCallPart(tool_name="lookup", args={"n": 1}, tool_call_id="second")],
-    )
+    audit = CapturingAuditLogger()
+    model = _lookup_with_n_0_then_1()
     await _agent(lookup, sink=audit, model=model).run("go", deps=_deps())
 
     assert _records(audit) == [
@@ -515,9 +536,8 @@ async def test_a_recovered_failure_is_still_recorded_as_the_failure() -> None:
         """Look a thing up."""
         raise ValueError("kaboom")
 
-    audit = _CapturingLogger()
-    recover = _Recover()
-    result = await _agent(lookup, sink=audit, capabilities=[recover]).run("go", deps=_deps())
+    audit = CapturingAuditLogger()
+    result = await _agent(lookup, sink=audit, capabilities=[_Recover()]).run("go", deps=_deps())
 
     assert _records(audit) == [("lookup", '{"n": 0}', False, "ValueError: kaboom", None)]
     assert [part.content for part in _tool_returns(result.all_messages())] == ["recovered"]
@@ -540,7 +560,7 @@ async def test_a_vetoed_call_is_not_recorded(veto: type[_Veto]) -> None:
         calls.append(n)
         return "found"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     result = await _agent(lookup, sink=audit, capabilities=[veto()]).run("go", deps=_deps())
 
     assert calls == []
@@ -563,7 +583,7 @@ async def test_audit_composed_ahead_of_an_innermost_veto_does_not_record_it() ->
         """Look a thing up."""
         return "found"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = Agent(
         TestModel(call_tools=["lookup"]),
         deps_type=AgentDeps,
@@ -585,11 +605,8 @@ async def test_a_veto_from_a_capability_passed_per_run_is_not_recorded() -> None
         calls.append(n)
         return "found"
 
-    audit = _CapturingLogger()
-    agent = _agent(lookup, sink=audit)
-    async with agent.iter("go", deps=_deps(), capabilities=[_InnermostVeto()]) as run:
-        async for _ in run:
-            pass
+    audit = CapturingAuditLogger()
+    await _run_with(_agent(lookup, sink=audit), [_InnermostVeto()])
 
     assert calls == []
     assert _records(audit) == []
@@ -628,12 +645,8 @@ async def test_a_per_run_innermost_rewrite_reaches_the_record_only_before_2_54()
         received.append(n)
         return "found"
 
-    audit = _CapturingLogger()
-    agent = _agent(lookup, sink=audit)
-    capabilities = [_SlowInnermostRewriteArgs()]
-    async with agent.iter("go", deps=_deps(), capabilities=capabilities) as run:
-        async for _ in run:
-            pass
+    audit = CapturingAuditLogger()
+    await _run_with(_agent(lookup, sink=audit), [_SlowInnermostRewriteArgs()])
 
     assert received == [7]
     assert _records(audit) == [
@@ -1011,13 +1024,10 @@ async def test_a_capability_sorted_after_audit_reaches_the_record(
             raise case.raises("kaboom")
         return "found" if len(ran) == 1 else "found again"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     capability = _OneThing(case.behaviour, inside_audit=composed == "config-ordered-inside-audit")
     if composed == "per-run":
-        agent = _agent(lookup, sink=audit)
-        async with agent.iter("go", deps=_deps(), capabilities=[capability]) as run:
-            async for _ in run:
-                pass
+        await _run_with(_agent(lookup, sink=audit), [capability])
     else:
         await _agent(lookup, sink=audit, capabilities=[capability]).run("go", deps=_deps())
     if composed == "config":
@@ -1040,7 +1050,7 @@ async def test_a_capability_composed_by_hand_after_audit_reaches_the_record_too(
         """Look a thing up."""
         raise ValueError("kaboom")
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = Agent(
         TestModel(call_tools=["lookup"]),
         deps_type=AgentDeps,
@@ -1113,12 +1123,9 @@ async def test_harness_tool_guardrail_is_innermost_and_sorts_after_audit_per_run
             raise _SCREENS_A_FAILURE[verdict][0]("secret 123")
         return "found"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     if composed == "per-run":
-        agent = _agent(lookup, sink=audit)
-        async with agent.iter("go", deps=_deps(), capabilities=[guardrail]) as run:
-            async for _ in run:
-                pass
+        await _run_with(_agent(lookup, sink=audit), [guardrail])
     else:
         await _agent(lookup, sink=audit, capabilities=[guardrail]).run("go", deps=_deps())
 
@@ -1150,11 +1157,8 @@ async def test_a_retry_asked_for_before_the_tool_runs_is_not_recorded() -> None:
         calls.append(n)
         return "found"
 
-    audit = _CapturingLogger()
-    model = _scripted(
-        [ToolCallPart(tool_name="lookup", args={"n": 0}, tool_call_id="first")],
-        [ToolCallPart(tool_name="lookup", args={"n": 1}, tool_call_id="second")],
-    )
+    audit = CapturingAuditLogger()
+    model = _lookup_with_n_0_then_1()
     agent = _agent(lookup, sink=audit, model=model, capabilities=[_RetryFirstCall()])
     await agent.run("go", deps=_deps())
 
@@ -1187,7 +1191,7 @@ async def test_a_call_an_approval_required_toolset_defers_is_recorded_once_it_ru
     raises ``ApprovalRequired`` from inside the call, where audit sees it. The
     deferred call did not execute, so it has no record; the approved one does.
     """
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(
         sink=audit,
         model=TestModel(call_tools=["wire"]),
@@ -1214,7 +1218,7 @@ async def test_a_tool_asking_for_approval_itself_is_recorded_once_it_runs() -> N
         calls.append(amount)
         return f"wired {amount}"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(sink=audit, model=TestModel(call_tools=["wire"]), toolsets=[toolset])
 
     deferred = await agent.run("go", deps=_deps())
@@ -1235,7 +1239,7 @@ async def test_a_call_deferred_to_external_execution_has_no_record() -> None:
         """Run elsewhere."""
         raise CallDeferred
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(sink=audit, model=TestModel(call_tools=["external"]), toolsets=[toolset])
 
     deferred = await agent.run("go", deps=_deps())
@@ -1250,7 +1254,7 @@ async def test_an_approval_deferral_is_not_recorded_until_the_approved_call_runs
         """Delete a thing."""
         return "dropped"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(
         drop,
         sink=audit,
@@ -1261,12 +1265,7 @@ async def test_an_approval_deferral_is_not_recorded_until_the_approved_call_runs
     assert isinstance(deferred.output, DeferredToolRequests)
     assert _records(audit) == []
 
-    approvals = {call.tool_call_id: True for call in deferred.output.approvals}
-    await agent.run(
-        message_history=deferred.all_messages(),
-        deferred_tool_results=DeferredToolResults(approvals=approvals),
-        deps=_deps(),
-    )
+    await _approve_and_resume(agent, deferred)
     assert _records(audit) == [("drop", '{"n": 0}', True, None, 7)]
 
 
@@ -1284,7 +1283,7 @@ async def test_the_arguments_are_the_ones_the_tool_received(rewrite: type[_Rewri
         received.append(n)
         return "found"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     await _agent(lookup, sink=audit, capabilities=[rewrite()]).run("go", deps=_deps())
 
     assert received == [7]
@@ -1301,7 +1300,7 @@ async def test_the_arguments_include_a_wrappers_rewrite() -> None:
         received.append(n)
         return "found"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     await _agent(lookup, sink=audit, capabilities=[_WrapRewriteArgs()]).run("go", deps=_deps())
 
     assert received == [5]
@@ -1316,17 +1315,8 @@ async def test_a_wrapper_that_runs_the_tool_twice_gets_one_record_per_run() -> N
     so the tool runs once; before 2.54 the guardrail ran once, ahead of every
     wrapper, so the tool runs twice. The records follow the tool either way.
     """
-    ran: list[str] = []
-
-    def flaky(n: int) -> str:
-        """Fails the first time."""
-        if not ran:
-            ran.append("failed")
-            raise ValueError("first")
-        ran.append("found")
-        return "found"
-
-    audit = _CapturingLogger()
+    flaky, ran = _flaky_once()
+    audit = CapturingAuditLogger()
     await _agent(
         flaky, sink=audit, capabilities=[_RetryOnce(), _Veto(allow=1)], tool_failure=False
     ).run("go", deps=_deps())
@@ -1375,17 +1365,8 @@ async def test_a_rerun_refused_ahead_of_audit_is_not_recorded() -> None:
     the refusal falls on the model's retry instead, and the tool runs twice
     inside the first call. The records follow the tool either way.
     """
-    ran: list[str] = []
-
-    def flaky(n: int) -> str:
-        """Fails the first time."""
-        if not ran:
-            ran.append("failed")
-            raise ValueError("first")
-        ran.append("found")
-        return "found"
-
-    audit = _CapturingLogger()
+    flaky, ran = _flaky_once()
+    audit = CapturingAuditLogger()
     await _agent(
         flaky,
         sink=audit,
@@ -1421,11 +1402,9 @@ async def test_a_rerun_sorted_after_audit_and_refused_ahead_of_it_mixes_two_runs
             raise ModelRetry("kaboom")
         return "found again"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(lookup, sink=audit, capabilities=[_RefuseTheSecondAttempt()])
-    async with agent.iter("go", deps=_deps(), capabilities=[_OneThing("wrapper-reruns")]) as run:
-        async for _ in run:
-            pass
+    await _run_with(agent, [_OneThing("wrapper-reruns")])
 
     if _HOOKS_INSIDE_THE_WRAPPER:
         refused = ("lookup", '{"n": 0}', False, "ModelRetry: not again", None)
@@ -1442,7 +1421,7 @@ async def test_the_result_size_is_the_tools_own_result() -> None:
         """Look a thing up."""
         return "found"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     result = await _agent(lookup, sink=audit, capabilities=[_RewriteResult()]).run(
         "go", deps=_deps()
     )
@@ -1466,7 +1445,7 @@ async def _async_lookup(n: int) -> str:
 @pytest.mark.parametrize("lookup", [_sync_lookup, _async_lookup], ids=["sync", "async"])
 async def test_the_duration_is_the_tools_own(lookup: Callable[..., Any]) -> None:
     """``duration_ms`` spans the tool, not the 1.2 s of another capability's hooks."""
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     await _agent(lookup, sink=audit, capabilities=[_SlowHooks()]).run("go", deps=_deps())
 
     assert _records(audit) == [(lookup.__name__, '{"n": 0}', True, None, 5)]
@@ -1509,7 +1488,7 @@ async def test_parallel_calls_in_one_run_keep_their_own_records() -> None:
         await overlap()
         raise ValueError("second broke")
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     model = _scripted(
         [
             ToolCallPart(tool_name="first", args={"n": 1}, tool_call_id="call"),
@@ -1542,7 +1521,7 @@ async def test_concurrent_runs_of_one_agent_keep_their_own_records() -> None:
             raise ValueError("second client")
         return "x" * 3
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = _agent(lookup, sink=audit, capabilities=[_RewriteResult()])
     await asyncio.gather(
         agent.run("go", deps=_deps("10.0.0.1")),
@@ -1566,7 +1545,7 @@ async def test_two_audit_capabilities_in_one_chain_each_record_the_call() -> Non
         """Look a thing up."""
         return "found"
 
-    own, built = _CapturingLogger(), _CapturingLogger()
+    own, built = CapturingAuditLogger(), CapturingAuditLogger()
     await _agent(lookup, sink=built, capabilities=[AuditCapability(own)]).run("go", deps=_deps())
 
     assert _records(own) == _records(built) == [("lookup", '{"n": 0}', True, None, 5)]
@@ -1580,7 +1559,7 @@ async def test_a_nested_run_sharing_the_capability_records_its_own_calls() -> No
     inner call a guardrail refuses has none, and the outer record still
     measures the outer tool's own result.
     """
-    audit_log = _CapturingLogger()
+    audit_log = CapturingAuditLogger()
     audit = AuditCapability(audit_log)
 
     def leaf(n: int) -> str:
@@ -1597,17 +1576,7 @@ async def test_a_nested_run_sharing_the_capability_records_its_own_calls() -> No
         capabilities=[_Veto(tools=frozenset({"blocked"})), audit],
     )
 
-    async def delegate(n: int) -> str:
-        """The outer tool."""
-        await inner.run("go")
-        return "delegated"
-
-    outer = Agent(
-        TestModel(call_tools=["delegate"]),
-        toolsets=[FunctionToolset([delegate])],
-        capabilities=[audit],
-    )
-    await outer.run("go")
+    await _delegating_to(inner, audit).run("go")
 
     assert _records(audit_log) == [
         ("leaf", '{"n": 0}', True, None, 4),
@@ -1625,7 +1594,7 @@ async def test_a_nested_call_refused_ahead_of_audit_is_not_recorded() -> None:
     check keeps the inner call from taking the outer one's "reached" and
     recording a call that never ran.
     """
-    audit_log = _CapturingLogger()
+    audit_log = CapturingAuditLogger()
     audit = AuditCapability(audit_log)
     ran: list[int] = []
 
@@ -1640,17 +1609,7 @@ async def test_a_nested_call_refused_ahead_of_audit_is_not_recorded() -> None:
         capabilities=[_RetryFirstCall(), audit],
     )
 
-    async def delegate(n: int) -> str:
-        """The outer tool."""
-        await inner.run("go")
-        return "delegated"
-
-    outer = Agent(
-        TestModel(call_tools=["delegate"]),
-        toolsets=[FunctionToolset([delegate])],
-        capabilities=[audit],
-    )
-    await outer.run("go")
+    await _delegating_to(inner, audit).run("go")
 
     assert ran == [0]
     assert _records(audit_log) == [
@@ -1682,7 +1641,7 @@ async def test_no_per_call_state_outlives_the_run() -> None:
         """Delete a thing."""
         return "dropped"
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     await _agent(lookup, sink=audit, capabilities=[_Veto()]).run("go", deps=_deps())
     await _agent(lookup, sink=audit).run("go", deps=_deps())
     await _agent(
@@ -1701,29 +1660,16 @@ async def test_failure_is_recorded_and_reraised() -> None:
         """Always explodes."""
         raise ValueError("kaboom")
 
-    audit = _CapturingLogger()
-    agent = Agent(
-        TestModel(call_tools=["boom"]),
-        toolsets=[FunctionToolset([boom])],
-        capabilities=[AuditCapability(audit)],
-    )
+    audit = CapturingAuditLogger()
     with pytest.raises(ValueError, match="kaboom"):
-        await agent.run("boom")
+        await _toolset_agent(boom, AuditCapability(audit)).run("boom")
     assert _records(audit) == [("boom", "{}", False, "ValueError: kaboom", None)]
 
 
 async def test_raising_sink_never_breaks_the_run(caplog: pytest.LogCaptureFixture) -> None:
     # Non-raising semantics: a broken sink degrades to a logged error and a
     # dropped audit record — the tool result still reaches the model.
-    def ping() -> str:
-        """Ping."""
-        return "pong"
-
-    agent = Agent(
-        TestModel(call_tools=["ping"]),
-        toolsets=[FunctionToolset([ping])],
-        capabilities=[AuditCapability(_RaisingLogger())],
-    )
+    agent = _toolset_agent(ping, AuditCapability(_RaisingLogger()))
     with caplog.at_level(logging.ERROR, logger="django_pydantic_agent.audit"):
         result = await agent.run("ping")
     assert result.output is not None
@@ -1780,7 +1726,7 @@ async def _run_lookup_under_code_mode(
     inherits the agent's capabilities but leaves a ``ToolFailed`` unconverted,
     so a tool's own ``ToolFailed`` reaches every hook as raised.
     """
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = Agent(
         FunctionModel(_calls_lookup_from_the_sandbox),
         toolsets=[FunctionToolset([Tool(lookup, name="lookup")])],
@@ -1801,7 +1747,7 @@ async def _run_lookup_under_code_mode(
 async def _run_lookup_directly(lookup: Callable[[], str]) -> list[str | None]:
     """Run ``lookup`` as an ordinary tool call, with the failure policy on as a
     deployment has it. Returns the audit's failure records for it."""
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     agent = Agent(
         TestModel(call_tools=["lookup"]),
         toolsets=[FunctionToolset([Tool(lookup, name="lookup")])],
@@ -1896,7 +1842,7 @@ async def test_a_spec_tools_timeout_keeps_its_message() -> None:
         time.sleep(0.2)
         return {}
 
-    audit = _CapturingLogger()
+    audit = CapturingAuditLogger()
     spec = ServiceSpec(service=slow, atomic=False, permission_classes=[AllowAny])
     agent = _agent(
         sink=audit,
@@ -1983,12 +1929,8 @@ async def test_a_before_or_after_hook_reaches_the_record_only_through_the_tool(
         """Echo."""
         return "ok"
 
-    audit = _CapturingLogger()
-    agent = Agent(
-        TestModel(call_tools=["echo"]),
-        toolsets=[FunctionToolset([echo])],
-        capabilities=[AuditCapability(audit), _Hook(stage=stage, reject=reject)],
-    )
+    audit = CapturingAuditLogger()
+    agent = _toolset_agent(echo, AuditCapability(audit), _Hook(stage=stage, reject=reject))
     if reject:
         with pytest.raises(PermissionError):
             await agent.run("echo")
@@ -2003,7 +1945,7 @@ async def test_a_before_or_after_hook_reaches_the_record_only_through_the_tool(
 
 def test_the_execution_context_variable_names_this_package() -> None:
     # A ``ContextVar``'s name shows in a debugger and a ``repr`` and nowhere a
-    # project configures, so it follows the package rather than keeping the old
-    # spelling the two loggers keep.
-    capability = AuditCapability(_CapturingLogger())
+    # project configures, so it follows the package rather than the spelling the
+    # two loggers keep, which a project's logging configuration does name.
+    capability = AuditCapability(CapturingAuditLogger())
     assert capability._execution.name == "django_spec_agents.audit.execution"

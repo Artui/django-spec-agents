@@ -102,13 +102,12 @@ A list selector answers with the pagination envelope, never a bare array:
 }
 ```
 
-`limit` defaults to 100 rows and `page` to 1, so a tool that used to return an
-entire table now returns its first hundred rows **and says so**. That is the
-point: `page` and `limit` were advertised on every list tool from the start
-while the payload was a bare slice, so a model asking for a collection received
-50 of 51 rows with nothing in the answer telling it more existed. `hasNext` is
-what was missing — the model can ask for `page: 2`, or narrow the request with a
-filter, instead of answering from a page it took for the whole set.
+`limit` defaults to 100 rows and `page` to 1, so a tool over a large table
+returns its first hundred rows **and says so**. That is the point: a bare slice
+would leave a model asking for a collection with 50 of 51 rows and nothing in
+the answer telling it more existed. `hasNext` closes that gap — the model can
+ask for `page: 2`, or narrow the request with a filter, instead of answering
+from a page it took for the whole set.
 
 Because the toolset takes `page` and `limit` out of a list tool's call to serve
 the page, a list selector taking a parameter of either name is refused with
@@ -317,8 +316,7 @@ admits of it.
 **A call that leaves out a required selector parameter is handed back**, the
 tool's own or its target lookup's, as `ModelRetry` naming each one left out,
 as in ``Missing required argument(s): `pk`.``, the same sentence a required
-`UrlKwarg` gets, so the model corrects the call on its next turn. It used to
-reach the selector, which raised `TypeError` out of the run. A required
+`UrlKwarg` gets, so the model corrects the call on its next turn. A required
 serializer field is checked by the serializer once the call runs, so a service
 call missing both `pk` and a field is told about `pk` first, and about the
 field on the turn after. A name a provider may fill is not checked before the
@@ -526,7 +524,7 @@ toolset = SpecToolset(
 ```
 
 **A field changes what a line says, never whether it appears.** The toolset still
-decides that, exactly as before: the `pagination` line above is still absent from
+decides that: the `pagination` line above is still absent from
 a toolset with no list tool, and the block is still re-derived on each step an
 [unmet condition](#an-operation-that-is-unavailable-right-now-is-left-out) leaves
 a tool out, so an overridden line goes with the tool it describes. `None` drops a
@@ -737,17 +735,16 @@ is only as safe as what the selector does with it.
 ### Migrating from `ordering_fields`
 
 `SpecToolset(specs, ordering_fields=[...])` and its per-tool
-`tool_ordering_fields` form were deprecated in 0.16.0 and have now been removed;
-passing either raises `TypeError` at construction. Move the names onto an
+`tool_ordering_fields` form do not exist; passing either raises `TypeError` at
+construction. Move the names onto an
 `OrderingFilter` as `(orm_path, public_name)` pairs — the FilterSet at the top of
 this section is exactly `ordering_fields=["created_at", "total_cents"]`
 rewritten — and drop the argument.
 
-The vocabularies are not the same, and that is the point of the move: the knob's
-values were raw **ORM paths**, because the toolset applied them with
-`queryset.order_by` itself, while a FilterSet's choices are public names it maps
-through its own `param_map`. Picking public names is the migration's one
-decision — they are what the model sees, so give them the words a reader would
+The vocabularies are not the same, and that is the point of the move: the
+knob's values were raw **ORM paths**, applied with `queryset.order_by` itself,
+while a FilterSet's choices are public names it maps through its own
+`param_map`. Picking public names is the migration's one decision — they are what the model sees, so give them the words a reader would
 use.
 
 ## Read-shaping query params
@@ -765,7 +762,7 @@ serializer that branches on the query string.
 !!! note "Declared on the spec, never on the toolset"
     A read is the spec's to declare, so every transport and every mount reads
     the same answer; `SpecToolset` takes no channel declarations of its own,
-    and passing the old `query_params=` or `tool_query_params=` is a
+    and passing `query_params=` or `tool_query_params=` is a
     `TypeError`. For a value the model may not choose, see
     [arguments the server supplies](spec-registry.md#arguments-the-server-supplies).
 
@@ -817,8 +814,6 @@ provider declares it fills is not offered to the model as the selector's, so a
 read of it stays a parameter of the toolset's: a provider reading
 `request.query_params["status"]` into the selector's `status`, beside
 `QueryParam("status")`, is how to route the value to the selector.
-Requires `djangorestframework-services>=0.23`, which added the
-`build_offline_context(query_params=…)` seam.
 
 ### On a list tool, a param shapes each row
 
@@ -866,7 +861,7 @@ all of them are named, since the serializer does not say which one it refused.
 `exception_map=` / `translate_exception` sees the error first, as on the dispatch
 path.
 
-The same error **stays loud**, and ends the run as before, when nothing the model
+The same error **stays loud**, and ends the run, when nothing the model
 sent shaped the render: no read-shaping value supplied, an explicit `null`, or a
 value that came from a declared `default`. A retry cannot fix a serializer that
 fails on its own or a default that is wrong, and would hide the bug behind the
@@ -899,8 +894,8 @@ HTTP precedence exactly).
 !!! note "Declared on the spec, never on the toolset"
     As with `QueryParam`, `SpecToolset` takes no `url_kwargs=` or
     `tool_url_kwargs=`; passing either is a `TypeError`. A
-    `UrlKwarg(default=...)` standing in for a value the model must not choose
-    was only a default it could override; bind the value with
+    `UrlKwarg(default=...)` cannot stand in for a value the model must not
+    choose, since it is only a default the model can override; bind the value with
     [`tool_server_arguments`](spec-registry.md#arguments-the-server-supplies)
     instead.
 
@@ -950,7 +945,7 @@ no-op); that raises at construction.
 
 A selector typed `def list_widgets(user, **extras: Unpack[WidgetExtras])` that
 reads `extras["project_pk"]` already has that key reflected into the tool schema
-by drf-services (0.26+) — no `UrlKwarg` needed **for the selector itself**, which
+by drf-services — no `UrlKwarg` needed **for the selector itself**, which
 receives it through `params`. Marking it `InputRequired` makes the model supply
 it; that is a *schema* statement and changes nothing about where the value lands.
 
@@ -1029,7 +1024,6 @@ Left unset, those fields produce **relative** URLs (`/media/doc.pdf`) — usable
 and exactly what they fall back to on their own when no request is in the
 serializer context. Nothing is inferred: only your project knows its public
 origin, and a guess would emit confidently-wrong links that look valid.
-Requires `djangorestframework-services>=0.29.1`.
 
 ## Error handling
 
@@ -1178,17 +1172,17 @@ sentence along with the rest of the default.
 
 ### Why the failed rows raise instead of returning
 
-Every `ToolFailed` row above used to be a returned `{"error": "..."}` dict. The
-model read the same sentence either way, so the change is not about what it
-sees — it is about what everything *else* sees. Pydantic-AI marks an ordinary
-return `outcome="success"` on the resulting `ToolReturnPart`; only a raised
-`ToolFailed` marks it `"failed"`. Returning the dict therefore made a refusal
-indistinguishable from an answer to a log, an audit record, or a transport
-streaming the call to a browser, all of which had nothing but the payload's
-wording to go on.
+Every `ToolFailed` row above is raised rather than returned as a
+`{"error": "..."}` dict. The model reads the same sentence either way, so the
+choice is not about what it sees — it is about what everything *else* sees.
+Pydantic-AI marks an ordinary return `outcome="success"` on the resulting
+`ToolReturnPart`; only a raised `ToolFailed` marks it `"failed"`. Returning the
+dict would make a refusal indistinguishable from an answer to a log, an audit
+record, or a transport streaming the call to a browser, all of which would have
+nothing but the payload's wording to go on.
 
-`ToolFailed` keeps the two properties the dict was chosen for: it spends none of
-the tool's retry budget, and it does not end the run. It also prepends no
+`ToolFailed` keeps the two properties a returned dict would have: it spends none
+of the tool's retry budget, and it does not end the run. It also prepends no
 correction instructions, which `ModelRetry` does — right for a bad argument, and
 wrong for a conflict the model cannot argue with.
 

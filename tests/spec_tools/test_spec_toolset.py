@@ -8,6 +8,7 @@ import threading
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import fields as dataclass_fields
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, Any, Generic, TypeVar
@@ -189,9 +190,11 @@ def _dispatch(
     return toolset._call_spec(spec, user, dict(args or {}), ctx=ctx, **kwargs)
 
 
+# The three builders are guarded by default: ``require_permissions`` defaults to
+# True, so an unguarded spec is a construction error and every fixture would trip it.
+
+
 def list_spec(**kwargs):
-    # Guarded by default: ``require_permissions`` defaults to True, so an
-    # unguarded spec is a construction error and every fixture would trip it.
     kwargs.setdefault("permission_classes", [AllowAny])
     kwargs.setdefault("selector", list_widgets)
     return SelectorSpec(
@@ -202,8 +205,6 @@ def list_spec(**kwargs):
 
 
 def retrieve_spec(**kwargs):
-    # Guarded by default: ``require_permissions`` defaults to True, so an
-    # unguarded spec is a construction error and every fixture would trip it.
     kwargs.setdefault("permission_classes", [AllowAny])
     kwargs.setdefault("selector", get_widget)
     return SelectorSpec(
@@ -214,8 +215,6 @@ def retrieve_spec(**kwargs):
 
 
 def create_spec(**kwargs):
-    # Guarded by default: ``require_permissions`` defaults to True, so an
-    # unguarded spec is a construction error and every fixture would trip it.
     kwargs.setdefault("permission_classes", [AllowAny])
     return ServiceSpec(
         service=create_widget,
@@ -272,7 +271,7 @@ def reading(specs, reads):
 def _rows(result: Any) -> list[Any]:
     """The rows out of a list tool's page envelope.
 
-    Every list-selector result is a page as of the pagination change, so the
+    Every list-selector result is a page, so the
     tests that are about *what the rows are* unwrap it here rather than each
     re-deriving the wrapper. Asserting the four keys on the way through is what
     keeps this from hiding a regression in the envelope itself: a result that
@@ -293,20 +292,20 @@ async def test_instructions_carry_the_error_contract():
     instr = await SpecToolset({"go": create_spec()}).get_instructions(None)
     assert instr is not None
     assert _DEFAULTS.base in instr
-    # The block has to describe the shape the toolset actually produces. It named
-    # an ``{"error": …}`` payload while every terminal arm raised ``ToolFailed``,
-    # which is an instruction telling the model to look for a key that is never
-    # sent -- so the wording is asserted here rather than only in the constant.
+    # The block has to describe the shape the toolset actually produces: every
+    # terminal arm raises ``ToolFailed``, so an ``{"error": …}`` payload would tell
+    # the model to look for a key that is never sent. The wording is asserted here
+    # rather than only in the constant.
     assert '{"error"' not in instr
     assert "comes back as a failed call" in instr
     assert "unknown arguments are rejected" in instr
-    # A refusal's sentence now ends with the rule's code, and the block says so in
+    # A refusal's sentence ends with the rule's code, and the block says so in
     # the shape the call produces: the label as it appears, and the key the same
     # code was advertised under. Both halves, because an instruction naming only
     # the suffix leaves the model to guess what the name refers to.
     assert "`(code: <name>)`" in instr
     assert "`affordances`" in instr
-    # The meaning that predates the code is intact.
+    # A refusal is still final, code or no code.
     assert "that is a final answer, not a reason to retry" in instr
 
 
@@ -420,10 +419,9 @@ async def test_selector_without_docstring_has_no_description():
 def test_a_selector_spec_with_no_selector_is_refused_when_the_toolset_is_built():
     """drf-services refuses a top-level ``SelectorSpec`` with ``selector=None``
     wherever it compiles one, and the toolset compiles every spec while it is
-    built. Such a spec could never be dispatched off HTTP, so the toolset used
-    to build and then fail its first call; now the mount fails at startup with
-    drf-services' own refusal, prefixed with the tool it is about -- a mapping
-    of many specs otherwise leaves the reader to find which one."""
+    built. Such a spec could never be dispatched off HTTP, so the mount fails at
+    startup with drf-services' own refusal, prefixed with the tool it is about --
+    a mapping of many specs otherwise leaves the reader to find which one."""
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
         selector=None,
@@ -452,32 +450,30 @@ async def test_max_retries_default_and_override():
 # --- call_tool (async wrapper + identity) ------------------------------------
 
 
-async def test_call_tool_uses_default_deps_user():
-    seen = {}
+def _ping_spec() -> tuple[ServiceSpec, dict[str, Any]]:
+    """A spec whose service records, in the dict beside it, the user it ran as."""
+    seen: dict[str, Any] = {}
 
     def ping(user):
         """Ping."""
         seen["user"] = user
         return {"ok": True}
 
-    toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)}
-    )
+    return ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False), seen
+
+
+async def test_call_tool_uses_default_deps_user():
+    spec, seen = _ping_spec()
+    toolset = SpecToolset({"ping": spec})
     result = await toolset.call_tool("ping", {}, ctx_for("alice"), None)
     assert result == {"ok": True}
     assert seen["user"] == "alice"
 
 
 async def test_call_tool_honours_custom_get_user():
-    seen = {}
-
-    def ping(user):
-        """Ping."""
-        seen["user"] = user
-        return {"ok": True}
-
+    spec, seen = _ping_spec()
     toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)},
+        {"ping": spec},
         get_user=lambda ctx: ctx.principal,
     )
     await toolset.call_tool("ping", {}, ctx_for(principal="bob"), None)
@@ -498,26 +494,21 @@ def test_list_selector_renders_owned_widgets():
 
 
 @pytest.mark.django_db
-def test_list_selector_limits_the_page():
+@pytest.mark.parametrize(
+    ("args", "rows", "envelope"),
+    [({"limit": 2}, 2, (1, 2, True)), ({"page": 2, "limit": 2}, 1, (2, 2, False))],
+    ids=["limits-the-page", "second-page"],
+)
+def test_list_selector_pages(args, rows, envelope):
     """A sort is the spec's to declare, so this fixture — which declares none —
     is about the slice alone. Ordering *through* pagination is asserted against
     the filter-owned specs further down, where a sort actually exists."""
     user = User.objects.create(username="u")
     for name, price in [("a", 3), ("b", 1), ("c", 2)]:
         Widget.objects.create(name=name, price=price, owner=user)
-    result = _dispatch(list_spec(), user, {"limit": 2})
-    assert len(_rows(result)) == 2
-    assert (result["page"], result["totalPages"], result["hasNext"]) == (1, 2, True)
-
-
-@pytest.mark.django_db
-def test_list_selector_second_page():
-    user = User.objects.create(username="u")
-    for name, price in [("a", 1), ("b", 2), ("c", 3)]:
-        Widget.objects.create(name=name, price=price, owner=user)
-    result = _dispatch(list_spec(), user, {"page": 2, "limit": 2})
-    assert len(_rows(result)) == 1
-    assert (result["page"], result["totalPages"], result["hasNext"]) == (2, 2, False)
+    result = _dispatch(list_spec(), user, args)
+    assert len(_rows(result)) == rows
+    assert (result["page"], result["totalPages"], result["hasNext"]) == envelope
 
 
 @pytest.mark.django_db
@@ -539,8 +530,7 @@ def _raises_http404(user, pk):
 
 
 #: The three ways a selector reports a missing row. Each must end as the same
-#: ``ToolFailed("not found")``; the kernel's dispatch answers ``Http404`` since
-#: django-service-specs 0.10.0, and below that floor the run raised instead.
+#: ``ToolFailed("not found")``; the kernel's dispatch is what answers ``Http404``.
 _MISSING_ROW_SELECTORS = pytest.mark.parametrize(
     "selector",
     [get_widget, _raises_does_not_exist, _raises_http404],
@@ -553,10 +543,9 @@ _MISSING_ROW_SELECTORS = pytest.mark.parametrize(
 def test_retrieve_selector_not_found_fails_the_call(selector):
     """An unresolved target is ``ToolFailed``, carrying the wording unchanged.
 
-    The message is what the model reads and it has not moved; what moved is that
-    the tool return is now marked ``outcome="failed"`` instead of ``"success"``
-    -- see ``test_a_business_failure_marks_the_tool_return_failed``, which reads
-    that marking off a real run."""
+    The message is what the model reads, and the tool return is marked
+    ``outcome="failed"`` -- see ``test_a_business_failure_marks_the_tool_return_failed``,
+    which reads that marking off a real run."""
     user = User.objects.create(username="u")
     with pytest.raises(ToolFailed) as caught:
         _dispatch(retrieve_spec(selector=selector), user, {"pk": 999})
@@ -584,8 +573,8 @@ def test_a_list_selector_that_raises_http404_fails_the_call(allow_none):
 @pytest.mark.django_db
 def test_an_http404_exception_map_entry_is_not_consulted_for_a_selector():
     """The kernel answers a selector's ``Http404`` before it can reach the
-    map, so the entry a consumer once registered by hand is redundant: the call
-    is the same ``ToolFailed`` and the handler never runs."""
+    map, so a consumer's entry for it is redundant: the call is the same
+    ``ToolFailed`` and the handler never runs."""
     user = User.objects.create(username="u")
     seen: list[BaseException] = []
 
@@ -626,8 +615,7 @@ def test_a_write_whose_instance_selector_finds_nothing_fails_the_call(selector):
 @_MISSING_ROW_SELECTORS
 def test_a_nullable_retrieve_that_finds_nothing_returns_none(selector):
     """Not the output serializer's blank row, which read to the model as a widget
-    with an empty name: drf-services renders a single ``None`` as ``None`` from
-    0.52.1, the floor that buys this."""
+    with an empty name: drf-services renders a single ``None`` as ``None``."""
     user = User.objects.create(username="u")
     spec = retrieve_spec(allow_none=True, selector=selector)
 
@@ -735,12 +723,8 @@ def test_denied_permission_raises():
 
 
 def test_shape_list_returns_a_page_rather_than_a_bare_slice():
-    """The defect this closes, at the helper that had it.
-
-    ``page`` / ``limit`` were advertised on every list tool and the shaper
-    answered with a bare slice: no total, no clamp, and nothing in the payload
-    saying more rows existed.
-    """
+    """``page`` / ``limit`` are advertised on every list tool, so the shaper
+    answers with a total and a clamp, and says whether more rows exist."""
     page = _shape_list([1, 2, 3, 4, 5], page=2, limit=2, max_page_size=None)
     assert page.items == [3, 4]
     assert (page.page, page.limit, page.total) == (2, 2, 5)
@@ -749,7 +733,7 @@ def test_shape_list_returns_a_page_rather_than_a_bare_slice():
 
 
 def test_shape_list_bounds_a_limitless_call_to_one_default_page():
-    """An omitted ``limit`` used to mean *everything*, unbounded and unremarked."""
+    """An omitted ``limit`` is one default page, never *everything*."""
     rows = list(range(DEFAULT_PAGE_SIZE + 1))
     page = _shape_list(rows, page=None, limit=None, max_page_size=None)
     assert page.items == rows[:DEFAULT_PAGE_SIZE]
@@ -758,8 +742,8 @@ def test_shape_list_bounds_a_limitless_call_to_one_default_page():
 
 
 def test_shape_list_clamps_the_limit_to_max_page_size():
-    """The clamp moved out of ``_pop_pagination`` and onto the slice, so the
-    ``totalPages`` reported is computed from the limit actually applied."""
+    """The clamp is applied on the slice, so the ``totalPages`` reported is
+    computed from the limit actually applied."""
     page = _shape_list([1, 2, 3, 4], page=None, limit=3, max_page_size=2)
     assert page.items == [1, 2]
     assert page.limit == 2
@@ -818,8 +802,8 @@ _ITEM = {"name": "a", "price": 1}
 
 
 def test_a_many_service_spec_builds_a_tool():
-    """It used to be refused at construction, because nothing a model sends is the
-    array it validates. The selector beside it is there because a ``SelectorSpec``
+    """Nothing a model sends is the array it validates, so the list travels under
+    one argument and the spec builds. The selector beside it is there because a ``SelectorSpec``
     has no ``many`` to read, so the checks asking which tools take a list have to
     pass over it rather than fail on it."""
     toolset = SpecToolset({"create_widgets": bulk_spec(), "list_widgets": list_spec()})
@@ -902,7 +886,7 @@ async def test_a_many_tool_advertises_the_array_it_returns():
 
     A ``many=True`` spec renders its list through an ``output_selector_spec``
     declared ``RETRIEVE``, the kind describing one row, so a return schema read
-    off that kind advertised an object while every payload was an array.
+    off that kind would advertise an object while every payload is an array.
     """
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset({"create_widgets": bulk_spec()})
@@ -1075,16 +1059,18 @@ def test_string_limit_is_coerced_to_int():
     assert len(_rows(result)) == 1
 
 
-@pytest.mark.parametrize("value", ["abc", "2.5", "-1", 0, -3, 2.0])
-def test_non_positive_int_limit_is_model_retry(value):
+@pytest.mark.parametrize(
+    ("argument", "value"),
+    [
+        *(("limit", value) for value in ["abc", "2.5", "-1", 0, -3, 2.0]),
+        # ``True`` is an ``int`` subclass but never a valid count.
+        ("page", True),
+    ],
+    ids=["limit-abc", "limit-2.5", "limit--1", "limit-0", "limit--3", "limit-2.0", "bool-page"],
+)
+def test_a_non_positive_int_page_or_limit_is_model_retry(argument, value):
     with pytest.raises(ModelRetry, match="positive integer"):
-        _dispatch(list_spec(), object(), {"limit": value})
-
-
-def test_bool_page_is_model_retry():
-    # ``True`` is an ``int`` subclass but never a valid count.
-    with pytest.raises(ModelRetry, match="positive integer"):
-        _dispatch(list_spec(), object(), {"page": True})
+        _dispatch(list_spec(), object(), {argument: value})
 
 
 # --- unknown-arguments knob --------------------------------------------------
@@ -1111,8 +1097,6 @@ def test_unknown_argument_ignored_when_configured():
 
 @pytest.mark.django_db(transaction=True)
 async def test_toolset_threads_the_unknown_arguments_knob():
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset(
         {"create_widget": create_spec()}, unknown_arguments=UnknownArguments.IGNORE
@@ -1135,14 +1119,12 @@ async def test_toolset_threads_the_unknown_arguments_knob():
 def test_passthrough_is_refused_when_the_toolset_is_built(policy, spelled):
     """A model's tool call is a flat object, and drf-services hands a callable
     only what its spec declares, so an argument outside that set has no channel
-    to reach it. Up to 0.35.x ``PASSTHROUGH`` forwarded a call's undeclared keys
-    (into a service's ``data``, for one); drf-services 0.58 retired it and
-    raises ``ValueError`` for it on every call, so the toolset refuses it at
-    build and the mount fails at startup.
+    to reach it. drf-services raises ``ValueError`` for ``PASSTHROUGH`` on every
+    call, so the toolset refuses it at build and the mount fails at startup.
 
     The raw value as well as the member, because ``UnknownArguments`` is a
     ``str`` enum and the guard admits the accepted values rather than excluding
-    the retired one: a string spelling of it must not slip past. ``"drop"``,
+    ``PASSTHROUGH``: a string spelling of it must not slip past. ``"drop"``,
     which names no policy at all, is refused the same way, so a misspelt setting
     fails at startup rather than reaching drf-services on the first call.
     """
@@ -1305,25 +1287,24 @@ async def test_a_query_param_read_applies_to_the_tool_whose_spec_declares_it():
     assert "expand" not in get_widget_props
 
 
-async def test_query_param_default_appears_in_schema():
-    toolset = SpecToolset(
-        reading(
-            {"list_widgets": list_spec()}, {"list_widgets": [QueryParam("fields", default="id")]}
-        )
-    )
+@pytest.mark.parametrize(
+    "read",
+    [QueryParam("fields", default="id"), UrlKwarg("fields", default="id")],
+    ids=["query-param", "url-kwarg"],
+)
+async def test_a_read_default_appears_in_schema(read):
+    toolset = SpecToolset(reading({"list_widgets": list_spec()}, {"list_widgets": [read]}))
     tools = await toolset.get_tools(None)
     props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
     assert props["fields"]["default"] == "id"
 
 
-def test_reserved_query_param_name_is_rejected():
-    # ``ImproperlyConfigured`` since 0.9.0: reserved-name checking moved to
-    # drf-services' shared validator, so one exception type now covers every bad
-    # declaration instead of ValueError-for-pagination / something-else-for-seeds.
+@pytest.mark.parametrize("read", [QueryParam, UrlKwarg], ids=["query-param", "url-kwarg"])
+def test_a_reserved_read_name_is_rejected(read):
+    # Reserved-name checking is drf-services' shared validator, so one exception
+    # type covers every bad declaration, pagination names and seeds alike.
     with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset(
-            reading({"list_widgets": list_spec()}, {"list_widgets": [QueryParam("ordering")]})
-        )
+        SpecToolset(reading({"list_widgets": list_spec()}, {"list_widgets": [read("ordering")]}))
 
 
 # --- a selector parameter the toolset's own arguments take -------------------
@@ -1342,15 +1323,15 @@ def recent_entries(*, page: int = 1, limit: int = 10):
 def test_a_list_selector_parameter_named_page_is_refused():
     """A list tool's ``page`` and ``limit`` are its pagination arguments, popped
     before dispatch, so a selector parameter of either name never receives what
-    the model sent. Advertised as required, every call died on a ``TypeError``
-    naming the argument the model had just sent.
+    the model sent. Advertised as required, every call would die on a
+    ``TypeError`` naming the argument the model had just sent.
     """
     with pytest.raises(ImproperlyConfigured, match=r"tool 'log'.*parameter\(s\) \['page'\]"):
         SpecToolset({"log": _name_list_spec(page_of_log)})
 
 
 def test_a_defaulted_page_parameter_is_refused_too():
-    """The shape that passed silently: each call ran on the selector's defaults,
+    """The shape that would pass silently: each call would run on the selector's defaults,
     ``page=1, limit=10``, whatever page and size the model asked for. Both names
     are listed, in one refusal.
     """
@@ -1394,15 +1375,13 @@ async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both
     declaration of where that parameter comes from, not a shadow of it. Neither
     route makes it a channel of the toolset's: the parameter is advertised once,
     as the selector declares it, and its value stays in the call for
-    drf-services, which hands it to the selector and the query string both. The
-    registry route used to refuse the spec, reading the entry's read as a
-    ``QueryParam`` of its own.
+    drf-services, which hands it to the selector and the query string both.
     """
     registry = SpecRegistry()
     registry.register(
         "tasks",
         replace(
-            _name_list_spec(tasks_by_status, permission_classes=[_QueryRecordingPermission]),
+            _name_list_spec(tasks_by_status, permission_classes=[RecordingPermission]),
             reads=(QueryParam("status"),),
         ),
     )
@@ -1412,21 +1391,26 @@ async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both
     assert _input_schema_of(from_registry, "tasks") == _input_schema_of(from_mapping, "tasks")
     assert from_registry._tool_query_params["tasks"] == ()
     served = await _call(from_registry, "tasks", AnonymousUser(), dict(args))
-    seen_from_registry = _QueryRecordingPermission.seen
+    seen_from_registry = RecordingPermission.seen["query_params"]
     expected = await _call(from_mapping, "tasks", AnonymousUser(), dict(args))
     assert _rows(served) == _rows(expected) == [{"name": args.get("status", "open")}]
     # And the query string carries the value too, on both routes alike.
-    assert seen_from_registry == _QueryRecordingPermission.seen
+    assert seen_from_registry == RecordingPermission.seen["query_params"]
     assert seen_from_registry == ({"status": ["done"]} if args else {})
 
 
-class _QueryRecordingPermission(BasePermission):
-    """Allows everything, and records the query string it was shown."""
+class RecordingPermission(BasePermission):
+    """Allows everything, and records what it was shown."""
 
     seen: dict[str, Any] = {}
 
-    def has_permission(self, request: Any, view: Any) -> bool:
-        _QueryRecordingPermission.seen = dict(request.query_params.lists())
+    def has_permission(self, request, view):
+        RecordingPermission.seen = {
+            "action": view.action,
+            "kwargs": dict(view.kwargs),
+            "query_params": dict(request.query_params.lists()),
+            "user": request.user,
+        }
         return True
 
 
@@ -1456,31 +1440,20 @@ def test_a_url_kwarg_may_share_a_selector_parameters_name():
 
 
 @pytest.mark.django_db
-def test_query_param_reaches_the_serializer_via_request_query_params():
+@pytest.mark.parametrize(
+    ("args", "declared", "seen"),
+    [
+        ({"fields": "id,name"}, QueryParam("fields"), "id,name"),
+        ({}, QueryParam("fields", default="id"), "id"),
+        ({}, QueryParam("fields"), None),
+    ],
+    ids=["sent", "default-seeded-when-omitted", "omitted-without-default-seeds-nothing"],
+)
+def test_query_param_reaches_the_serializer_via_request_query_params(args, declared, seen):
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(
-        _echo_list_spec(), user, {"fields": "id,name"}, query_params=(QueryParam("fields"),)
-    )
-    assert _rows(result) == [{"name": "a", "fields": "id,name"}]
-
-
-@pytest.mark.django_db
-def test_query_param_default_is_seeded_when_the_model_omits_it():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(
-        _echo_list_spec(), user, {}, query_params=(QueryParam("fields", default="id"),)
-    )
-    assert _rows(result) == [{"name": "a", "fields": "id"}]
-
-
-@pytest.mark.django_db
-def test_query_param_omitted_without_default_seeds_nothing():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(_echo_list_spec(), user, {}, query_params=(QueryParam("fields"),))
-    assert _rows(result) == [{"name": "a", "fields": None}]
+    result = _dispatch(_echo_list_spec(), user, args, query_params=(declared,))
+    assert _rows(result) == [{"name": "a", "fields": seen}]
 
 
 @pytest.mark.django_db
@@ -1530,16 +1503,8 @@ def test_query_param_is_popped_before_dispatch_so_reject_ignores_it():
 
 
 async def test_agent_run_executes_spec_tool_in_process():
-    seen = {}
-
-    def ping(user):
-        """Ping."""
-        seen["user"] = user
-        return {"ok": True}
-
-    toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)}
-    )
+    spec, seen = _ping_spec()
+    toolset = SpecToolset({"ping": spec})
     agent = Agent(tool_calling_model("ping"), deps_type=AgentDeps, toolsets=[toolset])
     result = await agent.run("go", deps=AgentDeps(user="alice"))
     assert result.output == "done"
@@ -1603,8 +1568,7 @@ async def test_agent_run_recovers_from_model_retry():
 # the exception, and the whole point of raising rather than returning is the
 # ``outcome`` it produces on the resulting ``ToolReturnPart``. That field is what
 # a transport forwards, so a test asserting only the message would keep passing
-# if the marking regressed to ``"success"`` -- which is the exact defect this
-# replaced.
+# if the marking regressed to ``"success"``.
 
 
 def _tool_return(result: Any) -> ToolReturnPart:
@@ -1634,8 +1598,8 @@ async def _run_one_tool(
 
 
 async def test_a_business_failure_marks_the_tool_return_failed():
-    """The defect in one assertion: a ``ServiceError`` used to reach the wire as
-    a *successful* call whose payload happened to read like a refusal."""
+    """A ``ServiceError`` reaches the wire as a failed call, never as a
+    *successful* one whose payload happens to read like a refusal."""
     result = await _run_one_tool(
         ServiceSpec(service=boom, permission_classes=[AllowAny], atomic=False)
     )
@@ -1690,8 +1654,6 @@ async def test_a_refused_call_marks_the_tool_return_failed_and_carries_its_code(
 @pytest.mark.django_db(transaction=True)
 @_MISSING_ROW_SELECTORS
 async def test_an_unresolved_target_marks_the_tool_return_failed(selector):
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="alice")
     result = await _run_one_tool(retrieve_spec(selector=selector), user=user, args={"pk": 999})
     part = _tool_return(result)
@@ -1699,14 +1661,15 @@ async def test_an_unresolved_target_marks_the_tool_return_failed(selector):
     assert part.content == "not found"
 
 
-async def test_a_dispatch_past_its_deadline_marks_the_tool_return_failed():
-    def crawl(user):
-        """Takes longer than the deadline."""
-        time.sleep(0.2)
-        return {}
+def _crawl(user):
+    """Takes longer than the deadline."""
+    time.sleep(0.2)
+    return {}
 
+
+async def test_a_dispatch_past_its_deadline_marks_the_tool_return_failed():
     result = await _run_one_tool(
-        ServiceSpec(service=crawl, permission_classes=[AllowAny], atomic=False),
+        ServiceSpec(service=_crawl, permission_classes=[AllowAny], atomic=False),
         name="crawl",
         dispatch_timeout=0.01,
     )
@@ -1719,8 +1682,6 @@ async def test_a_dispatch_past_its_deadline_marks_the_tool_return_failed():
 async def test_a_result_over_the_ceiling_marks_the_tool_return_failed():
     """The dispatch succeeded and the *result* was refused. ``failed`` is still
     the truthful marking: nothing usable reached the model."""
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="alice")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
 
@@ -1731,9 +1692,7 @@ async def test_a_result_over_the_ceiling_marks_the_tool_return_failed():
 
 
 async def test_an_exception_map_handler_that_returns_a_value_still_succeeds():
-    """The consumer seam is unchanged, and so is its marking.
-
-    ``exception_map`` is documented as returning *the tool's result*, and a
+    """``exception_map`` is documented as returning *the tool's result*, and a
     returned value is what pydantic-ai marks ``"success"``. A project using the
     seam to turn an exception into an ordinary answer -- a "nothing matched" it
     would rather express as an empty payload than as a refusal -- keeps getting
@@ -1793,8 +1752,8 @@ def test_reject_refuses_a_key_outside_a_filter_sets_surface():
     """A ``filter_set``'s filters are declared names like a parameter is, so the
     set they make is closed: a key outside the filters and the selector's own
     parameters is refused under ``REJECT`` like any invented key. Holds the
-    ``unknown_arguments`` docstring and the quickstart, which used to call a
-    ``filter_set`` spec's input set open and so unaffected."""
+    ``unknown_arguments`` docstring and the quickstart to calling that set
+    closed."""
     with pytest.raises(ModelRetry, match=r"^Unexpected argument\(s\): 'colour'\.$"):
         _dispatch(_filtered_list_spec(), User(username="u"), {"colour": "red"})
 
@@ -1813,8 +1772,7 @@ _OPEN_SELECTOR_CALLS: list[dict[str, Any]] = []
 def test_a_bare_kwargs_selector_refuses_nothing_and_is_handed_nothing(policy):
     """A bare ``**kwargs`` declares no name, so there is nothing to hold a key
     against and neither policy refuses one -- and nothing undeclared reaches
-    the callable either, which is the half the docstring used to leave out by
-    calling such a spec unaffected."""
+    the callable either."""
     _OPEN_SELECTOR_CALLS.clear()
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
@@ -1920,24 +1878,6 @@ async def test_a_url_kwarg_read_applies_to_the_tool_whose_spec_declares_it():
     assert "parent_pk" not in get_widget_props
 
 
-async def test_url_kwarg_default_appears_in_schema():
-    toolset = SpecToolset(
-        reading(
-            {"list_widgets": list_spec()}, {"list_widgets": [UrlKwarg("parent_pk", default="1")]}
-        )
-    )
-    tools = await toolset.get_tools(None)
-    props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
-    assert props["parent_pk"]["default"] == "1"
-
-
-def test_reserved_url_kwarg_name_is_rejected():
-    with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset(
-            reading({"list_widgets": list_spec()}, {"list_widgets": [UrlKwarg("ordering")]})
-        )
-
-
 def _ceiling_from_project(view):
     """Scoping provider: derive a price ceiling from the URL's ``project_pk``.
 
@@ -1965,17 +1905,22 @@ def _provider_scoped_spec():
 
 
 @pytest.mark.django_db
-def test_url_kwarg_reaches_a_scoping_provider_via_view_kwargs():
+@pytest.mark.parametrize(
+    ("args", "declared", "names"),
+    [
+        ({"project_pk": "10"}, UrlKwarg("project_pk"), ["cheap"]),
+        ({}, UrlKwarg("project_pk", default="10"), ["cheap"]),
+        # No project_pk, no default: view.kwargs is empty, the ceiling is 0.
+        ({}, UrlKwarg("project_pk"), []),
+    ],
+    ids=["sent", "default-seeded-when-omitted", "omitted-without-default-seeds-nothing"],
+)
+def test_url_kwarg_reaches_a_scoping_provider_via_view_kwargs(args, declared, names):
     user = User.objects.create(username="u")
     Widget.objects.create(name="cheap", price=5, owner=user)
     Widget.objects.create(name="dear", price=15, owner=user)
-    result = _dispatch(
-        _provider_scoped_spec(),
-        user,
-        {"project_pk": "10"},
-        url_kwargs=(UrlKwarg("project_pk"),),
-    )
-    assert [w["name"] for w in _rows(result)] == ["cheap"]
+    result = _dispatch(_provider_scoped_spec(), user, args, url_kwargs=(declared,))
+    assert [w["name"] for w in _rows(result)] == names
 
 
 @pytest.mark.django_db
@@ -1993,29 +1938,6 @@ def test_url_kwarg_is_popped_before_dispatch_so_reject_ignores_it():
         unknown_arguments=UnknownArguments.REJECT,
     )
     assert [w["name"] for w in _rows(result)] == ["cheap"]
-
-
-@pytest.mark.django_db
-def test_url_kwarg_default_is_seeded_when_the_model_omits_it():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="cheap", price=5, owner=user)
-    Widget.objects.create(name="dear", price=15, owner=user)
-    result = _dispatch(
-        _provider_scoped_spec(),
-        user,
-        {},
-        url_kwargs=(UrlKwarg("project_pk", default="10"),),
-    )
-    assert [w["name"] for w in _rows(result)] == ["cheap"]
-
-
-@pytest.mark.django_db
-def test_url_kwarg_omitted_without_default_seeds_nothing():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="cheap", price=5, owner=user)
-    # No project_pk, no default → view.kwargs empty → provider ceiling 0 → nothing.
-    result = _dispatch(_provider_scoped_spec(), user, {}, url_kwargs=(UrlKwarg("project_pk"),))
-    assert _rows(result) == []
 
 
 class _ProjectExtras(TypedDict, total=False):
@@ -2100,7 +2022,7 @@ def test_dual_declared_url_kwarg_delivers_to_the_selector_pool():
     assert [w["name"] for w in _rows(result)] == ["cheap"]
 
 
-# --- required URL kwargs (drf-services 0.28) ---------------------------------
+# --- required URL kwargs -----------------------------------------------------
 
 
 async def test_required_url_kwarg_is_advertised_as_required():
@@ -2145,11 +2067,11 @@ def test_required_url_kwarg_with_a_default_is_rejected():
         )
 
 
-# The toolset's own wording for refusals it used to make of a mount's channel
-# declarations. A spec cannot make any of these declarations unrefused, so the
-# toolset no longer checks for them; each case below is refused one layer down,
-# and must not be answered in these words.
-_THE_TOOLSETS_OLD_REFUSALS = (
+# Wording for refusals of a mount's channel declarations that the toolset does not
+# make: a spec cannot make any of these declarations unrefused, so the toolset
+# carries no check for them. Each case below is refused one layer down, and must
+# not be answered in these words.
+_REFUSALS_THE_TOOLSET_DOES_NOT_MAKE = (
     "takes its list under the argument",
     "that the tool also declares as a QueryParam",
     "cannot route to two channels",
@@ -2205,7 +2127,7 @@ def test_a_read_no_spec_can_declare_is_refused_before_the_toolset_checks_it(buil
     with pytest.raises(ImproperlyConfigured, match=refusal) as raised:
         build()
 
-    assert not any(old in str(raised.value) for old in _THE_TOOLSETS_OLD_REFUSALS)
+    assert not any(wording in str(raised.value) for wording in _REFUSALS_THE_TOOLSET_DOES_NOT_MAKE)
 
 
 # --- DRF's baseline serializer context ---------------------------------------
@@ -2217,7 +2139,7 @@ def test_render_supplies_the_request_in_the_serializer_context():
 
     Off the HTTP path there is no view to call ``get_serializer_context()`` on,
     so drf-services synthesizes the baseline (``request`` / ``format`` /
-    ``view``) from the offline pair. Without it this raised ``KeyError:
+    ``view``) from the offline pair. Without it this would raise ``KeyError:
     'request'`` on a serializer that works behind a view.
     """
 
@@ -2289,42 +2211,36 @@ def fileish_spec():
 
 
 @pytest.mark.django_db
-def test_without_a_host_file_urls_are_relative():
+@pytest.mark.parametrize(
+    ("host", "url"),
+    [
+        (None, "/media/doc.pdf"),
+        ("https://files.example.com", "https://files.example.com/media/doc.pdf"),
+    ],
+    ids=["without-a-host-file-urls-are-relative", "a-host-makes-file-urls-absolute"],
+)
+def test_the_host_decides_whether_file_urls_are_absolute(host, url):
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
-    assert [w["doc_url"] for w in _rows(_dispatch(fileish_spec(), user, {}))] == ["/media/doc.pdf"]
-
-
-@pytest.mark.django_db
-def test_host_makes_file_urls_absolute():
-    user = User.objects.create(username="u")
-    Widget.objects.create(name="a", price=1, owner=user)
-    result = _dispatch(fileish_spec(), user, {}, host="https://files.example.com")
-    assert [w["doc_url"] for w in _rows(result)] == ["https://files.example.com/media/doc.pdf"]
+    assert [w["doc_url"] for w in _rows(_dispatch(fileish_spec(), user, {}, host=host))] == [url]
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_toolset_threads_its_host_into_the_call():
-    from asgiref.sync import sync_to_async
-
+@pytest.mark.parametrize(
+    ("toolset_kwargs", "url"),
+    [
+        ({"host": "app.example.com:8000"}, "http://app.example.com:8000/media/doc.pdf"),
+        ({}, "/media/doc.pdf"),
+    ],
+    ids=["threads-its-host-into-the-call", "without-a-host-still-renders"],
+)
+async def test_the_toolsets_host_reaches_the_call(toolset_kwargs, url):
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
-    toolset = SpecToolset({"list_widgets": fileish_spec()}, host="app.example.com:8000")
+    toolset = SpecToolset({"list_widgets": fileish_spec()}, **toolset_kwargs)
     tools = await toolset.get_tools(None)
     result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
-    assert [w["doc_url"] for w in _rows(result)] == ["http://app.example.com:8000/media/doc.pdf"]
-
-
-@pytest.mark.django_db(transaction=True)
-async def test_toolset_without_a_host_still_renders():
-    from asgiref.sync import sync_to_async
-
-    user = await sync_to_async(User.objects.create)(username="u")
-    await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
-    toolset = SpecToolset({"list_widgets": fileish_spec()})
-    tools = await toolset.get_tools(None)
-    result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
-    assert [w["doc_url"] for w in _rows(result)] == ["/media/doc.pdf"]
+    assert [w["doc_url"] for w in _rows(result)] == [url]
 
 
 # ----- registration-time honesty: permissions and descriptions -----
@@ -2409,18 +2325,15 @@ def test_a_whitespace_only_description_counts_as_none():
 
 
 @pytest.mark.django_db
-def test_ordering_on_a_tool_that_declares_none_says_so():
-    with pytest.raises(ModelRetry, match="does not accept an `ordering` argument"):
-        _dispatch(list_spec(), object(), {"ordering": "name"})
-
-
-@pytest.mark.django_db
-def test_a_non_string_ordering_is_refused_the_same_way():
+@pytest.mark.parametrize(
+    "ordering", ["name", ["price"]], ids=["a-string", "a-non-string-is-refused-the-same-way"]
+)
+def test_ordering_on_a_tool_that_declares_none_says_so(ordering):
     """The tool schema is advisory and the args validator is a no-op, so a value
     of any shape reaches the pop untyped. Nothing here inspects it: the tool
     advertises no sort, so what it *is* cannot matter."""
     with pytest.raises(ModelRetry, match="does not accept an `ordering` argument"):
-        _dispatch(list_spec(), object(), {"ordering": ["price"]})
+        _dispatch(list_spec(), object(), {"ordering": ordering})
 
 
 async def test_the_ordering_instruction_is_absent_when_no_tool_advertises_a_sort():
@@ -2499,9 +2412,9 @@ def _three_widgets(user):
 def test_the_sort_argument_is_found_under_whatever_name_it_was_declared():
     """The name is the project's to choose, and nothing requires ``ordering``.
 
-    This used to test the literal string, so a FilterSet declaring ``sorting``
-    read as "owns no ordering" -- which dropped the usage instruction and, more
-    quietly, left the value in the callable's kwarg pool.
+    A check of the literal string would read a FilterSet declaring ``sorting``
+    as "owns no ordering" -- dropping the usage instruction and, more quietly,
+    leaving the value in the callable's kwarg pool.
     """
     assert _spec_ordering_argument(_sorting_list_spec()) == "sorting"
 
@@ -2514,14 +2427,13 @@ def test_a_plain_filter_is_not_mistaken_for_a_sort():
 
 @pytest.mark.django_db
 def test_a_renamed_sort_is_popped_out_of_the_callables_kwargs():
-    """The half nobody had found, and the one with a consequence.
+    """Popped, not merely applied.
 
-    With a filter named ``sorting`` the rows still came back correctly sorted --
-    ``filter_data`` stayed defaulted to ``params`` and the FilterSet reads
-    ``params`` either way. What was lost was the *pop*: the value stayed in the
-    selector's kwarg pool, so a selector declaring ``**kwargs`` received a
-    read-shaping argument it never asked for. Which is exactly the hazard
-    ``_pop_filter_ordering``'s own docstring describes for the ``ordering`` case.
+    The FilterSet reads ``params`` either way, so the rows would come back sorted
+    even with the value left in the selector's kwarg pool, where a selector
+    declaring ``**kwargs`` would receive a read-shaping argument it never asked
+    for: the hazard ``_pop_filter_ordering``'s docstring describes for the
+    ``ordering`` case.
     """
     seen: dict[str, object] = {}
 
@@ -2542,16 +2454,6 @@ def test_a_renamed_sort_is_popped_out_of_the_callables_kwargs():
     result = _dispatch(spec, user, {"sorting": "cost"})
 
     assert "sorting" not in seen, "the sort reached the selector as a surprise kwarg"
-    assert [w["name"] for w in _rows(result)] == ["b", "c", "a"]
-
-
-@pytest.mark.django_db
-def test_a_renamed_sort_still_orders_the_rows():
-    user = User.objects.create(username="u")
-    _three_widgets(user)
-
-    result = _dispatch(_sorting_list_spec(), user, {"sorting": "cost"})
-
     assert [w["name"] for w in _rows(result)] == ["b", "c", "a"]
 
 
@@ -2579,26 +2481,25 @@ def test_the_instruction_names_every_live_sort_argument():
 
 
 @pytest.mark.django_db
-def test_filter_owned_ordering_actually_orders_the_rows():
-    """The test that would have caught the original defect.
-
-    The FilterSet advertises ``ordering``, so the value has to reach it and the
+@pytest.mark.parametrize(
+    ("build", "args", "names"),
+    [
+        (_ordered_list_spec, {"ordering": "cost"}, ["b", "c", "a"]),
+        (_ordered_list_spec, {"ordering": "-cost"}, ["a", "c", "b"]),
+        (_sorting_list_spec, {"sorting": "cost"}, ["b", "c", "a"]),
+    ],
+    ids=["actually-orders-the-rows", "descends", "a-renamed-sort-still-orders-the-rows"],
+)
+def test_filter_owned_ordering_orders_the_rows(build, args, names):
+    """The FilterSet advertises its sort, so the value has to reach it and the
     rows have to come back sorted. Asserting the order rather than "no error" is
     the point — the failure being guarded against is a tool that answers
     cheerfully with rows in the wrong order.
     """
     user = User.objects.create(username="u")
     _three_widgets(user)
-    result = _dispatch(_ordered_list_spec(), user, {"ordering": "cost"})
-    assert [w["name"] for w in _rows(result)] == ["b", "c", "a"]
-
-
-@pytest.mark.django_db
-def test_filter_owned_ordering_descends():
-    user = User.objects.create(username="u")
-    _three_widgets(user)
-    result = _dispatch(_ordered_list_spec(), user, {"ordering": "-cost"})
-    assert [w["name"] for w in _rows(result)] == ["a", "c", "b"]
+    result = _dispatch(build(), user, args)
+    assert [w["name"] for w in _rows(result)] == names
 
 
 @pytest.mark.django_db
@@ -2635,7 +2536,7 @@ def test_an_ordering_outside_the_filters_choices_is_a_retry():
 
 
 async def test_the_advertised_ordering_enum_is_the_filters_own_vocabulary():
-    """drf-services 0.47 publishes a labelled ``ChoiceFilter`` as ``oneOf`` const
+    """drf-services publishes a labelled ``ChoiceFilter`` as ``oneOf`` const
     options rather than a bare ``enum``, so the filter's *labels* travel to the
     model beside its values. ``OrderingFilter`` is a ``ChoiceFilter``, so this is
     the shape a filter-owned sort takes. The vocabulary reaching the model is the
@@ -2717,16 +2618,12 @@ class _BogusTargetFilterSet(django_filters.FilterSet):
 
 @pytest.mark.django_db
 def test_a_sort_target_that_is_not_a_column_raises_rather_than_retrying():
-    """Pinned because it is easy to assume the opposite, and the toolset used to
-    look like it handled this.
+    """Pinned because it is easy to assume the opposite.
 
-    The removed ``ordering_fields`` knob applied its own ``queryset.order_by``
-    inside the pagination step, and a ``FieldError`` arm there turned that into a
-    ``ModelRetry``. A ``filter_set``-declared sort never reached that arm: Django
-    validates a plain-string ``order_by`` eagerly, so the FilterSet raises inside
-    ``dispatch_spec``, above it. The arm went with the knob it served, and this
-    path is exactly as it was — which is arguably right, since the model cannot
-    correct a mis-declared ``param_map`` by choosing a different sort.
+    Django validates a plain-string ``order_by`` eagerly, so the FilterSet raises
+    inside ``dispatch_spec`` and no arm turns the ``FieldError`` into a
+    ``ModelRetry`` -- which is arguably right, since the model cannot correct a
+    mis-declared ``param_map`` by choosing a different sort.
     """
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
@@ -2741,7 +2638,7 @@ def test_a_sort_target_that_is_not_a_column_raises_rather_than_retrying():
         _dispatch(spec, user, {"ordering": "broken"})
 
 
-# The guard on the strip this change narrows. drf-services spreads the *entire*
+# drf-services spreads the *entire*
 # pool into a selector declaring ``**kwargs`` ("if fn declares **kwargs, the
 # entire pool is passed"), so any transport arg left in ``params`` lands in the
 # callable's signature as an argument it never declared. That is why a
@@ -2805,7 +2702,7 @@ def test_the_transport_args_never_reach_a_kwargs_selector():
 
     # The FilterSet gets the filter args plus ordering, and *not* the pagination
     # args: ``filter_data`` is built after ``page`` / ``limit`` have been popped,
-    # so widening the ordering route did not widen what the FilterSet sees.
+    # so routing ``ordering`` there does not widen what the FilterSet sees.
     assert _FILTER_DATA_SEEN[-1] == {"min_price": "1", "ordering": "cost"}
 
 
@@ -2884,8 +2781,8 @@ async def test_an_ordering_the_toolset_fills_is_refused_from_the_model(spec_kwar
     advertise, instead of being passed on to a selector that is handed the
     deployment's sort whatever the model asked for.
 
-    ``_spec_ordering_argument`` used to read the reflection without the names the
-    toolset fills, so it found ``ordering`` where the schema had dropped it. The
+    ``_spec_ordering_argument`` reads the reflection with the names the toolset
+    fills, so it agrees with the schema that ``ordering`` is gone. The
     pool-seed case holds ``pool_seeds`` reaching it from ``_pop_pagination``.
     """
     user = await User.objects.acreate(username="u")
@@ -2980,8 +2877,6 @@ async def test_a_reporter_on_the_deps_reaches_the_service():
     have picked a transport it does not own, which is the thing this package
     exists not to do.
     """
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     sink = _RecordingProgress()
     toolset = SpecToolset({"create_widget": reporting_spec()})
@@ -2999,8 +2894,6 @@ async def test_a_reporter_on_the_deps_reaches_the_service():
 @pytest.mark.django_db(transaction=True)
 async def test_the_same_service_runs_with_no_reporter_supplied():
     """``None`` is the ordinary case: drf-services substitutes its no-op."""
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"create_widget": reporting_spec()})
     tools = await toolset.get_tools(None)
@@ -3012,7 +2905,7 @@ async def test_the_same_service_runs_with_no_reporter_supplied():
 
 
 async def test_a_deps_type_without_a_progress_field_is_fine():
-    """A project's own deps class predates this field; a missing sink is normal."""
+    """A project's own deps class may carry no ``progress``; a missing sink is normal."""
     assert _default_get_progress(SimpleNamespace(deps=SimpleNamespace(user=None))) is None
     assert _default_get_progress(SimpleNamespace()) is None
 
@@ -3022,8 +2915,6 @@ async def test_a_deps_type_without_a_progress_field_is_fine():
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_call_is_timed_at_debug(caplog):
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"list_widgets": list_spec()})
     tools = await toolset.get_tools(None)
@@ -3038,12 +2929,10 @@ async def test_a_call_is_timed_at_debug(caplog):
 async def test_a_denial_is_logged_at_warning_and_still_raises(caplog):
     """The one failure with no other trace.
 
-    A retry reaches the model and an ``{"error": …}`` reaches the answer, but a
+    A retry reaches the model and a failed call reaches its answer, but a
     denial aborts the run and is absorbed by whatever is driving it — so over
-    HTTP this is a `403` in the access log and here it was nothing at all.
+    HTTP this is a `403` in the access log and here it would be nothing at all.
     """
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"list_widgets": list_spec(permission_classes=[DenyAll])})
     tools = await toolset.get_tools(None)
@@ -3068,8 +2957,6 @@ async def test_an_over_budget_result_fails_rather_than_truncating():
     that many rows, so a model would answer confidently from data it does not
     know is missing. Refusing costs a turn; truncating costs correctness.
     """
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     for n in range(5):
         await sync_to_async(Widget.objects.create)(name=f"w{n}", price=n, owner=user)
@@ -3084,32 +2971,23 @@ async def test_an_over_budget_result_fails_rather_than_truncating():
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_result_inside_the_ceiling_passes_through_untouched():
-    from asgiref.sync import sync_to_async
-
+@pytest.mark.parametrize(
+    "ceilings",
+    [
+        {"max_result_bytes": 100_000},
+        # Absent and ``None`` are different answers: one inherits, one opts out.
+        {"max_result_bytes": 1, "tool_max_result_bytes": {"list_widgets": None}},
+    ],
+    ids=[
+        "a-result-inside-the-ceiling-passes-through-untouched",
+        "a-per-tool-ceiling-of-none-means-no-ceiling-for-that-tool",
+    ],
+)
+async def test_a_result_the_ceiling_admits_passes_through_untouched(ceilings):
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
 
-    toolset = SpecToolset({"list_widgets": list_spec()}, max_result_bytes=100_000)
-    tools = await toolset.get_tools(None)
-    result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
-
-    assert [w["name"] for w in _rows(result)] == ["a"]
-
-
-@pytest.mark.django_db(transaction=True)
-async def test_a_per_tool_ceiling_of_none_means_no_ceiling_for_that_tool():
-    """Absent and ``None`` are different answers: one inherits, one opts out."""
-    from asgiref.sync import sync_to_async
-
-    user = await sync_to_async(User.objects.create)(username="u")
-    await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
-
-    toolset = SpecToolset(
-        {"list_widgets": list_spec()},
-        max_result_bytes=1,
-        tool_max_result_bytes={"list_widgets": None},
-    )
+    toolset = SpecToolset({"list_widgets": list_spec()}, **ceilings)
     tools = await toolset.get_tools(None)
     result = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
 
@@ -3149,8 +3027,8 @@ def test_an_omitted_limit_becomes_the_ceiling():
 
     assert len(_rows(_dispatch(list_spec(), user, {}, max_page_size=3))) == 3
     # With no ceiling configured, an omitted limit is the default page size --
-    # not "everything", which is what it used to mean and what made an
-    # unremarked truncation possible. Five rows fit inside one default page, so
+    # not "everything", which would make an unremarked truncation possible.
+    # Five rows fit inside one default page, so
     # they all come back, and ``hasNext`` says there is no more.
     page = _dispatch(list_spec(), user, {})
     assert len(_rows(page)) == 5
@@ -3173,23 +3051,35 @@ async def test_no_deadline_awaits_normally():
     assert await _with_deadline(_quick(), None, label="x") == "done"
 
 
-# --- the overridable middle (A2 / A3 / A6) -----------------------------------
+# --- the overridable middle --------------------------------------------------
 #
-# Everything between argument intake and result rendering used to be sealed in a
-# module-level private: a subclass could replace ``call_tool`` wholesale or
-# nothing at all. These cover the two seams and the two knobs that ride on them.
+# Everything between argument intake and result rendering is a seam, so a
+# subclass need not replace ``call_tool`` wholesale. These cover the two seams
+# and the two knobs that ride on them.
 
 
 class _Boom(Exception):
     """Stands in for an exception this package knows nothing about."""
 
 
-def test_an_unmapped_exception_still_aborts_the_run():
-    """The default is unchanged — a genuine bug must not become a tool result."""
+def _raising(exc: BaseException) -> Any:
+    """A service taking the acting user that raises ``exc``."""
 
     def boom(user):
         """Boom."""
-        raise _Boom("kaboom")
+        raise exc
+
+    return boom
+
+
+def _retry_instead(exc: BaseException) -> Any:
+    """An ``exception_map`` handler that asks the model to retry."""
+    raise ModelRetry(str(exc))
+
+
+def test_an_unmapped_exception_still_aborts_the_run():
+    """By default a genuine bug must not become a tool result."""
+    boom = _raising(_Boom("kaboom"))
 
     with pytest.raises(_Boom):
         _dispatch(ServiceSpec(service=boom, atomic=False), object())
@@ -3202,10 +3092,7 @@ def test_exception_map_turns_an_unknown_exception_into_a_result():
     translated set, and so fatal to the run where the DRF twin would have been a
     retry. Broadening the built-in set fixes that one; a map fixes the class.
     """
-
-    def boom(user):
-        """Boom."""
-        raise DjangoValidationError("that name is taken")
+    boom = _raising(DjangoValidationError("that name is taken"))
 
     result = _dispatch(
         ServiceSpec(service=boom, atomic=False),
@@ -3217,27 +3104,19 @@ def test_exception_map_turns_an_unknown_exception_into_a_result():
 
 def test_a_handler_may_retry_instead_of_returning():
     """Both outcomes of the model loop are reachable from one map."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("try again")
+    boom = _raising(_Boom("try again"))
 
     with pytest.raises(ModelRetry, match="try again"):
         _dispatch(
             ServiceSpec(service=boom, atomic=False),
             object(),
-            toolset_kwargs={
-                "exception_map": {_Boom: lambda exc: (_ for _ in ()).throw(ModelRetry(str(exc)))}
-            },
+            toolset_kwargs={"exception_map": {_Boom: _retry_instead}},
         )
 
 
 def test_a_base_class_registration_catches_a_subclass():
     """Registering ``Exception`` should not require enumerating every subclass."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("anything")
+    boom = _raising(_Boom("anything"))
 
     result = _dispatch(
         ServiceSpec(service=boom, atomic=False),
@@ -3249,10 +3128,7 @@ def test_a_base_class_registration_catches_a_subclass():
 
 def test_the_most_specific_registration_wins():
     """MRO order, so a narrow handler is not shadowed by a broad one."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("x")
+    boom = _raising(_Boom("x"))
 
     result = _dispatch(
         ServiceSpec(service=boom, atomic=False),
@@ -3270,37 +3146,37 @@ def test_the_most_specific_registration_wins():
 def test_the_map_overrides_a_built_in_arm():
     """Deliberate: the built-ins are this package's guess, not a law.
 
-    A ``ServiceError`` normally becomes ``{"error": …}``. A project that would
+    A ``ServiceError`` normally fails the call. A project that would
     rather the model retry must be able to say so, or the map is only half a
     seam.
     """
-
-    def boom(user):
-        """Boom."""
-        raise ServiceError("nope")
+    boom = _raising(ServiceError("nope"))
 
     with pytest.raises(ModelRetry):
         _dispatch(
             ServiceSpec(service=boom, atomic=False),
             object(),
-            toolset_kwargs={
-                "exception_map": {
-                    ServiceError: lambda exc: (_ for _ in ()).throw(ModelRetry(str(exc)))
-                }
-            },
+            toolset_kwargs={"exception_map": {ServiceError: _retry_instead}},
         )
 
 
-@pytest.mark.django_db
-def test_http_request_is_forwarded_to_the_offline_context():
-    """A3 — the parameter existed upstream all along and was never passed."""
-    request = RequestFactory().get("/", HTTP_X_TENANT="acme")
-    seen = {}
+def _tenant_peek() -> tuple[Any, dict[str, Any]]:
+    """A service recording, in the dict beside it, the tenant header it was shown."""
+    seen: dict[str, Any] = {}
 
     def peek(user, request=None, **_):
         """Peek."""
         seen["tenant"] = request.META.get("HTTP_X_TENANT")
         return {"ok": True}
+
+    return peek, seen
+
+
+@pytest.mark.django_db
+def test_http_request_is_forwarded_to_the_offline_context():
+    """A configured ``http_request`` reaches the service as its ``request``."""
+    request = RequestFactory().get("/", HTTP_X_TENANT="acme")
+    peek, seen = _tenant_peek()
 
     _dispatch(
         ServiceSpec(service=peek, atomic=False),
@@ -3312,13 +3188,8 @@ def test_http_request_is_forwarded_to_the_offline_context():
 
 @pytest.mark.django_db
 def test_get_http_request_can_vary_the_request_per_run():
-    """The per-run form, mirroring ``get_user`` — the point of routing A3 through A2."""
-    seen = {}
-
-    def peek(user, request=None, **_):
-        """Peek."""
-        seen["tenant"] = request.META.get("HTTP_X_TENANT")
-        return {"ok": True}
+    """The per-run form, mirroring ``get_user``, routed through ``build_context``."""
+    peek, seen = _tenant_peek()
 
     def from_deps(ctx):
         return RequestFactory().get("/", HTTP_X_TENANT=ctx.deps.user)
@@ -3338,13 +3209,8 @@ def test_no_request_arrives_unless_one_was_configured():
 
 @pytest.mark.django_db
 def test_build_context_is_overridable_and_sees_the_run():
-    """A2 proper: a subclass reaches dispatch with the run's typed deps in hand."""
-    seen = {}
-
-    def peek(user, request=None, **_):
-        """Peek."""
-        seen["tenant"] = request.META.get("HTTP_X_TENANT")
-        return {"ok": True}
+    """A subclass reaches dispatch with the run's typed deps in hand."""
+    peek, seen = _tenant_peek()
 
     class TenantToolset(SpecToolset):
         def build_context(self, user, params, *, ctx, **kwargs):
@@ -3372,10 +3238,7 @@ def test_build_context_is_overridable_and_sees_the_run():
 
 def test_translate_exception_is_overridable_without_a_map():
     """The method is the seam; ``exception_map`` is the declarative shortcut."""
-
-    def boom(user):
-        """Boom."""
-        raise _Boom("subclassed")
+    boom = _raising(_Boom("subclassed"))
 
     class Translating(SpecToolset):
         def translate_exception(self, exc, *, ctx):
@@ -3489,13 +3352,11 @@ async def test_handle_instruction_present_only_when_a_tool_has_a_handle():
 
 @pytest.mark.parametrize("no_default", [None, UNSET])
 def test_a_kwarg_declaring_no_default_contributes_nothing(no_default: Any) -> None:
-    """Both sentinels the sister package has used for "no default" read as absent.
+    """Both sentinels for "no default", ``None`` and ``UNSET``, read as absent.
 
-    drf-services used a plain ``None`` through 0.43 and switched to ``UNSET`` in
-    0.44, so that ``default=None`` could mean an explicit null. A check of only
-    ``is not None`` reads ``UNSET`` as a real value and hands the sentinel object
-    to the spec as an argument. Parametrized over both so this keeps holding
-    whichever side of that boundary the resolved version falls on.
+    ``UNSET`` is the "no default" that lets ``default=None`` mean an explicit
+    null, and a check of only ``is not None`` reads it as a real value and hands
+    the sentinel object to the spec as an argument.
     """
     args: dict[str, Any] = {}
     values = _pop_url_kwargs(
@@ -3509,8 +3370,8 @@ def test_a_required_kwarg_is_not_satisfied_by_the_no_default_sentinel(no_default
     """The requiredness check must still run, and must still name the kwarg.
 
     Reading the sentinel as a value skips the ``elif required`` arm entirely, so
-    the model got no ``ModelRetry`` naming what it omitted -- the spec was handed
-    the sentinel and failed further in, where the reason is far less legible.
+    the model would get no ``ModelRetry`` naming what it omitted -- the spec would
+    be handed the sentinel and fail further in, where the reason is far less legible.
     """
     with pytest.raises(ModelRetry, match="project_pk"):
         _pop_url_kwargs(
@@ -3538,19 +3399,9 @@ def test_a_real_default_still_reaches_the_spec() -> None:
 # spec, and every one of them is authored against the HTTP transport.
 
 
-class RecordingPermission(BasePermission):
-    """Allows everything, and records what it was shown."""
-
-    seen: dict[str, Any] = {}
-
-    def has_permission(self, request, view):
-        RecordingPermission.seen = {
-            "action": view.action,
-            "kwargs": dict(view.kwargs),
-            "query_params": dict(request.query_params.lists()),
-            "user": request.user,
-        }
-        return True
+def _do_it(user):
+    """Do it."""
+    return {"ok": True}
 
 
 async def _call(toolset: SpecToolset, name: str, user: Any, args: dict[str, Any] | None = None):
@@ -3560,23 +3411,18 @@ async def _call(toolset: SpecToolset, name: str, user: Any, args: dict[str, Any]
 
 @pytest.mark.django_db
 async def test_the_tool_name_is_the_view_action_a_permission_class_reads():
-    """``view.action`` used to be ``None`` for every spec this toolset exposed.
+    """``view.action`` is the tool name, never ``None``.
 
     A permission class branching on the action -- strict for the actions it
-    knows, permissive otherwise -- then took the permissive arm on every call,
-    so the same spec behind the same class was gated one way over HTTP and
-    another way through an agent. The tool name is the identity the model
+    knows, permissive otherwise -- would take the permissive arm on every call
+    given ``None``, so the same spec behind the same class would be gated one way
+    over HTTP and another way through an agent. The tool name is the identity the model
     called, and it is what the MCP transport reports for the same spec.
     """
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     toolset = SpecToolset(
         {
             "suspend_account": ServiceSpec(
-                service=noop, atomic=False, permission_classes=[RecordingPermission]
+                service=_do_it, atomic=False, permission_classes=[RecordingPermission]
             )
         },
         descriptions={"suspend_account": "Suspend an account."},
@@ -3597,10 +3443,6 @@ async def test_an_override_can_rewrite_the_action_it_is_handed():
     build to do it.
     """
 
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     class RetrieveShaped(SpecToolset):
         def build_context(self, user, params, *, ctx, **kwargs):
             return super().build_context(user, params, ctx=ctx, **{**kwargs, "action": "retrieve"})
@@ -3608,7 +3450,7 @@ async def test_an_override_can_rewrite_the_action_it_is_handed():
     toolset = RetrieveShaped(
         {
             "get_thing": ServiceSpec(
-                service=noop, atomic=False, permission_classes=[RecordingPermission]
+                service=_do_it, atomic=False, permission_classes=[RecordingPermission]
             )
         },
         descriptions={"get_thing": "Get a thing."},
@@ -3626,20 +3468,15 @@ async def test_a_configured_requests_query_string_never_reaches_the_spec():
 
     ``build_offline_context`` replaces the wrapped request's ``GET`` only when
     ``query_params`` is not ``None``, so passing ``None`` for an empty
-    declaration left the ambient endpoint's own query string live inside the
+    declaration would leave the ambient endpoint's own query string live inside the
     spec -- a field-selection or ``filter_set`` channel neither the tool schema
     nor the model chose. The MCP transport passes a mapping at every call site
     for exactly this reason.
     """
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     toolset = SpecToolset(
         {
             "do_it": ServiceSpec(
-                service=noop, atomic=False, permission_classes=[RecordingPermission]
+                service=_do_it, atomic=False, permission_classes=[RecordingPermission]
             )
         },
         descriptions={"do_it": "Do it."},
@@ -3655,16 +3492,11 @@ async def test_a_configured_requests_query_string_never_reaches_the_spec():
 @pytest.mark.django_db
 async def test_a_declared_query_param_still_reaches_the_spec_alongside_it():
     """The other half: replacing the query string is not dropping it."""
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     toolset = SpecToolset(
         reading(
             {
                 "do_it": ServiceSpec(
-                    service=noop, atomic=False, permission_classes=[RecordingPermission]
+                    service=_do_it, atomic=False, permission_classes=[RecordingPermission]
                 )
             },
             {"do_it": [QueryParam(name="fields")]},
@@ -3684,7 +3516,7 @@ async def test_a_declared_query_param_still_reaches_the_spec_alongside_it():
 
 @pytest.mark.django_db
 def test_one_configured_request_is_not_shared_between_two_dispatches():
-    """Pins ``djangorestframework-services>=0.44``; lowering the floor fails here.
+    """Pins a guarantee of the declared drf-services floor; lowering it fails here.
 
     ``http_request=`` captures one object for the toolset's lifetime, and
     ``call_tool`` dispatches through ``sync_to_async``, so two concurrent runs
@@ -3715,16 +3547,11 @@ async def test_a_dispatch_leaves_the_configured_request_untouched():
     ``method`` to ``POST``, replaced ``GET`` and reassigned ``user`` on that very
     object, and the effects outlived the call.
     """
-
-    def noop(user):
-        """Do it."""
-        return {"ok": True}
-
     ambient = RequestFactory().get("/agent/?fields=original")
     ambient.user = "the-operator"
     toolset = SpecToolset(
         reading(
-            {"do_it": ServiceSpec(service=noop, atomic=False, permission_classes=[AllowAny])},
+            {"do_it": ServiceSpec(service=_do_it, atomic=False, permission_classes=[AllowAny])},
             {"do_it": [QueryParam(name="fields")]},
         ),
         descriptions={"do_it": "Do it."},
@@ -4077,8 +3904,8 @@ async def test_a_build_context_override_reaches_a_condition_at_listing_time():
 async def test_a_condition_is_asked_on_the_toolsets_own_dispatch_thread():
     """``thread_sensitive`` and ``executor`` govern the listing as they do the call.
 
-    A condition stands in front of the call it gates, so a deployment that moved
-    dispatch off asgiref's shared thread has moved its conditions with it.
+    A condition stands in front of the call it gates, so a deployment that moves
+    dispatch off asgiref's shared thread moves its conditions with it.
     """
     threads: list[str] = []
 
@@ -4107,10 +3934,7 @@ async def test_a_listing_time_condition_closes_the_connection_it_opened() -> Non
     already open when a dispatch starts reads as someone else's. So this lists,
     checks, then dispatches and checks again.
     """
-    assert not connection.is_in_memory_db(), (
-        "this test needs a database whose connection can actually be closed; "
-        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
-    )
+    _assert_a_close_is_observable()
     asked_on: dict[str, int] = {}
 
     def queries() -> bool:
@@ -4899,8 +4723,8 @@ def test_a_providers_return_annotation_decides_what_the_model_is_asked_for(
     ``ceiling`` stays offered beside ``_scope_with_an_unresolvable_key`` while
     the parameters nothing fills stay required; a parameter's annotation says
     nothing about the keys, so ``_scope_for_an_unresolvable_view`` reads as
-    ``_scope`` does. Both rows used to read the whole provider as untyped,
-    which offered every name and required none.
+    ``_scope`` does. Neither row reads the whole provider as untyped, which
+    would offer every name and require none.
 
     The reader is drf-services' ``provider_keys``; this holds what the toolset
     makes of its answer, on the schema the model reads.
@@ -5006,8 +4830,8 @@ async def test_an_annotation_imported_only_for_type_checking_leaves_the_keys_rea
     keys, and ``tenant`` is filled. A key whose own value does not resolve might
     be one the provider declines, so ``tenant`` stays offered, optional.
 
-    One unresolvable annotation used to make the whole provider untyped: the
-    model was offered ``tenant`` beside the first, and ``pk`` was required by
+    One unresolvable annotation does not make the whole provider untyped, which
+    would offer the model ``tenant`` beside the first and require ``pk`` of
     neither.
     """
     toolset = SpecToolset({"read": _invoice_spec(get_invoice, provider)})
@@ -5076,9 +4900,9 @@ async def test_a_key_the_provider_may_decline_stays_the_models_to_send(args, row
     not one the toolset fills. It stays advertised, since the model may be the
     one to send it, and optional, since the provider may fill it instead.
 
-    Counted as filled, it was dropped from the schema, so a model never told
-    about ``ceiling`` left it out and a decline reached the selector as
-    ``TypeError``. Holds the declinable keys in ``_selector_inputs``: required
+    Counted as filled, it would be dropped from the schema, so a model never
+    told about ``ceiling`` would leave it out and a decline would reach the
+    selector as ``TypeError``. Holds the declinable keys in ``_selector_inputs``: required
     for lacking a default, the ``filled`` call would be refused for ``ceiling``.
     """
     toolset = SpecToolset(
@@ -5119,9 +4943,8 @@ async def test_a_parameter_neither_the_provider_nor_the_model_fills_is_asked_for
     drf-services' words for a missing field, ``ceiling: This field is
     required.``.
 
-    This used to be the selector's ``TypeError`` out of the run, which is what
-    the docs then advised a default against. The retry is what a model can act
-    on: a resend carrying ``ceiling`` is served, and a default still answers the
+    The retry, not the selector's ``TypeError`` out of the run, is what a model
+    can act on: a resend carrying ``ceiling`` is served, and a default still answers the
     call without one.
     """
     toolset = SpecToolset(
@@ -5371,8 +5194,8 @@ async def test_a_key_a_precondition_hides_is_not_advertised_beside_the_lookup():
     """A key one callable in the call marks ``NotClientInput`` is the server's for
     the whole call: dispatch drops the caller's value before the lookup reads
     it, and ``REJECT`` refuses it. The lookup names ``tenant`` plainly, so its
-    own reflection offers it, and the toolset used to merge it in, advertising an
-    argument every call carrying it was refused for.
+    own reflection offers it; merged in, it would advertise an argument every
+    call carrying it is refused for.
 
     Holds the subtraction of ``server_owned_keys`` in ``_caller_schema``.
     """
@@ -5492,7 +5315,7 @@ def names_in_range(user, low, high):
     ids=["one", "several"],
 )
 async def test_a_selector_call_missing_a_required_argument_is_handed_back(spec, args, missing):
-    """It used to reach the selector, which raised ``TypeError`` out of the run.
+    """Handed back, not passed to the selector to raise ``TypeError`` out of the run.
 
     The same answer, worded the same way, as a required ``UrlKwarg`` the model
     leaves out: a retry naming every missing argument, so one turn fixes them all.
@@ -5506,7 +5329,7 @@ async def test_a_selector_call_missing_a_required_argument_is_handed_back(spec, 
 
 
 async def test_a_service_call_missing_its_lookup_is_handed_back():
-    """``get_any_widget()`` used to raise ``TypeError`` out of the run instead."""
+    """Handed back, not passed to ``get_any_widget()`` to raise ``TypeError``."""
     toolset = SpecToolset({"rename": _update_spec()})
 
     with pytest.raises(ModelRetry) as raised:
@@ -5631,11 +5454,9 @@ async def test_a_list_result_is_a_page_not_a_bare_list():
 
 @pytest.mark.django_db
 def test_a_truncated_page_says_that_it_was_truncated():
-    """The defect stated as its symptom.
-
-    Asking for a collection used to return ``limit`` rows and nothing at all
-    about the rest, so a model answered "there are 2 widgets" from a page of 2
-    out of 5 -- confidently, and with no way to find out otherwise.
+    """``limit`` rows and nothing at all about the rest would have a model answer
+    "there are 2 widgets" from a page of 2 out of 5 -- confidently, and with no
+    way to find out otherwise.
     """
     user = User.objects.create(username="u")
     for n in range(5):
@@ -5874,8 +5695,8 @@ async def test_a_retrieve_tool_advertises_the_bare_item():
     ("allow_none", "root_type"), [(True, ["object", "null"]), (False, "object")]
 )
 async def test_a_retrieve_tool_says_whether_it_can_return_null(allow_none, root_type):
-    """An ``allow_none`` retrieve that finds nothing returns ``None``, which the
-    schema used to deny by declaring an object.
+    """An ``allow_none`` retrieve that finds nothing returns ``None``, which a
+    schema declaring an object alone would deny.
 
     The ``False`` case holds ``spec.allow_none`` in ``_return_schema``: passed
     unconditionally, every retrieve tool would admit a ``null`` it never returns.
@@ -6365,9 +6186,9 @@ def _refused_spec() -> ServiceSpec:
 
 
 async def test_a_refused_call_fails_with_its_reason_and_its_code():
-    """Through ``call_tool``, the path a run takes. The message used to be the
-    reason alone, with ``books_closed`` reachable only on ``__cause__``; the cause
-    is kept, because that is where a program reads the code from."""
+    """Through ``call_tool``, the path a run takes. The message carries the code
+    beside the reason, and the cause is kept as well, because that is where a
+    program reads the code from."""
     toolset = SpecToolset({"close_books": _refused_spec()})
 
     with pytest.raises(ToolFailed) as caught:
@@ -6639,6 +6460,37 @@ def _dispatch_thread_state() -> tuple[int, bool]:
     return threading.get_ident(), connections["default"].connection is not None
 
 
+def _thread_recording_toolset() -> tuple[SpecToolset, dict[str, int]]:
+    """A one-tool toolset whose selector records, in the dict beside it, its thread."""
+    dispatched_on: dict[str, int] = {}
+
+    def _list_recording_its_thread(user: Any) -> Any:
+        """List every widget, recording which thread the dispatch ran on."""
+        del user  # the subject is the connection, not the scoping
+        dispatched_on["thread"] = threading.get_ident()
+        return Widget.objects.all()
+
+    toolset = SpecToolset(
+        {
+            "widgets": SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_list_recording_its_thread,
+                output_serializer=WidgetSerializer,
+                permission_classes=[AllowAny],
+            )
+        }
+    )
+    return toolset, dispatched_on
+
+
+def _assert_a_close_is_observable() -> None:
+    """Django's SQLite backend ignores ``close()`` on an in-memory database."""
+    assert not connection.is_in_memory_db(), (
+        "this test needs a database whose connection can actually be closed; "
+        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
+    )
+
+
 @pytest.mark.django_db
 @pytest.mark.parametrize("conn_max_age", [0, 60], ids=["no-reuse", "persistent-connections"])
 async def test_a_dispatch_closes_the_connection_it_opened_on_the_shared_thread(
@@ -6670,32 +6522,12 @@ async def test_a_dispatch_closes_the_connection_it_opened_on_the_shared_thread(
     """
     # Django's SQLite backend *ignores* ``close()`` on an in-memory database, to
     # avoid destroying it -- so under a ``:memory:`` test database this test
-    # could not tell a working fix from a no-op, which is exactly how an earlier
-    # attempt at this fix came out green without being verified. Assert the
+    # could not tell a working fix from a no-op, and a fix would come out green
+    # without being verified. Assert the
     # environment can observe a close before asserting anything about one.
-    assert not connection.is_in_memory_db(), (
-        "this test needs a database whose connection can actually be closed; "
-        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
-    )
+    _assert_a_close_is_observable()
 
-    dispatched_on: dict[str, int] = {}
-
-    def _list_recording_its_thread(user: Any) -> Any:
-        """List every widget, recording which thread the dispatch ran on."""
-        del user  # the subject is the connection, not the scoping
-        dispatched_on["thread"] = threading.get_ident()
-        return Widget.objects.all()
-
-    toolset = SpecToolset(
-        {
-            "widgets": SelectorSpec(
-                kind=SelectorKind.LIST,
-                selector=_list_recording_its_thread,
-                output_serializer=WidgetSerializer,
-                permission_classes=[AllowAny],
-            )
-        }
-    )
+    toolset, dispatched_on = _thread_recording_toolset()
     # Unsaved on purpose. Saving one would need a thread hop of its own -- the
     # ORM is closed to the event loop -- and a row written from the dispatch
     # thread commits on that thread's connection, outside the transaction this
@@ -6746,34 +6578,14 @@ def test_a_dispatch_leaves_a_connection_it_did_not_open_alone() -> None:
     connection and every remaining assertion would hold for the wrong reason --
     the test would pass while testing nothing.
     """
-    assert not connection.is_in_memory_db(), (
-        "this test needs a database whose connection can actually be closed; "
-        "see DATABASES['default']['TEST']['NAME'] in tests/conftest_settings.py"
-    )
+    _assert_a_close_is_observable()
     # pytest-django runs a ``django_db`` test inside an atomic block, so the
     # connection this thread holds is the real thing this cleanup must not
     # touch -- open, and with a transaction on it.
     connection.ensure_connection()
     assert connection.in_atomic_block
 
-    dispatched_on: dict[str, int] = {}
-
-    def _list_recording_its_thread(user: Any) -> Any:
-        """List every widget, recording which thread the dispatch ran on."""
-        del user  # the subject is the connection, not the scoping
-        dispatched_on["thread"] = threading.get_ident()
-        return Widget.objects.all()
-
-    toolset = SpecToolset(
-        {
-            "widgets": SelectorSpec(
-                kind=SelectorKind.LIST,
-                selector=_list_recording_its_thread,
-                output_serializer=WidgetSerializer,
-                permission_classes=[AllowAny],
-            )
-        }
-    )
+    toolset, dispatched_on = _thread_recording_toolset()
     ctx = ctx_for(User(username="u"))
 
     async def _one_call() -> None:
@@ -6802,11 +6614,9 @@ def test_a_dispatch_leaves_a_connection_it_did_not_open_alone() -> None:
 
 # --- the back half of a call is overridable ----------------------------------
 #
-# 0.14.0 made argument intake through dispatch overridable and stopped there, so
-# everything after the dispatch returned -- pagination, rendering, the resolved-
-# data pool, the byte bound -- stayed module-level privates reached from a
-# module-level function. A project wanting to change one of them had to replace
-# ``call_tool`` wholesale or nothing at all.
+# Everything after the dispatch returns -- pagination, rendering, the resolved-
+# data pool, the byte bound -- is a seam as argument intake is, so a project
+# changing one of them need not replace ``call_tool`` wholesale.
 
 
 def test_the_run_context_double_carries_every_field_the_package_reads():
@@ -6818,9 +6628,7 @@ def test_the_run_context_double_carries_every_field_the_package_reads():
     ``RunContext`` does not have would pass here and ``AttributeError`` in
     production; carrying one fewer than the package reads would do the reverse.
     """
-    import dataclasses
-
-    real = {f.name for f in dataclasses.fields(RunContext)}
+    real = {f.name for f in dataclass_fields(RunContext)}
     assert real >= RUN_CONTEXT_FIELDS_READ, RUN_CONTEXT_FIELDS_READ - real
     double = set(vars(ctx_for("alice")))
     assert double >= RUN_CONTEXT_FIELDS_READ, RUN_CONTEXT_FIELDS_READ - double
@@ -6829,8 +6637,6 @@ def test_the_run_context_double_carries_every_field_the_package_reads():
 @pytest.mark.django_db(transaction=True)
 async def test_shape_page_override_replaces_the_slice():
     """The seam is reached for a list selector, with the model's page args."""
-    from asgiref.sync import sync_to_async
-
     seen = {}
 
     class Windowed(SpecToolset):
@@ -6864,7 +6670,6 @@ async def test_render_output_override_can_skip_the_projection():
     ``render_spec_output`` instead. That is reachable only because the render
     step is a seam.
     """
-    from asgiref.sync import sync_to_async
 
     class Unprojected(SpecToolset):
         def render_output(self, spec, value, *, ctx, projection, many, request, view, extras):
@@ -6893,8 +6698,6 @@ async def test_render_output_override_can_skip_the_projection():
 
 @pytest.mark.django_db(transaction=True)
 async def test_output_extras_override_reaches_the_resolved_data_pool():
-    from asgiref.sync import sync_to_async
-
     seen = {}
 
     class Extra(SpecToolset):
@@ -6923,7 +6726,6 @@ async def test_output_extras_override_reaches_the_resolved_data_pool():
 @pytest.mark.django_db(transaction=True)
 async def test_enforce_result_bytes_override_can_bound_on_something_else():
     """Overriding the bound is how a non-byte ceiling gets written at all."""
-    from asgiref.sync import sync_to_async
 
     class RowCapped(SpecToolset):
         def enforce_result_bytes(self, payload, *, ctx, max_bytes, label):
@@ -6944,14 +6746,8 @@ async def test_enforce_result_bytes_override_can_bound_on_something_else():
 
 async def test_tool_call_log_lines_carry_run_correlation_and_usage(caplog):
     """Two concurrent runs interleave; without these fields nothing separates them."""
-
-    def ping(user):
-        """Ping."""
-        return {"ok": True}
-
-    toolset = SpecToolset(
-        {"ping": ServiceSpec(service=ping, permission_classes=[AllowAny], atomic=False)}
-    )
+    spec, _ = _ping_spec()
+    toolset = SpecToolset({"ping": spec})
     tools = await toolset.get_tools(None)
     ctx = ctx_for("u", run_id="run-abc", tool_call_id="call-xyz")
 
@@ -6989,13 +6785,11 @@ async def test_permission_denial_log_line_carries_run_correlation(caplog):
 
 # --- the dispatch carrier and the two remaining log sites ---------------------
 #
-# ``output_extras`` documents ``DispatchResult.service_result`` as the thing it
-# deliberately withholds, and offers an override as the escape hatch. The
-# override could not reach it either: ``_call_spec`` read three fields off the
-# dispatch result and let the carrier go. These cover the carrier arriving, the
-# break an override written against the older signature now takes, the two log
-# sites that had no run correlation, and the derived instructions being built
-# once rather than per model step.
+# ``output_extras`` withholds ``DispatchResult.service_result`` by default and
+# offers an override as the escape hatch, so the override is handed the whole
+# carrier. These cover the carrier arriving, the break an override written
+# without it takes, run correlation on the two remaining log sites, and the
+# derived instructions being built once rather than per model step.
 
 
 def upsert_widget(data, user):
@@ -7037,8 +6831,6 @@ async def test_output_extras_reaches_the_dispatch_result_carrier():
     ``output_selector_spec`` present, ``value`` is the re-fetched row and the
     service's own return -- the flags carrier -- is reachable nowhere else.
     """
-    from asgiref.sync import sync_to_async
-
     seen: dict[str, Any] = {}
 
     class Upsert(SpecToolset):
@@ -7067,7 +6859,8 @@ async def test_output_extras_reaches_the_dispatch_result_carrier():
 
 @pytest.mark.django_db(transaction=True)
 async def test_an_override_predating_the_carrier_breaks_loudly():
-    """The 0.23.0 signature raises, and taking that break is the whole point.
+    """An override without the carrier argument raises, and taking that break is
+    the whole point.
 
     The alternative -- read the override's signature at construction and widen
     the call only where it fits -- reads as kindness and is not. The answer is
@@ -7077,8 +6870,6 @@ async def test_an_override_predating_the_carrier_breaks_loudly():
     trade -- ``TypeError`` on the first tool call, naming the argument, fixable in
     one line by whoever wrote the override.
     """
-    from asgiref.sync import sync_to_async
-
     called: list[str] = []
 
     class Legacy(SpecToolset):
@@ -7101,8 +6892,6 @@ async def test_an_override_predating_the_carrier_breaks_loudly():
 @pytest.mark.django_db(transaction=True)
 async def test_a_forwarding_override_receives_the_carrier_through_kwargs():
     """``**kwargs`` is the other one-line way to take a seam that grew."""
-    from asgiref.sync import sync_to_async
-
     seen: dict[str, Any] = {}
 
     class Forwarding(SpecToolset):
@@ -7123,13 +6912,8 @@ async def test_a_forwarding_override_receives_the_carrier_through_kwargs():
 async def test_dispatch_timeout_log_line_carries_run_correlation(caplog):
     """A tool that intermittently times out is the one worth correlating."""
 
-    def crawl(user):
-        """Takes longer than the deadline."""
-        time.sleep(0.2)
-        return {}
-
     toolset = SpecToolset(
-        {"crawl": ServiceSpec(service=crawl, permission_classes=[AllowAny], atomic=False)},
+        {"crawl": ServiceSpec(service=_crawl, permission_classes=[AllowAny], atomic=False)},
         dispatch_timeout=0.01,
     )
     tools = await toolset.get_tools(None)
@@ -7150,8 +6934,6 @@ async def test_dispatch_timeout_log_line_carries_run_correlation(caplog):
 @pytest.mark.django_db(transaction=True)
 async def test_result_bound_log_line_carries_run_correlation(caplog):
     """A bound that fires invisibly reads to an operator as a broken tool."""
-    from asgiref.sync import sync_to_async
-
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
     toolset = SpecToolset({"list_widgets": list_spec()}, max_result_bytes=1)
@@ -7201,8 +6983,8 @@ async def test_an_instructions_override_never_derives_at_all():
 # A read-shaping param is the one caller input read while the output renders
 # rather than while the call dispatches: a ``fields`` or ``query`` selection is
 # parsed inside the output serializer's ``to_representation``. So a selection it
-# rejects fails after the dispatch arms have closed, and used to end the run with
-# a raw DRF ``ValidationError``. These pin what the model gets back instead, and
+# rejects fails after the dispatch arms have closed, where a raw DRF
+# ``ValidationError`` would end the run. These pin what the model gets back, and
 # the cases where nothing it sent could have caused the error and the error stays
 # loud. The toolset never reads the value, so the producers are mixed on purpose:
 # real django-restql, the strict selector most likely to be in use, and a
@@ -7423,8 +7205,8 @@ def test_render_error_from_a_seeded_default_still_raises():
 
 @pytest.mark.django_db
 def test_an_explicit_null_selection_renders_every_field():
-    """Real restql: a forwarded null arrived as ``?query=None``, which it cannot
-    parse, so a model declining the param ended the run."""
+    """Real restql: a forwarded null would arrive as ``?query=None``, which it
+    cannot parse, and end the run for a model declining the param."""
     user = User.objects.create(username="u")
     widget = Widget.objects.create(owner=user, name="a")
 

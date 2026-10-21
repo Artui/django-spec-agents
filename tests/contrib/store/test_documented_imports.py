@@ -1,10 +1,9 @@
 """The import lines ``docs/storage.md`` teaches, executed.
 
-The page used to name the three stores with no path at all, one line under an
-``INSTALLED_APPS`` snippet, which reads as an invitation to
+A page that named the three stores with no path at all, one line under an
+``INSTALLED_APPS`` snippet, would read as an invitation to
 ``from django_spec_agents.contrib.store import DefaultConversationStore`` — a
-spelling that raises. django-ag-ui's own configuration page had it right, which is
-why nobody noticed: the wrong page was the one a newcomer reaches first.
+spelling that raises.
 
 Asserted by **reading the page and running what it shows**, rather than by
 importing the modules this test knows about. A test that imports the right thing

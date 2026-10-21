@@ -86,9 +86,9 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
         # when the run carries frontend tools, so a run whose only gated tool is
         # server-side would never defer; setting it here makes approval
         # independent of them, and pydantic-ai dedups when the adapter augments
-        # too. Cast for the same reason as ``model_settings``: ty cannot bind
-        # ``OutputDataT`` from a heterogeneous list literal, so the call matches
-        # no overload and the return degrades to unsolved typevars.
+        # too. Cast because ty cannot bind ``OutputDataT`` from a
+        # heterogeneous list literal, so the call matches no overload and the
+        # return degrades to unsolved typevars.
         output_type=cast("Any", [str, DeferredToolRequests]),
         instructions=config.instructions,
         # ``model_settings`` is a plain dict at the settings boundary; Agent

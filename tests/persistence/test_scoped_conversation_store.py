@@ -40,7 +40,7 @@ def request_() -> object:
 
 
 async def test_two_scopes_over_one_store_do_not_see_each_others_threads(request_) -> None:
-    """The gap this closes: a thread started at /internal/agent showed up in
+    """Without scoping, a thread started at /internal/agent would show up in
     /public/agent's history drawer, and could be resumed there under the public
     agent's model, tools and guard policy."""
     inner = _MemoryStore()
@@ -87,8 +87,8 @@ async def test_delete_and_rename_are_scoped(request_) -> None:
 
 
 async def test_an_unprefixed_row_is_left_alone(request_) -> None:
-    """Rows written before the wrapper was introduced keep their own ids — the
-    unkey is a strip, not a slice."""
+    """Rows written without a scope keep their own ids — the unkey is a strip,
+    not a slice."""
     inner = _MemoryStore()
     inner.rows["legacy"] = Conversation(thread_id="legacy", messages=[])
     scoped = ScopedConversationStore(inner, scope="internal")
@@ -100,7 +100,7 @@ async def test_an_unprefixed_row_is_left_alone(request_) -> None:
 
 
 async def test_a_scope_name_cannot_extend_another_scopes_name(request_) -> None:
-    """The reproduction, and the reason the separator is now reserved.
+    """The reproduction, and the reason the separator is reserved.
 
     Partition two mounts as ``admin`` and ``admin:readonly``. The readonly
     mount's thread ``t1`` keys to ``admin:readonly:t1``, and the admin mount's
