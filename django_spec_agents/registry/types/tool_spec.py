@@ -28,9 +28,8 @@ class ToolSpec:
 
     destructive: bool = False
     """Whether calling this tool may mutate state. Stamped as
-    ``x-destructive``, which a frontend may read to ask for confirmation; an
-    enabled [`ToolGuard`][django_spec_agents.ToolGuard] gates the tool
-    server-side."""
+    ``x-destructive``, and an enabled
+    [`ToolGuard`][django_spec_agents.ToolGuard] gates it server-side."""
 
     category: ToolCategory = ToolCategory.OTHER
     """Coarse capability grouping, stamped as ``x-category``."""

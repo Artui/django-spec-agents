@@ -17,12 +17,7 @@ _CHUNK_SIZE = 64 * 1024
 
 
 def owner_or_none(request: HttpRequest, *, allow_anonymous: bool) -> str | None:
-    """The resolved owner id, or ``None`` where ``resolve_owner_id`` refuses.
-
-    For the harness-protocol stores, whose hooks fire mid-run: refusing an
-    anonymous request by raising there would abort the run, so they degrade on
-    ``None`` instead.
-    """
+    """The resolved owner id, or ``None`` where ``resolve_owner_id`` refuses."""
     try:
         return resolve_owner_id(request, allow_anonymous=allow_anonymous)
     except AnonymousOperationError:
