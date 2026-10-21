@@ -19,7 +19,7 @@ from pydantic_core import SchemaValidator, core_schema
 from rest_framework.settings import api_settings
 from rest_framework_mcp import JsonRpcError, JsonRpcErrorCode
 
-from django_spec_agents.constants import DESTRUCTIVE_METADATA_KEY
+from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 
 # A no-op validator: the parameter schemas advertised to the model come verbatim
 # from drf-mcp's ``tools/list`` (advisory, not a Pydantic model), and the real

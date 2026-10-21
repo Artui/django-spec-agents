@@ -43,6 +43,7 @@ from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
+from django_spec_agents.policy.failure import tool_failure_policy as failure_policy_module
 from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
 from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
@@ -476,6 +477,9 @@ async def test_a_tools_own_tool_failed_is_recorded_as_it_propagated(
 
     assert _records(audit) == [("lookup", '{"n": 0}', False, "ToolFailedError: model copy", None)]
     # The policy logs every failure it converts; silence is it never seeing one.
+    # Non-vacuous only while this literal is the policy's logger: an empty list
+    # under a name the policy no longer logs to proves nothing.
+    assert logging.getLogger("django_pydantic_agent.failure") is failure_policy_module._logger
     assert not [r for r in caplog.records if r.name == "django_pydantic_agent.failure"]
 
 

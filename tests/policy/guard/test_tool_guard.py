@@ -4,12 +4,12 @@ from typing import Any
 
 from pydantic_ai.tools import ToolDefinition
 
-from django_spec_agents.constants import DESTRUCTIVE_METADATA_KEY
 from django_spec_agents.policy.guard.tool_guard import ToolGuard
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from django_spec_agents.registry.build_input_schema import build_input_schema
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 
 
 def _registry() -> ToolRegistry:

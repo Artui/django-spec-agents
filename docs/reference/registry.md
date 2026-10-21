@@ -34,11 +34,15 @@ schema. `DESTRUCTIVE_METADATA_KEY` is different: it rides pydantic-ai's tool
 metadata and is read **server-side** by the [tool guard](policy.md), which needs
 destructiveness for tools whose flag doesn't come from the `@tool` registry.
 
-::: django_spec_agents.constants
-    options:
-      members:
-        - X_DESTRUCTIVE_KEY
-        - X_CATEGORY_KEY
-        - X_CONFIRM_KEY
-        - X_SUMMARY_KEY
-        - DESTRUCTIVE_METADATA_KEY
+Each lives in its own module under `django_spec_agents.types` and is importable
+from the package root.
+
+::: django_spec_agents.types.x_destructive_key
+
+::: django_spec_agents.types.x_category_key
+
+::: django_spec_agents.types.x_confirm_key
+
+::: django_spec_agents.types.x_summary_key
+
+::: django_spec_agents.types.destructive_metadata_key

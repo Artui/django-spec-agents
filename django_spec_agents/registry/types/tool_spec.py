@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from django_spec_agents.constants import ToolCategory
+from django_spec_agents.types.tool_category import ToolCategory
 
 
 @dataclass(frozen=True)
