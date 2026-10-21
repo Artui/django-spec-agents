@@ -3346,13 +3346,11 @@ async def test_handle_instruction_present_only_when_a_tool_has_a_handle():
 
 @pytest.mark.parametrize("no_default", [None, UNSET])
 def test_a_kwarg_declaring_no_default_contributes_nothing(no_default: Any) -> None:
-    """Both sentinels the sister package has used for "no default" read as absent.
+    """Both sentinels for "no default", ``None`` and ``UNSET``, read as absent.
 
-    drf-services used a plain ``None`` through 0.43 and switched to ``UNSET`` in
-    0.44, so that ``default=None`` could mean an explicit null. A check of only
-    ``is not None`` reads ``UNSET`` as a real value and hands the sentinel object
-    to the spec as an argument. Parametrized over both so this keeps holding
-    whichever side of that boundary the resolved version falls on.
+    ``UNSET`` is the "no default" that lets ``default=None`` mean an explicit
+    null, and a check of only ``is not None`` reads it as a real value and hands
+    the sentinel object to the spec as an argument.
     """
     args: dict[str, Any] = {}
     values = _pop_url_kwargs(
@@ -3366,8 +3364,8 @@ def test_a_required_kwarg_is_not_satisfied_by_the_no_default_sentinel(no_default
     """The requiredness check must still run, and must still name the kwarg.
 
     Reading the sentinel as a value skips the ``elif required`` arm entirely, so
-    the model got no ``ModelRetry`` naming what it omitted -- the spec was handed
-    the sentinel and failed further in, where the reason is far less legible.
+    the model would get no ``ModelRetry`` naming what it omitted -- the spec would
+    be handed the sentinel and fail further in, where the reason is far less legible.
     """
     with pytest.raises(ModelRetry, match="project_pk"):
         _pop_url_kwargs(
@@ -3417,12 +3415,12 @@ async def _call(toolset: SpecToolset, name: str, user: Any, args: dict[str, Any]
 
 @pytest.mark.django_db
 async def test_the_tool_name_is_the_view_action_a_permission_class_reads():
-    """``view.action`` used to be ``None`` for every spec this toolset exposed.
+    """``view.action`` is the tool name, never ``None``.
 
     A permission class branching on the action -- strict for the actions it
-    knows, permissive otherwise -- then took the permissive arm on every call,
-    so the same spec behind the same class was gated one way over HTTP and
-    another way through an agent. The tool name is the identity the model
+    knows, permissive otherwise -- would take the permissive arm on every call
+    given ``None``, so the same spec behind the same class would be gated one way
+    over HTTP and another way through an agent. The tool name is the identity the model
     called, and it is what the MCP transport reports for the same spec.
     """
 
@@ -3483,7 +3481,7 @@ async def test_a_configured_requests_query_string_never_reaches_the_spec():
 
     ``build_offline_context`` replaces the wrapped request's ``GET`` only when
     ``query_params`` is not ``None``, so passing ``None`` for an empty
-    declaration left the ambient endpoint's own query string live inside the
+    declaration would leave the ambient endpoint's own query string live inside the
     spec -- a field-selection or ``filter_set`` channel neither the tool schema
     nor the model chose. The MCP transport passes a mapping at every call site
     for exactly this reason.
