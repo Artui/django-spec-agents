@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dispatch, including a deactivated principal, ends the run as Django's and
   DRF's `PermissionDenied` do, rather than reaching the model as a failed tool
   call.
+- The instructions block no longer names Django REST Framework.
+  `AgentConventions.base` now opens "The following tools call this
+  application's services and selectors." Every deployed agent reads this line
+  on every step, so a deployment that pinned the old text, or wrote an override
+  of `base` starting from it, will see the difference.
 
 ## [0.1.0] — 2026-10-21
 
