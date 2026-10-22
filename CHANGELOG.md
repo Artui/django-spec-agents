@@ -17,8 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The instructions block no longer names Django REST Framework.
   `AgentConventions.base` now opens "The following tools call this
   application's services and selectors." Every deployed agent reads this line
-  on every step, so a deployment that pinned the old text, or wrote an override
-  of `base` starting from it, will see the difference.
+  on every step, so a deployment that pinned the old text will see the
+  difference, and an override derived from the default, such as
+  `AgentConventions().base.replace("Django REST Framework", ...)`, now replaces
+  nothing.
 
 ## [0.1.0] — 2026-10-21
 
