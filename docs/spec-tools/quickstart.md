@@ -1031,7 +1031,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 
 | drf-services outcome | What the agent sees |
 | --- | --- |
-| `ServiceValidationError` (bad input) | `ModelRetry` with the field errors, one `field: message` line each — the model self-corrects |
+| `ServiceValidationError` (bad input), or the kernel's `InvalidArguments` (an argument of the wrong shape, or a serializer's refusal of its value) | `ModelRetry` with the field errors, one `field: message` line each — the model self-corrects. The arguments' shape is checked before the permission check, so a malformed call is handed back before it is authorized |
 | A read-shaping value the output serializer rejects while rendering | `ModelRetry` naming the argument — see [A selection the serializer rejects](#a-selection-the-serializer-rejects) |
 | `ActionUnavailable` (an `Affordance` condition not met) | `ToolFailed` with the reason followed by the rule's code — `The books are closed. (code: books_closed)`; see below |
 | `AdditionalInputRequired` (the service wants one more input) | `ModelRetry` with the service's message, ending in the names to supply (``Call this tool again, additionally supplying: `confirmed`.``) — see the warning below |
@@ -1039,7 +1039,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 | Unresolved instance: a read's or a write's instance selector that finds no row, or raises `DoesNotExist` or Django's `Http404` (as `get_object_or_404` does) | `ToolFailed("not found")`, unless the spec sets `allow_none=True`, when the tool returns `None`. A list selector's `Http404`, usually from a parent it looked up, is `ToolFailed("not found")` whatever `allow_none` says; a list that finds no rows returns `[]`, and a `DoesNotExist` escaping a list selector is an error, not a not-found |
 | A dispatch past `dispatch_timeout` | `ToolFailed` — abandoned, with the sentence telling the model to narrow and call again |
 | A rendered result over `max_result_bytes` | `ToolFailed` — refused rather than truncated, since a partial payload looks complete |
-| Unexpected argument (default `REJECT`) | `ModelRetry` naming the unknown key |
+| Unexpected argument (default `REJECT`) | `ModelRetry` naming the unknown key, in the kernel's words: `note: Unknown argument.` |
 | A required argument left out: a selector parameter with no default, or a service's target lookup such as `pk` | `ModelRetry` naming each such parameter left out; a missing serializer field is reported by the serializer when the call runs — see [What a tool asks the model for](#what-a-tool-asks-the-model-for) |
 | An invalid item in a `many=True` list | `ModelRetry` with the errors keyed under the list's argument, then the item's index — see [A list as input](#a-list-as-input) |
 | An argument sent beside a `many=True` list | `ModelRetry` naming it, whatever `unknown_arguments` says |
@@ -1048,7 +1048,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 | A `limit` over `max_page_size`, or a `page` past the last one | Clamped, not refused — the envelope reports the `page` and `totalPages` actually served, so the clamp is visible rather than silent |
 | An `ordering` outside a `filter_set`'s `OrderingFilter` choices | `ModelRetry` — the FilterSet rejects it, which arrives as the `ValidationError` row above |
 | A FilterSet `param_map` target that isn't a real column | Django's `FieldError` propagates — an author's error the model cannot correct by picking a different sort, and one that can't be checked at construction without a queryset |
-| Denied `permission_classes` (class-level `has_permission` **or** object-level `has_object_permission`) | `PermissionDenied` is raised and aborts the run — see the caveat below |
+| Denied `permission_classes` (class-level `has_permission` **or** object-level `has_object_permission`), the kernel's `NotPermitted`, or a deactivated principal (`PrincipalUnavailable`, refused before any check) | The refusal is raised, logged at `WARNING` naming the tool, and aborts the run — see the caveat below |
 
 !!! warning "A confirmation raised as `AdditionalInputRequired` is not a gate"
     The retry for `AdditionalInputRequired` goes to the model, so the model can

@@ -23,6 +23,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   difference, and an override derived from the default, such as
   `AgentConventions().base.replace("Django REST Framework", ...)`, now replaces
   nothing.
+- `SpecToolset` runs each call through the kernel's `dispatch` on the compiled
+  spec, rather than through drf-services' `dispatch_spec`. What a model and a
+  run see of that:
+  - An argument no parameter declares is refused in the kernel's words, one
+    line per key: `note: Unknown argument.` where it was
+    `Unexpected argument(s): 'note'.`
+  - A call's arguments are checked before its permissions, so a malformed call
+    to a tool its caller may not use is handed back as a retry naming the
+    argument, where it used to be refused with `PermissionDenied`.
+  - A deactivated principal is refused with the kernel's
+    `PrincipalUnavailable` before any permission check, and a spec's
+    permission refusal may arrive as the kernel's `NotPermitted`. Both are
+    logged at `WARNING` naming the tool, as DRF's `PermissionDenied` is.
+  - A spec with no permissions, served by a toolset built with
+    `require_permissions=False`, still runs unchecked, and only that spec: a
+    spec that declares a check is asked it on every call.
+  - A filter-owned `ordering` sent as one string reaches the FilterSet as the
+    list its widget splits it into, an empty string as no sort.
+  - `pool_seeds` registering `request` or `view` is refused with
+    `ImproperlyConfigured` at the call, since each call registers both from
+    the context `build_context` builds. It used to be accepted.
 
 ## [0.1.0] — 2026-10-21
 

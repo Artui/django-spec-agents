@@ -53,8 +53,12 @@ from django_service_specs import (
     AudienceProjection,
     DispatchResult,
     FieldAudience,
+    Grant,
+    InvalidArguments,
+    NotPermitted,
     OutputPage,
     PoolSeeds,
+    PrincipalUnavailable,
     ProgressReporter,
     SelectorKind,
     ServerArguments,
@@ -65,6 +69,7 @@ from django_service_specs import (
     apply_server_arguments,
     base_pool,
     check_server_arguments,
+    dispatch,
     kernel_spec,
     operation_affordances,
     paginate_output,
@@ -90,8 +95,6 @@ from rest_framework_services import (
     audience_projection_for_spec,
     build_offline_context,
     can_present_nothing,
-    dispatch_spec,
-    enforce_permissions,
     output_to_json_schema,
     render_for_audience,
     server_owned_keys,
@@ -1235,7 +1238,12 @@ class SpecToolset(AbstractToolset[Any]):
                 label=name,
                 extra=_run_extra(ctx),
             )
-        except PermissionDenied:
+        except (PermissionDenied, NotPermitted, PrincipalUnavailable):
+            # One arc for three refusals, each held by a test raising it bare:
+            # ``test_each_kind_of_refusal_is_logged_as_a_denial[drf-s]`` and
+            # ``[the-kernel-s]``, and ``test_a_deactivated_principal_is_logged_as_a_denial``
+            # for the kernel's refusal of a deactivated principal, which it
+            # raises before any permission check and which is no DRF refusal.
             # The one failure with no other trace: a ``ModelRetry`` reaches the
             # model and a ``ToolFailed`` reaches the answer as a failed result,
             # but a denial aborts the run and is absorbed by whatever drives it.
@@ -2855,17 +2863,17 @@ def _call_spec(
     supplied_query_params = [
         name for name in _supplied_query_params(query_params, args) if name not in server_names
     ]
-    # Both channels pop before dispatch so their values never reach the spec as
-    # inputs, where ``unknown_arguments`` (REJECT by default) would flag them.
+    # Both channels pop before dispatch so their values reach the call through
+    # the context ``build_context`` builds rather than as the model's arguments.
     # That is what makes the provider-only case work: a ``project_pk`` a scoping
-    # provider reads off ``view.kwargs`` is never a spec input.
+    # provider reads off ``view.kwargs`` is never a spec input, and reaches the
+    # spec's own callable as the ``kwargs`` overlay. A URL kwarg the compiled
+    # spec does declare is put back among the arguments, at the view's value,
+    # just before dispatch (``_split_url_kwargs``).
     query_param_values = _pop_query_params(query_params, args)
     url_kwarg_values = _pop_url_kwargs(url_kwargs, args, conventions=conventions)
-    # Last of the pops, because the filter data it returns is built from whatever
-    # ``args`` is left holding once every other channel has taken its own.
-    filter_data = _pop_filter_ordering(
-        spec, args, pool_seeds=pool_seeds, registry=json_schema_registry
-    )
+    # A string sort read as the list the FilterSet's widget would split it into.
+    _list_filter_ordering(spec, args, pool_seeds=pool_seeds, registry=json_schema_registry)
     context = build_context(
         user,
         args,
@@ -2881,44 +2889,37 @@ def _call_spec(
         query_params=query_param_values,
         host=host,
     )
-    # Two-layer authorization, mirroring a DRF view: this call runs the
-    # class-level ``has_permission`` (create / list-payload targets) and the
-    # ``on_target_resolved`` hook below runs ``has_object_permission`` on the
-    # resolved row (update / retrieve). ``dispatch_spec`` never consults
-    # ``permission_classes`` itself, so without both an object-owned row would be
-    # reachable by any acting user. A denial raises ``PermissionDenied``
-    # uncaught below, aborting the run exactly as it would over HTTP.
-    enforce_permissions(spec, context)
     try:
-        result = dispatch_spec(
-            spec,
-            user=user,
-            params=args,
-            request=context.request,
-            view=context.view,
+        # Inside the ``try``, as every refusal the call can meet is: compiling
+        # the spec and reading its parameters can refuse it (a serializer field
+        # sharing a lookup parameter's name), and the consumer's map is asked
+        # about that as about anything ``dispatch`` raises.
+        compiled = kernel_spec(spec)
+        arguments, extra_kwargs = _split_url_kwargs(
+            args, context.view.kwargs, compiled.parameters().names()
+        )
+        result = dispatch(
+            compiled,
+            principal=user,
+            arguments=arguments,
+            # Authorization is the kernel's: the class-level check before any row
+            # is resolved, then the object- or scope-level check on what was. A
+            # spec declaring no check at all reached here only because the toolset
+            # was built with ``require_permissions=False``, which construction
+            # warned about; the kernel refuses such a spec at every call, so the
+            # knob's meaning is kept by vouching for that one spec and this one
+            # principal. The condition reads the spec alone, never the knob,
+            # since construction refused every such spec with the knob on
+            # (``test_with_the_knob_off_only_an_unguarded_spec_runs_unchecked``
+            # fails when every call is granted). An empty sequence is a declared
+            # guard, so ``is None`` rather than falsiness.
+            grant=Grant(compiled, user) if compiled.permissions is None else None,
+            pool_seeds=_with_call_seeds(pool_seeds, context),
             unknown_arguments=unknown_arguments,
-            # The binding the input schema was read under (see the constant).
-            argument_binding=_ARGUMENT_BINDING,
-            on_target_resolved=enforce_permissions,
-            # Accepted and forwarded, never constructed — see ``AgentDeps.progress``.
-            # ``None`` becomes drf-services' no-op seed.
+            # Accepted and forwarded, never constructed -- see ``AgentDeps.progress``.
+            # ``None`` becomes the kernel's no-op seed.
             progress=progress,
-            # ``None`` for every call but a filter-owned ordering, where it is the
-            # channel that separates the FilterSet's data from the callable's
-            # arguments — the two are one flat mapping off HTTP otherwise.
-            filter_data=filter_data,
-            # A model's arguments are always an object, so a ``many=True`` spec's
-            # list arrives under the one argument ``spec.many_argument`` names --
-            # the argument its input schema advertises. A no-op on every other
-            # spec, which is why it is passed unconditionally rather than behind a
-            # ``spec.many`` branch this function would then have to keep in step
-            # with drf-services' idea of which specs take a list.
-            many_as_argument=True,
-            # The project's registered seeds: resolved into the pool, reserved
-            # against the model's arguments, exempt from unknown-argument
-            # accounting, and shown to the affordances this call enforces --
-            # all of it drf-services', keyed off the one registry handed here.
-            pool_seeds=pool_seeds,
+            extra_kwargs=extra_kwargs,
         )
     except BaseException as exc:
         # **One arm, not a chain, because the consumer's map has to be consulted
@@ -2929,12 +2930,20 @@ def _call_spec(
         handler = translate_exception(exc)
         if handler is not None:
             return handler(exc)
-        if isinstance(exc, DRFValidationError | ServiceValidationError):
+        if isinstance(exc, InvalidArguments | ServiceValidationError | DRFValidationError):
             # ``ServiceValidationError`` is a ``ServiceError`` subclass, so it
-            # must be matched here, before the business-error case below. Both
-            # mean "the arguments were wrong", so the model retries with the
-            # detail -- flattened to text, because ``str`` of a DRF detail is the
-            # Python repr of its ``ErrorDetail`` objects.
+            # must be matched here, before the business-error case below. All
+            # three mean "the arguments were wrong", so the model retries with
+            # the detail -- flattened to text, because ``str`` of a DRF detail is
+            # the Python repr of its ``ErrorDetail`` objects. The kernel's
+            # ``InvalidArguments`` is its own refusal of the arguments' shape and
+            # a serializer's refusal of their values
+            # (``test_a_serializer_less_service_advertises_what_dispatch_admits``);
+            # ``ServiceValidationError`` a service's
+            # (``test_service_validation_error_is_model_retry``); and DRF's
+            # ``ValidationError`` one a service raises itself
+            # (``test_a_validation_retry_reads_as_text_not_a_repr``). Each fails
+            # without its member.
             raise ModelRetry(_format_validation_detail(exc.detail)) from exc
         if isinstance(exc, AdditionalInputRequired):
             # **Must precede the ``ServiceError`` case below** — this is a
@@ -3311,48 +3320,39 @@ def _pop_pagination(
     return _PageArgs(page=_coerce_positive_int(args.pop("page", None), "page"), limit=limit)
 
 
-def _pop_filter_ordering(
+def _list_filter_ordering(
     spec: Spec,
     args: dict[str, Any],
     *,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
-) -> dict[str, Any] | None:
-    """Route a filter-owned ``ordering`` out of the callable's args into filter data.
+) -> None:
+    """A filter-owned ``ordering`` in ``args`` as the list its FilterSet reads.
 
-    Returns the mapping ``dispatch_spec(filter_data=…)`` should hand the
-    ``filter_set``, or ``None`` to leave the default alone (``params`` is the
-    filter source, which is what every other call wants).
-
-    **``filter_data`` replaces ``params`` as the filter source rather than
-    adding to it**, so the returned mapping carries the remaining args too;
-    returning ``{"ordering": …}`` on its own would silently drop every other
-    filter the model supplied.
-
-    **Popped, not left in ``params``.** ``ordering`` is the FilterSet's
-    argument, not the selector callable's: leaving it in ``params`` would reach
-    the FilterSet by the same route, but it would also land in the callable's
-    kwarg pool, where a selector declaring ``**kwargs`` receives it as a surprise
-    argument it never asked for.
+    The input schema offers a FilterSet's ``OrderingFilter`` as one of its
+    strings, while the compiled spec types it as what the filter's widget
+    reads, an array: a string is the comma-separated parts the widget splits
+    it into, ``""`` none of them. A list, or anything else, is left for the
+    kernel's shape check to judge. The value stays in ``args``, where the
+    compiled spec's filter step reads it.
 
     **The two checks here are not redundant with each other.**
     :func:`_spec_ordering_argument` answers *what the spec calls* its sort; the
-    ``filter_set`` check answers *what to hand it to*. A ``filter_set``
-    advertised it, so the FilterSet is the consumer, and it reads ``filter_data``
-    rather than the callable's arguments. When only the selector's own signature
-    advertised it there is no FilterSet to reach, so the value stays in
-    ``params`` — popping it would starve the one thing that asked for it.
+    ``filter_set`` check answers *whose reading of it applies*. When only the
+    selector's own signature advertised it there is no FilterSet, and the
+    selector takes the string it declared.
 
     **The name is asked for rather than assumed**, so a FilterSet whose
-    ``OrderingFilter`` is called anything other than ``ordering`` is routed too.
+    ``OrderingFilter`` is called anything other than ``ordering`` is read too.
     """
     if not isinstance(spec, SelectorSpec) or spec.filter_set is None:
-        return None
+        return
     name = _spec_ordering_argument(spec, pool_seeds=pool_seeds, registry=registry)
-    if name is None or name not in args:
-        return None
-    ordering: Any = args.pop(name)
-    return {**args, name: ordering}
+    if name is None:
+        return
+    ordering = args.get(name)
+    if isinstance(ordering, str):
+        args[name] = ordering.split(",") if ordering else []
 
 
 def _declares_default(default: Any) -> bool:
@@ -3435,6 +3435,62 @@ def _pop_url_kwargs(
     if missing:
         raise _missing_arguments(missing, conventions)
     return values
+
+
+_CALL_SEEDS = frozenset({"request", "view"})
+"""The seeds each call registers itself, from ``build_context``'s context."""
+
+
+def _with_call_seeds(pool_seeds: PoolSeeds, context: Any) -> PoolSeeds:
+    """The mount's seeds, with this call's ``request`` and ``view`` beside them.
+
+    The kernel's base pool holds no ``request`` and no ``view``, while spec
+    callables declare both: a scope or ceiling provider reading
+    ``view.kwargs``, a condition reading the request, and drf-services' own
+    permission and render adapters, which read the pair the call registers. So
+    each call registers the two ``build_context`` built, per call, over the
+    mount's own registry.
+
+    Raises:
+        ImproperlyConfigured: the mount registers either name itself. Its
+            resolver could never be the one a call reads, and the kernel's own
+            refusal would say the name was registered twice
+            (``test_a_mount_registering_a_seed_the_call_supplies_is_refused``).
+    """
+    clash = sorted(pool_seeds.names & _CALL_SEEDS)
+    if clash:
+        raise ImproperlyConfigured(
+            f"pool_seeds registers {', '.join(repr(name) for name in clash)}, which "
+            "SpecToolset registers itself on every call from the request and view "
+            "build_context builds. Remove the registration, and override "
+            "build_context to change what the call carries."
+        )
+    request, view = context.request, context.view
+    return pool_seeds.extend(request=lambda: request, view=lambda: view)
+
+
+def _split_url_kwargs(
+    args: dict[str, Any], view_kwargs: Mapping[str, Any], declared: frozenset[str]
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The call's arguments, and the overlay for the spec's ``kwargs`` provider.
+
+    ``view_kwargs`` is what the call's view carries: every registered
+    ``UrlKwarg`` the pop took, and whatever a ``build_context`` override added.
+    A name the compiled spec declares is one of its arguments, and the view's
+    value for it stands over the model's, as a route capture does over the body
+    over HTTP; the kernel refuses an overlay naming a declared parameter, since
+    its checks would never have read that value. Every other name is the
+    overlay, which reaches the spec's own selector or service and no check.
+    ``None`` rather than an empty overlay, which is how the kernel says none.
+    """
+    arguments = dict(args)
+    overlay: dict[str, Any] = {}
+    for name, value in view_kwargs.items():
+        if name in declared:
+            arguments[name] = value
+        else:
+            overlay[name] = value
+    return arguments, overlay or None
 
 
 def _missing_arguments(names: Sequence[str], conventions: AgentConventions) -> ModelRetry:
