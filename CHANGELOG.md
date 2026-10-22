@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The failure policy's default `reraise` set now includes the kernel's
+  `NotPermitted` and `PrincipalUnavailable`, so a refusal from the kernel's
+  dispatch, including a deactivated principal, ends the run as Django's and
+  DRF's `PermissionDenied` do, rather than reaching the model as a failed tool
+  call.
+
 ## [0.1.0] — 2026-10-21
 
 ### Added

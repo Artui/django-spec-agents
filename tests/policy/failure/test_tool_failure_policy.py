@@ -723,9 +723,10 @@ async def _handle(policy: ToolFailurePolicy, error: Exception) -> None:
 
 async def test_the_default_set_survives_drf_not_being_installed() -> None:
     """DRF arrives with the optional extras, so the default set is resolved
-    through an import that finds nothing in a slim install. Django's own denial
-    and the kernel's refusals are still exempt there; DRF's is just another
-    exception nobody can raise."""
+    through an import that finds nothing in a slim install, such as a project
+    that uses the kernel directly with no DRF. Django's own denial and the
+    kernel's refusals are still exempt there; DRF's is just another exception
+    nobody can raise."""
     with mock.patch.dict(sys.modules, {"rest_framework.exceptions": None}):
         policy = ToolFailurePolicy()
 
@@ -746,10 +747,11 @@ async def test_the_default_set_survives_drf_not_being_installed() -> None:
 
 
 async def test_the_default_set_survives_the_kernel_not_being_installed() -> None:
-    """The kernel arrives with the ``[specs]`` extra only, so a host with DRF
-    through ``[drf-mcp]`` alone resolves the set with the kernel's import finding
-    nothing. Django's and DRF's denials stay exempt; the kernel's refusals are
-    just exceptions nobody can raise there."""
+    """The kernel arrives with the ``[specs]`` and ``[drf-mcp]`` extras, so a DRF
+    project on this package's host-only install, which has no kernel, resolves
+    the set with the kernel's import finding nothing. Django's and DRF's denials
+    stay exempt; the kernel's refusals are just exceptions nobody can raise
+    there."""
     with mock.patch.dict(sys.modules, {"django_service_specs": None}):
         policy = ToolFailurePolicy()
 

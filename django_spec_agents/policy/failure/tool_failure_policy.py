@@ -149,8 +149,8 @@ def _denial_types() -> tuple[type[BaseException], ...]:
     from another — and a project raises whichever its stack uses, so covering
     one is covering a third of a boundary. DRF is optional here (it arrives
     with the ``[specs]`` and ``[drf-mcp]`` extras, and drf-services' off-HTTP
-    permission check raises its ``PermissionDenied``) and the kernel arrives
-    with ``[specs]`` alone (its dispatch raises ``NotPermitted`` for a refused
+    permission check raises its ``PermissionDenied``) and so is the kernel (it
+    arrives with ``[specs]`` or ``[drf-mcp]``; its dispatch raises ``NotPermitted`` for a refused
     principal and ``PrincipalUnavailable`` for one that cannot act), so each
     class is imported at call time under its own guard and is simply absent from
     the set when its package is. The guards are independent: a host with the

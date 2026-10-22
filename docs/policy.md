@@ -341,7 +341,7 @@ Two caveats:
 - **`reraise` replaces the default set, it does not extend it.** The default is
   `django.core.exceptions.PermissionDenied`; `rest_framework.exceptions.PermissionDenied`
   when DRF is installed; and `NotPermitted` and `PrincipalUnavailable` from
-  `django_service_specs` when the kernel is installed (the `[specs]` extra)
+  `django_service_specs` when the kernel is installed (the `[specs]` or `[drf-mcp]` extra)
   ([a denial is not a tool failure](#a-denial-is-not-a-tool-failure)). A tuple
   that leaves them out converts denials again, so re-list each one your project
   can raise.
@@ -360,7 +360,7 @@ one of them inherits from another:
 - `rest_framework.exceptions.PermissionDenied`, when DRF is installed; a
   drf-services permission check raises it.
 - `django_service_specs.NotPermitted`, when the kernel is installed (the
-  `[specs]` extra); the kernel's dispatch raises it when a permission check
+  `[specs]` or `[drf-mcp]` extra); the kernel's dispatch raises it when a permission check
   refuses the principal.
 - `django_service_specs.PrincipalUnavailable`, with it; the kernel raises it for
   a principal that cannot act at all, such as a deactivated account.
