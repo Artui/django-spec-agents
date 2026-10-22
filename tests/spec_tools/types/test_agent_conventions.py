@@ -25,6 +25,19 @@ _ACCEPTED = {
 }
 
 
+@pytest.mark.parametrize("name", _FIELDS)
+def test_no_default_names_the_framework_a_spec_was_written_in(name):
+    """The model is told what a tool does, never which library declared it.
+
+    Which framework a spec was written in is nothing a model can act on, and a
+    default naming one is text every step pays for.
+    """
+    default = getattr(AgentConventions(), name)
+
+    assert "REST Framework" not in default
+    assert "DRF" not in default
+
+
 def test_every_field_declares_its_placeholders():
     """A field with no entry would fail every construction, so this is the reminder."""
     assert set(agent_conventions._PLACEHOLDERS) == set(_FIELDS)

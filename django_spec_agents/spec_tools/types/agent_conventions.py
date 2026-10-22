@@ -67,7 +67,7 @@ class AgentConventions:
     """
 
     base: str | None = (
-        "The following tools call Django REST Framework services and selectors.\n"
+        "The following tools call this application's services and selectors.\n"
         "- A successful call returns the tool's data. A business-rule failure comes back as a "
         "failed call whose content is a sentence explaining why — that is a final answer, not a "
         "reason to retry; read it and report it, do not call the same tool the same way again. "
@@ -85,6 +85,9 @@ class AgentConventions:
     because no spec can answer whether a refusal will carry a ``(code: <name>)``:
     a declared ``Affordance`` produces one, and so does a service raising
     ``ActionUnavailable`` by hand, which nothing declares. No placeholders.
+
+    It names no framework: which library declared a tool is nothing a model can
+    act on, and the line is read on every step.
     """
 
     pagination: str | None = (

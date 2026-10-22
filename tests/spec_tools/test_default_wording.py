@@ -25,7 +25,7 @@ from tests.spec_tools.test_spec_toolset import reading
 from tests.spec_tools.wording_specs import approve, run_context, selector_specs
 
 _BASE = (
-    "The following tools call Django REST Framework services and selectors.\n"
+    "The following tools call this application's services and selectors.\n"
     "- A successful call returns the tool's data. A business-rule failure comes back as a "
     "failed call whose content is a sentence explaining why — that is a final answer, not a "
     "reason to retry; read it and report it, do not call the same tool the same way again. "
