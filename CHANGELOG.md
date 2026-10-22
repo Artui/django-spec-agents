@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The `[specs]` extra requires `djangorestframework-services>=0.59.0` and
+  `django-service-specs>=0.14.0`.
 - The failure policy's default `reraise` set now includes the kernel's
   `NotPermitted` and `PrincipalUnavailable`, so a refusal from the kernel's
   dispatch, including a deactivated principal, ends the run as Django's and

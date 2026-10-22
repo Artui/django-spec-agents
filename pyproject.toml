@@ -88,7 +88,13 @@ specs = [
     # and builds only where the two are one object; below it each refusal would
     # escape the run as an unrecognised exception and a registry would be read
     # as a bare mapping.
-    "djangorestframework-services>=0.58.0",
+    # 0.59.0: the spec compiles a service's list return as ``returns_many``, a
+    # keyword parameter with no default as required, and its permission check
+    # reads the request and view the call carries; the toolset's dispatch
+    # through the kernel relies on all three, and below it a list service's
+    # return is not declared a list and a check reading ``view.action`` sees
+    # ``None``.
+    "djangorestframework-services>=0.59.0",
     # Declared because the toolset imports the kernel-owned names from here
     # rather than through drf-services' re-exports, which are being retired.
     # The floor is above drf-services' own because ``tool_server_arguments`` is
@@ -145,7 +151,7 @@ dev = [
     # The [specs] extra's requirements, so ``spec_tools`` and its tests run in
     # dev, at the extra's floors: ``uv sync --all-groups`` installs no extra.
     "djangorestframework>=3.14",
-    "djangorestframework-services>=0.58.0",
+    "djangorestframework-services>=0.59.0",
     "django-service-specs>=0.14.0",
     "djangorestframework-stubs>=3.15",
     # The [filter] extra's backing package, for the filtered-selector tests.
