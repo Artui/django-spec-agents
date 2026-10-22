@@ -2911,8 +2911,7 @@ def _call_spec(
             # principal. The condition reads the spec alone, never the knob,
             # since construction refused every such spec with the knob on
             # (``test_with_the_knob_off_only_an_unguarded_spec_runs_unchecked``
-            # fails when every call is granted). An empty sequence is a declared
-            # guard, so ``is None`` rather than falsiness.
+            # fails when every call is granted).
             grant=Grant(compiled, user) if compiled.permissions is None else None,
             pool_seeds=_with_call_seeds(pool_seeds, context),
             unknown_arguments=unknown_arguments,
