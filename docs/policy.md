@@ -315,24 +315,36 @@ To have a spent budget end the run, name the exception in `reraise`:
 
 ```python
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django_service_specs import NotPermitted, PrincipalUnavailable
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
 
 AgentConfig(
     model=...,
     tool_failure=ToolFailureConfig(
-        reraise=(UnexpectedModelBehavior, DjangoPermissionDenied, DRFPermissionDenied),
+        reraise=(
+            UnexpectedModelBehavior,
+            DjangoPermissionDenied,
+            DRFPermissionDenied,
+            NotPermitted,
+            PrincipalUnavailable,
+        ),
     ),
 )
 ```
 
+The example re-lists every denial the default set holds, so it assumes DRF and
+the kernel are both installed. Leave out the ones your project cannot raise.
+
 Two caveats:
 
 - **`reraise` replaces the default set, it does not extend it.** The default is
-  `django.core.exceptions.PermissionDenied` and, when DRF is installed,
-  `rest_framework.exceptions.PermissionDenied`
+  `django.core.exceptions.PermissionDenied`; `rest_framework.exceptions.PermissionDenied`
+  when DRF is installed; and `NotPermitted` and `PrincipalUnavailable` from
+  `django_service_specs` when the kernel is installed (the `[specs]` extra)
   ([a denial is not a tool failure](#a-denial-is-not-a-tool-failure)). A tuple
-  that leaves them out converts denials again, so re-list both.
+  that leaves them out converts denials again, so re-list each one your project
+  can raise.
 - **It ends the run for every `UnexpectedModelBehavior` a tool raises**, not
   only for its own spent budget: a tool that lets a sub-agent's exhausted
   budget propagate ends the run too. The two cannot be told apart by type or
@@ -341,9 +353,17 @@ Two caveats:
 ### A denial is not a tool failure
 
 An authorization refusal passes through untouched and ends the run, exactly as
-it would with the policy off. `django.core.exceptions.PermissionDenied` and —
-when DRF is installed — `rest_framework.exceptions.PermissionDenied` are both in
-the default set; a spec tool's permission check raises the latter.
+it would with the policy off. Four classes are in the default set, because no
+one of them inherits from another:
+
+- `django.core.exceptions.PermissionDenied`, always.
+- `rest_framework.exceptions.PermissionDenied`, when DRF is installed; a
+  drf-services permission check raises it.
+- `django_service_specs.NotPermitted`, when the kernel is installed (the
+  `[specs]` extra); the kernel's dispatch raises it when a permission check
+  refuses the principal.
+- `django_service_specs.PrincipalUnavailable`, with it; the kernel raises it for
+  a principal that cannot act at all, such as a deactivated account.
 
 Converting one would leave the run alive with the model free to try the next
 row, and a converted denial stays distinguishable from a missing row. A sweep
