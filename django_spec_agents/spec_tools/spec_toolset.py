@@ -2367,8 +2367,9 @@ def _input_schema(
     send -- one required array property named by ``spec.many_argument``, and
     ``additionalProperties: false`` -- so the merge below applies to it unchanged.
     The ``false`` is carried over and stays true: a declared channel is a
-    property, not an additional one, and ``_call_spec`` pops it before drf-services
-    refuses anything sent beside the list.
+    property, not an additional one, and ``_call_spec`` pops it before dispatch
+    holds anything else sent beside the list to the toolset's
+    ``unknown_arguments``: refused under ``REJECT``, dropped under ``IGNORE``.
 
     **Less ``server_names``, last**: every name ``tool_server_arguments``
     binds or withholds leaves ``properties`` and ``required``, after the
@@ -2874,11 +2875,22 @@ def _call_spec(
     url_kwarg_values = _pop_url_kwargs(url_kwargs, args, conventions=conventions)
     # A string sort read as the list the FilterSet's widget would split it into.
     _list_filter_ordering(spec, args, pool_seeds=pool_seeds, registry=json_schema_registry)
+    # **The spec's own reads, beside the toolset's channels.** A read the
+    # toolset does not take as a channel of its own -- every read of a
+    # mapping-built toolset's spec, and a read naming a parameter the spec's
+    # callable takes -- stays among the arguments, and is also put where a
+    # route or a query string would have put it, so a permission class, a
+    # provider or a selector reading ``view.kwargs`` or the query string finds
+    # the value the call carries
+    # (``test_a_bare_mapping_advertises_no_read_and_still_routes_one``,
+    # ``test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both_routes``).
+    # A name a channel took was popped above, so the two never share a key.
+    read_kwargs, read_query = _carried_reads(spec, args)
     context = build_context(
         user,
         args,
         action=action,
-        kwargs=url_kwarg_values or None,
+        kwargs={**read_kwargs, **url_kwarg_values} or None,
         # **Always a mapping, never ``None``.** ``build_offline_context``
         # replaces the wrapped request's ``GET`` only when this is not ``None``,
         # so a tool declaring no ``QueryParam`` would otherwise leave a
@@ -2886,7 +2898,7 @@ def _call_spec(
         # a ``?query=`` / ``?fields=`` serializer or a ``filter_set`` reshaping
         # the result through a channel neither the tool schema nor the model
         # chose. An empty declaration means an empty query string.
-        query_params=query_param_values,
+        query_params={**read_query, **query_param_values},
         host=host,
     )
     try:
@@ -3466,6 +3478,25 @@ def _with_call_seeds(pool_seeds: PoolSeeds, context: Any) -> PoolSeeds:
         )
     request, view = context.request, context.view
     return pool_seeds.extend(request=lambda: request, view=lambda: view)
+
+
+def _carried_reads(spec: Spec, args: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The values the call carries for the spec's declared reads, by channel.
+
+    The first mapping is each ``UrlKwarg``'s, for ``view.kwargs``; the second
+    each ``QueryParam``'s, for the query string. A read the call leaves out, or
+    sends as ``null``, is not put there: its ``default`` is the compiled spec's
+    to apply, and a ``None`` on the query string would read as the four
+    characters ``None``. Nothing is taken out of ``args``: each read is a
+    parameter of the compiled spec, and the call's argument too.
+    """
+    url: dict[str, Any] = {}
+    query: dict[str, Any] = {}
+    for read in spec.reads:
+        value = args.get(read.name)
+        if value is not None:
+            (url if isinstance(read, UrlKwarg) else query)[read.name] = value
+    return url, query
 
 
 def _split_url_kwargs(

@@ -657,11 +657,11 @@ What the model is told when a call is wrong:
   one item.
 - **The argument missing, `null` or not a list** comes back under the argument
   in the words that field would use: `widgets: This field is required.`
-- **Any other argument sent beside the list** comes back as
-  `Unexpected argument(s): 'note'.` under every `unknown_arguments` policy,
-  because the service receives only the list and the argument would have
-  nowhere to go. The policy still decides what happens to an undeclared key
-  inside an item.
+- **Any other argument sent beside the list** is held to the toolset's
+  `unknown_arguments`, as any undeclared key is: under `REJECT` it comes back
+  as `note: Unknown argument.`, and under `IGNORE` it is dropped, since the
+  service receives only the list and the argument would have nowhere to go.
+  The policy decides the same way for an undeclared key inside an item.
 
 A `QueryParam` or `UrlKwarg` in the spec's `reads=` sharing the list's argument
 name is refused with `ImproperlyConfigured` when the spec is registered: it would
@@ -1042,7 +1042,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 | Unexpected argument (default `REJECT`) | `ModelRetry` naming the unknown key, in the kernel's words: `note: Unknown argument.` |
 | A required argument left out: a selector parameter with no default, or a service's target lookup such as `pk` | `ModelRetry` naming each such parameter left out; a missing serializer field is reported by the serializer when the call runs — see [What a tool asks the model for](#what-a-tool-asks-the-model-for) |
 | An invalid item in a `many=True` list | `ModelRetry` with the errors keyed under the list's argument, then the item's index — see [A list as input](#a-list-as-input) |
-| An argument sent beside a `many=True` list | `ModelRetry` naming it, whatever `unknown_arguments` says |
+| An argument sent beside a `many=True` list | As any undeclared key: `ModelRetry` naming it under `REJECT`, dropped under `IGNORE` |
 | Non-integer `page` / `limit` | `ModelRetry` — naming what is accepted |
 | An `ordering` sent to a list tool that advertises no sort at all | `ModelRetry` — saying the tool has none, rather than letting it fall through as an unknown key |
 | A `limit` over `max_page_size`, or a `page` past the last one | Clamped, not refused — the envelope reports the `page` and `totalPages` actually served, so the clamp is visible rather than silent |

@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     spec that declares a check is asked it on every call.
   - A filter-owned `ordering` sent as one string reaches the FilterSet as the
     list its widget splits it into, an empty string as no sort.
+  - Under `UnknownArguments.IGNORE`, an argument sent beside a many-spec's
+    list is now dropped rather than refused, as any undeclared key is, so a
+    deployed agent that relied on the refusal no longer gets it. `REJECT`
+    still refuses it.
 
 ## [0.1.0] — 2026-10-21
 
