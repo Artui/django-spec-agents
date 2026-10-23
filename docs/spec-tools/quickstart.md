@@ -242,9 +242,8 @@ list_spec = SelectorSpec(kind=SelectorKind.LIST, selector=priced_under, kwargs=s
   Mark the selector parameter with drf-services' `NotClientInput`: the name is
   left out of the schema and the override fills it. A call that sends it
   anyway is handed back as an [unexpected argument](#unexpected-arguments) by
-  default where the selector's input set is closed (no `filter_set`, no
-  `**kwargs`). Otherwise, and under the other policies, drf-services drops the
-  model's value before the selector reads its arguments, so the value the
+  default, whatever the selector's input set. Under `IGNORE` the model's value
+  is dropped before the selector reads its arguments, so the value the
   override writes is the one the selector receives.
   Where the value can be resolved from what a seed resolver receives, register
   it as a [pool seed](#project-pool-seeds) and resolve it there instead:
@@ -592,8 +591,8 @@ By default the toolset **rejects** tool args outside a spec's declared input set
 — a key the model invented — surfacing them as a `ModelRetry` so the model
 self-corrects. A `filter_set`'s filters are declared names, so a key outside them
 and the selector's parameters is refused like any other. A selector taking a bare
-`**kwargs` declares no name, so nothing is refused, and nothing undeclared is
-handed to it either. Pass `unknown_arguments=` to change this:
+`**kwargs` declares no name, so every key sent to it is refused. Pass
+`unknown_arguments=` to change this:
 
 ```python
 from django_service_specs import UnknownArguments
@@ -603,7 +602,9 @@ toolset = SpecToolset(specs, unknown_arguments=UnknownArguments.IGNORE)
 ```
 
 `IGNORE` drops a key no parameter declares. Under either policy the key never
-reaches the callable: drf-services hands a callable only what its spec declares.
+reaches the callable: the kernel hands a callable only what its spec declares.
+One exception is known: a selector taking `**kwargs` beside a `filter_set` also
+receives the FilterSet's values in its catch-all.
 `REJECT` and `IGNORE` are the two the toolset accepts. `PASSTHROUGH` raises
 `ImproperlyConfigured` when the toolset is built, because a tool call is one flat
 object and has no other channel to carry an undeclared name to the callable; to

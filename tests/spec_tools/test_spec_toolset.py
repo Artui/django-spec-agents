@@ -1832,41 +1832,45 @@ def _open_selector(user, **kwargs):
 _OPEN_SELECTOR_CALLS: list[dict[str, Any]] = []
 
 
-_SCHEMA_ADMITS_A_REFUSED_KEY = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "The advertised input schema admits a key the call refuses: it declares no "
-        "additionalProperties, while the kernel closes the argument set. The input "
-        "schema closes it."
-    ),
-)
-
-
-@pytest.mark.parametrize(
-    "policy",
-    [
-        pytest.param(UnknownArguments.REJECT, marks=_SCHEMA_ADMITS_A_REFUSED_KEY),
-        UnknownArguments.IGNORE,
-    ],
-)
-@pytest.mark.django_db
-def test_a_bare_kwargs_selector_refuses_nothing_and_is_handed_nothing(policy):
-    """A bare ``**kwargs`` declares no name, so there is nothing to hold a key
-    against and neither policy refuses one -- and nothing undeclared reaches
-    the callable either."""
-    _OPEN_SELECTOR_CALLS.clear()
-    spec = SelectorSpec(
+def _open_list_spec() -> SelectorSpec:
+    return SelectorSpec(
         kind=SelectorKind.LIST,
         selector=_open_selector,
         output_serializer=_NameSerializer,
         permission_classes=[AllowAny],
     )
 
-    result = _dispatch(spec, User(username="u"), {"colour": "red"}, unknown_arguments=policy)
+
+@pytest.mark.django_db
+def test_a_bare_kwargs_selector_is_handed_nothing_undeclared():
+    """Under ``IGNORE`` a key no parameter declares is dropped, and a bare
+    ``**kwargs`` declares none, so the callable is not handed it."""
+    _OPEN_SELECTOR_CALLS.clear()
+
+    result = _dispatch(
+        _open_list_spec(),
+        User(username="u"),
+        {"colour": "red"},
+        unknown_arguments=UnknownArguments.IGNORE,
+    )
 
     assert _rows(result) == [{"name": "all"}]
     (call,) = _OPEN_SELECTOR_CALLS
     assert "colour" not in call
+
+
+@pytest.mark.django_db
+def test_a_bare_kwargs_selector_declares_no_name_so_reject_refuses_every_key():
+    """The kernel closes the argument set at the spec's declared parameters, and a
+    bare ``**kwargs`` declares none, so under ``REJECT`` a key sent to it is
+    refused like any other undeclared one. drf-services' ``dispatch_spec`` served
+    it, and dropped the value."""
+    _OPEN_SELECTOR_CALLS.clear()
+
+    with pytest.raises(ModelRetry, match=r"^colour: Unknown argument\.$"):
+        _dispatch(_open_list_spec(), User(username="u"), {"colour": "red"})
+
+    assert _OPEN_SELECTOR_CALLS == []
 
 
 @pytest.mark.django_db(transaction=True)
@@ -4288,7 +4292,45 @@ async def test_a_validator_field_named_like_a_seed_is_the_model_s_to_send():
 
     result = await _call(toolset, "move", User(username="acme"), {"tenant": "globex"})
 
+    assert _input_schema_of(toolset, "move")["required"] == ["tenant"]
     assert result == {"destination": "globex", "tenant": "tenant-of-acme"}
+
+
+async def test_a_row_field_named_like_a_seed_is_validated_on_a_many_spec():
+    """Each row's field is validated into ``data``; the service's ``tenant`` stays the seed's.
+
+    drf-services' ``dispatch_spec`` refused this call, each row's ``tenant`` as
+    missing, because it compiled the seed's name out of what was validated.
+    """
+
+    def move_all(data: list[dict[str, Any]], tenant: str) -> list[dict[str, str]]:
+        """Move each row to the tenant it names."""
+        return [{"destination": row["tenant"], "tenant": tenant} for row in data]
+
+    toolset = SpecToolset(
+        {
+            "move_all": ServiceSpec(
+                service=move_all,
+                input_serializer=_TenantSerializer,
+                many=True,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        },
+        pool_seeds=_tenant_seeds(),
+    )
+
+    result = await _call(
+        toolset,
+        "move_all",
+        User(username="acme"),
+        {"items": [{"tenant": "globex"}, {"tenant": "initech"}]},
+    )
+
+    assert result == [
+        {"destination": "globex", "tenant": "tenant-of-acme"},
+        {"destination": "initech", "tenant": "tenant-of-acme"},
+    ]
 
 
 def _books_seeds() -> PoolSeeds:
@@ -4321,16 +4363,14 @@ async def test_a_condition_reading_a_registered_seed_is_asked_with_it(username, 
         assert await toolset.call_tool("approve", {}, ctx, tools["approve"]) == {"approved": True}
 
 
-@_SCHEMA_ADMITS_A_REFUSED_KEY
-async def test_a_seed_named_argument_is_not_refused_by_a_spec_that_never_declares_it():
-    """Exempt from unknown-argument accounting, not merely outranked.
+async def test_a_seed_named_argument_a_spec_never_declares_is_refused():
+    """A registered seed's name is not an argument of a spec that never reads it.
 
-    The selector-based test above cannot show this: its callable declares
-    ``tenant``, so the name is a known argument whatever the registry says. Here
-    nothing declares it, so under the default ``REJECT`` the only thing standing
-    between the model's ``tenant`` and a retry is the registry reaching
-    dispatch. The first half is the probe: the same call through a toolset with
-    no registry is refused, so the success below is the registry's doing.
+    The toolset drops the model's value of a seed's name only where the spec
+    declares the name, so the seed answers in its place. Here nothing declares
+    it, so under the default ``REJECT`` the kernel refuses it as it refuses any
+    undeclared key, registry or no registry. drf-services' ``dispatch_spec``
+    dropped it.
     """
 
     def ping() -> dict[str, bool]:
@@ -4344,12 +4384,9 @@ async def test_a_seed_named_argument_is_not_refused_by_a_spec_that_never_declare
         )
 
     user = User(username="acme")
-    with pytest.raises(ModelRetry, match=r"^tenant: Unknown argument\.$"):
-        await _call(toolset(), "ping", user, {"tenant": "globex"})
-
-    result = await _call(toolset(pool_seeds=_tenant_seeds()), "ping", user, {"tenant": "globex"})
-
-    assert result == {"ok": True}
+    for options in ({}, {"pool_seeds": _tenant_seeds()}):
+        with pytest.raises(ModelRetry, match=r"^tenant: Unknown argument\.$"):
+            await _call(toolset(**options), "ping", user, {"tenant": "globex"})
 
 
 @pytest.mark.parametrize(
@@ -4575,29 +4612,41 @@ def names_in_hidden_project_or_filtered(
     return names_in_hidden_project(user, project_pk)
 
 
-@pytest.mark.parametrize(
-    ("selector", "policy"),
-    [
-        (names_in_hidden_project, UnknownArguments.IGNORE),
-        pytest.param(
-            names_in_hidden_project_or_filtered,
-            UnknownArguments.REJECT,
-            marks=_SCHEMA_ADMITS_A_REFUSED_KEY,
-        ),
-    ],
-    ids=["ignore", "reject-on-an-open-selector"],
-)
-async def test_a_value_the_model_sends_for_a_marked_name_never_reaches_the_selector(
-    selector, policy
-):
-    """Where the marked name is not refused, because the policy refuses nothing
-    or the selector's input set is open, the model's value is dropped before the
-    selector reads its arguments, and the override's is the one served. It used
-    to reach the selector, so the override had to write the key on every call.
+async def test_a_value_the_model_sends_for_a_marked_name_never_reaches_the_selector():
+    """Under ``IGNORE`` the marked name is not refused, and the model's value is
+    dropped before the selector reads its arguments, so the override's is the one
+    served. It used to reach the selector, so the override had to write the key on
+    every call.
     """
     toolset = _ProjectScopedToolset(
-        {"in_project": _name_list_spec(selector)}, unknown_arguments=policy
+        {"in_project": _name_list_spec(names_in_hidden_project)},
+        unknown_arguments=UnknownArguments.IGNORE,
     )
+
+    result = await _call(toolset, "in_project", User(username="u"), {"project_pk": 5})
+
+    assert _rows(result) == [{"name": "project-42"}]
+
+
+async def test_a_marked_name_sent_to_an_open_selector_is_refused():
+    """A selector's bare ``**filters`` does not open the argument set: the kernel
+    closes it at the declared parameters, and a marked name is not one, so under
+    ``REJECT`` the model's value is refused as on a closed selector. drf-services'
+    ``dispatch_spec`` dropped it."""
+    toolset = _ProjectScopedToolset(
+        {"in_project": _name_list_spec(names_in_hidden_project_or_filtered)}
+    )
+
+    with pytest.raises(ModelRetry) as raised:
+        await _call(toolset, "in_project", User(username="u"), {"project_pk": 5})
+
+    assert str(raised.value) == "project_pk: Unknown argument."
+
+
+async def test_a_view_kwarg_stands_over_the_model_s_argument_of_a_declared_name():
+    """An override's ``view.kwargs`` value for a name the spec declares is the
+    argument, over the model's, as a route capture stands over the body."""
+    toolset = _ProjectScopedToolset({"in_project": _name_list_spec(names_in_project)})
 
     result = await _call(toolset, "in_project", User(username="u"), {"project_pk": 5})
 

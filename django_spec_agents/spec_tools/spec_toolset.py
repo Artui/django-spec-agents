@@ -547,11 +547,11 @@ class SpecToolset(AbstractToolset[Any]):
             input set — a key the model invented. ``UnknownArguments.REJECT``
             (the default) surfaces it as a ``ModelRetry`` so the model
             self-corrects, and ``IGNORE`` drops it. Under either, the key never
-            reaches the callable, which drf-services hands only what its spec
+            reaches the callable, which the kernel hands only what its spec
             declares. A ``filter_set``'s filters are declared names, so a key
             outside them and the selector's parameters is refused like any
             other; a selector taking a bare ``**kwargs`` declares no name, so
-            nothing is refused and nothing undeclared is handed to it.
+            every key sent to it is refused.
             ``PASSTHROUGH`` raises ``ImproperlyConfigured`` here: a tool call
             has no channel that carries an undeclared name through to the
             callable, and drf-services refuses it on every call.
@@ -673,14 +673,19 @@ class SpecToolset(AbstractToolset[Any]):
             HTTP hang off ``request`` and off it have no channel. Handed to every
             dispatch this toolset makes, so a service, a selector or an
             affordance's condition declaring one receives it as it would from
-            ``dispatch_spec(pool_seeds=)`` called directly; and to the per-step
-            check that leaves out an operation whose condition is unmet, so the
-            catalog and the instructions are decided against the same seeds the
-            call is refused with. A registered name is also reserved: the model
-            cannot supply it, an argument of that name is neither spread nor
-            refused as unknown, no tool's input schema advertises it, and a
-            ``QueryParam`` / ``UrlKwarg`` declaring it is refused here with
-            ``ImproperlyConfigured``. Toolset-wide, with no
+            the kernel's ``dispatch(pool_seeds=)`` called directly; and to the
+            per-step check that leaves out an operation whose condition is
+            unmet, so the catalog and the instructions are decided against the
+            same seeds the call is refused with. A registered name is also
+            reserved: the model cannot supply it where the seed fills a
+            parameter, so an argument of that name is dropped where the spec
+            declares such a parameter and refused as unknown under ``REJECT``
+            where the spec declares the name nowhere, no tool's input schema
+            advertises it, and a ``QueryParam`` / ``UrlKwarg`` declaring it is
+            refused here with ``ImproperlyConfigured``. An input serializer
+            field of the name is the one exception, and the model's to send:
+            it is validated into ``data``, while the service's parameter of the
+            name still receives the seed's value. Toolset-wide, with no
             per-tool or per-call form: a seed is ambient to the deployment, and
             what varies per call belongs in its resolver, which declares
             ``user`` / ``request`` to receive them.

@@ -35,9 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A deactivated principal is refused with the kernel's own
     `PrincipalUnavailable`, which is not a DRF `PermissionDenied`, so code
     catching DRF's refusal around a run no longer catches it. A spec's
-    permission refusal is still a DRF `PermissionDenied`, and now carries the
-    permission class's own message. Every refusal is logged at `WARNING`
-    naming the tool, the kernel's included.
+    permission refusal is drf-services' `NotPermitted`, which is both DRF's
+    `PermissionDenied` and the kernel's `NotPermitted`, so a handler written
+    against either catches it, and its message is unchanged. Every refusal is
+    logged at `WARNING` naming the tool, the kernel's included.
   - A spec with no permissions, served by a toolset built with
     `require_permissions=False`, still runs unchecked, and only that spec: a
     spec that declares a check is asked it on every call.
@@ -48,11 +49,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     deployed agent that relied on the refusal no longer gets it. `REJECT`
     still refuses it.
   - A registered pool seed fills a selector's, a target lookup's or a spread
-    service's parameter of its name, and the model's own argument of that
-    name is dropped before dispatch, as is a view kwarg a `build_context`
-    override adds under it. An input serializer field named like a registered
-    seed is the model's to send: it is validated into `data`, and the
-    service's parameter of that name still receives the seed's value.
+    service's parameter of its name. When the spec declares that parameter,
+    the model's own argument of the name is dropped before dispatch, and a
+    view kwarg a `build_context` override adds under it is never read. An
+    input serializer field named like a registered seed is the model's to
+    send: it is validated into `data`, and the service's parameter of that
+    name still receives the seed's value. On a many-spec each row's field is
+    validated the same way, where each row used to be refused as missing it.
+  - The kernel closes a call's argument set, so under the default
+    `UnknownArguments.REJECT` these are now refused where they used to be
+    dropped or served: every key sent to a selector taking a bare `**kwargs`,
+    which declares no name; an argument named like a registered seed that the
+    spec never declares; an argument of a name marked `NotClientInput`,
+    whatever the selector's input set; and an argument named like one of the
+    dispatcher's own, such as `user`, which no tool's schema advertises.
+    `IGNORE` drops each of them, and none reaches the callable.
+
+### Known differences
+
+- A service's input serializer field named like one of the dispatcher's own
+  names, such as `user`, is advertised as required in the tool's schema and
+  refused as an unknown argument when sent, so the tool cannot be called. The
+  kernel declines to validate such a field; the schema stops advertising it
+  when the toolset reads its schemas off the kernel.
+- A `returns_many` service with no `selector` that returns a single row raises
+  the output serializer's `AttributeError` out of the call, where it was a
+  configuration error naming what the service returned.
+- A selector taking `**kwargs` beside a `filter_set` receives the FilterSet's
+  values, `ordering` among them, in its catch-all; they belong to the filter
+  step and used to be withheld.
 
 ## [0.1.0] — 2026-10-21
 
