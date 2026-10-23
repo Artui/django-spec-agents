@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from rest_framework_services import SpecRegistry
+from django_service_specs import SpecRegistry
 
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
-from tests.integrations.helpers import open_spec
+from tests.integrations.kernel_specs import open_spec
 
 
 def test_a_plain_mapping_passes_through_unchanged() -> None:
@@ -44,7 +44,7 @@ def test_registration_order_survives() -> None:
 
 
 class TestSpecSourceProtocol:
-    """The substrate names no drf-services type — the registry is matched by shape."""
+    """The substrate names no spec library's type — the registry is matched by shape."""
 
     def test_a_registry_satisfies_it(self) -> None:
         assert isinstance(SpecRegistry(), SpecSource)
