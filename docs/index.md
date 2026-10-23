@@ -10,8 +10,7 @@ import path, `django_spec_agents`:
   AG-UI over SSE, `django-a2a` for agent-to-agent) owns its settings namespace,
   builds an `AgentConfig`, and hands it down.
 - **[`spec_tools`](spec-tools/index.md)**, behind the `[specs]` extra, serves
-  specs to an agent as tools, whether declared on `django-service-specs` or with
-  `djangorestframework-services`, in process, with each
+  `django-service-specs` specs to an agent as tools, in process, with each
   spec's own validation, permissions and rendering.
 
 ```bash

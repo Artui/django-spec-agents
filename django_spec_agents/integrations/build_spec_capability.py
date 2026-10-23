@@ -29,13 +29,12 @@ def build_spec_capability(
     acting user natively and the capability stays request-independent, which is
     what makes an agent built once reusable across runs.
 
-    **Every spec here needs its own ``permission_classes``.** A spec with
-    ``permission_classes=None`` makes ``SpecCapability`` raise
+    **Every spec here needs its own ``permissions``.** A spec with
+    ``permissions=None`` makes ``SpecCapability`` raise
     ``ImproperlyConfigured`` rather than expose an ungated tool: over HTTP
-    ``None`` means inherit — the view's classes, then
-    ``DEFAULT_PERMISSION_CLASSES`` — and off HTTP there is nothing to inherit
-    from, so a spec properly guarded behind a viewset would become callable by
-    whatever the model decides to call.
+    ``None`` may mean inherit, from the view and then the project's defaults,
+    and off HTTP there is nothing to inherit from, so a spec properly guarded
+    behind a view would become callable by whatever the model decides to call.
 
     The ``require_permissions=False`` migration flag is not exposed here; a
     project migrating a large registry constructs ``SpecCapability`` itself and

@@ -133,8 +133,8 @@ class AgentConventions:
     )
     """The block's line on read-shaping parameters, when some tool has one.
 
-    A read-shaping parameter is a ``QueryParam`` read no callable of the spec
-    takes, which the output serializer reads instead; one a selector or
+    A read-shaping parameter is one of the spec's ``shapes``, which no callable
+    of the spec takes and its presenter reads instead; one a selector or
     provider takes, by name or through ``**kwargs``, is that callable's
     argument and is not named here. ``{names}`` is every such name, sorted, each in backticks and joined with
     ``", "``. ``None`` drops the line and ``read_shaping_on_pages`` with it, since
@@ -181,13 +181,13 @@ class AgentConventions:
     )
     """What a read-shaping parameter applies to on a tool that returns a page.
 
-    Appended after a space to each ``QueryParam``'s description on such a tool, or
+    Appended after a space to each read-shaping parameter's description on such a tool, or
     its whole description when it declares none, and to the retry a render-time
     rejection on such a tool produces. No placeholders.
 
     The envelope is the likeliest target for a bad selection because it is exactly
     the shape the tool documents returning -- ``{items{id, name}}`` is a natural
-    reading of it -- while the serializer that reads the param only ever sees one
+    reading of it -- while the presenter that reads the param only ever sees one
     row. Saying so at the parameter, where the model is choosing a value, turns
     that mistake into one retry.
     """
@@ -196,8 +196,8 @@ class AgentConventions:
     """The retry for a call that left out an argument it cannot run without.
 
     Covers both checks made before the input serializer runs: a parameter the
-    selector requires, and a ``UrlKwarg`` declared ``required``. A field the input
-    serializer requires is reported by the serializer, in its own words.
+    selector requires, and one of the spec's ``reads`` declared ``required``. A
+    field the input requires is reported by the spec's Validator, in its own words.
     ``{names}`` is every missing name, sorted, each in backticks and joined with
     ``", "``. Never ``None``, empty or only whitespace: it is the retry's whole
     text.

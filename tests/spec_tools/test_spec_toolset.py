@@ -70,7 +70,6 @@ from rest_framework_services import (
     MARKING,
     InputRequired,
     NotClientInput,
-    PolymorphicServiceSpec,
     QueryParam,
     SelectorSpec,
     ServiceSpec,
@@ -5913,30 +5912,6 @@ def test_a_service_tool_advertises_its_target_lookup():
     assert list(schema["properties"]) == ["pk", "name", "price"]
     assert schema["properties"]["pk"] == {}
     assert schema["required"] == ["pk", "name", "price"]
-
-
-def test_an_expanded_polymorphic_variant_advertises_its_own_lookup():
-    """``docs/polymorphic-actions.md`` expands a ``PolymorphicServiceSpec`` into
-    one tool per variant and says each is an ordinary service tool, whose schema
-    is its ``input_serializer`` with its target lookup beside it."""
-    moderate = PolymorphicServiceSpec(
-        discriminator=lambda *, data: data["op"],
-        specs={
-            "rename": _update_spec(),
-            "approve": ServiceSpec(
-                service=stamp_approval,
-                instance_selector_spec=SelectorSpec(
-                    kind=SelectorKind.RETRIEVE, selector=get_any_widget
-                ),
-                permission_classes=[AllowAny],
-                atomic=False,
-            ),
-        },
-    )
-    toolset = SpecToolset({f"moderate_{key}": spec for key, spec in moderate.specs.items()})
-
-    assert _input_schema_of(toolset, "moderate_rename")["required"] == ["pk", "name", "price"]
-    assert _input_schema_of(toolset, "moderate_approve")["required"] == ["pk"]
 
 
 def stamp_approval():

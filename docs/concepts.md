@@ -93,7 +93,7 @@ closing over the request. The difference matters beyond tidiness:
 - **The request a run arrived on travels as data.** `deps.call_context` is a
   plain `dict` of values every tool call may read; a transport puts the request
   there under `request`, and each spec tool call is handed its own copy with the
-  tool's name under `action`, so a serializer or a permission class reads the
+  tool's name under `action`, so a callable or a permission check reads the
   request without the agent ever holding it (see
   [per-call seeds and the run's context](spec-tools/quickstart.md#per-call-seeds-and-the-runs-context)).
 - **AG-UI state has somewhere to land.** `AgentDeps` satisfies pydantic-ai's
@@ -107,7 +107,7 @@ shared, so the mutability is contained.
 - **A spec's progress reports have somewhere to go.** `SpecToolset` reads its
   reporter off `ctx.deps.progress` exactly as it reads the user off
   `ctx.deps.user`. Pass a callable and a long-running spec's `progress(...)`
-  calls reach it; leave it `None` and drf-services substitutes its no-op. Where
+  calls reach it; leave it `None` and the kernel substitutes its no-op. Where
   the reports *go* is a transport's decision, so nothing here constructs a sink.
 
 `user` has **no default**: an unauthenticated run says `user=None` rather than

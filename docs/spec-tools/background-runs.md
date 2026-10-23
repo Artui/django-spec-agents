@@ -58,7 +58,7 @@ into a different `user` has no authorization boundary at all.
 
     A request in the run's
     [`call_context`](quickstart.md#per-call-seeds-and-the-runs-context) is
-    there so a serializer or scoping provider reading `request.META` finds
+    there so a callable or scoping provider reading `request.META` finds
     something plausible. Nothing downstream re-derives the acting user from it.
     Passing an authenticated request authorizes nothing, and leaning on it would
     put a second, invisible identity in the call.
@@ -67,7 +67,7 @@ into a different `user` has no authorization boundary at all.
 
 A view refuses an unauthenticated caller before the agent is reached. A worker
 has no such gate, so a task whose `user_id` is `None` runs with `user=None` and
-whatever `permission_classes` make of that. Decide it at the top of the task,
+whatever the spec's `permissions` make of that. Decide it at the top of the task,
 where the answer is obvious, rather than in a permission class three layers down.
 
 ## Concurrency: the one setting a worker genuinely needs
@@ -175,7 +175,7 @@ usually what needs to reach them.
 
 The one worth knowing about before you need it is
 [`render_output`](reference.md#django_spec_agents.spec_tools.SpecToolset.render_output).
-By default a result is rendered through the spec's serializer **and projected**
+By default a result is rendered through the spec's presenter **and projected**
 for the agent audience. If a background job feeds one spec's output into the
 next, project the handles away and the next step has nothing to key on.
 Presenting with the kernel's `present(spec, result)` instead is the opt-out —
@@ -218,7 +218,7 @@ If your worker code is sync, drive it with `agent.run_sync` inside
 ## Progress, when there is no browser
 
 `AgentDeps.progress` takes a
-[`ProgressReporter`](https://artui.github.io/djangorestframework-services/),
+[`ProgressReporter`](https://artui.github.io/django-service-specs/),
 and a spec that reports progress calls it wherever it runs. This package never
 constructs one: picking a sink would be picking a transport it does not own.
 Off HTTP, the useful sinks are the ones a worker already has — a task-state

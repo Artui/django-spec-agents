@@ -352,9 +352,8 @@ class SpecToolset(AbstractToolset[Any]):
     declared (see ``call_seeds``). A single-item service also advertises its
     target lookup -- the parameters of its ``collection_selector_spec``, or
     failing that its ``instance_selector_spec``, such as a ``pk`` -- beside its
-    input serializer's fields, the serializer's property winning a shared name,
-    and less every key a callable in the call marks ``NotClientInput``, which
-    dispatch keeps from the lookup. A
+    input's fields, the input's property winning a shared name, and less every
+    key the kernel's ``server_owned_keys`` names, which dispatch fills itself. A
     call leaving out a required selector parameter is handed back as
     ``ModelRetry`` naming each one left out, before anything runs. A required
     serializer field is the serializer's to report, once the call runs, so a
@@ -479,8 +478,7 @@ class SpecToolset(AbstractToolset[Any]):
             target-lookup parameter, or one of its ``reads``. A name in
             ``values`` is bound: the call carries the server's value whatever
             the model sent, it satisfies a ``required`` parameter, and every
-            reader of the call sees it -- a bound ``UrlKwarg`` read is on
-            ``view.kwargs``, a bound ``QueryParam`` on ``request.query_params``.
+            reader of the call sees it, as one of the call's arguments.
             A ``withheld`` name is absent, so its declared default, or the
             callable's own, answers. Neither is advertised: both leave the
             tool's ``properties`` and ``required``, and the instructions name
@@ -691,10 +689,10 @@ class SpecToolset(AbstractToolset[Any]):
         # and that payload is projected — so the schema has to be projected by
         # the same declaration, or it would advertise a field the render drops.
         #
-        # The output's own refusals - a ``field_audiences`` key naming no output
-        # field, two fields marked as the label - surface here rather than at
-        # compile, so they are prefixed with the tool the same way. Held by
-        # ``test_a_field_audiences_key_naming_no_output_field_is_refused``.
+        # The output's own refusal - two fields marked as the label - surfaces
+        # here rather than at compile, so it is prefixed with the tool the same
+        # way. Held by
+        # ``test_a_field_audiences_clash_is_refused_when_the_toolset_is_built``.
         #
         # The markings are the compiled output's: a library declaring markings
         # of its own beside its output lays them over the output when the
@@ -783,7 +781,7 @@ class SpecToolset(AbstractToolset[Any]):
         """The tool catalog this run is offered, one entry per listed spec.
 
         **The catalog is not permission-filtered, by design.** Every tool is
-        advertised to every run and ``permission_classes`` gate the *call*: a
+        advertised to every run and the spec's ``permissions`` gate the *call*: a
         denied tool is one the model can see and cannot use. Filtering by
         default would be worse in three ways — a permission whose answer depends
         on the arguments has none to read at listing time and would deny a tool
@@ -852,7 +850,7 @@ class SpecToolset(AbstractToolset[Any]):
         staff-only tool from a non-staff run, or scoping the catalog to a
         tenant read off ``ctx.deps``. Hiding a tool is a *disclosure* decision,
         never an authorization one: the call is gated by
-        ``spec.permission_classes`` whatever this returns, so an override that
+        ``spec.permissions`` whatever this returns, so an override that
         wrongly returns ``True`` grants nothing.
 
         Not consulted for a tool an unmet operation condition already left out
@@ -1459,7 +1457,7 @@ def _validate_permissions(specs: Mapping[str, Spec], *, require: bool) -> None:
 
 
 class UnguardedSpecWarning(UserWarning):
-    """A spec was exposed as a tool with no ``permission_classes``.
+    """A spec was exposed as a tool with no ``permissions``.
 
     Its own category so a consumer migrating a large registry can silence it
     deliberately — ``warnings.filterwarnings("ignore", category=…)`` — rather
@@ -1882,7 +1880,7 @@ def _validate_unknown_arguments(unknown_arguments: UnknownArguments) -> None:
         "UnknownArguments.REJECT or UnknownArguments.IGNORE. A tool call has no "
         "channel that carries a name the spec does not declare through to the "
         "callable, and the kernel's dispatch refuses PASSTHROUGH on every call. Declare "
-        "the argument instead: a reads entry, a serializer field or a parameter."
+        "the argument instead: a reads entry or a Validator field."
     )
 
 
@@ -2366,8 +2364,8 @@ def _spec_ordering_argument(
     would be dropped, and a sort sent under ``ordering`` would not be refused
     as one the tool never offered.
 
-    **Duck-typed, not an ``isinstance`` test against ``django_filters``.**
-    django-filter is an optional extra this package never imports, and a spec's
+    django-filter is a dependency of the project declaring the FilterSet, never
+    of this package, which never imports it, and a spec's
     ``filter_set`` is duck-typed all the way down. ``get_ordering_value`` is
     defined by ``OrderingFilter`` and by nothing else in the filter hierarchy, so
     asking for it identifies the sort filter under whatever name it was

@@ -172,7 +172,7 @@ one hook covers every tool regardless of origin:
   pydantic-ai's tool metadata.
 - **MCP tool annotations** — `metadata["annotations"]["readOnlyHint"] is False`,
   which is how a toolset speaking MCP's own vocabulary says it mutates. A
-  drf-services `ServiceSpec` exposed through `SpecToolset` is the case that
+  `ServiceSpec` exposed through `SpecToolset` is the case that
   matters: without this the *same* spec would be gated over the drf-mcp bridge and
   ungated attached in process, so a transport swap would remove the gate silently.
 - **The `x-destructive` schema stamp** at the root of `parameters_json_schema`,
@@ -357,8 +357,9 @@ it would with the policy off. Four classes are in the default set, because no
 one of them inherits from another:
 
 - `django.core.exceptions.PermissionDenied`, always.
-- `rest_framework.exceptions.PermissionDenied`, when DRF is installed; a
-  drf-services permission check raises it.
+- `rest_framework.exceptions.PermissionDenied`, when DRF is installed (the
+  `[drf-mcp]` extra brings it); a DRF permission check behind that bridge
+  raises it.
 - `django_service_specs.NotPermitted`, when the kernel is installed (the
   `[specs]` or `[drf-mcp]` extra); the kernel's dispatch raises it when a permission check
   refuses the principal.

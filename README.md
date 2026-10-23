@@ -16,9 +16,8 @@ approval gate for destructive tools, a failure policy, conversation and attachme
 stores, and an opt-in store app. It reads no Django settings of its own: a
 transport such as [django-ag-ui](https://github.com/Artui/django-ag-ui) owns its
 settings, builds the config and hands it down. **`spec_tools`**, behind the
-`[specs]` extra, serves specs to an agent as tools, whether declared on
-[django-service-specs](https://github.com/Artui/django-service-specs) or with
-[djangorestframework-services](https://github.com/Artui/djangorestframework-services), in process, with each spec's own validation,
+`[specs]` extra, serves [django-service-specs](https://github.com/Artui/django-service-specs)
+specs to an agent as tools, in process, with each spec's own validation,
 permissions and rendering: `SpecToolset`, and `SpecCapability` over it.
 
 The host was published as `django-pydantic-agent` and `spec_tools` as
@@ -33,12 +32,11 @@ pip install django-spec-agents            # the agent host
 pip install "django-spec-agents[specs]"   # and specs as agent tools
 ```
 
-Python 3.10 or later and Django 4.2 or later. `[specs]` adds Django REST
-Framework, `djangorestframework-services` and `django-service-specs`. The other
-extras: `[drf-mcp]` bridges a `djangorestframework-mcp-server` registry as a
-toolset, `[harness]` adds the `pydantic-ai-harness` capabilities, `[filter]` adds
-`django-filter` for filtered selectors, and `[anthropic]`, `[openai]` and
-`[google]` add a model provider.
+Python 3.10 or later and Django 4.2 or later. `[specs]` adds
+`django-service-specs`. The other extras: `[drf-mcp]` bridges a
+`djangorestframework-mcp-server` registry as a toolset, `[harness]` adds the
+`pydantic-ai-harness` capabilities, and `[anthropic]`, `[openai]` and `[google]`
+add a model provider.
 
 The store app is opt-in. To persist conversations, attachments, steps and memory
 in the database, add it to `INSTALLED_APPS`, where its label is
@@ -73,7 +71,7 @@ result = await agent.run("what is still pending?", deps=AgentDeps(user=request.u
 
 The same agent calling your specs beside the registry's tools, with `[specs]`
 installed. Each key is a tool name, distinct from the registry's; the description, the parameter schema and the return schema come from the
-spec. Each spec declares its `permission_classes`, which the toolset refuses to
+spec. Each spec declares its `permissions`, which the toolset refuses to
 go without, because nothing over HTTP gates a call made in process:
 
 ```python

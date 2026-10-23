@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `[filter]` extra. Nothing in this package imports django-filter: a
   project declaring a `filter_set` has it installed already, and
   `django-service-specs[filter]` declares it for the kernel's own use.
+- The polymorphic actions page and the `QueryParam` and `UrlKwarg` reference
+  entries. The docs declare every spec on the kernel: a read is a `Parameter`
+  in `reads=`, a read-shaping argument one in `shapes=`, and a field's audience
+  a `FieldMarking` on the presenter's output.
 - `SpecToolset.build_context` and `SpecToolset.output_extras`, and the
   `http_request=`, `get_http_request=` and `host=` keywords of `SpecToolset` and
   `SpecCapability`. Each named a DRF request or view the toolset built for a
