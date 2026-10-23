@@ -343,7 +343,7 @@ admits of it.
 **A call that leaves out a required selector parameter is handed back**, the
 tool's own or its target lookup's, as `ModelRetry` naming each one left out,
 as in ``Missing required argument(s): `pk`.``, the same sentence a required
-`UrlKwarg` gets, so the model corrects the call on its next turn. A required
+`UrlKwarg` left out gets, so the model corrects the call on its next turn. A required
 serializer field is checked by the serializer once the call runs, so a service
 call missing both `pk` and a field is told about `pk` first, and about the
 field on the turn after. A name a provider may fill is not checked before the
@@ -394,9 +394,8 @@ A registered name is reserved the way `user` and `request` are:
   value.
 - **A channel cannot declare it.** A `QueryParam` or `UrlKwarg` with that name
   raises `ImproperlyConfigured` when the toolset is built, as one named `user`
-  does. Dispatch strips a reserved name from the route captures it hands a
-  selector, so an accepted `UrlKwarg` would offer the model an argument that is
-  then dropped on every call.
+  does. The kernel refuses an argument that meets a seed, so an accepted read
+  would offer the model an argument every call is then refused for.
 - **No schema advertises it.** A selector or target lookup declaring the seed
   as a parameter does not offer it to the model, so the model is not asked for
   a value the call would ignore. See
@@ -889,12 +888,12 @@ registry.register(
 toolset = SpecToolset(registry)
 ```
 
-A declared param is popped before dispatch, so `unknown_arguments` never flags
-it; a declared `default` is seeded when the model omits the arg or sends it as
-`null`, which never reaches the query string itself. (Names can't be
-`page` / `limit` / `ordering` — those are reserved transport keys. `ordering` is
-reserved even when a `filter_set` owns it: a declared channel pops the value at
-call time, so the FilterSet would never see it.)
+A declared read is one of the call's arguments, so `unknown_arguments` never
+flags it; a declared `default` is applied when the model leaves the read out or
+sends it as `null`, unless the read accepts `null` as a value. A read that shapes the output, one no callable takes by
+name, cannot be named `page`, `limit` or `ordering`, which the toolset's own
+pagination and ordering arguments take; a read a callable takes by name is an
+argument like any other, a `UrlKwarg` named `ordering` among them.
 
 A spec's read of a name the tool already advertises as the call's own input, a
 selector parameter or `filter_set` field or a parameter of a service's
