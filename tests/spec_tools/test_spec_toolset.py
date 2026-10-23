@@ -77,7 +77,6 @@ from rest_framework_services import (
     ServiceSpec,
     UrlKwarg,
     audience_projection_for_spec,
-    build_offline_context,
     output_to_json_schema,
     spec_to_json_schema,
 )
@@ -91,10 +90,11 @@ from django_spec_agents.spec_tools.spec_toolset import (
     _build_tool_def,
     _default_get_progress,
     _derive_instructions,
-    _fill_shapes,
+    _fill_query_params,
     _input_schema,
     _is_list_selector,
     _list_filter_ordering,
+    _parameter_reads,
     _pop_url_kwargs,
     _return_schema,
     _shape_list,
@@ -198,6 +198,17 @@ def _dispatch(
         warnings.simplefilter("ignore")
         toolset = SpecToolset({"t": spec}, require_permissions=False, **toolset_kwargs)
     ctx = ctx_for(user)
+    kwargs.setdefault("label", "t")
+    # The reads a registry-built tool advertises as their own properties, which
+    # ``call_tool`` hands on: every one but a read naming an input the tool
+    # advertises already.
+    routed = _parameter_reads(
+        spec,
+        query_params,
+        pool_seeds=toolset._pool_seeds,
+        registry=toolset._json_schema_registry,
+    )
+    kwargs.setdefault("query_params", tuple(qp for qp in query_params if qp.name not in routed))
     return toolset._call_spec(spec, user, dict(args or {}), ctx=ctx, **kwargs)
 
 
@@ -1481,6 +1492,9 @@ class RecordingPermission(BasePermission):
             "kwargs": dict(view.kwargs),
             "query_params": dict(request.query_params.lists()),
             "user": request.user,
+            # A header only the request a run arrived on carries, so a call
+            # built around some other request reads ``None`` here.
+            "marker": request.META.get("HTTP_X_MARKER"),
         }
         return True
 
@@ -1500,9 +1514,9 @@ def test_a_spec_read_naming_a_lookup_parameter_builds_from_both_routes():
 
 
 def test_a_url_kwarg_may_share_a_selector_parameters_name():
-    """A ``UrlKwarg``'s value reaches the selector through ``view.kwargs``, the
-    documented way to route a capture the selector also reads, so the refusal
-    leaves it alone."""
+    """A ``UrlKwarg`` read under a selector parameter's name is that parameter's
+    argument, the documented way to route a capture the selector also reads, so
+    the refusal leaves it alone."""
     toolset = SpecToolset(
         reading({"tasks": _name_list_spec(tasks_by_status)}, {"tasks": [UrlKwarg("status")]})
     )
@@ -1544,6 +1558,91 @@ def test_a_query_param_a_callable_takes_is_its_argument_and_never_the_serializer
     result = _dispatch(spec, user, {"fields": "id"}, query_params=(QueryParam("fields"),))
 
     assert _rows(result) == [{"name": "a", "fields": None}]
+
+
+# What a ``**kwargs`` selector, a selector naming ``fields`` and a ``kwargs=``
+# provider naming it were handed, one entry per call.
+_TAKEN: list[tuple[str, Any]] = []
+
+
+def list_widgets_filtered(user, **filters):
+    """``list_widgets``, taking whatever filters it is sent."""
+    _TAKEN.append(("selector-kwargs", filters.get("fields", "absent")))
+    return Widget.objects.none()
+
+
+def _names_naming_fields(user, fields=None):
+    """Names, taking ``fields`` itself."""
+    _TAKEN.append(("selector-named", fields))
+    return [{"name": "x"}]
+
+
+def _names_taking_anything(user, **filters):
+    """Names, taking whatever filters it is sent."""
+    _TAKEN.append(("selector-kwargs", filters.get("fields", "absent")))
+    return [{"name": "x"}]
+
+
+def _names_under_a_ceiling(user, ceiling=None):
+    """Names, under a ceiling a provider fills."""
+    return [{"name": "x"}]
+
+
+def _ceiling_from_fields(fields=None):
+    _TAKEN.append(("provider", fields))
+    return {"ceiling": 1}
+
+
+@pytest.mark.django_db
+async def test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default():
+    """The kernel classes a read a ``**kwargs`` selector takes as the selector's
+    argument rather than one of the spec's shapes, so the tool advertises it as
+    a plain argument -- not told it applies to each item -- and the default it
+    advertises is the one the selector is handed when the model omits it.
+
+    Field selection on the serializer is what such a read gives up: the query
+    string the serializer reads never carries it."""
+    _TAKEN.clear()
+    spec = replace(_echo_list_spec(permission_classes=[AllowAny]), selector=list_widgets_filtered)
+    fields = QueryParam("fields", default="id", description="Fields to return.")
+    toolset = SpecToolset(reading({"w": spec}, {"w": [fields]}), descriptions={"w": "W."})
+
+    assert _input_schema_of(toolset, "w")["properties"]["fields"] == fields.json_schema()
+    assert "read-shaping" not in str(await toolset.get_instructions(ctx_for(User(username="u"))))
+    await _call(toolset, "w", User(username="u"), {})
+    assert _TAKEN == [("selector-kwargs", "id")]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("spec_kwargs", "taken"),
+    [
+        ({"selector": _names_naming_fields}, [("selector-named", None)]),
+        ({"selector": _names_taking_anything}, [("selector-kwargs", "id")]),
+        (
+            {"selector": _names_under_a_ceiling, "kwargs": _ceiling_from_fields},
+            [("provider", "id")],
+        ),
+    ],
+    ids=["selector-named", "selector-kwargs", "provider"],
+)
+async def test_an_explicit_null_for_a_query_param_a_callable_takes_is_treated_as_omitted(
+    spec_kwargs, taken
+):
+    """``{"fields": null}`` is the model declining to fill the read, as for a
+    shape, whichever callable takes it: dropped, so the callable is handed what
+    an omitted read is -- the read's advertised default, or the callable's own
+    where the callable's signature is what advertises it -- rather than the call
+    being refused as a null the parameter does not admit."""
+    _TAKEN.clear()
+    spec = _name_list_spec(**spec_kwargs)
+    toolset = SpecToolset(
+        reading({"t": spec}, {"t": [QueryParam("fields", default="id")]}), descriptions={"t": "T."}
+    )
+
+    await _call(toolset, "t", User(username="u"), {"fields": None})
+
+    assert taken == _TAKEN
 
 
 @pytest.mark.django_db
@@ -2746,7 +2845,7 @@ def test_a_sort_target_that_is_not_a_column_raises_rather_than_retrying():
     """Pinned because it is easy to assume the opposite.
 
     Django validates a plain-string ``order_by`` eagerly, so the FilterSet raises
-    inside ``dispatch_spec`` and no arm turns the ``FieldError`` into a
+    inside the kernel's ``dispatch`` and no arm turns the ``FieldError`` into a
     ``ModelRetry`` -- which is arguably right, since the model cannot correct a
     mis-declared ``param_map`` by choosing a different sort.
     """
@@ -3381,6 +3480,23 @@ def test_no_request_arrives_unless_the_run_put_one():
 
 
 @pytest.mark.django_db
+def test_a_provider_declaring_view_is_handed_none_on_a_run_with_no_view():
+    """There is no view off HTTP: a ``kwargs=`` provider written for one, which
+    declares ``view``, is handed the call's ``view`` entry, ``None`` where the
+    run put none, rather than a stand-in whose ``kwargs`` would carry captures
+    by a second route."""
+    seen: dict[str, Any] = {}
+
+    def scope(view):
+        seen["view"] = view
+        return {}
+
+    _dispatch(list_spec(kwargs=scope), User.objects.create(username="u"))
+
+    assert seen == {"view": None}
+
+
+@pytest.mark.django_db
 def test_a_request_call_seeds_returns_stands_over_the_one_the_run_put():
     """A subclass reaches dispatch with the run's typed deps in hand.
 
@@ -3399,7 +3515,7 @@ def test_a_request_call_seeds_returns_stands_over_the_one_the_run_put():
     toolset = TenantToolset({"t": spec})
     deps = AgentDeps(user="gamma-ltd")
     deps.call_context = {"request": RequestFactory().get("/", HTTP_X_TENANT="arrived")}
-    toolset._call_spec(spec, "gamma-ltd", {}, ctx=ctx_for(deps=deps))
+    toolset._call_spec(spec, "gamma-ltd", {}, ctx=ctx_for(deps=deps), label="t")
 
     assert seen["tenant"] == "gamma-ltd"
 
@@ -3418,7 +3534,9 @@ def test_translate_exception_is_overridable_without_a_map():
     toolset = Translating({"t": spec})
     ctx = ctx_for(object())
 
-    assert toolset._call_spec(spec, object(), {}, ctx=ctx) == {"error": "handled subclassed"}
+    assert toolset._call_spec(spec, object(), {}, ctx=ctx, label="t") == {
+        "error": "handled subclassed"
+    }
 
 
 # --- the composing caller's view of a built toolset --------------------------
@@ -3549,8 +3667,14 @@ def test_a_required_kwarg_is_not_satisfied_by_the_no_default_sentinel(no_default
 
 @pytest.mark.parametrize("no_default", [None, UNSET])
 def test_a_query_param_declaring_no_default_contributes_nothing(no_default: Any) -> None:
+    """A shape and an advertised read alike, each with no default, are left out."""
     args: dict[str, Any] = {}
-    _fill_shapes(Parameters.of(Parameter("fields", "string", default=no_default)), args)
+    _fill_query_params(
+        (),
+        Parameters.of(Parameter("fields", "string", default=no_default)),
+        (QueryParam("expand", default=no_default),),
+        args,
+    )
     assert args == {}
 
 
@@ -3558,8 +3682,13 @@ def test_a_real_default_still_reaches_the_spec() -> None:
     """The other half of the predicate: a declared default is still applied."""
     assert _pop_url_kwargs([UrlKwarg(name="pk", type="integer", default=7)], {}) == {"pk": 7}
     args: dict[str, Any] = {}
-    _fill_shapes(Parameters.of(Parameter("fields", "string", default="id")), args)
-    assert args == {"fields": "id"}
+    _fill_query_params(
+        (),
+        Parameters.of(Parameter("fields", "string", default="id")),
+        (QueryParam("expand", default="all"),),
+        args,
+    )
+    assert args == {"fields": "id", "expand": "all"}
 
 
 # --- what a permission class sees off HTTP -----------------------------------
@@ -3671,12 +3800,16 @@ async def test_the_arrived_on_request_s_query_string_never_reaches_the_spec():
     )
     RecordingPermission.seen = {}
 
-    arrived = RequestFactory().post("/agent/?query={id,secret}")
+    arrived = RequestFactory().post("/agent/?query={id,secret}", HTTP_X_MARKER="arrived")
     arrived.user = "the-operator"
     principal = object()
 
     await _call_arrived(toolset, "do_it", arrived, user=principal)
 
+    # The request the call was built around is the one the run arrived on, so
+    # the empty query string below is that request's, replaced, and not one a
+    # request built from nothing would have had anyway.
+    assert RecordingPermission.seen["marker"] == "arrived"
     assert RecordingPermission.seen["query_params"] == {}
     assert RecordingPermission.seen["user"] is principal
 
@@ -3707,30 +3840,68 @@ async def test_a_declared_query_param_still_reaches_the_spec_alongside_it():
     assert RecordingPermission.seen["query_params"] == {"fields": ["id,name"]}
 
 
-# --- the shared-request guarantee the declared floor provides ----------------
+# --- one arrived-on request, several calls -----------------------------------
 
 
-@pytest.mark.django_db
-def test_one_arrived_on_request_is_not_shared_between_two_dispatches():
-    """Pins a guarantee of the declared drf-services floor; lowering it fails here.
+# What each render of ``_SlowEcho`` read: the query string before and after its
+# pause, and the arrived-on request's marker.
+_ECHOED: list[tuple[Any, Any, Any]] = []
 
-    The request a run arrived on is one object for the whole run, and every
-    call of the run is built around it, concurrently where the model asks for
-    several at once. Below the declared floor ``build_offline_context`` wrapped
-    that object itself, so the two contexts aliased it and the second call's
-    query params silently became the first's -- a serializer shaped by another
-    call's arguments, with no error anywhere. The floor wraps a shallow copy
-    instead.
+
+class _SlowEcho(serializers.Serializer):
+    """Reads ``fields`` off its request's query string either side of a pause.
+
+    The pause is what lets a second call, run concurrently, rewrite a query
+    string the two shared before the first reads it again.
     """
-    shared = RequestFactory().get("/agent/?fields=original")
-    user = object()
 
-    first = build_offline_context(user, {}, http_request=shared, query_params={"fields": "id,name"})
-    second = build_offline_context(user, {}, http_request=shared, query_params={"fields": "id,ssn"})
+    def to_representation(self, instance):
+        request = self.context["request"]
+        before = request.query_params.get("fields")
+        time.sleep(0.2)
+        _ECHOED.append(
+            (before, request.query_params.get("fields"), request.META.get("HTTP_X_MARKER"))
+        )
+        return {"name": instance.name, "fields": request.query_params.get("fields")}
 
-    assert first.request._request is not second.request._request
-    assert first.request.query_params["fields"] == "id,name"
-    assert second.request.query_params["fields"] == "id,ssn"
+
+@pytest.mark.django_db(transaction=True)
+async def test_two_concurrent_calls_built_around_one_arrived_on_request_each_read_their_own():
+    """The request a run arrived on is one object for the whole run, and every
+    call of the run is built around it, concurrently where the model asks for
+    several at once. Each call's serializer reads the call's own ``fields``
+    throughout its render, never the other call's, and the arrived-on request
+    keeps its own query string: the two are never one object."""
+    _ECHOED.clear()
+    user = await sync_to_async(User.objects.create)(username="u")
+    await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=list_widgets,
+        output_serializer=_SlowEcho,
+        output_serializer_context=_pass_request,
+        permission_classes=[AllowAny],
+    )
+    toolset = SpecToolset(
+        reading({"w": spec}, {"w": [QueryParam("fields")]}),
+        descriptions={"w": "W."},
+        thread_sensitive=False,
+    )
+    arrived = RequestFactory().get("/agent/?fields=original", HTTP_X_MARKER="arrived")
+    deps = AgentDeps(user=user)
+    deps.call_context = {"request": arrived}
+    ctx = ctx_for(deps=deps)
+    tools = await toolset.get_tools(ctx)
+
+    one, two = await asyncio.gather(
+        toolset.call_tool("w", {"fields": "id"}, ctx, tools["w"]),
+        toolset.call_tool("w", {"fields": "name"}, ctx, tools["w"]),
+    )
+
+    assert one["items"] == [{"name": "a", "fields": "id"}]
+    assert two["items"] == [{"name": "a", "fields": "name"}]
+    assert sorted(_ECHOED) == [("id", "id", "arrived"), ("name", "name", "arrived")]
+    assert arrived.GET.dict() == {"fields": "original"}
 
 
 @pytest.mark.django_db
@@ -3743,18 +3914,26 @@ async def test_a_dispatch_leaves_the_arrived_on_request_untouched():
     ``GET`` and reassigned ``user`` on that very object, and the effects
     outlived the call.
     """
-    ambient = RequestFactory().get("/agent/?fields=original")
+    ambient = RequestFactory().get("/agent/?fields=original", HTTP_X_MARKER="arrived")
     ambient.user = "the-operator"
     toolset = SpecToolset(
         reading(
-            {"do_it": ServiceSpec(service=_do_it, atomic=False, permission_classes=[AllowAny])},
+            {
+                "do_it": ServiceSpec(
+                    service=_do_it, atomic=False, permission_classes=[RecordingPermission]
+                )
+            },
             {"do_it": [QueryParam(name="fields")]},
         ),
         descriptions={"do_it": "Do it."},
     )
+    RecordingPermission.seen = {}
 
     await _call_arrived(toolset, "do_it", ambient, {"fields": "id,name"})
 
+    # The call was built around this request, so what follows is about a
+    # request the dispatch had in hand, not one it never saw.
+    assert RecordingPermission.seen["marker"] == "arrived"
     assert ambient.method == "GET"
     assert ambient.GET.dict() == {"fields": "original"}
     assert ambient.user == "the-operator"
@@ -3819,8 +3998,12 @@ async def test_a_hidden_tool_is_still_callable_and_still_gated():
 # so it cannot hide a tool the caller could have invoked with other arguments.
 
 
-def _approve(**_: Any) -> dict[str, bool]:
-    """Approve the pending invoices."""
+def _approve() -> dict[str, bool]:
+    """Approve the pending invoices.
+
+    Takes no arguments, so a ``QueryParam`` the spec reads is one of its shapes
+    rather than this service's argument, which a ``**kwargs`` would make it.
+    """
     return {"approved": True}
 
 
@@ -4217,8 +4400,8 @@ async def test_a_model_calling_an_omitted_tool_gets_the_unknown_tool_retry():
 #
 # ``pool_seeds=`` is a project's own always-available seeds: what hangs off
 # ``request`` over HTTP and has no channel off it. A spec reading one has to see
-# it wherever the toolset dispatches or asks a condition, or it works when
-# ``dispatch_spec`` is called directly and fails through the toolset.
+# it wherever the toolset dispatches or asks a condition, or it works when the
+# kernel's ``dispatch`` is called directly and fails through the toolset.
 
 
 def _tenant_seeds() -> PoolSeeds:
@@ -4367,7 +4550,8 @@ async def test_a_condition_reading_a_registered_seed_is_asked_with_it(username, 
     by ``base_pool(seeds=)``, and admitted into what the condition is shown by
     ``unmet_operation_affordance(reserved=)`` -- and dropping either one makes
     the condition fail to bind here rather than answer. The call's own
-    enforcement is ``dispatch_spec(pool_seeds=)``, asked for the user it lists.
+    enforcement is the kernel's ``dispatch(pool_seeds=)``, asked for the user it
+    lists.
     """
     toolset = SpecToolset(
         {"approve": _conditioned_spec(lambda books_open: books_open)},
@@ -6645,11 +6829,11 @@ def test_translate_exception_sees_the_code_before_the_default_renders_it():
     spec = _refused_spec()
     toolset = ReadingTheCode({"t": spec})
 
-    assert toolset._call_spec(spec, "auditor", {}, ctx=ctx_for("auditor")) == {
+    assert toolset._call_spec(spec, "auditor", {}, ctx=ctx_for("auditor"), label="t") == {
         "refused": "books_closed"
     }
     with pytest.raises(ToolFailed) as caught:
-        toolset._call_spec(spec, "clerk", {}, ctx=ctx_for("clerk"))
+        toolset._call_spec(spec, "clerk", {}, ctx=ctx_for("clerk"), label="t")
     assert caught.value.message == "The books are closed. (code: books_closed)"
 
 
@@ -7623,7 +7807,7 @@ def test_a_render_output_override_is_covered_too():
     toolset = OwnRender({"list_widgets": spec})
 
     with pytest.raises(ModelRetry) as retry:
-        toolset._call_spec(spec, user, {"query": "{name}"}, ctx=ctx_for(user))
+        toolset._call_spec(spec, user, {"query": "{name}"}, ctx=ctx_for(user), label="list_widgets")
 
     assert retry.value.message == (
         "`query` was rejected while rendering the result: the selection names no field "

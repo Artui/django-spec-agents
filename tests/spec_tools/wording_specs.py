@@ -84,8 +84,12 @@ def one(*, pk: int) -> Widget:
     return Widget(pk=pk, name="w")
 
 
-def approve(**_: Any) -> dict[str, bool]:
-    """Approve the pending invoices."""
+def approve() -> dict[str, bool]:
+    """Approve the pending invoices.
+
+    Takes no arguments, so a ``QueryParam`` the spec reads is one of its shapes
+    rather than this service's argument, which a ``**kwargs`` would make it.
+    """
     return {"approved": True}
 
 

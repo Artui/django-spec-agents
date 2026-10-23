@@ -8,22 +8,22 @@ bridge** in the path.
 ## What this is
 
 A single thin adapter, [`SpecToolset`](reference.md#django_spec_agents.spec_tools.SpecToolset),
-that turns a `name -> spec` mapping into agent tools. Every call routes through
-drf-services' transport-neutral surface:
+that turns a `name -> spec` mapping into agent tools. Every call runs on the
+kernel, on the spec drf-services compiles for it:
 
-- **`dispatch_spec`** executes the service or selector (validation, instance
-  resolution, output-selector re-fetch);
-- **the run's `call_context`** carries the request the run arrived on, if any,
-  and drf-services builds a synthetic request / view around the principal
-  where it carries none, so `permission_classes`, `extend_queryset`, and
-  context providers keep working;
-- **`enforce_permissions`** runs `spec.permission_classes` — `dispatch_spec`
-  deliberately does not, so building a toolset naively on it would skip
-  authorization;
+- **`dispatch`**, the kernel's, authorizes the call and then executes the
+  service or selector: `spec.permission_classes` run before anything is
+  called, then validation, instance resolution and the output-selector
+  re-fetch. Authorization is part of the dispatch, so no adapter can skip it;
+- **the run's `call_context`** carries the request the run arrived on, if any.
+  Where it carries none, drf-services' permission and presenter adapters build
+  an offline request around the principal, so `permission_classes` and
+  serializer context providers keep working, while a callable declaring
+  `request` or `view` is handed `None`;
 - **`spec_to_json_schema`** derives each tool's parameter schema and
   **`output_to_json_schema`** its `return_schema`, projected for the audience;
-- **`paginate_output`** slices a list selector into the page the tool returns,
-  the same shaper the MCP transport uses;
+- **`paginate_output`**, the kernel's, slices a list selector into the page the
+  tool returns, the same shaper the MCP transport uses;
 - **`present_for_audience`**, the kernel's, renders the result through the
   spec's presenter and applies the field markings.
 

@@ -241,9 +241,10 @@ async def test_a_binding_fills_a_required_read_the_model_never_sends():
 
 @pytest.mark.django_db(transaction=True)
 async def test_the_bound_value_outranks_the_one_the_model_sends(caplog):
-    """Applied before the channels are split, so the bound value is the one
-    ``view.kwargs`` carries. Applied after, the model's value is already on the
-    route, which a selector reads over its arguments."""
+    """Applied before the channels are split, so the bound value is the argument
+    the selector is handed, and the capture a permission class's offline view
+    carries. Applied after, the model's value would already be the call's
+    argument under that name."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset(
         _registry(vendors=_required_spec()),

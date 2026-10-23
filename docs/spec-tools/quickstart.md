@@ -433,7 +433,7 @@ what this package puts in each:
 - **`request.user`** is the acting identity — `deps.user`, or whatever
   `get_user` returns. The request a run arrived on never contributes an
   identity.
-- **`request.query_params`** holds exactly the [query
+- **`request.query_params`** holds exactly the [read-shaping
   params](#read-shaping-query-params) the call sent for that tool, and nothing
   else. A tool that declares none dispatches with an empty query string even
   when the run arrived on a request carrying one, so the ambient endpoint's own
@@ -584,11 +584,11 @@ line wherever it would have been said.
 | `pagination` | instructions | some tool returns a page | `{page_size}` |
 | `ordering` | instructions | some tool advertises a sort argument | `{names}` |
 | `handles` | instructions | some tool's output marks a handle | none |
-| `read_shaping` | instructions | some tool declares a `QueryParam` | `{names}` |
+| `read_shaping` | instructions | some tool declares a read-shaping `QueryParam` | `{names}` |
 | `read_shaping_on_pages` | instructions, after `read_shaping` | that tool also returns a page | none |
 | `unavailable_heading` | instructions, last, above the tools left out | a condition left a tool out this step | none |
 | `handle_field_description` | a handle field's output schema | the field declares no description of its own | none |
-| `query_param_on_pages` | a `QueryParam`'s description, and the [render retry](#a-selection-the-serializer-rejects) | the tool returns a page | none |
+| `query_param_on_pages` | a read-shaping `QueryParam`'s description, and the [render retry](#a-selection-the-serializer-rejects) | the tool returns a page | none |
 | `missing_arguments` | the retry for a call missing an argument | a selector parameter or a required `UrlKwarg` is left out | `{names}` |
 
 A few rules follow from what each field is:
@@ -810,10 +810,14 @@ query string of the request it renders under. That is for whatever reads
 `request.query_params` **directly**: django-restql field selection, or a custom
 serializer that branches on the query string. A `null` is read as left out,
 and a declared `default` is applied when the model leaves one out, as the
-tool's schema advertises. One a callable does take by name — a selector, a
-`kwargs=` provider, a precondition — is that callable's argument instead, and
-the serializer never sees it; give the selector no bare `**kwargs` if it
-should.
+tool's schema advertises. One a callable does take — by name, or through a
+selector's or a `kwargs=` provider's `**kwargs` — is that callable's argument
+instead, and the serializer never sees it. It is advertised as a plain
+argument, not as read-shaping, and is read the same way: a `null` is left
+out, and a declared `default` is what the callable is handed when the model
+leaves it out. A selector taking bare `**kwargs` takes every read, so its
+spec has no read-shaping params at all; give it no `**kwargs` if its
+serializer should select fields.
 
 !!! note "Declared on the spec, never on the toolset"
     A read is the spec's to declare, so every transport and every mount reads
@@ -879,13 +883,13 @@ row at a time and never sees the envelope. So a selection written against the
 documented shape, `fields=items` or django-restql's `{items{id, name}}`, asks
 each row for an `items` field it does not have. The toolset tells the model this in two places:
 
-- each `QueryParam` on a list tool has "On a paged result it applies to each item
+- each read-shaping `QueryParam` on a list tool has "On a paged result it applies to each item
   in `items`, never to the page envelope (`items`, `page`, `totalPages`,
   `hasNext`)." appended to its description, or as its description when it
   declares none; a retrieve tool's param is left as declared;
 - the read-shaping line of the instructions the toolset derives says the same,
   "On a tool that returns a page, they apply to each item in `items`, never to
-  the page itself.", when some list tool declares a `QueryParam`.
+  the page itself.", when some list tool declares a read-shaping `QueryParam`.
 
 An `instructions=` override replaces the derived block, and this line with it:
 an override written before this sentence existed does not gain it, so add the

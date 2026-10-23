@@ -473,7 +473,9 @@ class SpecToolset(AbstractToolset[Any]):
     request it renders under, so it is for whatever reads
     ``request.query_params`` **directly** -- django-restql field selection, a
     serializer branching on the query string -- with no toolset awareness of the
-    library. A [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]
+    library. A read a callable does take, by name or through ``**kwargs``, is
+    that callable's argument: advertised as a plain one, and handed its
+    declared default when the model leaves it out. A [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]
     read is a URL route capture (``parent_pk``): an argument of the spec,
     authoritative over the model's value, which a selector, a service or a
     ``kwargs=`` provider takes by its name, never off a view's ``kwargs``. A
@@ -769,16 +771,26 @@ class SpecToolset(AbstractToolset[Any]):
             name: tuple(contracts.get(name, _NO_CONTRACT).url_kwargs) for name in self._specs
         }
         # Less the spec's own ``QueryParam`` reads of a name the tool already
-        # advertises as its input: those are where the input comes from, not a
-        # second channel for it, so they stay in the call for drf-services to
-        # route, as a toolset built off ``registry.specs()`` leaves them (see
-        # ``_parameter_reads``).
+        # advertises as its input: such a read is that input's argument and
+        # nothing else, so the input's own property advertises it, as a toolset
+        # built off ``registry.specs()`` does (see ``_parameter_reads``).
         self._tool_query_params: dict[str, tuple[QueryParam, ...]] = {}
+        # Which of those reads shape the output, as the kernel classes them:
+        # only a read no callable takes is one of the compiled spec's
+        # ``shapes``, and only a shape is told it applies to each item or named
+        # as read-shaping in the instructions. A read a ``**kwargs`` selector or
+        # a ``kwargs=`` provider takes is that callable's argument, advertised
+        # as a plain one
+        # (``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``).
+        self._tool_shapes: dict[str, frozenset[str]] = {}
         for name, spec in self._specs.items():
             entry_reads = contracts.get(name, _NO_CONTRACT).query_params
             with _refusals_name_the_tool(name):
                 routed = _parameter_reads(
                     spec, entry_reads, pool_seeds=pool_seeds, registry=json_schema_registry
+                )
+                self._tool_shapes[name] = frozenset(
+                    parameter.name for parameter in kernel_spec(spec).shapes
                 )
             self._tool_query_params[name] = tuple(qp for qp in entry_reads if qp.name not in routed)
         # The transport's own reserved names and this toolset's registered pool
@@ -822,6 +834,7 @@ class SpecToolset(AbstractToolset[Any]):
                 self._tool_url_kwargs[name],
                 self._descriptions.get(name),
                 self._max_page_size,
+                shapes=self._tool_shapes[name],
                 projection=self._projections[name],
                 registry=json_schema_registry,
                 pool_seeds=pool_seeds,
@@ -874,15 +887,23 @@ class SpecToolset(AbstractToolset[Any]):
         server = self._tool_server_arguments.get(name)
         return frozenset() if server is None else server.names()
 
-    def _offered_query_params(self, name: str) -> tuple[QueryParam, ...]:
-        """Tool ``name``'s ``QueryParam`` declarations the model is offered.
+    def _offered_shapes(self, name: str) -> tuple[QueryParam, ...]:
+        """Tool ``name``'s read-shaping ``QueryParam`` declarations the model is offered.
 
+        Only the spec's shapes: a read a callable takes is advertised as a plain
+        argument, so the instructions do not call it read-shaping
+        (``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``).
         Less every name the server answers for, which the tool's schema does
         not advertise either, so the instructions never name an argument the
         model was not given (``test_a_bound_query_param_is_not_offered_in_the_instructions``).
         """
         hidden = self._server_names(name)
-        return tuple(qp for qp in self._tool_query_params[name] if qp.name not in hidden)
+        shapes = self._tool_shapes[name]
+        return tuple(
+            qp
+            for qp in self._tool_query_params[name]
+            if qp.name in shapes and qp.name not in hidden
+        )
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         """The tool catalog this run is offered, one entry per listed spec.
@@ -1074,7 +1095,7 @@ class SpecToolset(AbstractToolset[Any]):
         offered = {name: spec for name, spec in self._specs.items() if name not in omitted}
         return _derive_instructions(
             offered,
-            {name: self._offered_query_params(name) for name in offered},
+            {name: self._offered_shapes(name) for name in offered},
             {name: self._projections[name] for name in offered},
             registry=self._json_schema_registry,
             page_size=_served_page_size(self._max_page_size),
@@ -1185,6 +1206,7 @@ class SpecToolset(AbstractToolset[Any]):
                     ctx=ctx,
                     unknown_arguments=self._unknown_arguments,
                     url_kwargs=self._tool_url_kwargs[name],
+                    query_params=self._tool_query_params[name],
                     server_arguments=self._tool_server_arguments.get(name),
                     max_page_size=self._max_page_size,
                     max_result_bytes=self._tool_max_result_bytes[name],
@@ -1406,7 +1428,7 @@ class SpecToolset(AbstractToolset[Any]):
         args: dict[str, Any],
         *,
         ctx: RunContext[Any],
-        label: str = "",
+        label: str,
         **kw: Any,
     ) -> Any:
         """Build the call's context and seeds, bind the seams to this run, then run the pipeline.
@@ -1666,11 +1688,12 @@ def _parameter_reads(
     """The spec's own ``QueryParam`` reads naming an input the tool already advertises.
 
     Such a read declares where a selector parameter, a ``filter_set`` field or
-    a target lookup's parameter comes from; it is not a second argument.
-    drf-services routes a value sent under a declared read to the parameter of
-    that name and to the query string both, so the toolset leaves it in the
-    call rather than taking it out as one of its own channels, which would hand
-    the parameter nothing. That is what a toolset built off
+    a target lookup's parameter comes from; it is not a second argument. A
+    value sent under it is that callable's argument and nothing else: the
+    kernel hands it to the parameter of that name, and no query string carries
+    it. So the toolset leaves it in the call rather than taking it out as one
+    of its own channels, and advertises it once, as the input's own property,
+    whose default is the callable's. That is what a toolset built off
     ``registry.specs()``, which reads no channels off the entry, does too, so
     both routes advertise the name once, as the input, and serve it alike
     (``test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both_routes``,
@@ -1717,8 +1740,8 @@ def _validate_inputs_pagination_takes(
     spec's own reflected input, which no provider's keys narrow.
 
     A ``QueryParam`` the spec reads under an input's name is not refused here or
-    anywhere: ``_parameter_reads`` leaves it in the call, where drf-services
-    hands it to the input and the query string both.
+    anywhere: ``_parameter_reads`` leaves it in the call, where the kernel
+    hands it to the input as its argument.
     """
     for tool_name, spec in specs.items():
         # The first read of each spec's input schema, so drf-services' refusals
@@ -2061,6 +2084,7 @@ def _build_tool_def(
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
     server_names: frozenset[str] = frozenset(),
+    shapes: frozenset[str] = frozenset(),
 ) -> ToolDefinition:
     """One tool definition: what the model may send, and what it gets back.
 
@@ -2086,6 +2110,7 @@ def _build_tool_def(
             pool_seeds=pool_seeds,
             conventions=conventions,
             server_names=server_names,
+            shapes=shapes,
         ),
         return_schema=_return_schema(
             spec, projection=projection, registry=registry, conventions=conventions
@@ -2213,6 +2238,7 @@ def _input_schema(
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
     server_names: frozenset[str] = frozenset(),
+    shapes: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """The tool's parameter schema, with list-selector pagination + registered
     query params + URL kwargs merged into ``properties``.
@@ -2261,7 +2287,14 @@ def _input_schema(
         extra["page"] = _PAGE_PARAM_SCHEMA
         extra["limit"] = _limit_param_schema(max_page_size)
     scope = _render(conventions.query_param_on_pages) if paged else None
-    extra.update({qp.name: _query_param_schema(qp, scope=scope) for qp in query_params})
+    # Only a shape is told what it applies to on a page: a read a callable
+    # takes is that callable's argument, which the page's items never see.
+    extra.update(
+        {
+            qp.name: _query_param_schema(qp, scope=scope if qp.name in shapes else None)
+            for qp in query_params
+        }
+    )
     extra.update({uk.name: uk.json_schema() for uk in url_kwargs})
     required: list[str] = list(schema.get("required", []))
     required.extend(uk.name for uk in url_kwargs if uk.required and uk.name not in required)
@@ -2650,11 +2683,12 @@ def _call_spec(
     *,
     unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
     url_kwargs: Sequence[UrlKwarg] = (),
+    query_params: Sequence[QueryParam] = (),
     server_arguments: ServerArguments | None = None,
     max_page_size: int | None = None,
     max_result_bytes: int | None = None,
     projection: AudienceProjection | None = None,
-    label: str = "",
+    label: str,
     progress: ProgressReporter | None = None,
     json_schema_registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
@@ -2683,6 +2717,10 @@ def _call_spec(
 
     ``conventions`` words the two retries this function writes itself: a missing
     argument, and a read-shaping value the render rejected on a paged tool.
+
+    ``query_params`` are the tool's ``QueryParam`` reads its schema advertises
+    as their own properties, whose declared defaults the call applies; ``label``
+    is the tool's name, which the call's errors and logs carry.
     """
     # **The server's arguments before anything reads the call.** Before the
     # required-arguments check below, so a required read the binding fills is
@@ -2746,7 +2784,7 @@ def _call_spec(
             for parameter in compiled.shapes
             if args.get(parameter.name) is not None and parameter.name not in server_names
         ]
-        _fill_shapes(compiled.shapes, args)
+        _fill_query_params(spec.reads, compiled.shapes, query_params, args)
         arguments = _call_arguments(
             args,
             url_kwarg_values,
@@ -3317,26 +3355,44 @@ def _with_call_seeds(
     return pool_seeds.extend(**{"request": lambda: request, "view": lambda: view, **seeds})
 
 
-def _fill_shapes(shapes: Parameters, args: dict[str, Any]) -> None:
-    """Read each of the spec's ``shapes`` as the tool's schema advertises it, in place.
+def _fill_query_params(
+    reads: Sequence[UrlKwarg | QueryParam],
+    shapes: Parameters,
+    advertised: Sequence[QueryParam],
+    args: dict[str, Any],
+) -> None:
+    """Read the call's ``QueryParam`` arguments as the tool's schema advertises them, in place.
 
-    A ``null`` is the model declining to fill one, so it is dropped rather
-    than handed to the kernel, whose check refuses a ``null`` the declaration
-    does not admit (``test_an_explicit_null_query_param_is_treated_as_omitted``).
-    A shape left out is then given its declared default: the tool's schema
-    advertises that default, and the kernel reports a parameter's default
-    without applying it, so with nobody filling it the presenter would be
+    A ``null`` under any of the spec's reads is the model declining to fill
+    it, so it is dropped rather than handed to the kernel, whose check refuses
+    a ``null`` the declaration does not admit: for a shape
+    (``test_an_explicit_null_query_param_is_treated_as_omitted``) and for a read
+    a callable takes alike
+    (``test_an_explicit_null_for_a_query_param_a_callable_takes_is_treated_as_omitted``).
+    Not asked whether a read is a ``QueryParam``: a ``UrlKwarg`` the tool
+    advertises has left the call already, through ``_pop_url_kwargs``, so only
+    a ``QueryParam`` is still here to be read.
+
+    A read left out is then given its declared default, where the tool
+    advertises one: each of the spec's ``shapes``, and each ``advertised`` read,
+    which a callable may take instead. The kernel reports a shape's default
+    without applying it, and hands a read a callable takes nothing it was not
+    sent, so with nobody filling it the presenter or the callable would be
     handed none (the ``default-seeded-when-omitted`` case of
-    ``test_query_param_reaches_the_serializer_via_request_query_params``).
+    ``test_query_param_reaches_the_serializer_via_request_query_params``, and
+    ``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``).
     ``UNSET`` declares none, and a default of ``None`` is no value, as a
     ``null`` sent is none: one arc to coverage, and each conjunct is held by
     its own case of ``test_a_query_param_declaring_no_default_contributes_nothing``.
     """
-    for parameter in shapes:
-        if args.get(parameter.name) is None:
-            args.pop(parameter.name, None)
-            if parameter.default is not UNSET and parameter.default is not None:
-                args[parameter.name] = parameter.default
+    for read in reads:
+        if args.get(read.name) is None:
+            args.pop(read.name, None)
+    defaults = {parameter.name: parameter.default for parameter in shapes}
+    defaults.update((query_param.name, query_param.default) for query_param in advertised)
+    for name, default in defaults.items():
+        if name not in args and default is not UNSET and default is not None:
+            args[name] = default
 
 
 def _call_arguments(
