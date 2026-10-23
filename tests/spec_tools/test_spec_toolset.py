@@ -4261,6 +4261,36 @@ async def test_a_registered_seed_outranks_a_model_argument_of_the_same_name():
     assert "tenant" not in schema.get("required", [])
 
 
+async def test_a_validator_field_named_like_a_seed_is_the_model_s_to_send():
+    """The field is validated into ``data``; the service's ``tenant`` stays the seed's.
+
+    Stripping every seed-named argument the spec declares would drop the
+    model's value before the serializer saw it, and the required field would
+    then refuse the call. The field's value and the seed's differ here, so the
+    result shows each reached its own seat.
+    """
+
+    def move(data: dict[str, Any], tenant: str) -> dict[str, str]:
+        """Move a row to the tenant the caller names."""
+        return {"destination": data["tenant"], "tenant": tenant}
+
+    toolset = SpecToolset(
+        {
+            "move": ServiceSpec(
+                service=move,
+                input_serializer=_TenantSerializer,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        },
+        pool_seeds=_tenant_seeds(),
+    )
+
+    result = await _call(toolset, "move", User(username="acme"), {"tenant": "globex"})
+
+    assert result == {"destination": "globex", "tenant": "tenant-of-acme"}
+
+
 def _books_seeds() -> PoolSeeds:
     """Books are open for the user named ``open`` and nobody else."""
     return DEFAULT_POOL_SEEDS.extend(books_open=lambda user: user.username == "open")

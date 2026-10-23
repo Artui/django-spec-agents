@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The `[specs]` extra requires `djangorestframework-services>=0.59.0` and
-  `django-service-specs>=0.14.0`.
+- The `[specs]` extra requires `djangorestframework-services>=0.60.0` and
+  `django-service-specs>=0.15.0`.
 - The failure policy's default `reraise` set now includes the kernel's
   `NotPermitted` and `PrincipalUnavailable`, so a refusal from the kernel's
   dispatch, including a deactivated principal, ends the run as Django's and
@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     list is now dropped rather than refused, as any undeclared key is, so a
     deployed agent that relied on the refusal no longer gets it. `REJECT`
     still refuses it.
+  - A registered pool seed fills a selector's, a target lookup's or a spread
+    service's parameter of its name, and the model's own argument of that
+    name is dropped before dispatch, as is a view kwarg a `build_context`
+    override adds under it. An input serializer field named like a registered
+    seed is the model's to send: it is validated into `data`, and the
+    service's parameter of that name still receives the seed's value.
 
 ## [0.1.0] — 2026-10-21
 

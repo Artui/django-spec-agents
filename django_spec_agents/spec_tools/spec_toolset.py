@@ -77,6 +77,7 @@ from django_service_specs import (
 )
 from django_service_specs import SelectorSpec as KernelSelectorSpec
 from django_service_specs import ServiceSpec as KernelServiceSpec
+from django_service_specs import server_owned_keys as kernel_server_owned_keys
 from pydantic_ai import ModelRetry, RunContext, ToolFailed
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
@@ -2907,8 +2908,13 @@ def _call_spec(
         # sharing a lookup parameter's name), and the consumer's map is asked
         # about that as about anything ``dispatch`` raises.
         compiled = kernel_spec(spec)
+        call_seeds = _with_call_seeds(pool_seeds, context)
         arguments, extra_kwargs = _split_url_kwargs(
-            args, context.view.kwargs, compiled.parameters().names()
+            args,
+            context.view.kwargs,
+            compiled.parameters().names(),
+            seeded=call_seeds.reserved,
+            owned=kernel_server_owned_keys(compiled, pool_seeds=call_seeds),
         )
         result = dispatch(
             compiled,
@@ -2925,7 +2931,7 @@ def _call_spec(
             # (``test_with_the_knob_off_only_an_unguarded_spec_runs_unchecked``
             # fails when every call is granted).
             grant=Grant(compiled, user) if compiled.permissions is None else None,
-            pool_seeds=_with_call_seeds(pool_seeds, context),
+            pool_seeds=call_seeds,
             unknown_arguments=unknown_arguments,
             # Accepted and forwarded, never constructed -- see ``AgentDeps.progress``.
             # ``None`` becomes the kernel's no-op seed.
@@ -3500,7 +3506,12 @@ def _carried_reads(spec: Spec, args: Mapping[str, Any]) -> tuple[dict[str, Any],
 
 
 def _split_url_kwargs(
-    args: dict[str, Any], view_kwargs: Mapping[str, Any], declared: frozenset[str]
+    args: dict[str, Any],
+    view_kwargs: Mapping[str, Any],
+    declared: frozenset[str],
+    *,
+    seeded: frozenset[str],
+    owned: frozenset[str],
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """The call's arguments, and the overlay for the spec's ``kwargs`` provider.
 
@@ -3512,10 +3523,32 @@ def _split_url_kwargs(
     its checks would never have read that value. Every other name is the
     overlay, which reaches the spec's own selector or service and no check.
     ``None`` rather than an empty overlay, which is how the kernel says none.
+
+    **A name the call's seeds fill is neither.** ``seeded`` is the call's
+    ``pool_seeds.reserved``. The compile marks a read it takes off a signature
+    ``reflected``, and the kernel fills such a read from a seed of its name, so
+    a view kwarg of that name would be refused as an unknown argument, or as an
+    overlay key naming a seed (the ``[pool-seed]`` case of
+    ``test_a_name_a_build_context_override_fills_is_declared_to_the_toolset``).
+    The model's own argument is dropped when the spec declares it and
+    ``owned``, the kernel's ``server_owned_keys`` for the call's seeds, lists
+    it: a seed's name, so the seed answers instead of ``REJECT`` refusing it
+    (``test_a_registered_seed_outranks_a_model_argument_of_the_same_name``), or
+    a key a typed provider fills, whose value from the model was never the one
+    the call read. ``owned`` leaves out a top-level Validator field named like a
+    seed, which the model sends and dispatch validates into ``data`` while the
+    seed keeps its own value
+    (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``). An
+    owned name the spec never declares is left for the kernel to answer
+    (``test_a_seed_named_argument_is_not_refused_by_a_spec_that_never_declares_it``).
     """
-    arguments = dict(args)
+    arguments = {
+        name: value for name, value in args.items() if not (name in declared and name in owned)
+    }
     overlay: dict[str, Any] = {}
     for name, value in view_kwargs.items():
+        if name in seeded:
+            continue
         if name in declared:
             arguments[name] = value
         else:
