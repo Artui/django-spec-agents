@@ -486,12 +486,12 @@ async def test_a_required_scope_name_the_run_does_not_bind_stays_the_model_s():
 async def test_a_bound_capture_reaches_the_extras_and_the_route_alike():
     """The quickstart's scope over a reflected ``**extras`` key: declared as the
     spec's ``UrlKwarg`` read and bound, the selector receives the server's value
-    in its extras and a scoping provider finds it on ``view.kwargs``, while the
-    model is offered neither. Unbound, the read is advertised once, and required."""
+    in its extras and a scoping provider is handed it by name, while the model
+    is offered neither. Unbound, the read is advertised once, and required."""
     seen: dict[str, Any] = {}
 
-    def scope_provider(view: Any) -> dict[str, Any]:
-        seen["view_kwargs"] = dict(view.kwargs)
+    def scope_provider(project_pk: int) -> dict[str, Any]:
+        seen["project_pk"] = project_pk
         return {}
 
     user = await User.objects.acreate(username="u")
@@ -510,7 +510,7 @@ async def test_a_bound_capture_reaches_the_extras_and_the_route_alike():
     result = await _call(toolset, "list_widgets", user, {"project_pk": 99})
 
     assert [row["name"] for row in _rows(result)] == ["cheap"]
-    assert seen["view_kwargs"] == {"project_pk": 7}
+    assert seen == {"project_pk": 7}
     assert "project_pk" not in _input_schema_of(toolset, "list_widgets").get("properties", {})
     # Declared and not bound, the name is advertised once, the read's
     # declaration over the reflected key, and required as the read says.

@@ -42,7 +42,6 @@ from typing import Any, TypeGuard, cast
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connections
-from django.http import HttpRequest
 from django_service_specs import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_POOL_SEEDS,
@@ -57,6 +56,7 @@ from django_service_specs import (
     InvalidArguments,
     NotPermitted,
     OutputPage,
+    Parameters,
     PoolSeeds,
     PrincipalUnavailable,
     ProgressReporter,
@@ -73,7 +73,9 @@ from django_service_specs import (
     kernel_spec,
     operation_affordances,
     paginate_output,
+    present_for_audience,
     provider_keys,
+    unmet_operation_affordance,
 )
 from django_service_specs import SelectorSpec as KernelSelectorSpec
 from django_service_specs import ServiceSpec as KernelServiceSpec
@@ -94,13 +96,10 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceSpec,
     audience_projection_for_spec,
-    build_offline_context,
     can_present_nothing,
     output_to_json_schema,
-    render_for_audience,
     server_owned_keys,
     spec_to_json_schema,
-    unmet_operation_affordance,
 )
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
 from rest_framework_services.types.query_param import QueryParam
@@ -115,17 +114,14 @@ Spec = ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
 SpecSource = Mapping[str, Spec] | SpecRegistry
 UserExtractor = Callable[[RunContext[Any]], Any]
 ProgressExtractor = Callable[[RunContext[Any]], ProgressReporter | None]
-HttpRequestExtractor = Callable[[RunContext[Any]], HttpRequest | None]
 
-_ContextBuilder = Callable[..., Any]
 _ExceptionTranslator = Callable[[BaseException], "ExceptionHandler | None"]
-# The four result-shaping seams. ``Callable[..., X]`` rather than a written-out
+# The three result-shaping seams. ``Callable[..., X]`` rather than a written-out
 # signature because each is bound through a forwarding lambda that injects
 # ``ctx``, and a precise type would have to describe the *unbound* shape while
 # the call site uses the bound one.
 _PageShaper = Callable[..., "OutputPage"]
 _OutputRenderer = Callable[..., Any]
-_ExtrasBuilder = Callable[..., "dict[str, Any]"]
 _ResultBounder = Callable[..., Any]
 
 ExceptionHandler = Callable[[BaseException], Any]
@@ -427,8 +423,8 @@ class SpecToolset(AbstractToolset[Any]):
     any parameter, beside a provider whose return annotation does not name a
     ``TypedDict``, and a key the provider may decline with ``UNSET``, both as
     drf-services' ``provider_keys`` reads the annotation. A name a
-    ``build_context`` override fills is invisible here, so it has to be
-    declared (see ``build_context``). A single-item service also advertises its
+    ``call_seeds`` override fills is invisible here, so it has to be
+    declared (see ``call_seeds``). A single-item service also advertises its
     target lookup -- the parameters of its ``collection_selector_spec``, or
     failing that its ``instance_selector_spec``, such as a ``pk`` -- beside its
     input serializer's fields, the serializer's property winning a shared name,
@@ -470,27 +466,27 @@ class SpecToolset(AbstractToolset[Any]):
     where every transport and every mount reads the same answer; the toolset
     reads them off the spec's ``SpecRegistry`` entry. A
     [`QueryParam`][rest_framework_services.types.query_param.QueryParam] read
-    seeds ``request.query_params`` over the off-HTTP path, the extensible
-    generalization of ``page`` / ``limit`` / ``ordering``: it is advertised as a
-    tool argument, then popped at call time and handed to
-    ``build_offline_context(query_params=...)``, never to the spec as an input,
-    so ``unknown_arguments`` never sees it. It is for whatever reads
+    that no callable names shapes the output: it is advertised as a tool
+    argument and dispatched as one, and the kernel hands what the caller sent to
+    the presenter alone, on ``PresentationContext.shapes``, never to the spec's
+    callables. drf-services' presenter puts it on the query string of the
+    request it renders under, so it is for whatever reads
     ``request.query_params`` **directly** -- django-restql field selection, a
     serializer branching on the query string -- with no toolset awareness of the
     library. A [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]
-    read is a URL route capture (``parent_pk``), seeded into
-    ``build_offline_context(kwargs=...)`` and spread by drf-services into the
-    selector and target pools, authoritative over ``params``: for a scoping
-    ``spec.kwargs`` provider reading ``view.kwargs``, which ``params`` alone
-    cannot cover. A value the model may not choose is not a read at all but
+    read is a URL route capture (``parent_pk``): an argument of the spec,
+    authoritative over the model's value, which a selector, a service or a
+    ``kwargs=`` provider takes by its name, never off a view's ``kwargs``. A
+    value the model may not choose is not a read at all but
     ``tool_server_arguments``, which keeps it from the model rather than
     defaulting it.
 
     For anything the keywords below do not cover,
-    [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context] and
+    [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds] and
     [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
     are overridable and both receive the live ``RunContext``, which is how
-    per-run typed deps reach dispatch.
+    per-run typed deps reach dispatch; the run's ``AgentDeps.call_context`` is
+    copied into every call's context.
 
     Args:
         specs: The ``name -> spec`` mapping to expose, one tool per key. A
@@ -578,17 +574,6 @@ class SpecToolset(AbstractToolset[Any]):
             ``ImproperlyConfigured`` naming the tool. Static, like the tool
             definitions: build a toolset per scope, as a run scoped to one
             project builds one with that project bound.
-        host: The origin the synthesized request reports, so
-            ``build_absolute_uri`` builds real absolute URLs — DRF's
-            ``FileField`` and the ``Hyperlinked*`` fields call it for every value
-            once a ``request`` is in the serializer context, which off the HTTP
-            path it always is. Accepts ``"example.com"``, ``"example.com:8000"``
-            or a full origin like ``"https://example.com"``, whose scheme decides
-            whether links are https. Nothing is inferred: only the project knows
-            its public origin, and a guess emits confidently wrong links that
-            look valid. Unset, those fields produce relative URLs, which is what
-            they fall back to on their own. Toolset-wide only — an origin is a
-            property of the deployment, not of a tool.
         max_retries: Each tool's retry budget: how many times a
             ``ModelRetry`` is fed back to the model before the
             run aborts with ``UnexpectedModelBehavior``. The default matches
@@ -641,18 +626,6 @@ class SpecToolset(AbstractToolset[Any]):
         descriptions: Overrides ``spec.description`` per tool — the docstring an
             API developer reads is rarely the sentence a model needs. A tool left
             with no description anywhere gets an ``UndescribedToolWarning``.
-        http_request: The ``HttpRequest`` the off-HTTP context is built from.
-            **Incidental request data, never an auth channel:** it exists so a
-            serializer or scoping provider reading ``request.META`` finds
-            something plausible. The acting identity is the user, and passing an
-            authenticated request authorizes nothing. Its **query string never
-            reaches the spec**: every call replaces it with the tool's declared
-            ``QueryParam`` reads, empty declaration included, so the
-            ambient endpoint's own query string cannot shape a result. Its
-            headers and ``META`` are what it contributes; drf-services wraps a
-            copy, so nothing a dispatch does is visible on it afterwards.
-        get_http_request: ``http_request`` resolved per run from ``RunContext``,
-            the way ``get_user`` is. Wins over a static ``http_request``.
         exception_map: Maps an exception type to a handler returning the tool's
             result (or raising ``ModelRetry``). Matched along
             the MRO, most specific first, and consulted **before** the built-in
@@ -729,7 +702,6 @@ class SpecToolset(AbstractToolset[Any]):
         get_progress: ProgressExtractor | None = None,
         unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
         tool_server_arguments: Mapping[str, ServerArguments] | None = None,
-        host: str | None = None,
         max_retries: int = 1,
         max_result_bytes: int | None = None,
         tool_max_result_bytes: Mapping[str, int | None] | None = None,
@@ -737,8 +709,6 @@ class SpecToolset(AbstractToolset[Any]):
         dispatch_timeout: float | None = None,
         require_permissions: bool = True,
         descriptions: Mapping[str, str] | None = None,
-        http_request: HttpRequest | None = None,
-        get_http_request: HttpRequestExtractor | None = None,
         exception_map: Mapping[type[BaseException], ExceptionHandler] | None = None,
         json_schema_registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
         pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
@@ -774,16 +744,10 @@ class SpecToolset(AbstractToolset[Any]):
         self._specs: dict[str, Spec] = dict(resolved)
         self._get_user: UserExtractor = get_user or _default_get_user
         self._get_progress: ProgressExtractor = get_progress or _default_get_progress
-        # One knob at two lifetimes, so the static form resolves to the per-run
-        # one rather than living beside it.
-        self._get_http_request: HttpRequestExtractor = get_http_request or (
-            (lambda ctx: http_request) if http_request is not None else _default_get_http_request
-        )
         self._exception_map: dict[type[BaseException], ExceptionHandler] = dict(exception_map or {})
         self._unknown_arguments: UnknownArguments = unknown_arguments
         self._json_schema_registry = json_schema_registry
         self._pool_seeds = pool_seeds
-        self._host = host
         self._max_retries = max_retries
         self._max_page_size = max_page_size
         self._dispatch_timeout = dispatch_timeout
@@ -1149,47 +1113,46 @@ class SpecToolset(AbstractToolset[Any]):
         is user code and may query, so it cannot run on the event loop; and a
         query here opens a connection on the thread it lands on, which off HTTP
         nothing closes -- the leak ``_call_spec_releasing_connections`` exists
-        for. drf-services' ``aunmet_operation_affordance`` hops through
+        for. The kernel's ``aunmet_operation_affordance`` hops through
         ``sync_to_async`` on its own and leaves that connection open, and the
         leak it leaves would not stay its own: a connection already open on the
         shared thread is in every later dispatch's ``held_before``, so each of
         them would then leave it alone too. It also ignores this toolset's
         ``thread_sensitive`` and ``executor``, which a condition should honour
         as the call it stands in front of does. So the hop is this toolset's and
-        the evaluation inside it is drf-services' synchronous
+        the evaluation inside it is the kernel's synchronous
         ``unmet_operation_affordance``.
 
-        **The pool is built the way the call's is.** The request comes from
-        [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context],
-        the seam the call builds its request through, so a condition reading
-        ``request`` sees the same kind of object -- a DRF ``Request`` around the
-        configured ``http_request`` or a synthetic one -- and whatever an
-        override puts on it. It is built with no arguments and no action,
-        because a listing has neither: the query string is empty, which is also
-        what a tool declaring no ``QueryParam`` dispatches with. The toolset's
-        ``pool_seeds`` are handed over twice, as drf-services asks: resolved into
-        the pool by ``base_pool(seeds=)``, and admitted into what the condition
-        is shown by ``unmet_operation_affordance(reserved=)``, which hands a
-        condition only the reserved names. Drop either and a condition reading a
+        **Each pool is built the way that tool's call builds its own**, per
+        conditioned tool: the call's context for the tool's name, the run's
+        context copied with the name under ``action``
+        (``test_a_listing_hands_each_condition_its_own_tool_s_name_as_the_action``),
+        and the call's seeds, the mount's ``pool_seeds`` with the context's
+        ``request`` and ``view`` and what
+        [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds]
+        returns for the tool
+        (``test_a_listing_asks_each_condition_with_its_own_tool_s_seeds``). The
+        seeds are handed over twice, as the kernel asks: resolved into the pool
+        by ``base_pool(seeds=)``, and admitted into what the condition is shown
+        by ``unmet_operation_affordance(reserved=)``, which hands a condition
+        only the reserved names. Drop either and a condition reading a
         registered seed fails to bind here while the call, given the same seeds
-        by ``dispatch_spec(pool_seeds=)``, answers it -- both halves are held by
+        by ``dispatch(pool_seeds=)``, answers it -- both halves are held by
         ``test_a_condition_reading_a_registered_seed_is_asked_with_it``. So the
-        condition sees the names ``dispatch_spec`` would give it.
-
-        One request and one pool serve every spec asked, because a condition
-        reads only seeds and the seeds do not depend on which operation is
-        being asked about.
+        condition sees the names ``dispatch`` would give it.
         """
         with _releasing_connections_opened_here():
-            # ``query_params={}`` rather than ``None`` for the reason the call
-            # path gives: ``None`` would leave a configured ``http_request``'s
-            # own query string live on the request the condition reads.
-            context = self.build_context(user, {}, ctx=ctx, query_params={}, host=self._host)
-            pool = base_pool(user=user, request=context.request, seeds=self._pool_seeds)
             unavailable: dict[str, Affordance] = {}
             for name in self._conditioned:
+                call_context = _call_context(ctx, name)
+                seeds = _with_call_seeds(
+                    self._pool_seeds, call_context, self.call_seeds(ctx=ctx, tool_name=name)
+                )
                 unmet = unmet_operation_affordance(
-                    self._specs[name], pool, reserved=self._pool_seeds.reserved
+                    self._specs[name],
+                    base_pool(user=user, seeds=seeds),
+                    reserved=seeds.reserved,
+                    call_context=call_context,
                 )
                 if unmet is not None:
                     unavailable[name] = unmet
@@ -1220,25 +1183,21 @@ class SpecToolset(AbstractToolset[Any]):
                     user,
                     dict(tool_args),
                     ctx=ctx,
-                    # The tool name is this call's view action, the same
-                    # identity the MCP transport reports for the same spec.
-                    action=name,
                     unknown_arguments=self._unknown_arguments,
-                    query_params=self._tool_query_params[name],
                     url_kwargs=self._tool_url_kwargs[name],
                     server_arguments=self._tool_server_arguments.get(name),
                     max_page_size=self._max_page_size,
                     max_result_bytes=self._tool_max_result_bytes[name],
                     projection=self._projections[name],
+                    # The tool's name: the call's ``action``, the same identity
+                    # the MCP transport reports for the same spec.
                     label=name,
                     progress=self._get_progress(ctx),
-                    host=self._host,
                     # The dispatch path asks the same question the schema
                     # builder did — *what does this spec call its sort?* — so
                     # it has to ask it against the same registry, or the two
                     # could answer differently for one spec.
                     json_schema_registry=self._json_schema_registry,
-                    pool_seeds=self._pool_seeds,
                 ),
                 self._dispatch_timeout,
                 label=name,
@@ -1270,96 +1229,57 @@ class SpecToolset(AbstractToolset[Any]):
         )
         return result
 
-    # The front half of a call: argument intake through dispatch. Deliberately
-    # not offered beside these: a generic "set arbitrary attributes on the
-    # synthetic request" parameter, which would make ambient-state-on-the-request
-    # the default posture for everyone. An override keeps the honest path the
-    # easy one -- which is why the back half below is four more overrides rather
-    # than four more constructor knobs.
+    # The front half of a call: what it carries beside its arguments. Deliberately
+    # not offered beside this: a request or a view the toolset builds, which
+    # would make one transport's objects the default posture for every spec.
+    # What a call carries is the run's context and the seeds below, and an
+    # override keeps the honest path the easy one -- which is why the back half
+    # below is three more overrides rather than three more constructor knobs.
 
-    def build_context(
-        self,
-        user: Any,
-        params: Mapping[str, Any],
-        *,
-        ctx: RunContext[Any],
-        action: str | None = None,
-        kwargs: Mapping[str, Any] | None = None,
-        query_params: Mapping[str, Any] | None = None,
-        host: str | None = None,
-    ) -> Any:
-        """Build the off-HTTP context one call dispatches under.
+    def call_seeds(
+        self, *, ctx: RunContext[Any], tool_name: str
+    ) -> Mapping[str, Callable[..., Any]]:
+        """The seeds one call registers beside the mount's ``pool_seeds``, by name.
 
-        Override to vary the synthetic request per run. The default forwards to
-        drf-services' ``build_offline_context``, resolving ``http_request``
-        through the configured extractor.
+        Each value is a resolver, as for
+        [`PoolSeeds`][django_service_specs.PoolSeeds]' ``extend``: called once
+        per call, with whatever it declares of the kernel's base pool
+        (``user``, ``progress``). The default returns none. Override it for a
+        value that depends on the run or on the tool being called, which
+        ``pool_seeds=``, toolset-wide, cannot carry: a tenant read off
+        ``ctx.deps``, or the role a permission check reads for this operation.
 
-        **An ``http_request`` here is incidental request data — never an auth
-        channel.** The acting identity is ``user``, resolved from ``ctx.deps``,
-        and nothing downstream re-derives it from the request; supplying an
-        authenticated one authorizes nothing and would put a second, invisible
-        identity in the call.
+        **Called in the dispatch thread, before the call's arguments are
+        checked**, so a name a seed fills is never asked of the model
+        (``test_a_seed_the_hook_returns_reaches_the_call_and_is_not_asked_of_the_model``),
+        and once per conditioned tool when the catalog is listed, so a condition
+        reading a seed it returns is asked with the tool's own
+        (``test_a_listing_asks_each_condition_with_its_own_tool_s_seeds``).
 
-        ``action`` is the tool name, landing on the synthetic view as
-        ``view.action`` — one of the three attributes (``request`` /
-        ``action`` / ``kwargs``) drf-services documents a permission class as
-        being able to read off HTTP, and left unset it reads as ``None`` for
-        every spec alike. Rewrite it in an override (it arrives in ``**kwargs``
-        in the forwarding form) when a permission class branches on the viewset
-        action names it knows.
+        A name the mount's ``pool_seeds`` registers already is refused with
+        ``ValueError`` at the call, as ``PoolSeeds.extend`` refuses one
+        registered twice
+        (``test_a_hook_seed_the_mount_already_registers_is_refused``). Returning
+        ``request`` or ``view`` replaces the one the call carries, which is
+        otherwise the run's ``call_context`` entry of that name, ``None`` where
+        the run put none: a ``view`` returned here is what drf-services'
+        permission and render adapters read before building an offline one.
 
-        **A name an override fills has to be declared.** The tool schema is
-        built from what the toolset can read, and an override is code: a
-        selector parameter it fills through ``kwargs`` (which become
-        ``view.kwargs``) is, to the schema, a parameter without a default like
-        any other, so it is advertised as required, and a call leaving it out is
-        handed back as ``ModelRetry`` before the override runs. Mark the
-        selector parameter with drf-services' ``NotClientInput``
-        (``project_pk: Annotated[int, NotClientInput]``): the name is left out
-        of the schema, so the model is never asked for it, and the override
-        fills it. Under the default ``unknown_arguments`` a call that sends it
-        anyway is handed back as an unexpected argument, whatever the
-        selector's input set
-        (``test_a_marked_name_sent_to_an_open_selector_is_refused``); under
-        ``IGNORE`` the model's value is dropped before the selector reads its
-        arguments, so the override's value is the one it receives
-        (``test_a_value_the_model_sends_for_a_marked_name_never_reaches_the_selector``).
-        Where the value can be
-        resolved from what a seed resolver receives, register it in
-        ``pool_seeds=`` and resolve it there instead, since dispatch fills a
-        seed from its resolver and drops a route capture of the same name.
-
-        A ``UrlKwarg`` with a ``default`` also keeps a call that leaves the name
-        out from being refused, but it is not a way to keep the name from the
-        model: it stays advertised, as an optional argument the model can see
-        and send, and the override's value replaces whatever the model sent,
-        with nothing said to the model. A model asking for project 5 is served
-        project 42's rows.
-        ``test_a_name_a_build_context_override_fills_is_kept_from_the_model``
-        holds the marker,
-        ``test_a_name_a_build_context_override_fills_is_declared_to_the_toolset``
-        the seed and the defaulted ``UrlKwarg``, and
-        ``test_a_name_only_a_build_context_override_fills_is_asked_of_the_model``
-        the undeclared case.
-
-        **Also called when the catalog is listed**, once per ``get_tools`` and
-        once per ``get_instructions``, whenever some spec declares an
-        ``Affordance`` answered without a row: that condition is asked against
-        this context's ``request``, so it reads the same object at listing time
-        as at the call. That call carries no arguments, no ``action`` and an
-        empty ``query_params``, since a listing has none of them, and runs in
-        the dispatch thread as the call's does. An override that reads
-        ``action`` to decide something should expect ``None`` there.
+        **A name a seed fills has to be declared.** A selector parameter only a
+        seed fills is, to the tool's schema, a parameter without a default like
+        any other, so it is advertised as required. Mark it with drf-services'
+        ``NotClientInput`` (``project_pk: Annotated[int, NotClientInput]``): the
+        name is left out of the schema, so the model is never asked for it, and
+        the seed fills it. Under the default ``unknown_arguments`` a call that
+        sends it anyway is handed back as an unexpected argument
+        (``test_a_marked_name_sent_to_an_open_selector_is_refused``).
+        ``test_a_name_a_call_seeds_override_fills_is_kept_from_the_model`` holds
+        the marker, and
+        ``test_a_name_a_call_seeds_override_fills_is_declared_to_the_toolset``
+        a seed the mount registers instead.
         """
-        return build_offline_context(
-            user,
-            params,
-            http_request=self._get_http_request(ctx),
-            action=action,
-            kwargs=kwargs,
-            query_params=query_params,
-            host=host,
-        )
+        del ctx, tool_name  # unused by the default; present so an override has them
+        return {}
 
     def translate_exception(
         self, exc: BaseException, *, ctx: RunContext[Any]
@@ -1400,7 +1320,7 @@ class SpecToolset(AbstractToolset[Any]):
         """Slice a list selector's rows into the page this call serves.
 
         Called only for list selectors -- the specs that advertise pagination
-        arguments and return something sliceable. The default is drf-services'
+        arguments and return something sliceable. The default is the kernel's
         shared ``paginate_output`` (which counts the rows and clamps both bounds)
         followed by forcing evaluation, so nothing downstream holds a lazy
         queryset.
@@ -1416,97 +1336,44 @@ class SpecToolset(AbstractToolset[Any]):
     def render_output(
         self,
         spec: Spec,
-        value: Any,
+        result: DispatchResult,
         *,
         ctx: RunContext[Any],
         projection: AudienceProjection | None,
-        many: bool,
-        request: Any,
-        view: Any,
-        extras: dict[str, Any],
     ) -> Any:
         """Turn a dispatch result into the payload the model reads.
 
-        The default is drf-services' ``render_for_audience``: ``render_spec_output``
-        plus the serializer's audience markings, using the projection this toolset
-        resolved once at registration.
+        ``result`` is the kernel's
+        [`DispatchResult`][django_service_specs.DispatchResult]: for a paged
+        tool, with the page's rows as its ``value``, and the envelope is added
+        after this returns. The default is the kernel's
+        ``present_for_audience``: the spec's presenter, handed each value with
+        the call's ``PresentationContext`` -- its seeds, its context and the
+        read-shaping arguments the caller sent, on ``shapes`` -- then the
+        output's audience markings, using the projection this toolset resolved
+        once at registration. ``result.instance`` (the pre-mutation target),
+        ``result.data`` (the validated input) and ``result.service_result``
+        (the flags an upsert's ``created`` rides on) are here for an override
+        that wants them.
 
         **This is the opt-out of projecting**, and the only one. Passing
-        ``projection=None`` is not it -- ``render_for_audience`` reads ``None`` as
-        "derive one from the spec", so the payload is projected anyway and a
-        serializer is instantiated per call to decide how. An override that wants
-        the unprojected payload calls ``render_spec_output`` directly.
+        ``projection=None`` is not it -- ``present_for_audience`` reads ``None``
+        as "derive one from the spec", so the payload is projected anyway. An
+        override that wants the unprojected payload calls the kernel's
+        ``present(spec, result)`` directly.
 
-        Two cases want that. A **chaining pipeline** feeding one spec's output into
-        the next needs the handles the next step reads by, and drf-services says so
-        in ``render_for_audience``'s own docstring: project them away and the next
-        step has nothing to key on. And a serializer with a single ``ChoiceField``
-        whose display differs from its value is projected **without any marking
-        being declared** -- ``choice_labels`` is derived from the field itself --
-        so "we marked nothing, so nothing is projected" is not true, and an
-        override is how a project that means it says so.
+        Two cases want that. A **chaining pipeline** feeding one spec's output
+        into the next needs the handles the next step reads by, and the kernel
+        says so in ``present_for_audience``'s own docstring: project them away
+        and the next step has nothing to key on. And a serializer with a single
+        ``ChoiceField`` whose display differs from its value is projected
+        **without any marking being declared** -- ``choice_labels`` is derived
+        from the field itself -- so "we marked nothing, so nothing is
+        projected" is not true, and an override is how a project that means it
+        says so.
         """
         del ctx  # unused by the default; present so an override has it
-        return render_for_audience(
-            spec,
-            value,
-            projection=projection,
-            many=many,
-            request=request,
-            view=view,
-            extras=extras,
-        )
-
-    def output_extras(
-        self,
-        spec: Spec,
-        value: Any,
-        *,
-        ctx: RunContext[Any],
-        many: bool,
-        dispatch_result: DispatchResult | None = None,
-    ) -> dict[str, Any]:
-        """The resolved-data pool a spec's output-context provider may read.
-
-        Keyed the same way the HTTP path keys it, deliberately: ``result`` for a
-        service, ``instance`` for a selector, ``page`` for a list. A provider
-        written against one transport therefore reads the same names under the
-        other.
-
-        Note what the **default pool** leaves out, because it is the question this
-        seam attracts: drf-services'
-        [`DispatchResult.service_result`][django_service_specs.DispatchResult]
-        -- the flags carrier an upsert's ``created`` rides on. The HTTP path does
-        not put it in this pool either; it feeds a callable ``success_status`` and
-        a ``response_finalizer``, both of which are status-code machinery a
-        toolset has no wire for, and applying either here would be inventing one.
-        A spec whose *model-visible* outcome depends on such a flag should put the
-        flag in its output serializer, where both transports can see it.
-
-        **``dispatch_result`` is the escape hatch for a project that disagrees**,
-        and it carries the whole result rather than the one field: ``instance``
-        (the pre-mutation target, resolved once, so an override reading it cannot
-        get a different answer by resolving again) and ``data`` (the validated
-        input), which the default pool leaves out too. The need is conditional
-        -- with no ``output_selector_spec`` the service's return *is* ``value``,
-        and only a re-fetch replacing ``value`` puts the flags out of reach -- but
-        the upsert that wants ``created`` is exactly the spec that re-fetches.
-
-        Args:
-            dispatch_result: The dispatch's full
-                [`DispatchResult`][django_service_specs.DispatchResult].
-                Keyword-only, and **always supplied by this toolset** -- an
-                override that does not accept it raises ``TypeError`` on the next
-                tool call. That break is deliberate: the parameter is the only
-                honest signature for a seam that is handed the carrier, and a
-                failure the author sees on the first call is worth more than a
-                gate that quietly stops receiving what it asked for. Declare
-                ``dispatch_result``, or a ``**kwargs``, to take it. The default is
-                ``None`` only so the method stays callable by something other than
-                this toolset -- a test asserting the default pool, say.
-        """
-        del ctx, dispatch_result  # unused by the default; present so an override has them
-        return _output_extras(spec, value, many=many)
+        return present_for_audience(spec, result, projection=projection)
 
     def enforce_result_bytes(
         self, payload: Any, *, ctx: RunContext[Any], max_bytes: int | None, label: str
@@ -1533,22 +1400,36 @@ class SpecToolset(AbstractToolset[Any]):
         )
 
     def _call_spec(
-        self, spec: Spec, user: Any, args: dict[str, Any], *, ctx: RunContext[Any], **kw: Any
+        self,
+        spec: Spec,
+        user: Any,
+        args: dict[str, Any],
+        *,
+        ctx: RunContext[Any],
+        label: str = "",
+        **kw: Any,
     ) -> Any:
-        """Bind the six seams to this run, then run the module-level pipeline.
+        """Build the call's context and seeds, bind the seams to this run, then run the pipeline.
 
-        The toolset's ``conventions`` are bound here too, beside the seams, so
+        In the dispatch thread, so ``call_seeds`` runs where the call does, and
+        before the module-level pipeline checks the arguments against the
+        seeds. ``label`` is the tool's name, the call's ``action``. The
+        toolset's ``conventions`` are bound here too, beside the seams, so
         every route into a call words its retries the same way.
         """
+        call_context = _call_context(ctx, label)
         return _call_spec(
             spec,
             user,
             args,
-            build_context=lambda *a, **kwargs: self.build_context(*a, ctx=ctx, **kwargs),
+            label=label,
+            pool_seeds=_with_call_seeds(
+                self._pool_seeds, call_context, self.call_seeds(ctx=ctx, tool_name=label)
+            ),
+            call_context=call_context,
             translate_exception=lambda exc: self.translate_exception(exc, ctx=ctx),
             shape_page=lambda *a, **kwargs: self.shape_page(*a, ctx=ctx, **kwargs),
             render_output=lambda *a, **kwargs: self.render_output(*a, ctx=ctx, **kwargs),
-            output_extras=lambda *a, **kwargs: self.output_extras(*a, ctx=ctx, **kwargs),
             enforce_result_bytes=lambda *a, **kwargs: self.enforce_result_bytes(
                 *a, ctx=ctx, **kwargs
             ),
@@ -1941,18 +1822,6 @@ def _default_get_progress(ctx: RunContext[Any]) -> ProgressReporter | None:
     return getattr(getattr(ctx, "deps", None), "progress", None)
 
 
-def _default_get_http_request(ctx: RunContext[Any]) -> HttpRequest | None:
-    """No request unless one was configured.
-
-    **Not read off ``ctx.deps``, unlike the user and the progress sink.** A
-    request that appeared by default would be one nothing declared, failing
-    silently: a serializer would build absolute URLs against whatever host
-    happened to be in scope.
-    """
-    del ctx
-    return None
-
-
 def _default_get_user(ctx: RunContext[Any]) -> Any:
     """Read the acting user off ``ctx.deps.user`` (the ``AgentDeps`` default)."""
     return ctx.deps.user
@@ -2236,7 +2105,7 @@ def _return_schema(
 
     Generated from the **projected** output path rather than from the raw
     serializer, so it describes the payload the model is actually handed:
-    ``render_for_audience`` drops hidden fields and substitutes a choice field's
+    ``present_for_audience`` drops hidden fields and substitutes a choice field's
     display value, and a schema still advertising either would be worse than no
     schema at all — a model asking for a field the render removes gets nothing
     back and no reason why.
@@ -2599,14 +2468,14 @@ def _selector_inputs(
       ``test_a_dispatcher_seed_is_neither_advertised_nor_required`` holds the
       built-in half's outcome, whichever of the two states it.
     - the name of every ``UrlKwarg`` declaring a ``default``, which fills the
-      pool through ``view.kwargs`` whenever the model leaves it out. Held by
+      pool whenever the model leaves it out. Held by
       ``test_a_url_kwarg_answers_for_the_parameter_it_fills``. One with no
       default reaches the pool only when the model sends it, so it is the
       model's to send, and the selector's signature still says whether it must;
       ``test_a_url_kwarg_with_no_default_leaves_the_selector_to_require_it``
-      holds that filter. A ``build_context`` override filling a name through
-      ``view.kwargs`` is code nothing here can read, which is why its docstring
-      asks for the name to be declared as one of these or as a seed.
+      holds that filter. A ``call_seeds`` override filling a name is code
+      nothing here can read, which is why its docstring asks for the name to be
+      declared as one of these or as a mount seed.
     - the keys the spec's ``kwargs=`` provider always fills, as drf-services'
       ``provider_keys`` reads them: its ``filled`` set. Held by
       ``test_a_name_a_typed_provider_returns_is_not_asked_for``.
@@ -2779,9 +2648,7 @@ def _call_spec(
     user: Any,
     args: dict[str, Any],
     *,
-    action: str | None = None,
     unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
-    query_params: Sequence[QueryParam] = (),
     url_kwargs: Sequence[UrlKwarg] = (),
     server_arguments: ServerArguments | None = None,
     max_page_size: int | None = None,
@@ -2789,36 +2656,30 @@ def _call_spec(
     projection: AudienceProjection | None = None,
     label: str = "",
     progress: ProgressReporter | None = None,
-    host: str | None = None,
     json_schema_registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    build_context: _ContextBuilder,
+    call_context: dict[str, Any] | None = None,
     translate_exception: _ExceptionTranslator,
     shape_page: _PageShaper,
     render_output: _OutputRenderer,
-    output_extras: _ExtrasBuilder,
     enforce_result_bytes: _ResultBounder,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
 ) -> Any:
-    """Run ``spec`` under an off-HTTP context and render the result.
+    """Dispatch ``spec`` through the kernel and render the result for the model.
 
     Synchronous on purpose — ``SpecToolset.call_tool`` runs it in a thread so
     the ORM stays off the event loop.
 
-    The six keyword seams are what
+    The four keyword seams are what
     [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] threads its
-    overridable methods through, bound to the run: ``build_context`` and
-    ``translate_exception`` cover the front half of a call, and ``shape_page`` /
-    ``render_output`` / ``output_extras`` / ``enforce_result_bytes`` the back
-    half.
+    overridable methods through, bound to the run: ``translate_exception``
+    covers both halves of a call, and ``shape_page`` / ``render_output`` /
+    ``enforce_result_bytes`` the back half.
 
-    ``output_extras`` is called with the whole ``DispatchResult`` as
-    ``dispatch_result=``, unconditionally and by every route --
-    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] binds its public
-    method here untouched. A seam supplied by a caller must accept that keyword.
-
-    ``action`` becomes ``view.action`` on the synthetic view, so a permission
-    class reading it sees the tool name rather than ``None``.
+    ``pool_seeds`` are the call's seeds, the mount's with the call's own beside
+    them, and ``call_context`` the call's context, both built by
+    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] in the dispatch
+    thread before this runs.
 
     ``conventions`` words the two retries this function writes itself: a missing
     argument, and a read-shaping value the render rejected on a paged tool.
@@ -2827,8 +2688,7 @@ def _call_spec(
     # required-arguments check below, so a required read the binding fills is
     # not refused as missing (``test_a_binding_fills_a_required_read_the_model_never_sends``);
     # and before every channel is popped, so a bound ``UrlKwarg`` is the value
-    # ``view.kwargs`` carries rather than the model's, which drf-services would
-    # hand the selector over its arguments
+    # the call carries rather than the model's
     # (``test_the_bound_value_outranks_the_one_the_model_sends``).
     server_names: frozenset[str] = frozenset()
     if server_arguments is not None:
@@ -2856,70 +2716,42 @@ def _call_spec(
     if missing:
         raise _missing_arguments(missing, conventions)
     page_args = _pop_pagination(spec, args, pool_seeds=pool_seeds, registry=json_schema_registry)
-    # **Read before the pop, because the pop erases the answer.** It seeds a
-    # declared ``default`` for every name the caller left out, so afterwards a
-    # value nobody sent is indistinguishable from one the model chose. The render
-    # arm below needs exactly that distinction: a default that breaks the render
-    # is a configuration bug and has to stay loud, while a value the model sent
-    # is something it can correct. An explicit ``None`` counts as omitted, which
-    # is how ``QueryParam``'s own contract says a transport reads a null. A
-    # bound value is the server's, not the caller's, so it is not counted
-    # either: a render rejecting it is a configuration bug, and a retry would
-    # name an argument the model was never offered
-    # (``test_a_bound_selection_the_render_rejects_is_the_server_s_error_not_a_retry``).
-    supplied_query_params = [
-        name for name in _supplied_query_params(query_params, args) if name not in server_names
-    ]
-    # Both channels pop before dispatch so their values reach the call through
-    # the context ``build_context`` builds rather than as the model's arguments.
-    # That is what makes the provider-only case work: a ``project_pk`` a scoping
-    # provider reads off ``view.kwargs`` is never a spec input, and reaches the
-    # spec's own callable as the ``kwargs`` overlay. A URL kwarg the compiled
-    # spec does declare is put back among the arguments, at the view's value,
-    # just before dispatch (``_split_url_kwargs``).
-    query_param_values = _pop_query_params(query_params, args)
+    # The URL-kwarg channel pops before dispatch, and each URL kwarg is put back
+    # among the arguments at the popped value (``_call_arguments``), where a
+    # provider reads it by name. A read-shaping ``QueryParam`` is not popped: it
+    # is an argument like any other, and the kernel hands what the caller sent
+    # for the spec's declared ``shapes`` to the presenter alone.
     url_kwarg_values = _pop_url_kwargs(url_kwargs, args, conventions=conventions)
     # A string sort read as the list the FilterSet's widget would split it into.
     _list_filter_ordering(spec, args, pool_seeds=pool_seeds, registry=json_schema_registry)
-    # **The spec's own reads, beside the toolset's channels.** A read the
-    # toolset does not take as a channel of its own -- every read of a
-    # mapping-built toolset's spec, and a read naming a parameter the spec's
-    # callable takes -- stays among the arguments, and is also put where a
-    # route or a query string would have put it, so a permission class, a
-    # provider or a selector reading ``view.kwargs`` or the query string finds
-    # the value the call carries
-    # (``test_a_bare_mapping_advertises_no_read_and_still_routes_one``,
-    # ``test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both_routes``).
-    # A name a channel took was popped above, so the two never share a key.
-    read_kwargs, read_query = _carried_reads(spec, args)
-    context = build_context(
-        user,
-        args,
-        action=action,
-        kwargs={**read_kwargs, **url_kwarg_values} or None,
-        # **Always a mapping, never ``None``.** ``build_offline_context``
-        # replaces the wrapped request's ``GET`` only when this is not ``None``,
-        # so a tool declaring no ``QueryParam`` would otherwise leave a
-        # configured ``http_request``'s own query string live inside the spec —
-        # a ``?query=`` / ``?fields=`` serializer or a ``filter_set`` reshaping
-        # the result through a channel neither the tool schema nor the model
-        # chose. An empty declaration means an empty query string.
-        query_params={**read_query, **query_param_values},
-        host=host,
-    )
     try:
         # Inside the ``try``, as every refusal the call can meet is: compiling
         # the spec and reading its parameters can refuse it (a serializer field
         # sharing a lookup parameter's name), and the consumer's map is asked
         # about that as about anything ``dispatch`` raises.
         compiled = kernel_spec(spec)
-        call_seeds = _with_call_seeds(pool_seeds, context)
-        arguments, extra_kwargs = _split_url_kwargs(
+        # **Read before dispatch, from the arguments as the caller sent them.**
+        # The render arm below needs to know whether the caller shaped the
+        # render: a value the model sent is something it can correct, while a
+        # render failing on no value of the caller's is a configuration bug and
+        # has to stay loud. In the spec's declaration order, so a message
+        # naming several reads the same way on every call. A ``None`` is not a
+        # value: ``{"fields": null}`` is how a model says it chose not to fill
+        # one. A bound value is the server's, not the caller's, so it is not
+        # counted either: a retry would name an argument the model was never
+        # offered
+        # (``test_a_bound_selection_the_render_rejects_is_the_server_s_error_not_a_retry``).
+        shaped = [
+            parameter.name
+            for parameter in compiled.shapes
+            if args.get(parameter.name) is not None and parameter.name not in server_names
+        ]
+        _fill_shapes(compiled.shapes, args)
+        arguments = _call_arguments(
             args,
-            context.view.kwargs,
+            url_kwarg_values,
             compiled.parameters().names(),
-            seeded=call_seeds.reserved,
-            owned=kernel_server_owned_keys(compiled, pool_seeds=call_seeds),
+            owned=kernel_server_owned_keys(compiled, pool_seeds=pool_seeds),
         )
         result = dispatch(
             compiled,
@@ -2936,12 +2768,12 @@ def _call_spec(
             # (``test_with_the_knob_off_only_an_unguarded_spec_runs_unchecked``
             # fails when every call is granted).
             grant=Grant(compiled, user) if compiled.permissions is None else None,
-            pool_seeds=call_seeds,
+            pool_seeds=pool_seeds,
             unknown_arguments=unknown_arguments,
             # Accepted and forwarded, never constructed -- see ``AgentDeps.progress``.
             # ``None`` becomes the kernel's no-op seed.
             progress=progress,
-            extra_kwargs=extra_kwargs,
+            call_context=call_context,
         )
     except BaseException as exc:
         # **One arm, not a chain, because the consumer's map has to be consulted
@@ -3004,7 +2836,6 @@ def _call_spec(
         # target as a *result kind*, not an exception.
         raise ToolFailed("not found")
 
-    value = result.value
     # ``page_args`` is non-None exactly for list selectors — the only specs that
     # advertise pagination args and return a (lazy) queryset to slice.
     page: OutputPage | None = None
@@ -3013,42 +2844,39 @@ def _call_spec(
         # whatever declared it, upstream of here, and Django validates a
         # plain-string ``order_by`` eagerly — so a ``filter_set`` whose
         # ``param_map`` names something that is not a column raises inside
-        # ``dispatch_spec``, not at this line. An arm here would never fire.
+        # ``dispatch``, not at this line. An arm here would never fire.
         page = shape_page(
-            value,
+            result.value,
             page=page_args.page,
             limit=page_args.limit,
             max_page_size=max_page_size,
         )
-        value = page.items
-    many = result.kind == "list"
-    # **The carrier, not only the fields read above**, so ``service_result`` (an
-    # upsert's ``created``), ``instance`` (the pre-mutation target) and ``data``
-    # (the validated input) reach the ``output_extras`` seam. It costs nothing:
-    # it is already in scope.
-    #
-    # Built ahead of the render rather than as its argument so the ``try`` below
-    # holds the render and nothing else. Nothing here reads the query string,
-    # so an error out of it is never the caller's to correct.
-    extras = output_extras(spec, value, many=many, dispatch_result=result)
+        # The page's rows presented, never the whole set: the recipe the
+        # kernel's ``present_for_audience`` gives for serving one page.
+        result = replace(result, value=page.items)
     try:
-        rendered = render_output(
-            spec,
-            value,
-            projection=projection,
-            many=many,
-            request=context.request,
-            view=context.view,
-            extras=extras,
-        )
-    except (DRFValidationError, ServiceValidationError) as exc:
-        # **A read-shaping param is the one caller input used while rendering**,
-        # not while dispatching -- a ``fields`` or ``query`` selection is read
+        rendered = render_output(spec, result, projection=projection)
+    except (InvalidArguments, ServiceValidationError, DRFValidationError) as exc:
+        # **A read-shaping argument is the one caller input used while
+        # rendering**, not while dispatching -- a ``fields`` or ``query``
+        # selection reaches the presenter on the kernel's ``shapes`` and is read
         # by the output serializer's ``to_representation`` -- so a bad one fails
         # here, after the ``try`` above has closed, and would escape the run as
-        # a raw ``ValidationError``. Wrapped around the call rather than
-        # inside the default ``render_output`` so a consumer's override is
-        # covered too.
+        # a raw ``ValidationError``. Wrapped around the call rather than inside
+        # the default ``render_output`` so a consumer's override is covered too.
+        #
+        # Three refusals, one arc, each held by a test raising it from the
+        # serializer: the kernel's ``InvalidArguments``, which is the seat a
+        # presenter refusing a shape raises
+        # (``test_a_presenter_refusing_a_shape_with_the_kernel_s_refusal_is_a_retry``);
+        # a ``ServiceValidationError``, which an override may raise
+        # (``test_a_render_output_override_is_covered_too``); and DRF's
+        # ``ValidationError``, which drf-services' ``SerializerPresenter``
+        # lets through from the serializer it presents with
+        # (``test_an_unknown_row_field_is_a_retry_not_a_dead_run``). The last is a
+        # drf-services finding rather than a design: its presenter should raise
+        # the kernel's ``InvalidArguments``, and this member goes with the
+        # package's DRF import.
         #
         # The consumer's map first, and its handler's value returned as-is,
         # exactly as on the dispatch path: one ``translate_exception`` should not
@@ -3067,16 +2895,16 @@ def _call_spec(
         # gathered, so what holds each is named here. Deleting this condition
         # fails ``test_render_error_with_no_query_param_supplied_still_raises``,
         # ``test_render_error_from_a_seeded_default_still_raises`` and
-        # ``test_render_error_with_an_explicit_null_still_raises``; gathering the
-        # names after the pop fails the second alone, counting a null as
-        # supplied the third alone, and counting a bound value as supplied
+        # ``test_render_error_with_an_explicit_null_still_raises``; counting a
+        # null as supplied fails the third alone, and counting a bound value as
+        # supplied
         # ``test_a_bound_selection_the_render_rejects_is_the_server_s_error_not_a_retry``
         # alone.
-        if not supplied_query_params:
+        if not shaped:
             raise
         raise ModelRetry(
             _render_rejection_message(
-                supplied_query_params,
+                shaped,
                 exc.detail,
                 scope=_render(conventions.query_param_on_pages) if page is not None else None,
             )
@@ -3388,44 +3216,6 @@ def _declares_default(default: Any) -> bool:
     return default is not None and default is not UNSET
 
 
-def _supplied_query_params(
-    query_params: Sequence[QueryParam], args: Mapping[str, Any]
-) -> list[str]:
-    """The declared read-shaping names the caller actually sent a value for.
-
-    In declaration order, so a message naming several reads the same way on
-    every call. A ``None`` is not a value: ``{"fields": null}`` is the shape a
-    model emits for a param it chose not to fill, and ``QueryParam`` documents
-    that a transport treats it as omitted.
-    """
-    return [qp.name for qp in query_params if args.get(qp.name) is not None]
-
-
-def _pop_query_params(query_params: Sequence[QueryParam], args: dict[str, Any]) -> dict[str, Any]:
-    """Strip the registered query params from ``args`` into a plain ``dict``.
-
-    A declared param the model supplied is popped; one it omitted contributes its
-    ``default`` if set, else nothing. The result is handed to
-    ``build_offline_context(query_params=…)`` (which stringifies as on HTTP).
-
-    **An explicit ``None`` is omitted, not forwarded.** ``QueryParam`` documents
-    it that way -- ``{"fields": null}`` is how a model says it chose not to fill
-    the param, and the ``default`` still applies -- and the stringifying above
-    is why it matters: forwarded, the null would reach the serializer as the
-    four characters ``None``, which a strict selection parser refuses as
-    malformed, ending a run over an argument the model had declined to send.
-    Popped either way, so ``unknown_arguments`` never sees the key.
-    """
-    values: dict[str, Any] = {}
-    for query_param in query_params:
-        supplied: Any = args.pop(query_param.name, None)
-        if supplied is not None:
-            values[query_param.name] = supplied
-        elif _declares_default(query_param.default):
-            values[query_param.name] = query_param.default
-    return values
-
-
 def _pop_url_kwargs(
     url_kwargs: Sequence[UrlKwarg],
     args: dict[str, Any],
@@ -3435,8 +3225,8 @@ def _pop_url_kwargs(
     """Strip the registered URL kwargs from ``args`` into a plain ``dict``.
 
     A declared kwarg the model supplied is popped; one it omitted contributes its
-    ``default`` if set, else nothing. The result is handed to
-    ``build_offline_context(kwargs=…)``.
+    ``default`` if set, else nothing. ``_call_arguments`` puts the result back
+    among the call's arguments.
 
     A kwarg registered ``required=True`` that the model omitted raises
     ``ModelRetry`` naming it, so the model gets a chance to supply it on the next
@@ -3459,106 +3249,130 @@ def _pop_url_kwargs(
     return values
 
 
+_STANDARD_CONTEXT_KEYS = ("request", "view", "format")
+"""The entries every call's context carries, ``None`` where the run put none."""
+
 _CALL_SEEDS = frozenset({"request", "view"})
-"""The seeds each call registers itself, from ``build_context``'s context."""
+"""The seeds each call registers itself, from the call's context."""
 
 
-def _with_call_seeds(pool_seeds: PoolSeeds, context: Any) -> PoolSeeds:
-    """The mount's seeds, with this call's ``request`` and ``view`` beside them.
+def _call_context(ctx: RunContext[Any], tool_name: str) -> dict[str, Any]:
+    """This call's context: a copy of the run's, with the tool's name under ``action``.
+
+    The run's is ``ctx.deps.call_context``, read with ``getattr`` as
+    ``progress`` is, so a project's own deps type need not declare it. A copy
+    rather than the run's own dict, because two calls of one run may run at
+    once and each carries its own ``action``: the run's entries reach the call
+    as the same objects, and what a stage writes stays in its call
+    (``test_each_call_of_a_run_is_handed_its_own_copy_of_the_run_s_context``).
+    The tool's name is DRF's ``view.action`` for a permission class or a
+    serializer drf-services builds an offline view for
+    (``test_the_tool_name_is_the_view_action_a_permission_class_reads``), and
+    ``request``, ``view`` and ``format`` are present on every call, as a DRF
+    serializer context's are
+    (``test_the_three_standard_entries_are_none_where_the_run_put_none``).
+    """
+    context: dict[str, Any] = {
+        **(getattr(getattr(ctx, "deps", None), "call_context", None) or {}),
+        "action": tool_name,
+    }
+    for key in _STANDARD_CONTEXT_KEYS:
+        context.setdefault(key, None)
+    return context
+
+
+def _with_call_seeds(
+    pool_seeds: PoolSeeds, call_context: Mapping[str, Any], seeds: Mapping[str, Callable[..., Any]]
+) -> PoolSeeds:
+    """The mount's seeds, with this call's ``request``, ``view`` and own ``seeds`` beside them.
 
     The kernel's base pool holds no ``request`` and no ``view``, while spec
-    callables declare both: a scope or ceiling provider reading
-    ``view.kwargs``, a condition reading the request, and drf-services' own
-    permission and render adapters, which read the pair the call registers. So
-    each call registers the two ``build_context`` built, per call, over the
-    mount's own registry.
+    callables written for HTTP declare both, so each call registers the two its
+    context carries, ``None`` where the run put none; a callable declaring one
+    then binds, and drf-services' permission and render adapters read a
+    ``None`` seed as none and fall back to the context, then to an offline
+    pair. ``seeds`` is what
+    [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds]
+    returned for the call, laid over those two, so a hook returning a ``view``
+    is the view the call carries.
 
     Raises:
-        ImproperlyConfigured: the mount registers either name itself. Its
-            resolver could never be the one a call reads, and the kernel's own
-            refusal would say the name was registered twice
+        ImproperlyConfigured: the mount registers ``request`` or ``view``
+            itself. Its resolver could never be the one a call reads, and the
+            kernel's own refusal would say the name was registered twice
             (``test_a_mount_registering_a_seed_the_call_supplies_is_refused``).
+        ValueError: ``seeds`` names a seed the mount registers, which
+            ``PoolSeeds.extend`` refuses rather than picking a winner
+            (``test_a_hook_seed_the_mount_already_registers_is_refused``).
     """
     clash = sorted(pool_seeds.names & _CALL_SEEDS)
     if clash:
         raise ImproperlyConfigured(
             f"pool_seeds registers {', '.join(repr(name) for name in clash)}, which "
-            "SpecToolset registers itself on every call from the request and view "
-            "build_context builds. Remove the registration, and override "
-            "build_context to change what the call carries."
+            "SpecToolset registers itself on every call from the call's context. Remove "
+            "the registration, and put the value in the run's call_context or return it "
+            "from call_seeds."
         )
-    request, view = context.request, context.view
-    return pool_seeds.extend(request=lambda: request, view=lambda: view)
+    request, view = call_context["request"], call_context["view"]
+    return pool_seeds.extend(**{"request": lambda: request, "view": lambda: view, **seeds})
 
 
-def _carried_reads(spec: Spec, args: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    """The values the call carries for the spec's declared reads, by channel.
+def _fill_shapes(shapes: Parameters, args: dict[str, Any]) -> None:
+    """Read each of the spec's ``shapes`` as the tool's schema advertises it, in place.
 
-    The first mapping is each ``UrlKwarg``'s, for ``view.kwargs``; the second
-    each ``QueryParam``'s, for the query string. A read the call leaves out, or
-    sends as ``null``, is not put there: its ``default`` is the compiled spec's
-    to apply, and a ``None`` on the query string would read as the four
-    characters ``None``. Nothing is taken out of ``args``: each read is a
-    parameter of the compiled spec, and the call's argument too.
+    A ``null`` is the model declining to fill one, so it is dropped rather
+    than handed to the kernel, whose check refuses a ``null`` the declaration
+    does not admit (``test_an_explicit_null_query_param_is_treated_as_omitted``).
+    A shape left out is then given its declared default: the tool's schema
+    advertises that default, and the kernel reports a parameter's default
+    without applying it, so with nobody filling it the presenter would be
+    handed none (the ``default-seeded-when-omitted`` case of
+    ``test_query_param_reaches_the_serializer_via_request_query_params``).
+    ``UNSET`` declares none, and a default of ``None`` is no value, as a
+    ``null`` sent is none: one arc to coverage, and each conjunct is held by
+    its own case of ``test_a_query_param_declaring_no_default_contributes_nothing``.
     """
-    url: dict[str, Any] = {}
-    query: dict[str, Any] = {}
-    for read in spec.reads:
-        value = args.get(read.name)
-        if value is not None:
-            (url if isinstance(read, UrlKwarg) else query)[read.name] = value
-    return url, query
+    for parameter in shapes:
+        if args.get(parameter.name) is None:
+            args.pop(parameter.name, None)
+            if parameter.default is not UNSET and parameter.default is not None:
+                args[parameter.name] = parameter.default
 
 
-def _split_url_kwargs(
+def _call_arguments(
     args: dict[str, Any],
-    view_kwargs: Mapping[str, Any],
+    url_kwargs: Mapping[str, Any],
     declared: frozenset[str],
     *,
-    seeded: frozenset[str],
     owned: frozenset[str],
-) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """The call's arguments, and the overlay for the spec's ``kwargs`` provider.
+) -> dict[str, Any]:
+    """The call's arguments: the model's, with the popped URL kwargs over them.
 
-    ``view_kwargs`` is what the call's view carries: every registered
-    ``UrlKwarg`` the pop took, and whatever a ``build_context`` override added.
-    A name the compiled spec declares is one of its arguments, and the view's
-    value for it stands over the model's, as a route capture does over the body
-    over HTTP; the kernel refuses an overlay naming a declared parameter, since
-    its checks would never have read that value. Every other name is the
-    overlay, which reaches the spec's own selector or service and no check.
-    ``None`` rather than an empty overlay, which is how the kernel says none.
+    ``url_kwargs`` is every registered ``UrlKwarg`` the pop took. Each is a
+    read on the tool's spec, so one of the compiled spec's parameters, and the
+    popped value stands over the model's, as a route capture does over the body
+    over HTTP. A provider reads it by its name, as an argument. A seed of the
+    same name is the kernel's to refuse, as an argument meeting a seed in one
+    pool (``test_a_seed_an_override_returns_for_a_declared_url_kwarg_is_refused``).
 
-    **A name the call's seeds fill is neither.** ``seeded`` is the call's
-    ``pool_seeds.reserved``. The compile marks a read it takes off a signature
-    ``reflected``, and the kernel fills such a read from a seed of its name, so
-    a view kwarg of that name would be refused as an unknown argument, or as an
-    overlay key naming a seed (the ``[pool-seed]`` case of
-    ``test_a_name_a_build_context_override_fills_is_declared_to_the_toolset``).
     The model's own argument is dropped when the spec declares it and
     ``owned``, the kernel's ``server_owned_keys`` for the call's seeds, lists
     it: a seed's name, so the seed answers instead of ``REJECT`` refusing it
     (``test_a_registered_seed_outranks_a_model_argument_of_the_same_name``), or
     a key a typed provider fills, whose value from the model was never the one
-    the call read. ``owned`` leaves out a top-level Validator field named like a
-    seed, which the model sends and dispatch validates into ``data`` while the
-    seed keeps its own value
+    the call read
+    (``test_a_provider_filling_the_name_it_reads_is_not_handed_the_model_s_value``).
+    ``owned`` leaves out a top-level Validator field named like a seed, which
+    the model sends and dispatch validates into ``data`` while the seed keeps
+    its own value
     (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``). An
     owned name the spec never declares is left for the kernel to answer
-    (``test_a_seed_named_argument_is_not_refused_by_a_spec_that_never_declares_it``).
+    (``test_a_seed_named_argument_a_spec_never_declares_is_refused``).
     """
     arguments = {
         name: value for name, value in args.items() if not (name in declared and name in owned)
     }
-    overlay: dict[str, Any] = {}
-    for name, value in view_kwargs.items():
-        if name in seeded:
-            continue
-        if name in declared:
-            arguments[name] = value
-        else:
-            overlay[name] = value
-    return arguments, overlay or None
+    return arguments | dict(url_kwargs)
 
 
 def _missing_arguments(names: Sequence[str], conventions: AgentConventions) -> ModelRetry:
@@ -3632,25 +3446,6 @@ def _shape_list(
         max_page_size=max_page_size,
     )
     return replace(shaped, items=list(shaped.items))
-
-
-def _output_extras(
-    spec: Spec, value: Any, *, many: bool, dispatch_result: DispatchResult | None = None
-) -> dict[str, Any]:
-    """The resolved-data keyword a spec's output-context provider may declare.
-
-    ``dispatch_result`` is accepted and ignored: the pool is keyed the way the
-    HTTP path keys it, and a key the HTTP path does not supply would be handed to
-    a provider that never declared it. It is in the signature so this function
-    keeps satisfying the seam's contract, and so an override calling ``super()``
-    can forward what it was given rather than filtering the call.
-    """
-    del dispatch_result  # see above: deliberately not in the default pool
-    if many:
-        return {"page": value}
-    if isinstance(spec, ServiceSpec):
-        return {"result": value}
-    return {"instance": value}
 
 
 __all__ = ["SpecToolset"]

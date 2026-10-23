@@ -165,8 +165,9 @@ read naming a parameter the spec's selector takes, such as
 field, or a parameter of a service's target lookup, is not a second argument
 beside it. The tool
 advertises the parameter once, as the selector declares it, and leaves its
-value in the call, where drf-services hands it to the parameter and puts it on
-`request.query_params` both. `SpecToolset(registry)` and
+value in the call, where the kernel's `dispatch` hands it to the parameter. It
+is not one of the spec's shapes, so the query string a serializer reads does
+not carry it. `SpecToolset(registry)` and
 `SpecToolset(registry.specs())` build it and serve it alike.
 
 ## Arguments the server supplies
@@ -195,8 +196,9 @@ toolset = SpecToolset(
 - **A bound name** (`values`) carries the server's value on every call. It
   satisfies a `required` parameter, and every reader of the call sees the one
   value: a bound `UrlKwarg` read is on `view.kwargs`, where a permission class
-  or a `kwargs=` provider finds it, a bound `QueryParam` read on
-  `request.query_params`, and the selector receives it as its parameter.
+  finds it, and a `kwargs=` provider taking its name is handed it, a bound
+  `QueryParam` read on `request.query_params`, and the selector receives it as
+  its parameter.
 - **A withheld name** is absent from every call, so the read's declared default,
   or the callable's own, answers. Withholding the other names of an either-or
   scope is how a tool taking a project *or* a draw request is held to the

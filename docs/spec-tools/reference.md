@@ -27,15 +27,16 @@ public.
 - **`specs` and `id`**, read-only properties that answer at configuration time,
   with no run: `specs` is every tool the toolset was built with, whatever a
   `get_tools` override offers a given run.
-- **The six seams**, each receiving the live `RunContext`:
-  [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context] and
+- **The five seams**, each receiving the live `RunContext`:
+  [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds] and
   [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
   cover the front half of a call,
   [`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page],
-  [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output],
-  [`output_extras`][django_spec_agents.spec_tools.SpecToolset.output_extras] and
+  [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output] and
   [`enforce_result_bytes`][django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes]
   the back half.
+- **[`AgentDeps.call_context`][django_spec_agents.AgentDeps.call_context]**, the
+  run's context, of which every call is handed its own copy.
 
 An attribute whose name starts with an underscore is not part of it, and a
 minor release may rename one.

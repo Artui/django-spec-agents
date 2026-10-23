@@ -13,8 +13,10 @@ drf-services' transport-neutral surface:
 
 - **`dispatch_spec`** executes the service or selector (validation, instance
   resolution, output-selector re-fetch);
-- **`build_offline_context`** supplies a synthetic request / view / principal so
-  `permission_classes`, `extend_queryset`, and context providers keep working;
+- **the run's `call_context`** carries the request the run arrived on, if any,
+  and drf-services builds a synthetic request / view around the principal
+  where it carries none, so `permission_classes`, `extend_queryset`, and
+  context providers keep working;
 - **`enforce_permissions`** runs `spec.permission_classes` — `dispatch_spec`
   deliberately does not, so building a toolset naively on it would skip
   authorization;
@@ -22,8 +24,8 @@ drf-services' transport-neutral surface:
   **`output_to_json_schema`** its `return_schema`, projected for the audience;
 - **`paginate_output`** slices a list selector into the page the tool returns,
   the same shaper the MCP transport uses;
-- **`render_for_audience`** renders the result through the spec's serializer and
-  applies the field markings.
+- **`present_for_audience`**, the kernel's, renders the result through the
+  spec's presenter and applies the field markings.
 
 The result is that an agent driving these tools sees exactly what an HTTP client
 would: the same validation errors, the same `permission_classes` checks (both

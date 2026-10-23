@@ -63,8 +63,14 @@ class Picky(serializers.Serializer):
         return super().to_representation(instance)
 
 
-def rows(**_: Any) -> list[dict[str, str]]:
-    """Two plain rows, so the render runs without a database."""
+def rows() -> list[dict[str, str]]:
+    """Two plain rows, so the render runs without a database.
+
+    It takes no argument, so a ``fields`` the tool reads is a shape: drf-services
+    compiles a ``QueryParam`` no callable names into the spec's ``shapes``, which
+    reach the presenter alone. A bare ``**kwargs`` here would take it as the
+    selector's argument instead, and ``Picky`` would never see it.
+    """
     return [{"name": "a"}, {"name": "b"}]
 
 

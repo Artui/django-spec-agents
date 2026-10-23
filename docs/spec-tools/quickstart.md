@@ -210,9 +210,10 @@ class ProjectScope(TypedDict):
     ceiling: int
 
 
-def scope(view) -> ProjectScope:
-    # ceiling is filled here, so the model is never asked for it.
-    return {"ceiling": ceiling_for(view.kwargs["project_pk"])}
+def scope(project_pk) -> ProjectScope:
+    # ceiling is filled here, so the model is never asked for it. project_pk is
+    # a UrlKwarg the tool reads, handed to the provider by name.
+    return {"ceiling": ceiling_for(project_pk)}
 
 
 list_spec = SelectorSpec(kind=SelectorKind.LIST, selector=priced_under, kwargs=scope)
@@ -234,19 +235,20 @@ list_spec = SelectorSpec(kind=SelectorKind.LIST, selector=priced_under, kwargs=s
   turn, as it is when an untyped provider leaves a parameter unfilled.
   Where the selector can run without the value, give the parameter a default.
 - **A name a
-  [`build_context`](reference.md#django_spec_agents.spec_tools.SpecToolset)
+  [`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds)
   override fills has to be declared.** An override is code the schema cannot
-  read, so a selector parameter it fills through `kwargs` (which become
-  `view.kwargs`) is advertised as required like any other parameter without a
-  default, and a call leaving it out is handed back before the override runs.
-  Mark the selector parameter with drf-services' `NotClientInput`: the name is
-  left out of the schema and the override fills it. A call that sends it
+  read, so a selector parameter only one of its seeds fills is advertised as
+  required like any other parameter without a default. The call is still
+  served from the seed, which is asked before the arguments are checked, and
+  a value the model sends is replaced by the seed's with nothing said to the
+  model. Mark the selector parameter with drf-services' `NotClientInput`: the
+  name is left out of the schema and the seed fills it. A call that sends it
   anyway is handed back as an [unexpected argument](#unexpected-arguments) by
   default, whatever the selector's input set. Under `IGNORE` the model's value
-  is dropped before the selector reads its arguments, so the value the
-  override writes is the one the selector receives.
-  Where the value can be resolved from what a seed resolver receives, register
-  it as a [pool seed](#project-pool-seeds) and resolve it there instead:
+  is dropped before the selector reads its arguments, so the seed's value is
+  the one the selector receives.
+  Where the value is the same for every run, register it as a
+  [pool seed](#project-pool-seeds) instead, which the schema does read:
 
 ```python
 from typing import Annotated
@@ -261,13 +263,13 @@ def list_tasks(user, project_pk: Annotated[int, NotClientInput]):
 
 
 class ProjectScopedToolset(SpecToolset):
-    def build_context(self, user, params, *, ctx, kwargs=None, **rest):
-        scoped = {**(kwargs or {}), "project_pk": current_project_pk(ctx)}
-        return super().build_context(user, params, ctx=ctx, kwargs=scoped, **rest)
+    def call_seeds(self, *, ctx, tool_name):
+        project_pk = current_project_pk(ctx)
+        return {"project_pk": lambda: project_pk}
 
 
-# project_pk is marked NotClientInput and filled by the override, so the model
-# is never asked for it, and a call that sends one is refused.
+# project_pk is marked NotClientInput and filled by the override's seed, so the
+# model is never asked for it, and a call that sends one is refused.
 toolset = ProjectScopedToolset(
     {
         "list_tasks": SelectorSpec(
@@ -277,11 +279,10 @@ toolset = ProjectScopedToolset(
 )
 ```
 
-A `UrlKwarg` with a `default` also keeps a call that leaves the name out from
-being refused, but it does not keep the name from the model. It stays
-advertised, as an optional argument the model can see and send, and the
-override's value replaces whatever the model sent, with nothing said to the
-model: a model that asks for one project is served another's rows.
+A seed of a name the tool declares as a `UrlKwarg` is refused at the call with
+`ImproperlyConfigured`: the `UrlKwarg` is the model's to send, and the seed
+would replace whatever it sent, so a model that asks for one project would be
+served another's rows.
 
 **A service tool also advertises its target lookup.** drf-services hands the
 arguments it validates against the input serializer to the selector that
@@ -353,8 +354,8 @@ toolset = SpecToolset(specs, pool_seeds=seeds)
 
 Every dispatch the toolset makes is handed the registry. A service, a selector
 or an affordance's condition that declares `tenant` therefore receives the
-resolver's value, as it would from `dispatch_spec(pool_seeds=seeds)` called
-directly. The per-step check that
+resolver's value, as it would from the kernel's `dispatch(pool_seeds=seeds)`
+called directly. The per-step check that
 [leaves out an unavailable operation](#an-operation-that-is-unavailable-right-now-is-left-out)
 asks its conditions against the same seeds, so a step's catalog and the call's
 own refusal answer alike.
@@ -374,9 +375,52 @@ A registered name is reserved the way `user` and `request` are:
   a value the call would ignore. See
   [What a tool asks the model for](#what-a-tool-asks-the-model-for).
 
-The registry applies to the whole toolset, with no per-tool or per-call form. A
-seed is ambient to the deployment, and what varies from call to call belongs in
-the resolver, which declares `user` or `request` to receive them.
+The registry applies to the whole toolset. A seed is ambient to the
+deployment, and what varies with the acting user belongs in the resolver,
+which declares `user` to receive it. What varies with the run or the tool
+being called is the [per-call form](#per-call-seeds-and-the-runs-context).
+
+## Per-call seeds and the run's context
+
+Two things reach every call beside its arguments, and neither is a request
+the toolset builds.
+
+**The run's context** is `AgentDeps.call_context`, a plain `dict` the code
+starting the run fills. Each call is handed its own copy, with the tool's name
+under `action`, and `request`, `view` and `format` set to `None` where the run
+put none. The run's entries reach every call as the same objects, so put the
+request the run arrived on there, under `request`:
+
+```python
+deps = AgentDeps(user=request.user)
+deps.call_context["request"] = request
+result = await agent.run(prompt, deps=deps)
+```
+
+A callable declaring `request` is then handed that request, a serializer
+building an absolute URL builds it against its host, and a permission class
+reads it wrapped with the call's principal as its `user`. A run that arrived
+on none hands a callable declaring `request` `None`. What a call writes to its
+copy does not reach the next call, nor the run's dict, so two calls the model
+makes at once never see each other's `action`.
+
+**Per-call seeds** come from
+[`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds),
+asked once per call with the live `RunContext` and the tool's name, and once
+per conditioned tool when the catalog is listed. Each value is a resolver, as
+for `PoolSeeds.extend`:
+
+```python
+class TenantToolset(SpecToolset):
+    def call_seeds(self, *, ctx, tool_name):
+        tenant = ctx.deps.tenant
+        return {"tenant": lambda: tenant}
+```
+
+A name the mount's `pool_seeds` registers already is refused with
+`ValueError` at the call, and `request` or `view` returned here replace the
+call's own, which is how a project hands its permission classes a view
+carrying a viewset action name of its choosing.
 
 ## What a permission class sees
 
@@ -387,22 +431,25 @@ request and view. drf-services supports a permission class reading `request`,
 what this package puts in each:
 
 - **`request.user`** is the acting identity — `deps.user`, or whatever
-  `get_user` returns. A configured `http_request` never contributes an identity.
+  `get_user` returns. The request a run arrived on never contributes an
+  identity.
 - **`request.query_params`** holds exactly the [query
-  params](#read-shaping-query-params) declared for that tool, and nothing else.
-  A tool that declares none dispatches with an empty query string even when the
-  toolset was given an `http_request`, so the ambient endpoint's own query
-  string can never reach a serializer or a `filter_set`.
+  params](#read-shaping-query-params) the call sent for that tool, and nothing
+  else. A tool that declares none dispatches with an empty query string even
+  when the run arrived on a request carrying one, so the ambient endpoint's own
+  query string can never reach a serializer or a `filter_set`.
 - **`view.action`** is the **tool name** — the key the spec is registered under
   in the mapping you passed. Off HTTP there is no router to name an action, and
   the tool name is the identity the model called, so it is the honest answer;
   it is also what the MCP transport reports for the same spec. A permission
   class branching on viewset action names (`"create"`, `"retrieve"`) will not
   match one of those unless a tool happens to be named that — check the `else`
-  branch of such a class before exposing its spec, and rewrite `action` in a
-  `build_context` override if you need a specific one.
+  branch of such a class before exposing its spec, and return a `view`
+  carrying the action you need from a
+  [`call_seeds`](#per-call-seeds-and-the-runs-context) override.
 - **`view.kwargs`** holds the [URL kwargs](#url-derived-values-route-captures)
-  declared for that tool, the off-HTTP counterpart of a route's captures.
+  declared for that tool, the off-HTTP counterpart of a route's captures. A
+  provider or a selector takes one by its name, as an argument.
 
 ### The tool catalog is not permission-filtered
 
@@ -468,10 +515,12 @@ A few things follow from how it is asked:
 - **Conditions run where a dispatch runs**, in a thread under the toolset's
   `thread_sensitive` and `executor`, so one that queries is fine. The connection
   it opens is closed after it, as a dispatch's is.
-- **The request a condition reads is built through `build_context`**, so a
-  condition reading `request` sees the same object when the catalog is listed as
-  at the call, including anything an override adds to it. That listing call
-  carries no arguments, no `action` and an empty query string.
+- **A condition is asked with the seeds its call would register**, so one
+  reading `request` sees the request the run arrived on when the catalog is
+  listed as at the call, `None` for a run that arrived on none, and one reading
+  a name a [`call_seeds`](#per-call-seeds-and-the-runs-context) override
+  returns is asked with the seed returned for its own tool. That listing call
+  carries no arguments, and its context's `action` is the tool's name.
 - **A condition on the row (an ORM expression) is never asked here.** There is
   no row when the catalog is listed, so the call answers it for its own row.
 - **`get_tools` and `get_instructions` each ask once per step.** A shared answer
@@ -480,7 +529,7 @@ A few things follow from how it is asked:
   is retried. A condition that flips between the two reads can leave one step's
   catalog and instructions disagreeing about one tool.
 
-None of this changes the call. `dispatch_spec` enforces every affordance
+None of this changes the call. The kernel's `dispatch` enforces every affordance
 whatever was listed, a call against a listing that went stale is refused as
 [below](#a-refused-affordance-names-its-code), and a model calling a tool that
 was left out gets pydantic-ai's unknown-tool retry, which names the tools that do
@@ -754,10 +803,17 @@ use.
 `reads=[QueryParam(...)]` with
 [`QueryParam`](reference.md#rest_framework_services.types.query_param.QueryParam). Built from
 the [registry](spec-registry.md#what-the-spec-declares-for-an-agent) the spec is
-registered in, the toolset advertises each as a tool arg, then — instead of reaching the spec as an input — seeded
-into `request.query_params` over the off-HTTP path. That is for whatever reads
+registered in, the toolset advertises each as a tool arg. One no callable of
+the spec takes by name is one of the spec's `shapes`: the kernel hands what the
+model sent to the presenter alone, and drf-services' presenter puts it on the
+query string of the request it renders under. That is for whatever reads
 `request.query_params` **directly**: django-restql field selection, or a custom
-serializer that branches on the query string.
+serializer that branches on the query string. A `null` is read as left out,
+and a declared `default` is applied when the model leaves one out, as the
+tool's schema advertises. One a callable does take by name — a selector, a
+`kwargs=` provider, a precondition — is that callable's argument instead, and
+the serializer never sees it; give the selector no bare `**kwargs` if it
+should.
 
 !!! note "Declared on the spec, never on the toolset"
     A read is the spec's to declare, so every transport and every mount reads
@@ -769,7 +825,7 @@ serializer that branches on the query string.
 !!! note "You don't need this for `filter_set`"
     A `SelectorSpec.filter_set`'s fields are already generated into the tool's
     input schema (the `[filter]` extra) and flow through as ordinary `params` —
-    which `dispatch_spec` hands the FilterSet as its `filter_data`. So the model
+    which the kernel's `dispatch` hands the FilterSet as its `filter_data`. So the model
     can filter a list selector with no `QueryParam` declaration at all, and the
     same goes for [ordering](#ordering); `QueryParam` is only for params a
     serializer reads off `request.query_params`.
@@ -881,15 +937,23 @@ serializer is a bug whatever the model sent.
 ## URL-derived values (route captures)
 
 Over HTTP a nested route (`/projects/{project_pk}/widgets/`) supplies
-`project_pk` from the URL, and a selector reads it from `view.kwargs` — directly,
-or through a `spec.kwargs` provider that scopes by it (a tenant/role lookup). Off
-the HTTP path there is no route, so declare the capture on the spec, as
-`reads=[UrlKwarg(...)]` with
+`project_pk` from the URL. Off the HTTP path there is no route, so declare the
+capture on the spec, as `reads=[UrlKwarg(...)]` with
 [`UrlKwarg`](reference.md#rest_framework_services.types.url_kwarg.UrlKwarg). Built from the
-registry, the toolset advertises it as a tool arg, then popped and seeded into `build_offline_context(kwargs=…)`,
-from where drf-services spreads it into the selector / target pools —
-authoritative over the spec `params`, below a `spec.kwargs` provider (mirroring
-HTTP precedence exactly).
+registry, the toolset advertises it as a tool arg and dispatches it as one of
+the spec's arguments, which the selector, the target lookup and a `spec.kwargs`
+provider that scopes by it (a tenant/role lookup) each take **by its name**:
+
+```python
+def scope(project_pk):
+    return {"ceiling": ceiling_for(project_pk)}
+```
+
+There is no view off HTTP: a provider declaring `view` is handed the run's
+`call_context["view"]`, `None` unless the run or a
+[`call_seeds`](#per-call-seeds-and-the-runs-context) override put one there,
+so one written for HTTP, reading `view.kwargs["project_pk"]`, fails. Take the
+name as a parameter instead.
 
 !!! note "Declared on the spec, never on the toolset"
     As with `QueryParam`, `SpecToolset` takes no `url_kwargs=` or
@@ -907,17 +971,14 @@ registry.register("list_widgets", replace(list_widgets_spec, reads=[project]))
 toolset = SpecToolset(registry)
 ```
 
-Reach for `UrlKwarg` when the value is **request state** rather than an ordinary
-argument to the callable — the axis is where the value has to land, not whether
-it is advertised:
+Reach for `UrlKwarg` when the value is **a route capture** rather than an
+ordinary argument to the callable:
 
-- a scoping `spec.kwargs` provider that reads `view.kwargs` — the case ordinary
-  `params` cannot cover, because the provider reads `view.kwargs`, not `params`;
+- a scoping `spec.kwargs` provider that takes it and no selector declares it;
 - a closed-surface spec whose route capture must be model-suppliable.
 
-Like `QueryParam`, a declared kwarg is popped before dispatch (so
-`unknown_arguments` never flags it) and its `default` is seeded when the model
-omits it. A kwarg with a `default` therefore fills a selector parameter of the
+A declared kwarg is one of the spec's parameters (so `unknown_arguments` never
+flags it) and its `default` is applied when the model omits it. A kwarg with a `default` therefore fills a selector parameter of the
 same name, and the tool does not require it; one without a default reaches the
 selector only when the model sends it, so the selector's own signature still
 decides whether the tool requires it. A name can't be `page` / `limit` / `ordering`, nor one of drf-services'
@@ -941,42 +1002,33 @@ supply it rather than failing deeper in. `required` can't be combined with a
 `default` (a default always satisfies the argument, so requiring it would be a
 no-op); that raises at construction.
 
-### A reflected `**extras` key is not a route capture
+### A reflected `**extras` key and a route capture
 
 A selector typed `def list_widgets(user, **extras: Unpack[WidgetExtras])` that
 reads `extras["project_pk"]` already has that key reflected into the tool schema
 by drf-services — no `UrlKwarg` needed **for the selector itself**, which
-receives it through `params`. Marking it `InputRequired` makes the model supply
+receives it as an argument. Marking it `InputRequired` makes the model supply
 it; that is a *schema* statement and changes nothing about where the value lands.
-
-The two declarations answer different questions, and only one of them puts a
-value on the request:
+A `spec.kwargs` provider taking `project_pk` by name is handed it too, so a
+reflected key reaches everything that reads it as an argument.
 
 | | reflected `**extras` key (± `InputRequired`) | registered `UrlKwarg` |
 | --- | --- | --- |
 | In the tool schema | yes | yes |
 | Can be required | yes (`InputRequired`) | yes (`required=True`, plus a `ModelRetry` when omitted) |
-| Reaches the selector | yes, via `params` | yes, via the `view.kwargs` spread |
-| Reaches `view.kwargs` | **no** | yes |
-| Ranks above caller-supplied `params` | no — it *is* caller input | yes |
-
-So anything that reads request state rather than its own arguments — a
-`spec.kwargs` provider, `extend_queryset`, a permission class, an
-`output_serializer_context` provider — sees nothing for a reflected-only key. A
-scoping provider doing `view.kwargs.get("project_pk")` returns `None` and
-**mis-scopes every call** instead of failing, which is the failure mode worth
-naming: it is silent.
+| Reaches the selector | yes | yes |
+| Reaches a provider taking the name | yes | yes |
 
 Declare the `UrlKwarg` read as well when the value is scope, and bind it with
 [`tool_server_arguments`](spec-registry.md#arguments-the-server-supplies) when
-the model must not choose it. The read is a strict superset: the selector still
-receives the value in `**extras`, and the provider finds it on `view.kwargs`:
+the model must not choose it. The selector still receives the value in
+`**extras`, and a provider taking `project_pk` is handed the server's value:
 
 ```python
 from django_service_specs import ServerArguments
 
 # project_pk reflected from WidgetExtras *and* read from the route:
-#   selector's extras -> 7      view.kwargs -> {"project_pk": 7}
+#   selector's extras -> 7      a provider's project_pk -> 7
 registry.register(
     "list_widgets",
     replace(list_widgets_spec, reads=[UrlKwarg("project_pk", type="integer", required=True)]),
@@ -1007,23 +1059,24 @@ re-export them.
 
 ## Absolute URLs (file and hyperlinked fields)
 
-Off the HTTP path there is no ambient request, so there is no origin to build
-absolute URLs from — and DRF's `FileField`, `HyperlinkedIdentityField`, and
-`HyperlinkedRelatedField` call `request.build_absolute_uri()` for every value.
-Name your origin and they resolve:
+DRF's `FileField`, `HyperlinkedIdentityField`, and `HyperlinkedRelatedField`
+call `request.build_absolute_uri()` for every value, so the origin they build
+against is the request the run arrived on. Put it in the run's
+[context](#per-call-seeds-and-the-runs-context) and they resolve against its
+host and scheme:
 
 ```python
-toolset = SpecToolset(specs, host="https://app.example.com")
+deps = AgentDeps(user=request.user)
+deps.call_context["request"] = request
 ```
 
-`host` accepts `"example.com"`, `"example.com:8000"`, or a full origin whose
-scheme decides whether links are https. It is toolset-wide, with no per-tool
-variant: an origin is a property of the deployment, not of a tool.
-
-Left unset, those fields produce **relative** URLs (`/media/doc.pdf`) — usable,
-and exactly what they fall back to on their own when no request is in the
-serializer context. Nothing is inferred: only your project knows its public
-origin, and a guess would emit confidently-wrong links that look valid.
+A run that arrived on no request — a background run, a management command —
+produces **relative** URLs (`/media/doc.pdf`): usable, and exactly what those
+fields fall back to on their own when no request is in the serializer context.
+Nothing is inferred: only your project knows its public origin, and a guess
+would emit confidently-wrong links that look valid. A run that has no request
+but needs absolute links puts one built for its public origin there, such as
+`RequestFactory().get("/", HTTP_HOST="app.example.com", secure=True)`.
 
 ## Error handling
 

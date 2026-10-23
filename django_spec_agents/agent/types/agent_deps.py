@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -80,6 +80,25 @@ class AgentDeps:
     service declaring ``progress`` runs unchanged whether or not anyone is
     listening. A transport that wants the reports on the wire supplies the sink
     from its ``deps_factory`` and emits the events itself."""
+
+    call_context: dict[str, Any] = field(default_factory=dict)
+    """The run's context: one plain ``dict`` of values every tool call may read.
+
+    ``SpecToolset`` reads this field by name and hands each dispatch a **copy**
+    of it as the kernel's ``call_context``, with the tool's name under
+    ``action``, and ``request``, ``view`` and ``format`` set to ``None`` where
+    the run put none. So:
+
+    - the run's entries reach every call of the run as the same objects -- the
+      request a run arrived on, under ``request``, is the one a serializer, a
+      permission check or a spec callable declaring ``request`` reads;
+    - what a stage writes to the context during one call does not reach the
+      next call, nor this dict: two calls of one run may run at once, and each
+      carries its own ``action``.
+
+    A new ``dict`` per deps, never a shared default. Whoever starts the run
+    fills it, typically a transport's ``deps_factory``. A project's own deps
+    type without this field gets an empty context per call."""
 
 
 __all__ = ["AgentDeps"]

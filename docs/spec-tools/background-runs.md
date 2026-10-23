@@ -54,10 +54,11 @@ primary key you put there, a row you already own. Never from the model's own
 output, and never from text the model was given — a run that can talk its way
 into a different `user` has no authorization boundary at all.
 
-!!! warning "`http_request=` is not an identity"
+!!! warning "The run's `request` is not an identity"
 
-    [`http_request=` / `get_http_request=`](reference.md#django_spec_agents.spec_tools.SpecToolset)
-    exist so a serializer or scoping provider reading `request.META` finds
+    A request in the run's
+    [`call_context`](quickstart.md#per-call-seeds-and-the-runs-context) is
+    there so a serializer or scoping provider reading `request.META` finds
     something plausible. Nothing downstream re-derives the acting user from it.
     Passing an authenticated request authorizes nothing, and leaning on it would
     put a second, invisible identity in the call.
@@ -165,20 +166,21 @@ a correctness one, and in a fan-out it is multiplied by every concurrent run.
 
 ## Changing the pipeline
 
-Six overridable methods cover a tool call end to end. The front half —
-`build_context` and `translate_exception` — is documented under
+Five overridable methods cover a tool call end to end. The front half —
+`call_seeds` and `translate_exception` — is documented under
 [`SpecToolset`](reference.md#django_spec_agents.spec_tools.SpecToolset); the back
-half is `shape_page`, `render_output`, `output_extras` and
-`enforce_result_bytes`. All six receive the live `RunContext`, which is the
-point: a run's typed deps are usually what needs to reach them.
+half is `shape_page`, `render_output` and `enforce_result_bytes`. All five
+receive the live `RunContext`, which is the point: a run's typed deps are
+usually what needs to reach them.
 
 The one worth knowing about before you need it is
 [`render_output`](reference.md#django_spec_agents.spec_tools.SpecToolset.render_output).
 By default a result is rendered through the spec's serializer **and projected**
 for the agent audience. If a background job feeds one spec's output into the
-next, project the handles away and the next step has nothing to key on. Rendering
-with `render_spec_output` instead is the opt-out — and passing `projection=None`
-is *not* it, since that means "derive one from the spec".
+next, project the handles away and the next step has nothing to key on.
+Presenting with the kernel's `present(spec, result)` instead is the opt-out —
+and passing `projection=None` is *not* it, since that means "derive one from
+the spec".
 
 ## Testing it
 

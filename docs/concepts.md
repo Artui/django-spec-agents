@@ -90,6 +90,12 @@ closing over the request. The difference matters beyond tidiness:
   constructor argument, so one audited agent can serve requests from many
   clients. Taken only from the constructor, building once would silently stamp
   every audit record with the IP of whoever arrived first.
+- **The request a run arrived on travels as data.** `deps.call_context` is a
+  plain `dict` of values every tool call may read; a transport puts the request
+  there under `request`, and each spec tool call is handed its own copy with the
+  tool's name under `action`, so a serializer or a permission class reads the
+  request without the agent ever holding it (see
+  [per-call seeds and the run's context](spec-tools/quickstart.md#per-call-seeds-and-the-runs-context)).
 - **AG-UI state has somewhere to land.** `AgentDeps` satisfies pydantic-ai's
   `StateHandler` protocol, so a run's `RunAgentInput.state` is validated into
   `deps.state` instead of being dropped with a warning.
