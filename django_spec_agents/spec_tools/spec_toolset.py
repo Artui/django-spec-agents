@@ -1,16 +1,15 @@
 """``SpecToolset`` — expose drf-services specs as a Pydantic-AI toolset.
 
 A thin adapter that turns a ``name -> spec`` mapping into agent tools, executing
-each call through drf-services' transport-neutral surface — ``dispatch_spec``
-plus its off-HTTP helpers (``build_offline_context`` / ``enforce_permissions`` /
-``spec_to_json_schema`` / ``render_spec_output``). No MCP server and no AG-UI
-bridge is in the path: a plain ``pydantic_ai.Agent`` calls the specs in-process.
+each call through the kernel's ``dispatch`` on the spec drf-services compiles,
+with drf-services' ``spec_to_json_schema`` describing each tool's arguments. No
+MCP server and no AG-UI bridge is in the path: a plain ``pydantic_ai.Agent``
+calls the specs in-process.
 
-One call is ``_call_spec``, which mirrors a DRF view in order: pop the args
-the transport owns (pagination, registered query params and URL kwargs), build
-the off-HTTP context, enforce ``spec.permission_classes`` — ``dispatch_spec``
-deliberately does not, so a naive adapter would skip authorization — then
-dispatch and render. The failure-kind mapping onto the model loop lives in the
+One call is ``_call_spec``: pop the args the transport owns (pagination, and
+the read-shaping arguments the kernel hands the presenter as shapes), build the
+call's context and seeds, then ``dispatch`` -- which runs the spec's permission
+checks before it calls anything -- and render. The failure-kind mapping onto the model loop lives in the
 same function's arms, and is tabulated for callers in ``docs/spec-tools/quickstart.md``.
 
 **Every failure this toolset decides is terminal is *raised*, never returned.**
@@ -447,7 +446,8 @@ class SpecToolset(AbstractToolset[Any]):
     **Filtering needs no declaration here, and ordering belongs to the
     ``filter_set``.** A ``SelectorSpec.filter_set``'s fields are already
     generated into the tool's input schema and flow through as ordinary
-    ``params``, which ``dispatch_spec`` hands the FilterSet as ``filter_data``.
+    ``params``, which the spec drf-services compiles hands the FilterSet as
+    ``filter_data``.
     That includes ordering: a FilterSet carrying an ``OrderingFilter`` named
     ``ordering`` advertises the argument itself — drf-services reflects the
     filter's public choices into the schema as an enum — and the toolset keeps
@@ -2449,8 +2449,8 @@ def _selector_inputs(
 
     A signature alone cannot say which parameters the caller sends and which the
     transport fills, so drf-services' reflection is told: ``supplied`` names
-    what this toolset fills in the pool ``dispatch_spec`` calls the selector
-    with, read from the sources that pool is built from, less the model's own
+    what this toolset fills in the pool the kernel's ``dispatch`` calls the
+    selector with, read from the sources that pool is built from, less the model's own
     arguments. A supplied name is not advertised, and every other parameter
     without a default is required, except a name a provider *may* fill (below).
     The union has three parts, each held by a test, because deleting one leaves
