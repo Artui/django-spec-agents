@@ -11,10 +11,11 @@ A single thin adapter, [`SpecToolset`](reference.md#django_spec_agents.spec_tool
 that turns a `name -> spec` mapping into agent tools. Every call runs on the
 kernel, on the spec drf-services compiles for it:
 
-- **`dispatch`**, the kernel's, authorizes the call and then executes the
-  service or selector: `spec.permission_classes` run before anything is
-  called, then validation, instance resolution and the output-selector
-  re-fetch. Authorization is part of the dispatch, so no adapter can skip it;
+- **`dispatch`**, the kernel's, authorizes the call and executes the service
+  or selector: the class-level check of `spec.permission_classes` before
+  anything is called, the object-level one on the resolved target, and
+  validation, instance resolution and the output-selector re-fetch around
+  them. Authorization is part of the dispatch, so no adapter can skip it;
 - **the run's `call_context`** carries the request the run arrived on, if any.
   Where it carries none, drf-services' permission and presenter adapters build
   an offline request around the principal, so `permission_classes` and
