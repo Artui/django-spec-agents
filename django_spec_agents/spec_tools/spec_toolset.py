@@ -44,7 +44,6 @@ from django.db import connections
 from django_service_specs import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_POOL_SEEDS,
-    RESERVED_POOL_SEEDS,
     UNSET,
     ActionUnavailable,
     AdditionalInputRequired,
@@ -284,12 +283,15 @@ def _resolve_contracts(specs: SpecSource) -> Mapping[str, OfflineContract]:
     are where a project that also runs an MCP server has already said so. The
     entry answers them as ``agent_contract``, and this toolset reads them there.
 
-    A bare mapping is read as carrying none: its toolset
-    declares its channels in the constructor. The spec in it still carries its
-    ``reads``, so drf-services admits and routes a value sent under one of
-    those names -- only the tool's schema does not advertise it.
-    ``test_a_bare_mapping_advertises_no_read_and_still_routes_one`` holds both
-    halves.
+    A bare mapping is read as carrying none, having no entry to answer it. The
+    spec in it still carries its ``reads``, which are parameters of the
+    compiled spec, so the tool's schema advertises them and drf-services admits
+    and routes a value sent under one of those names as it does from a
+    registry (``test_a_bare_mapping_advertises_the_spec_s_reads_and_routes_them``),
+    and the call applies their defaults off the spec
+    (``test_a_url_kwarg_answers_for_the_parameter_it_fills``). What a mapping
+    loses is the entry's channels: no ``UrlKwarg`` is popped through one, and
+    none is checked against the toolset's reserved names and seeds.
     """
     if not isinstance(specs, SpecRegistry):
         return {}
@@ -1196,7 +1198,6 @@ class SpecToolset(AbstractToolset[Any]):
                     ctx=ctx,
                     unknown_arguments=self._unknown_arguments,
                     url_kwargs=self._tool_url_kwargs[name],
-                    query_params=self._tool_query_params[name],
                     server_arguments=self._tool_server_arguments.get(name),
                     max_page_size=self._max_page_size,
                     max_result_bytes=self._tool_max_result_bytes[name],
@@ -1736,8 +1737,8 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
 
     The same pass refuses the two other declarations no call can serve: a
     ``metadata["json_schema"]`` fragment drf-services would refuse
-    (``_schema_fragment``), and an input serializer field under one of the
-    dispatcher's own names (``_refuse_dispatcher_named_fields``).
+    (``_schema_fragment``), and an input serializer field the serializer
+    requires under a name drf-services fills itself (``_refuse_unsendable_fields``).
     """
     for tool_name, spec in specs.items():
         # The first assembly of each spec's whole argument set, for every spec
@@ -1754,7 +1755,7 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
             # (``test_a_fragment_drf_services_would_refuse_is_refused_naming_the_tool``).
             for phase in _SCHEMA_PHASES:
                 _schema_fragment(spec, phase)
-            _refuse_dispatcher_named_fields(spec)
+            _refuse_unsendable_fields(spec, own)
         pagination = sorted(own & _PAGINATION_ARGUMENTS) if _is_list_selector(spec) else []
         if pagination:
             raise ImproperlyConfigured(
@@ -1766,37 +1767,52 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
             )
 
 
-def _refuse_dispatcher_named_fields(spec: Spec) -> None:
-    """Refuse an input serializer field under one of the dispatcher's own names.
+def _refuse_unsendable_fields(spec: Spec, own: frozenset[str]) -> None:
+    """Refuse an input serializer field the serializer requires and no call can send.
 
-    drf-services' compiled Validator declares no parameter for such a field,
-    since dispatch seeds the name into every pool itself, so the kernel's
-    schema does not advertise it and its ``dispatch`` refuses a value the model
-    sends for it as an unknown argument under ``REJECT`` and drops it under
-    ``IGNORE``. The serializer still requires it, so no call can be served:
-    over HTTP the edge hands the serializer the body, which this toolset has no
-    equivalent of (``test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool``).
+    drf-services' compiled Validator declares no parameter for a field under a
+    name it fills itself, the dispatcher's own names and ``serializer``, which
+    it binds, so the kernel's schema does not advertise the field and its
+    ``dispatch`` refuses a value the model sends for it as an unknown argument
+    under ``REJECT`` and drops it under ``IGNORE``. A serializer that requires
+    the field then fails every call: over HTTP the edge hands the serializer the
+    body, which this toolset has no equivalent of
+    (``test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool``).
+    Read off the compiled spec's ``parameters()`` (``own``) rather than a list
+    of names, so a name drf-services adds to what it fills is refused with no
+    change here, and a field the server fills from a seed, a server argument or
+    a call seed, which is a parameter, is never refused
+    (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``).
 
-    Only a field the model would send: a ``read_only`` one takes no input
+    Only a field the serializer would demand of a call: an optional one is left
+    out like any other and costs the tool nothing but the field
+    (``test_an_optional_field_named_like_a_dispatcher_name_still_builds_and_serves``),
+    a ``partial`` service demands none of its fields
+    (``test_a_partial_service_may_name_a_required_field_like_a_dispatcher_name``),
+    DRF never marks a ``read_only`` field required
     (``test_a_read_only_field_may_carry_a_dispatcher_name``), and a ``many``
     service's rows are one argument's items, never the call's top-level
     arguments (``test_a_bulk_row_may_name_a_field_like_a_dispatcher_name``). A
     selector, and a service with no serializer, declare no fields.
     """
-    if not isinstance(spec, ServiceSpec) or spec.input_serializer is None or spec.many:
+    if (
+        not isinstance(spec, ServiceSpec)
+        or spec.input_serializer is None
+        or spec.many
+        or spec.partial
+    ):
         return
     fields = spec.input_serializer().fields
-    named = sorted(
-        name
-        for name, field in fields.items()
-        if name in RESERVED_POOL_SEEDS and not field.read_only
+    unsendable = sorted(
+        name for name, field in fields.items() if field.required and name not in own
     )
-    if named:
+    if unsendable:
         raise ImproperlyConfigured(
-            f"the input serializer declares {named!r}, which the dispatcher fills: "
-            "the tool would not advertise the field, a call sending it would be refused "
-            "under REJECT or have it dropped under IGNORE, and the serializer would then "
-            "require it, so no call could be served. Rename the field."
+            f"the input serializer requires {unsendable!r}, which no call can send: "
+            "drf-services fills the name itself and declares no parameter for it, so "
+            "the tool does not advertise the field, a call sending it is refused under "
+            "REJECT or has it dropped under IGNORE, and the serializer then fails every "
+            "call for the missing field. Rename the field or make it optional."
         )
 
 
@@ -2357,7 +2373,7 @@ def _input_schema(
     **A ``metadata["json_schema"]["input"]`` fragment wins, key by key**, over
     the spec's schema and before the toolset's own arguments, as drf-services'
     ``spec_to_json_schema`` merged it
-    (``test_a_schema_fragment_reaches_the_return_schema_and_wins_key_by_key``).
+    (``test_a_schema_fragment_wins_over_the_input_schema_key_by_key``).
 
     **Less ``server_names``, last**: every name ``tool_server_arguments``
     binds or withholds leaves ``properties`` and ``required``
@@ -2649,7 +2665,6 @@ def _call_spec(
     *,
     unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
     url_kwargs: Sequence[UrlKwarg] = (),
-    query_params: Sequence[QueryParam] = (),
     server_arguments: ServerArguments | None = None,
     max_page_size: int | None = None,
     max_result_bytes: int | None = None,
@@ -2684,9 +2699,10 @@ def _call_spec(
     ``conventions`` words the two retries this function writes itself: a missing
     argument, and a read-shaping value the render rejected on a paged tool.
 
-    ``query_params`` are the tool's ``QueryParam`` reads its schema advertises
-    as their own properties, whose declared defaults the call applies; ``label``
-    is the tool's name, which the call's errors and logs carry.
+    ``url_kwargs`` are the entry's route captures, popped off the call onto the
+    offline view; every read's declared default, the spec's own ``reads``, is
+    applied by ``_fill_query_params``. ``label`` is the tool's name, which the
+    call's errors and logs carry.
     """
     # **The server's arguments before anything reads the call.** Before the
     # required-arguments check below, so a required read the binding fills is
@@ -2744,19 +2760,7 @@ def _call_spec(
             for parameter in compiled.shapes
             if args.get(parameter.name) is not None and parameter.name not in server_names
         ]
-        # Every ``QueryParam`` read of the spec: the schema is the compiled
-        # spec's, so it states the declared default of a read a callable takes
-        # as of any other, and the call has to apply it
-        # (``test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advertises``).
-        # The tool's ``query_params`` are among them, so they are not added. A
-        # ``UrlKwarg`` is left out for the type: it has left the call already,
-        # and its popped value stands over the arguments in ``_call_arguments``.
-        _fill_query_params(
-            spec.reads,
-            compiled.shapes,
-            [read for read in spec.reads if isinstance(read, QueryParam)],
-            args,
-        )
+        _fill_query_params(spec.reads, compiled.shapes, args)
         arguments = _call_arguments(
             args,
             url_kwarg_values,
@@ -3295,10 +3299,11 @@ def _with_call_seeds(
 def _fill_query_params(
     reads: Sequence[UrlKwarg | QueryParam],
     shapes: Parameters,
-    advertised: Sequence[QueryParam],
     args: dict[str, Any],
 ) -> None:
-    """Read the call's ``QueryParam`` arguments as the tool's schema advertises them, in place.
+    """Read the call's arguments under the spec's reads as the tool's schema advertises them.
+
+    In place.
 
     A ``null`` under any of the spec's reads is the model declining to fill
     it, so it is dropped rather than handed to the kernel, whose check refuses
@@ -3306,18 +3311,22 @@ def _fill_query_params(
     (``test_an_explicit_null_query_param_is_treated_as_omitted``) and for a read
     a callable takes alike
     (``test_an_explicit_null_for_a_query_param_a_callable_takes_is_treated_as_omitted``).
-    Not asked whether a read is a ``QueryParam``: a ``UrlKwarg`` the tool
-    advertises has left the call already, through ``_pop_url_kwargs``, so only
-    a ``QueryParam`` is still here to be read.
 
-    A read left out is then given its declared default, where the tool
-    advertises one: each of the spec's ``shapes``, and each ``advertised`` read,
-    which a callable may take instead. The kernel reports a shape's default
-    without applying it, and hands a read a callable takes nothing it was not
-    sent, so with nobody filling it the presenter or the callable would be
-    handed none (the ``default-seeded-when-omitted`` case of
-    ``test_query_param_reaches_the_serializer_via_request_query_params``, and
-    ``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``).
+    A read left out is then given its declared default, as the schema, which
+    is the compiled spec's, advertises it: each of the spec's ``shapes``, and
+    each of its reads, which a callable may take instead. The kernel reports a
+    shape's default without applying it, and hands a read a callable takes
+    nothing it was not sent, so with nobody filling it the presenter or the
+    callable would be handed none (the ``default-seeded-when-omitted`` case of
+    ``test_query_param_reaches_the_serializer_via_request_query_params``,
+    ``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``
+    and ``test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advertises``).
+    A ``UrlKwarg`` read is one of them: a tool built from a bare mapping has no
+    entry to pop it through ``_pop_url_kwargs``, so its default is applied here
+    (``test_a_url_kwarg_answers_for_the_parameter_it_fills[mapping]``), and where
+    it was popped the popped value stands over this one in ``_call_arguments``.
+    A value the call carries is never replaced
+    (``test_a_read_s_default_never_replaces_a_value_the_model_sent``).
     ``UNSET`` declares none, and a default of ``None`` is no value, as a
     ``null`` sent is none: one arc to coverage, and each conjunct is held by
     its own case of ``test_a_query_param_declaring_no_default_contributes_nothing``.
@@ -3326,7 +3335,7 @@ def _fill_query_params(
         if args.get(read.name) is None:
             args.pop(read.name, None)
     defaults = {parameter.name: parameter.default for parameter in shapes}
-    defaults.update((query_param.name, query_param.default) for query_param in advertised)
+    defaults.update((read.name, read.default) for read in reads)
     for name, default in defaults.items():
         if name not in args and default is not UNSET and default is not None:
             args[name] = default

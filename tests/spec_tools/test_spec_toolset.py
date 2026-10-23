@@ -93,7 +93,6 @@ from django_spec_agents.spec_tools.spec_toolset import (
     _fill_query_params,
     _input_schema,
     _is_list_selector,
-    _parameter_reads,
     _pop_url_kwargs,
     _return_schema,
     _shape_list,
@@ -198,16 +197,6 @@ def _dispatch(
         toolset = SpecToolset({"t": spec}, require_permissions=False, **toolset_kwargs)
     ctx = ctx_for(user)
     kwargs.setdefault("label", "t")
-    # The reads a registry-built tool advertises as their own properties, which
-    # ``call_tool`` hands on: every one but a read naming an input the tool
-    # advertises already.
-    routed = _parameter_reads(
-        spec,
-        query_params,
-        pool_seeds=toolset._pool_seeds,
-        registry=toolset._json_schema_registry,
-    )
-    kwargs.setdefault("query_params", tuple(qp for qp in query_params if qp.name not in routed))
     return toolset._call_spec(spec, user, dict(args or {}), ctx=ctx, **kwargs)
 
 
@@ -1085,6 +1074,26 @@ def test_a_schema_fragment_reaches_the_tool_s_input_schema():
     )
 
 
+def test_a_schema_fragment_wins_over_the_input_schema_key_by_key():
+    """The input fragment is merged over the derived schema one top-level key
+    at a time, as drf-services merges it: a key the fragment names replaces the
+    derived one, here the ``additionalProperties: false`` the toolset states
+    under ``REJECT``, and a key it does not name stays as derived."""
+    spec = list_spec(metadata={"json_schema": {"input": {"additionalProperties": True}}})
+    derived = _input_schema_of(
+        SpecToolset({"list_widgets": list_spec()}, unknown_arguments=UnknownArguments.REJECT),
+        "list_widgets",
+    )
+
+    merged = _input_schema_of(
+        SpecToolset({"list_widgets": spec}, unknown_arguments=UnknownArguments.REJECT),
+        "list_widgets",
+    )
+
+    assert derived["additionalProperties"] is False
+    assert merged == {**derived, "additionalProperties": True}
+
+
 @pytest.mark.parametrize(
     ("declared", "refusal"),
     [
@@ -1766,6 +1775,25 @@ async def test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advert
     assert _input_schema_of(toolset, "t")["properties"]["fields"]["default"] == "id"
     await _call(toolset, "t", User(username="u"))
     assert _TAKEN == [("selector-named", "id")]
+
+
+@pytest.mark.django_db
+async def test_a_read_s_default_never_replaces_a_value_the_model_sent():
+    """The default stands in for a value left out, never for one sent: a call
+    sending ``fields`` hands the selector the model's value. Holds the
+    ``name not in args`` in ``_fill_query_params``."""
+    _TAKEN.clear()
+    toolset = SpecToolset(
+        reading(
+            {"t": _name_list_spec(selector=_names_naming_fields)},
+            {"t": [QueryParam("fields", default="id")]},
+        ),
+        descriptions={"t": "T."},
+    )
+
+    await _call(toolset, "t", User(username="u"), {"fields": "name"})
+
+    assert _TAKEN == [("selector-named", "name")]
 
 
 @pytest.mark.django_db
@@ -3774,9 +3802,8 @@ def test_a_query_param_declaring_no_default_contributes_nothing(no_default: Any)
     """A shape and an advertised read alike, each with no default, are left out."""
     args: dict[str, Any] = {}
     _fill_query_params(
-        (),
-        Parameters.of(Parameter("fields", "string", default=no_default)),
         (QueryParam("expand", default=no_default),),
+        Parameters.of(Parameter("fields", "string", default=no_default)),
         args,
     )
     assert args == {}
@@ -3787,9 +3814,8 @@ def test_a_real_default_still_reaches_the_spec() -> None:
     assert _pop_url_kwargs([UrlKwarg(name="pk", type="integer", default=7)], {}) == {"pk": 7}
     args: dict[str, Any] = {}
     _fill_query_params(
-        (),
-        Parameters.of(Parameter("fields", "string", default="id")),
         (QueryParam("expand", default="all"),),
+        Parameters.of(Parameter("fields", "string", default="id")),
         args,
     )
     assert args == {"fields": "id", "expand": "all"}
@@ -4775,17 +4801,18 @@ def _noting(policy: UnknownArguments = UnknownArguments.REJECT) -> SpecToolset:
 
 @pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
 def test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool(policy):
-    """No call can serve a service whose input serializer declares a field
+    """No call can serve a service whose input serializer requires a field
     under one of the dispatcher's own names: drf-services' compiled Validator
     declares no parameter for it, so the kernel refuses the model's value as an
     unknown argument under ``REJECT`` and drops it under ``IGNORE``, and the
-    serializer then requires it. So the toolset refuses the spec when it is
-    built, under either policy, naming the tool and the field."""
+    serializer then fails the call for the missing field. So the toolset
+    refuses the spec when it is built, under either policy, naming the tool and
+    the field."""
     with pytest.raises(
         ImproperlyConfigured,
         match=(
-            r"^SpecToolset tool 'note': the input serializer declares \['user'\], "
-            r"which the dispatcher fills"
+            r"^SpecToolset tool 'note': the input serializer requires \['user'\], "
+            r"which no call can send"
         ),
     ):
         _noting(policy)
@@ -4793,11 +4820,23 @@ def test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool(policy)
 
 @pytest.mark.parametrize(
     "name",
-    ["user", "data", "instance", "collection", "result", "queryset", "progress", "call_context"],
+    [
+        "user",
+        "data",
+        "instance",
+        "collection",
+        "result",
+        "queryset",
+        "progress",
+        "call_context",
+        "serializer",
+    ],
 )
-def test_each_dispatcher_name_the_guide_lists_is_refused_as_a_field(name):
-    """The names ``docs/spec-tools/quickstart.md`` lists as refused are the ones
-    the toolset refuses."""
+def test_each_name_the_guide_lists_is_refused_as_a_required_field(name):
+    """The names ``docs/spec-tools/quickstart.md`` lists, each as a required
+    field, are refused: the dispatcher's own names and ``serializer``, the
+    name drf-services' Validator binds, none of which its compiled Validator
+    declares a parameter for."""
     serializer = type("_Named", (serializers.Serializer,), {name: serializers.CharField()})
 
     def keep(data: dict[str, Any]) -> dict[str, Any]:
@@ -4808,8 +4847,62 @@ def test_each_dispatcher_name_the_guide_lists_is_refused_as_a_field(name):
         service=keep, input_serializer=serializer, atomic=False, permission_classes=[AllowAny]
     )
 
-    with pytest.raises(ImproperlyConfigured, match=rf"declares \['{name}'\], which the dispatcher"):
+    with pytest.raises(
+        ImproperlyConfigured, match=rf"requires \['{name}'\], which no call can send"
+    ):
         SpecToolset({"keep": spec})
+
+
+class _OptionalUserSerializer(serializers.Serializer):
+    user = serializers.CharField(required=False)
+    text = serializers.CharField()
+
+
+def _keep_note(data: dict[str, Any]) -> dict[str, Any]:
+    """Keep a note."""
+    return dict(data)
+
+
+@pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
+async def test_an_optional_field_named_like_a_dispatcher_name_still_builds_and_serves(policy):
+    """A call can leave an optional field out, so a ``user`` field the
+    serializer does not require costs the tool nothing but the field: the
+    toolset builds, does not advertise it, and serves a call without it. Holds
+    the ``required`` conjunct of ``_refuse_unsendable_fields``."""
+    toolset = SpecToolset(
+        {
+            "note": ServiceSpec(
+                service=_keep_note,
+                input_serializer=_OptionalUserSerializer,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        },
+        unknown_arguments=policy,
+    )
+
+    assert list(_input_schema_of(toolset, "note")["properties"]) == ["text"]
+    assert await _call(toolset, "note", User(username="u"), {"text": "hi"}) == {"text": "hi"}
+
+
+async def test_a_partial_service_may_name_a_required_field_like_a_dispatcher_name():
+    """A ``partial`` serializer requires none of its fields of a call, so a
+    ``user`` field it declares required is left out as any other is, and the
+    tool builds and serves. Holds the ``partial`` arm of
+    ``_refuse_unsendable_fields``."""
+    toolset = SpecToolset(
+        {
+            "note": ServiceSpec(
+                service=_keep_note,
+                input_serializer=_UserFieldSerializer,
+                partial=True,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        }
+    )
+
+    assert await _call(toolset, "note", User(username="u"), {}) == {}
 
 
 class _ReadOnlyUserSerializer(serializers.Serializer):
@@ -4819,8 +4912,8 @@ class _ReadOnlyUserSerializer(serializers.Serializer):
 
 def test_a_read_only_field_may_carry_a_dispatcher_name():
     """A ``read_only`` field takes no input, so naming one ``user`` asks the
-    model for nothing the dispatcher fills, and the tool builds. Holds the
-    ``read_only`` conjunct of the check."""
+    model for nothing the dispatcher fills, and the tool builds: DRF never
+    marks a ``read_only`` field ``required``."""
 
     def note(data: dict[str, Any]) -> dict[str, Any]:
         """Keep a note."""
@@ -4980,20 +5073,25 @@ def names_in_project(user, project_pk):
     return [{"name": f"project-{project_pk}"}]
 
 
-async def test_a_url_kwarg_answers_for_the_parameter_it_fills():
+@pytest.mark.parametrize("source", ["registry", "mapping"])
+async def test_a_url_kwarg_answers_for_the_parameter_it_fills(source):
     """A ``UrlKwarg`` with a default fills the parameter whenever the model
-    leaves it out, so the model is not asked for it.
+    leaves it out, so the model is not asked for it, from a registry and from
+    a bare mapping alike.
 
     Holds the compiled declaration ``_caller_schema`` reads: a schema reflected
     off the selector's signature instead would require ``project_pk`` beside a
     declaration giving it a default, and the call that default serves would be
-    refused for leaving it out.
+    refused for leaving it out. The ``mapping`` case holds the ``UrlKwarg``
+    reads ``_call_spec`` hands ``_fill_query_params``: a mapping has no entry
+    to pop the read through, so nothing else applies its default.
     """
+    reads = {"in_project": [UrlKwarg("project_pk", type="integer", default=7)]}
+    specs = {"in_project": _name_list_spec(names_in_project)}
     toolset = SpecToolset(
-        reading(
-            {"in_project": _name_list_spec(names_in_project)},
-            {"in_project": [UrlKwarg("project_pk", type="integer", default=7)]},
-        )
+        reading(specs, reads)
+        if source == "registry"
+        else {name: replace(spec, reads=tuple(reads[name])) for name, spec in specs.items()}
     )
 
     schema = _input_schema_of(toolset, "in_project")

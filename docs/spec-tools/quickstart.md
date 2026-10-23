@@ -200,15 +200,21 @@ the compiled spec, the argument set `dispatch` checks, less the kernel's
   toolset and drf-mcp read a provider the same way. A [`UrlKwarg`](#url-derived-values-route-captures)
   that declares a `default` fills its name too, so the selector's parameter of
   that name is not required, but the `UrlKwarg` itself stays advertised, as the
-  optional argument it always is.
-- **An input serializer field named like one of the dispatcher's own names**
-  (`user`, `data`, `instance`, `collection`, `result`, `queryset`, `progress`,
-  `call_context`) is refused when the toolset is built, with
-  `ImproperlyConfigured` naming the tool and the field, under either
-  [`unknown_arguments`](#unexpected-arguments) policy. Dispatch fills the name
-  itself, so the model's value would be refused or dropped and the serializer
-  would still require it: no call could be served. A `read_only` field, and a
-  field of a `many=True` service's rows, are left alone. Rename the field.
+  optional argument it always is: a call that leaves it out is handed the
+  default, from a toolset built off a registry or a bare mapping alike.
+- **An input serializer field the serializer requires under a name
+  drf-services fills itself** (`user`, `data`, `instance`, `collection`,
+  `result`, `queryset`, `progress`, `call_context` and `serializer`) is refused
+  when the toolset is built, with `ImproperlyConfigured` naming the tool and the
+  field, under either [`unknown_arguments`](#unexpected-arguments) policy. Its
+  compiled Validator declares no parameter for such a field, so the tool does
+  not advertise it, the model's value would be refused or dropped, and the
+  serializer would fail every call for the missing field. Rename the field or
+  make it optional. An optional field under one of those names builds, and a
+  call is served without it; a `read_only` one, a `partial` service's, and a
+  field of a `many=True` service's rows are left alone. A field named like one
+  of your own [`pool_seeds`](#project-pool-seeds), such as `tenant`, is a
+  parameter, so it is the model's to send and is not refused.
 - **Every other parameter without a default is required.** `get_widget(user, pk)`
   is advertised as `{"properties": {"pk": {}}, "required": ["pk"]}`. A parameter
   with a default stays optional, and `InputRequired` still makes one required.
@@ -670,7 +676,11 @@ from django_service_specs import UnknownArguments
 toolset = SpecToolset(specs, unknown_arguments=UnknownArguments.IGNORE)
 ```
 
-`IGNORE` drops a key no parameter declares. Under either policy the key never
+`IGNORE` drops a key no parameter declares. The tool's schema says which:
+under `REJECT` it closes the argument set with `additionalProperties: false`, at
+the top and on each row of a [list input](#a-list-as-input), and under `IGNORE`
+it states nothing, since a key outside the set is dropped and the call served.
+Under either policy the key never
 reaches the callable: the kernel hands a callable only what its spec declares.
 One exception is known: a selector taking `**kwargs` beside a `filter_set` also
 receives the FilterSet's values in its catch-all.

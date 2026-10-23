@@ -152,12 +152,17 @@ it, which is why a toolset takes no channel declarations of its own:
 `field_audiences` is part of the spec's output declaration, so every projection
 of the spec carries it, whichever transport or mapping it is reached through.
 
-**Pass the registry, not `registry.specs()`.** The mapping is the flattened
-`name -> spec` view, and the toolset reads each entry's `agent_contract` off the
-entry, so a toolset built from the mapping has none. The tool's schema is the
-compiled spec's either way: the spec's `reads` are advertised from both, and a
-value the model sends under one of those names is admitted and routed onto the
-request as drf-services routes any caller's.
+**A registry and `registry.specs()` build the same tools.** The mapping is the
+flattened `name -> spec` view, and the toolset reads each entry's
+`agent_contract` off the entry, so a toolset built from the mapping has none.
+Nothing the model sees depends on it: the tool's schema is the compiled spec's
+either way, the spec's `reads` are advertised from both, a read's `default`
+reaches the call that leaves it out from both, and a value the model sends under
+one of those names is admitted and routed onto the request as drf-services
+routes any caller's. Pass the registry anyway, so the toolset checks each
+entry's channel declarations against its own reserved names and
+[pool seeds](quickstart.md#project-pool-seeds) when it is built: a `UrlKwarg`
+named after a registered seed is refused there, naming the tool.
 
 **A read naming an input declares where the input comes from.** A `QueryParam`
 read naming a parameter the spec's selector takes, such as

@@ -91,8 +91,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A spec with no permissions, served by a toolset built with
     `require_permissions=False`, still runs unchecked, and only that spec: a
     spec that declares a check is asked it on every call.
-  - A filter-owned `ordering` sent as one string reaches the FilterSet as the
-    list its widget splits it into, an empty string as no sort.
+  - **Breaking:** a filter-owned `ordering` is an array of sort names, and one
+    sent as a string is handed back as a retry, `ordering: Expected an array.`,
+    where it used to be split on commas. That includes an empty string, which
+    used to mean no sort: leave the argument out instead.
   - Under `UnknownArguments.IGNORE`, an argument sent beside a many-spec's
     list is now dropped rather than refused, as any undeclared key is, so a
     deployed agent that relied on the refusal no longer gets it. `REJECT`
@@ -111,17 +113,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     spec never declares; an argument of a name marked `NotClientInput`,
     whatever the selector's input set; and an argument named like one of the
     dispatcher's own, such as `user`, which the dispatcher fills where a
-    selector or service reads it and no schema advertises as a parameter (an
-    input serializer field of the name is a known difference, below).
+    selector or service reads it and no schema advertises as a parameter.
     `IGNORE` drops each of them, and none reaches the callable.
+- `SpecToolset` reads each tool's input schema off the kernel's
+  `spec_input_schema`, less the names the server fills, and its return schema
+  off the kernel's `spec_output_schema`, rather than off drf-services'
+  reflection. What a model sees of that:
+  - The input schema states `additionalProperties: false` under
+    `UnknownArguments.REJECT` only, at the top and on each row of a many-spec's
+    list, and nothing under `IGNORE`, which serves a call carrying an
+    undeclared key.
+  - A filter-owned `ordering` is advertised as an array of the filter's sort
+    names, at most 1000 of them.
+  - A toolset built from `registry.specs()` advertises the spec's reads, as one
+    built from the registry does, where it used to advertise none.
+  - A `NumberFilter` is advertised as the decimal string its field parses, not
+    as a JSON number.
+  - A parameter admitting `None` is one node whose `type` lists `"null"`, where
+    it was a choice of two nodes.
+  - `required` lists names in the kernel's order, which puts the spec's reads
+    before the list a many-spec takes, where the reads used to come last.
+  - A read's declared default reaches the callable when a call leaves the read
+    out, a `QueryParam` and a `UrlKwarg` alike, from a registry or a mapping.
+  - A spec's `metadata["json_schema"]` fragments are merged over the kernel's
+    schemas key by key, `input` over the input schema and `output` over the
+    return schema, as drf-services merged them.
+- Three declarations no call can serve are now refused when the toolset is
+  built, with `ImproperlyConfigured` naming the tool, and the refusal fails the
+  whole toolset where its other tools used to build:
+  - an input serializer field sharing the name of a parameter of the service's
+    target lookup;
+  - an input serializer field the serializer requires under a name
+    drf-services fills itself, `user` or `serializer` among them, which the
+    tool used to advertise as required and refuse when sent. Rename the field
+    or make it optional;
+  - a `metadata["json_schema"]` fragment drf-services would refuse: a key
+    naming no phase, or a phase that is not a mapping.
 
 ### Known differences
 
-- A service's input serializer field named like one of the dispatcher's own
-  names, such as `user`, is advertised as required in the tool's schema and
-  refused as an unknown argument when sent, so the tool cannot be called. The
-  kernel declines to validate such a field; the schema stops advertising it
-  when the toolset reads its schemas off the kernel.
 - A `returns_many` service with no `selector` that returns a single row raises
   the output serializer's `AttributeError` out of the call, where it was a
   configuration error naming what the service returned.
@@ -132,8 +162,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   receives it, and the output serializer no longer does, so django-restql's
   field selection under such a selector is not applied.
 - A declared read that its callable takes off `request.query_params` or
-  `view.kwargs` rather than by name is still accepted, and advertised by a
-  toolset built from a registry, and reaches nothing: the call answers as if it
+  `view.kwargs` rather than by name is still accepted, and advertised, and
+  reaches nothing: the call answers as if it
   had not been sent.
 
 ## [0.1.0] — 2026-10-21
