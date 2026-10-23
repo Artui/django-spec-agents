@@ -3,7 +3,10 @@
 ## 1. Have some specs
 
 `SpecToolset` works with the `ServiceSpec` and `SelectorSpec` objects you already
-define for `djangorestframework-services`. A read selector and a write service:
+define for `djangorestframework-services`, and with `django-service-specs`' own,
+declared on the kernel with no DRF in them (see
+[a spec declared on the kernel](spec-registry.md#a-spec-declared-on-the-kernel)).
+This page uses drf-services specs. A read selector and a write service:
 
 ```python
 from django_service_specs import SelectorKind

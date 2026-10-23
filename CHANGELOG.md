@@ -85,6 +85,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - An argument no parameter declares is refused in the kernel's words, one
     line per key: `note: Unknown argument.` where it was
     `Unexpected argument(s): 'note'.`
+  - A call wrong in several places is handed one retry naming each, a line
+    apiece: a service call sending a mistyped lookup value and leaving out an
+    input field hears `pk: Expected a string.` and
+    `name: This field is required.` together, where it heard about `pk` alone
+    and about the field on its next turn.
   - A call's arguments are checked before its permissions, so a malformed call
     to a tool its caller may not use is handed back as a retry naming the
     argument, where it used to be refused with `PermissionDenied`.
@@ -177,9 +182,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declares under a registered pool seed's name, at the top level or on a
   service's target lookup, fails the whole toolset when it is built, with
   `ImproperlyConfigured` naming the tool, where the tool used to build and
-  every call to it was refused. Rename the read. A registry and its mapping
-  now build the same tools, and the instructions' read-shaping line names a
-  mapping-built tool's shapes too.
+  every call to it was refused. So does a shape, a read no callable takes such
+  as a `QueryParam` the selector does not name, under `page`, `limit` or
+  `ordering`, on a list or a retrieve tool: a mapping used to build it.
+  Rename the read. A registry and its mapping now build the same tools, and
+  the instructions' read-shaping line names a mapping-built tool's shapes
+  too.
 - A value in `specs` that compiles to no spec raises `TypeError` in the
   kernel's words, prefixed with the tool's name, rather than the toolset's
   own; a drf-services `PolymorphicServiceSpec` is refused this way, the
@@ -215,9 +223,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `view.kwargs` rather than by name is still accepted, and advertised, and
   reaches nothing: the call answers as if it
   had not been sent.
-- A `UrlKwarg` named `ordering` is no longer refused for the name: it is an
-  argument like any other, advertised and left in the call. A shape, a read
-  no callable takes, is still refused under `page`, `limit` or `ordering`.
+- A `UrlKwarg` named `ordering`, or on a retrieve tool `page` or
+  `limit`, is no longer refused for the name from a registry: a relaxation,
+  since such a read is an argument like any other, advertised and left in the
+  call. A shape, a read no callable takes, is still refused under `page`,
+  `limit` or `ordering`, and a list selector parameter under `page` or
+  `limit`.
 - A read declared `required=True` with a `default` is no longer refused when
   the toolset is built; the default answers a call that leaves it out, as the
   kernel reads it.

@@ -10,6 +10,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import FieldAudience, FieldMarking, SelectorKind, SpecRegistry
+from pydantic_ai import ModelRetry
 from rest_framework.permissions import AllowAny
 from rest_framework_services import (
     JsonSchemaRegistry,
@@ -407,3 +408,90 @@ class TestTheSpecsOwnReads:
         assert {"tenant_pk", "since"} <= set(props)
         assert RecordingPermission.seen["kwargs"] == {"tenant_pk": "5"}
         assert RecordingPermission.seen["query_params"] == {"since": ["2020"]}
+
+
+# --- the native example the spec-registry page shows -------------------------
+#
+# The same declarations as ``docs/spec-tools/spec-registry.md``'s "A spec
+# declared on the kernel", on this suite's ``Widget`` where the page has an
+# ``Order``, so a change to what the page says a native spec does fails here.
+
+
+class SignedIn(django_service_specs.PermissionCheck):
+    def has_permission(self, principal: Any, spec: Any) -> bool:
+        return bool(principal is not None and principal.is_authenticated)
+
+
+def widgets_named(*, user: Any, name: str) -> list[dict[str, Any]]:
+    """The caller's widgets under one name."""
+    return list(Widget.objects.filter(owner=user, name=name).values("name", "price"))
+
+
+def reprice_widget(*, user: Any, pk: int, price: int) -> dict[str, Any]:
+    """Set the price of one of the caller's widgets."""
+    Widget.objects.filter(owner=user, pk=pk).update(price=price)
+    return {"pk": pk, "price": price}
+
+
+_LIST_WIDGETS = django_service_specs.SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=widgets_named,
+    reads=django_service_specs.Parameters.of(
+        django_service_specs.Parameter("name", "string", default="gear"),
+    ),
+    permissions=[SignedIn()],
+)
+_REPRICE_WIDGET = django_service_specs.ServiceSpec(
+    service=reprice_widget,
+    reads=django_service_specs.Parameters.of(
+        django_service_specs.Parameter("pk", "integer", required=True),
+        django_service_specs.Parameter("price", "integer", required=True, minimum=0),
+    ),
+    permissions=[SignedIn()],
+)
+
+
+class TestTheNativeExample:
+    def test_its_arguments_are_its_declared_reads(self) -> None:
+        toolset = SpecToolset({"list_widgets": _LIST_WIDGETS, "reprice_widget": _REPRICE_WIDGET})
+
+        listed = toolset._tool_defs["list_widgets"].parameters_json_schema
+        repriced = toolset._tool_defs["reprice_widget"].parameters_json_schema
+        assert listed["properties"]["name"]["default"] == "gear"
+        assert set(listed["properties"]) == {"name", "page", "limit"}
+        assert set(repriced["properties"]) == {"pk", "price"}
+        assert sorted(repriced["required"]) == ["pk", "price"]
+
+    @pytest.mark.django_db(transaction=True)
+    async def test_it_serves_the_signed_in_caller(self) -> None:
+        user = await User.objects.acreate(username="u")
+        widget = await Widget.objects.acreate(name="gear", price=1, owner=user)
+        toolset = SpecToolset({"list_widgets": _LIST_WIDGETS, "reprice_widget": _REPRICE_WIDGET})
+
+        tools = await toolset.get_tools(ctx_for(user))
+        repriced = await toolset.call_tool(
+            "reprice_widget", {"pk": widget.pk, "price": 5}, ctx_for(user), tools["reprice_widget"]
+        )
+        listed = await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
+
+        assert repriced == {"pk": widget.pk, "price": 5}
+        assert listed["items"] == [{"name": "gear", "price": 5}]
+
+    async def test_a_spec_declaring_no_reads_takes_no_argument(self) -> None:
+        """A native spec reflects nothing off its callable, so one declaring no
+        reads advertises an empty schema and refuses whatever is sent."""
+        bare = django_service_specs.SelectorSpec(
+            kind=SelectorKind.LIST, selector=widgets_named, permissions=[SignedIn()]
+        )
+        toolset = SpecToolset({"list_widgets": bare})
+        user = User(username="u")
+
+        tools = await toolset.get_tools(ctx_for(user))
+        assert set(tools["list_widgets"].tool_def.parameters_json_schema["properties"]) == {
+            "page",
+            "limit",
+        }
+        with pytest.raises(ModelRetry, match=r"^name: Unknown argument\.$"):
+            await toolset.call_tool(
+                "list_widgets", {"name": "gear"}, ctx_for(user), tools["list_widgets"]
+            )

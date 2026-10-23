@@ -1469,16 +1469,58 @@ async def test_a_read_default_appears_in_schema(read):
     assert props["fields"]["default"] == "id"
 
 
-def test_a_reserved_read_name_is_rejected():
+@pytest.mark.parametrize("source", ["registry", "mapping"])
+def test_a_reserved_read_name_is_rejected(source):
     # A ``QueryParam`` no callable takes compiles to a shape, which nothing
     # sorts: advertised as the tool's ``ordering``, it would be the sort the
-    # model is offered and never applied.
+    # model is offered and never applied. Refused from a bare mapping as from
+    # a registry, since the check reads the compiled spec.
+    registry = reading({"list_widgets": list_spec()}, {"list_widgets": [QueryParam("ordering")]})
     with pytest.raises(
         ImproperlyConfigured, match=r"^SpecToolset tool 'list_widgets': .*\['ordering'\]"
     ):
-        SpecToolset(
-            reading({"list_widgets": list_spec()}, {"list_widgets": [QueryParam("ordering")]})
-        )
+        SpecToolset(registry if source == "registry" else registry.specs())
+
+
+@pytest.mark.parametrize("source", ["registry", "mapping"])
+def test_a_retrieve_tool_s_shape_may_not_be_named_page(source):
+    """A shape is the presenter's, whatever the tool's kind, so ``page`` is
+    refused on a retrieve tool too, which takes no pagination of its own: the
+    name is reserved for every tool alike."""
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=one_entry,
+        output_serializer=_NameSerializer,
+        permission_classes=[AllowAny],
+    )
+    registry = reading({"entry": spec}, {"entry": [QueryParam("page")]})
+
+    with pytest.raises(ImproperlyConfigured, match=r"^SpecToolset tool 'entry': .*\['page'\]"):
+        SpecToolset(registry if source == "registry" else registry.specs())
+
+
+def one_entry():
+    """The one entry there is."""
+    return {"name": "only"}
+
+
+@pytest.mark.parametrize("name", ["page", "limit"])
+def test_a_retrieve_tool_s_route_capture_may_be_named_page_or_limit(name):
+    """Only a list tool paginates, so on a retrieve tool a ``UrlKwarg`` named
+    ``page`` or ``limit`` takes nothing from the toolset: it builds from a
+    registry, is advertised, and reaches the permission check as sent."""
+    read = UrlKwarg(name)
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=one_entry,
+        output_serializer=_NameSerializer,
+        permission_classes=[RecordingPermission],
+    )
+    toolset = SpecToolset(reading({"entry": spec}, {"entry": [read]}))
+
+    assert name in _input_schema_of(toolset, "entry")["properties"]
+    assert _dispatch(spec, None, {name: "3"}, url_kwargs=[read]) == {"name": "only"}
+    assert RecordingPermission.seen["kwargs"] == {name: "3"}
 
 
 def test_a_route_capture_named_ordering_is_an_argument_like_any_other():
@@ -2437,6 +2479,26 @@ def test_supplying_a_required_url_kwarg_dispatches_normally():
         url_kwargs=[UrlKwarg("project_pk", required=True)],
     )
     assert [w["name"] for w in _rows(result)] == ["a"]
+
+
+def by_label(*, label: str):
+    """The widgets under one label, a string the caller names."""
+    return Widget.objects.filter(name=label)
+
+
+def test_a_call_wrong_in_two_places_is_told_both_at_once():
+    """The kernel checks the lookup's argument and the input together, so a
+    service call sending a mistyped lookup value and leaving out a field is
+    handed one retry naming both, a line each, and the model fixes the call in
+    one turn rather than two."""
+    spec = _update_spec(
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=by_label)
+    )
+
+    with pytest.raises(ModelRetry) as retry:
+        _dispatch(spec, None, {"label": 1, "price": 1})
+
+    assert retry.value.message == "label: Expected a string.\nname: This field is required."
 
 
 @pytest.mark.django_db
@@ -7630,6 +7692,34 @@ async def test_a_spec_s_own_registry_reaches_a_filter_with_none_on_the_toolset()
 
     rating = tools["list"].tool_def.parameters_json_schema["properties"]["rating"]
     assert {key: rating.get(key) for key in _RATING_SCHEMA} == _RATING_SCHEMA
+
+
+async def test_a_registry_on_both_the_spec_and_the_toolset_reaches_every_node():
+    """The spec's own registry and the toolset's keyword together: the filter
+    node, which only the keyword reaches, carries the custom schema beside the
+    serializer field the spec's registry reaches. Holds the default registry
+    in ``_with_registry_nodes``' comparison: reflected without it, drf-services
+    falls back to the spec's own registry, both reflections agree, and the
+    filter keeps the node the kernel spelled."""
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        fields=[(_RatingField, _RATING_SCHEMA)], filters=[(_RatingFilter, _RATING_SCHEMA)]
+    )
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=list_widgets,
+        output_serializer=_RatedWidgetSerializer,
+        filter_set=_RatedFilterSet,
+        json_schema_registry=registry,
+        permission_classes=[AllowAny],
+    )
+
+    tools = await SpecToolset({"list": spec}, json_schema_registry=registry).get_tools(None)
+
+    tool_def = tools["list"].tool_def
+    rating = tool_def.parameters_json_schema["properties"]["rating"]
+    assert {key: rating.get(key) for key in _RATING_SCHEMA} == _RATING_SCHEMA
+    item = tool_def.return_schema["properties"]["items"]["items"]
+    assert item["properties"]["rating"] == _RATING_SCHEMA
 
 
 async def test_a_consumer_registry_leaves_what_it_does_not_describe_as_the_kernel_spells_it():

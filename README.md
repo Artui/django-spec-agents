@@ -16,8 +16,9 @@ approval gate for destructive tools, a failure policy, conversation and attachme
 stores, and an opt-in store app. It reads no Django settings of its own: a
 transport such as [django-ag-ui](https://github.com/Artui/django-ag-ui) owns its
 settings, builds the config and hands it down. **`spec_tools`**, behind the
-`[specs]` extra, serves [djangorestframework-services](https://github.com/Artui/djangorestframework-services)
-specs to an agent as tools, in process, with each spec's own validation,
+`[specs]` extra, serves specs to an agent as tools, whether declared on
+[django-service-specs](https://github.com/Artui/django-service-specs) or with
+[djangorestframework-services](https://github.com/Artui/djangorestframework-services), in process, with each spec's own validation,
 permissions and rendering: `SpecToolset`, and `SpecCapability` over it.
 
 The host was published as `django-pydantic-agent` and `spec_tools` as

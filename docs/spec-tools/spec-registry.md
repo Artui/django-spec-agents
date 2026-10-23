@@ -63,6 +63,70 @@ built, in the kernel's words: a drf-services `PolymorphicServiceSpec` is one,
 and the message says to register each variant under its own name (see
 [polymorphic actions](polymorphic-actions.md)).
 
+## A spec declared on the kernel
+
+A django-service-specs spec needs no DRF. Its permissions are the kernel's
+`PermissionCheck`s, and **its arguments are its declared `reads`**: the kernel
+reflects nothing off a native callable's signature, so each argument the model
+may send is a `Parameter`, and the callable takes it by name beside the pool
+seeds (`user` here). A native spec declaring no reads advertises no argument of
+its own, and a call sending one is handed back as `name: Unknown argument.`
+
+```python
+from django_service_specs import (
+    Parameter,
+    Parameters,
+    PermissionCheck,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+)
+
+from django_spec_agents.spec_tools import SpecToolset
+from orders.models import Order
+
+
+class SignedIn(PermissionCheck):
+    def has_permission(self, principal, spec) -> bool:
+        return bool(principal is not None and principal.is_authenticated)
+
+
+def orders_in_status(*, user, status: str) -> list[dict]:
+    """The caller's orders in one status."""
+    return list(Order.objects.filter(owner=user, status=status).values("id", "status"))
+
+
+def set_order_note(*, user, pk: int, note: str) -> dict:
+    """Write the note on one of the caller's orders."""
+    Order.objects.filter(owner=user, pk=pk).update(note=note)
+    return {"id": pk, "note": note}
+
+
+list_orders = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=orders_in_status,
+    reads=Parameters.of(Parameter("status", "string", default="open")),
+    permissions=[SignedIn()],
+)
+note_order = ServiceSpec(
+    service=set_order_note,
+    reads=Parameters.of(
+        Parameter("pk", "integer", required=True),
+        Parameter("note", "string", required=True),
+    ),
+    permissions=[SignedIn()],
+)
+
+toolset = SpecToolset({"list_orders": list_orders, "note_order": note_order})
+```
+
+`list_orders` advertises `status`, defaulting to `open`, beside the `page` and
+`limit` every list tool takes, and returns a page of the dicts its selector
+returns. `note_order` requires `pk` and `note`. A registry takes these specs as
+it takes any other, and the toolset serves them from either.
+
+## A registry or its mapping
+
 `SpecToolset(registry)` and `SpecToolset(registry.specs())` build the same
 tools: the mapping is the flattened `name -> spec` view, and everything the
 toolset reads is on the spec. Pass the registry when you have one, so a

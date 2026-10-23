@@ -2433,7 +2433,15 @@ def _with_registry_nodes(
     # other the default registry, which skips this overlay.
     reflected = cast("DRFServiceSpec[Any, Any, Any] | DRFSelectorSpec[Any, Any]", spec)
     own = cast("dict[str, Any]", spec_to_json_schema(reflected, phase="input", registry=registry))
-    default = cast("dict[str, Any]", spec_to_json_schema(reflected, phase="input"))
+    # Named, not left out: drf-services falls back to the spec's own registry
+    # when none is passed, and a spec declaring one would then reflect alike
+    # both ways, so a filter node only the toolset's registry describes would
+    # never be taken
+    # (``test_a_registry_on_both_the_spec_and_the_toolset_reaches_every_node``).
+    default = cast(
+        "dict[str, Any]",
+        spec_to_json_schema(reflected, phase="input", registry=DEFAULT_JSON_SCHEMA_REGISTRY),
+    )
     plain = default.get("properties", {})
     changed = {
         name: node for name, node in own.get("properties", {}).items() if node != plain.get(name)
