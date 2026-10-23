@@ -22,6 +22,7 @@ from asgiref.sync import async_to_sync, sync_to_async
 from django import forms
 from django.contrib.auth.models import AnonymousUser, User
 from django.core.exceptions import FieldError, ImproperlyConfigured
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, connections
 from django.db.models import Q
@@ -3320,6 +3321,33 @@ async def test_a_refusal_the_service_raises_is_logged_as_a_denial(caplog):
 
 
 @pytest.mark.django_db(transaction=True)
+async def test_djangos_permission_denied_is_logged_as_a_denial(caplog):
+    """A service may raise Django's own ``PermissionDenied`` bare; it is the
+    same refusal, reaches the run untouched and is logged naming the tool."""
+
+    def refuse(user):
+        """Refuse."""
+        raise DjangoPermissionDenied("not yours")
+
+    user = await sync_to_async(User.objects.create)(username="u")
+    toolset = SpecToolset(
+        {
+            "refuse": django_service_specs.ServiceSpec(
+                service=refuse, permissions=[django_service_specs.Unrestricted()], atomic=False
+            )
+        }
+    )
+
+    with (
+        caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"),
+        pytest.raises(DjangoPermissionDenied),
+    ):
+        await toolset.call_tool("refuse", {}, ctx_for(user), None)
+
+    assert "Permission denied calling tool 'refuse'" in caplog.text
+
+
+@pytest.mark.django_db(transaction=True)
 async def test_a_deactivated_principal_is_logged_as_a_denial(caplog):
     """The kernel refuses a deactivated principal before any permission check,
     with ``PrincipalUnavailable`` rather than ``NotPermitted``; it is still a denial,
@@ -6538,6 +6566,20 @@ async def test_a_retrieve_tool_says_whether_it_can_return_null(allow_none, root_
 
     assert return_schema is not None
     assert return_schema["type"] == root_type
+
+
+async def test_an_input_that_admits_none_is_one_node_listing_null_beside_its_type():
+    """A nullable read is advertised as a single schema node whose ``type`` lists
+    ``"null"`` beside its own type, not as a choice (``anyOf``) between two nodes."""
+    spec = retrieve_spec(
+        reads=Parameters.of(_PK, Parameter("note", "string", nullable=True)),
+    )
+    tools = await SpecToolset({"get": spec}).get_tools(None)
+    properties = tools["get"].tool_def.parameters_json_schema["properties"]
+
+    assert properties["note"]["type"] == ["string", "null"]
+    assert "anyOf" not in properties["note"]
+    assert properties["pk"]["type"] == "integer"
 
 
 def archive_widget():

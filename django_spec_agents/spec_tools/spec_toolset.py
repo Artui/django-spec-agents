@@ -42,7 +42,7 @@ from types import MappingProxyType
 from typing import Any, cast
 
 from asgiref.sync import sync_to_async
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.db import connections
 from django_service_specs import (
     DEFAULT_PAGE_SIZE,
@@ -1087,12 +1087,14 @@ class SpecToolset(AbstractToolset[Any]):
                 label=name,
                 extra=_run_extra(ctx),
             )
-        except (NotPermitted, PrincipalUnavailable):
-            # One arc for two refusals, each held by a test raising it bare:
-            # ``test_a_refusal_the_service_raises_is_logged_as_a_denial``, and
+        except (NotPermitted, PrincipalUnavailable, PermissionDenied):
+            # One arc for three refusals, each held by a test raising it bare:
+            # ``test_a_refusal_the_service_raises_is_logged_as_a_denial``,
             # ``test_a_deactivated_principal_is_logged_as_a_denial`` for the
             # kernel's refusal of a deactivated principal, which it raises
-            # before any permission check.
+            # before any permission check, and
+            # ``test_djangos_permission_denied_is_logged_as_a_denial`` for
+            # Django's own class, which a service may raise bare.
             # The one failure with no other trace: a ``ModelRetry`` reaches the
             # model and a ``ToolFailed`` reaches the answer as a failed result,
             # but a denial aborts the run and is absorbed by whatever drives it.
