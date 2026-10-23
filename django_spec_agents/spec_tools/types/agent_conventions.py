@@ -131,9 +131,12 @@ class AgentConventions:
         "- Some tools accept read-shaping parameters ({names}) that adjust the shape "
         "of the returned data without filtering it."
     )
-    """The block's line on read-shaping parameters, when some tool declares a ``QueryParam``.
+    """The block's line on read-shaping parameters, when some tool has one.
 
-    ``{names}`` is every declared name, sorted, each in backticks and joined with
+    A read-shaping parameter is a ``QueryParam`` read no callable of the spec
+    takes, which the output serializer reads instead; one a selector or
+    provider takes, by name or through ``**kwargs``, is that callable's
+    argument and is not named here. ``{names}`` is every such name, sorted, each in backticks and joined with
     ``", "``. ``None`` drops the line and ``read_shaping_on_pages`` with it, since
     that sentence continues this one.
     """
@@ -143,7 +146,7 @@ class AgentConventions:
         "itself."
     )
     """Appended to ``read_shaping``, after a space, when some tool that returns a page
-    declares a ``QueryParam``.
+    has a read-shaping parameter.
 
     The block-level half of ``query_param_on_pages``. No placeholders.
     """

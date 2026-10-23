@@ -1987,8 +1987,7 @@ def test_a_bare_kwargs_selector_is_handed_nothing_undeclared():
 def test_a_bare_kwargs_selector_declares_no_name_so_reject_refuses_every_key():
     """The kernel closes the argument set at the spec's declared parameters, and a
     bare ``**kwargs`` declares none, so under ``REJECT`` a key sent to it is
-    refused like any other undeclared one. drf-services' ``dispatch_spec`` served
-    it, and dropped the value."""
+    refused like any other undeclared one."""
     _OPEN_SELECTOR_CALLS.clear()
 
     with pytest.raises(ModelRetry, match=r"^colour: Unknown argument\.$"):
@@ -4501,11 +4500,7 @@ async def test_a_validator_field_named_like_a_seed_is_the_model_s_to_send():
 
 
 async def test_a_row_field_named_like_a_seed_is_validated_on_a_many_spec():
-    """Each row's field is validated into ``data``; the service's ``tenant`` stays the seed's.
-
-    drf-services' ``dispatch_spec`` refused this call, each row's ``tenant`` as
-    missing, because it compiled the seed's name out of what was validated.
-    """
+    """Each row's field is validated into ``data``; the service's ``tenant`` stays the seed's."""
 
     def move_all(data: list[dict[str, Any]], tenant: str) -> list[dict[str, str]]:
         """Move each row to the tenant it names."""
@@ -4574,8 +4569,7 @@ async def test_a_seed_named_argument_a_spec_never_declares_is_refused():
     The toolset drops the model's value of a seed's name only where the spec
     declares the name, so the seed answers in its place. Here nothing declares
     it, so under the default ``REJECT`` the kernel refuses it as it refuses any
-    undeclared key, registry or no registry. drf-services' ``dispatch_spec``
-    dropped it.
+    undeclared key, registry or no registry.
     """
 
     def ping() -> dict[str, bool]:
@@ -4607,7 +4601,6 @@ async def test_a_dispatcher_name_the_model_sends_is_refused_or_dropped(policy, s
     No schema advertises it, and the kernel declares no parameter of its name,
     so a model sending it anyway sends an undeclared key: ``REJECT`` refuses
     it, and ``IGNORE`` drops it and the selector still reads the caller.
-    drf-services' ``dispatch_spec`` dropped it under both.
     """
 
     def mine(user: Any) -> dict[str, str]:
@@ -4914,8 +4907,7 @@ async def test_a_value_the_model_sends_for_a_marked_name_never_reaches_the_selec
 async def test_a_marked_name_sent_to_an_open_selector_is_refused():
     """A selector's bare ``**filters`` does not open the argument set: the kernel
     closes it at the declared parameters, and a marked name is not one, so under
-    ``REJECT`` the model's value is refused as on a closed selector. drf-services'
-    ``dispatch_spec`` dropped it."""
+    ``REJECT`` the model's value is refused as on a closed selector."""
     toolset = _ProjectScopedToolset(
         {"in_project": _name_list_spec(names_in_hidden_project_or_filtered)}
     )
