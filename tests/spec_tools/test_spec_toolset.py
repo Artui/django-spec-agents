@@ -4910,6 +4910,52 @@ class _ReadOnlyUserSerializer(serializers.Serializer):
     text = serializers.CharField()
 
 
+class _OrgNoteSerializer(serializers.Serializer):
+    org = serializers.CharField()
+    text = serializers.CharField()
+
+
+def _org_note_spec() -> ServiceSpec:
+    return ServiceSpec(
+        service=_keep_note,
+        input_serializer=_OrgNoteSerializer,
+        atomic=False,
+        permission_classes=[AllowAny],
+    )
+
+
+async def test_a_required_field_the_server_binds_is_not_refused():
+    """A required field ``tool_server_arguments`` binds is one of the compiled
+    Validator's parameters, as every bound name must be, so the toolset builds,
+    the tool does not ask the model for it, and the call is served the bound
+    value. Holds the ``not in own`` conjunct of ``_refuse_unsendable_fields``
+    for a field the server fills."""
+    toolset = SpecToolset(
+        {"note": _org_note_spec()},
+        tool_server_arguments={"note": ServerArguments(values={"org": "acme"})},
+    )
+
+    assert list(_input_schema_of(toolset, "note")["properties"]) == ["text"]
+    assert await _call(toolset, "note", User(username="u"), {"text": "hi"}) == {
+        "org": "acme",
+        "text": "hi",
+    }
+
+
+def test_a_required_field_named_like_a_call_seed_is_not_refused():
+    """A name only a ``call_seeds`` override fills is not one drf-services
+    fills itself, so a required field of that name is a parameter, and the
+    toolset builds."""
+
+    class OrgSeeded(SpecToolset):
+        def call_seeds(self, *, ctx, tool_name):
+            return {"org": lambda: "seeded"}
+
+    toolset = OrgSeeded({"note": _org_note_spec()})
+
+    assert "note" in toolset._tool_defs
+
+
 def test_a_read_only_field_may_carry_a_dispatcher_name():
     """A ``read_only`` field takes no input, so naming one ``user`` asks the
     model for nothing the dispatcher fills, and the tool builds: DRF never
@@ -4971,6 +5017,28 @@ def test_a_channel_named_after_a_registered_seed_is_refused(channel):
     """
     with pytest.raises(ImproperlyConfigured, match="tenant"):
         SpecToolset(reading({"list": list_spec()}, {"list": channel}), pool_seeds=_tenant_seeds())
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=pytest.fail.Exception,
+    reason=(
+        "a bare mapping carries no registry entry, so its reads are not checked "
+        "against the toolset's reserved names and seeds when it is built; the "
+        "kernel refuses the read on every call instead"
+    ),
+)
+def test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build():
+    """What a registry-built tool is refused at build
+    (``test_a_channel_named_after_a_registered_seed_is_refused``), a tool built
+    from a bare mapping is not: the check runs over the entry's declarations,
+    and a mapping has no entry. Strict, so the day the check runs over the
+    spec's own ``reads`` this passes and fails the suite, and
+    ``_resolve_contracts`` and the guide stop saying a mapping skips it."""
+    spec = replace(list_spec(), reads=(UrlKwarg("tenant"),))
+
+    with pytest.raises(ImproperlyConfigured, match="tenant"):
+        SpecToolset({"list": spec}, pool_seeds=_tenant_seeds())
 
 
 # --- what a call needs from the model -----------------------------------------
@@ -5100,6 +5168,26 @@ async def test_a_url_kwarg_answers_for_the_parameter_it_fills(source):
     assert "project_pk" not in schema.get("required", [])
     assert schema["properties"]["project_pk"]["type"] == "integer"
     assert _rows(result) == [{"name": "project-7"}]
+
+
+@pytest.mark.parametrize("source", ["registry", "mapping"])
+async def test_a_url_kwarg_s_default_never_replaces_the_value_the_model_sent(source):
+    """The call applies a read's default only where the model sent nothing.
+    From a registry the entry's ``UrlKwarg`` is popped off the call before the
+    defaults are applied, so its default lands among the arguments beside the
+    popped value, and the popped value standing over it in ``_call_arguments``
+    is what keeps the model's."""
+    reads = {"in_project": [UrlKwarg("project_pk", type="integer", default=7)]}
+    specs = {"in_project": _name_list_spec(names_in_project)}
+    toolset = SpecToolset(
+        reading(specs, reads)
+        if source == "registry"
+        else {name: replace(spec, reads=tuple(reads[name])) for name, spec in specs.items()}
+    )
+
+    result = await _call(toolset, "in_project", User(username="u"), {"project_pk": 3})
+
+    assert _rows(result) == [{"name": "project-3"}]
 
 
 @_A_DECLARED_READ_COMPILES_OPTIONAL

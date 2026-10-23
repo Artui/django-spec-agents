@@ -291,7 +291,11 @@ def _resolve_contracts(specs: SpecSource) -> Mapping[str, OfflineContract]:
     and the call applies their defaults off the spec
     (``test_a_url_kwarg_answers_for_the_parameter_it_fills``). What a mapping
     loses is the entry's channels: no ``UrlKwarg`` is popped through one, and
-    none is checked against the toolset's reserved names and seeds.
+    none is checked against the toolset's reserved names and seeds when it is
+    built, so a read named after a registered seed is refused by the kernel on
+    every call instead
+    (``test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build``,
+    a strict ``xfail`` until the check reads the spec's own ``reads``).
     """
     if not isinstance(specs, SpecRegistry):
         return {}
@@ -1782,7 +1786,9 @@ def _refuse_unsendable_fields(spec: Spec, own: frozenset[str]) -> None:
     of names, so a name drf-services adds to what it fills is refused with no
     change here, and a field the server fills from a seed, a server argument or
     a call seed, which is a parameter, is never refused
-    (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``).
+    (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``,
+    ``test_a_required_field_the_server_binds_is_not_refused``,
+    ``test_a_required_field_named_like_a_call_seed_is_not_refused``).
 
     Only a field the serializer would demand of a call: an optional one is left
     out like any other and costs the tool nothing but the field
@@ -3324,7 +3330,8 @@ def _fill_query_params(
     A ``UrlKwarg`` read is one of them: a tool built from a bare mapping has no
     entry to pop it through ``_pop_url_kwargs``, so its default is applied here
     (``test_a_url_kwarg_answers_for_the_parameter_it_fills[mapping]``), and where
-    it was popped the popped value stands over this one in ``_call_arguments``.
+    it was popped the popped value stands over this one in ``_call_arguments``
+    (``test_a_url_kwarg_s_default_never_replaces_the_value_the_model_sent[registry]``).
     A value the call carries is never replaced
     (``test_a_read_s_default_never_replaces_a_value_the_model_sent``).
     ``UNSET`` declares none, and a default of ``None`` is no value, as a
@@ -3353,7 +3360,9 @@ def _call_arguments(
     ``url_kwargs`` is every registered ``UrlKwarg`` the pop took. Each is a
     read on the tool's spec, so one of the compiled spec's parameters, and the
     popped value stands over the model's, as a route capture does over the body
-    over HTTP. A provider reads it by its name, as an argument. A seed of the
+    over HTTP, and over the read's default ``_fill_query_params`` puts in its
+    place (``test_a_url_kwarg_s_default_never_replaces_the_value_the_model_sent[registry]``).
+    A provider reads it by its name, as an argument. A seed of the
     same name is the kernel's to refuse, as an argument meeting a seed in one
     pool (``test_a_seed_an_override_returns_for_a_declared_url_kwarg_is_refused``).
 

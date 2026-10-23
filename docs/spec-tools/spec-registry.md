@@ -162,7 +162,8 @@ one of those names is admitted and routed onto the request as drf-services
 routes any caller's. Pass the registry anyway, so the toolset checks each
 entry's channel declarations against its own reserved names and
 [pool seeds](quickstart.md#project-pool-seeds) when it is built: a `UrlKwarg`
-named after a registered seed is refused there, naming the tool.
+named after a registered seed is refused there, naming the tool. A mapping has
+no entry to check, so the same read builds and is refused on every call.
 
 **A read naming an input declares where the input comes from.** A `QueryParam`
 read naming a parameter the spec's selector takes, such as
