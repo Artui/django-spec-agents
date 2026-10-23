@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-23
+
 `spec_tools` serves django-service-specs specs, the kernel's `ServiceSpec` and
 `SelectorSpec`, and imports nothing from Django REST Framework or any other
 spec library. Each entry below describes what a kernel-declared spec sees. A
@@ -286,5 +288,6 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Artui/django-spec-agents/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Artui/django-spec-agents/compare/v0.0.0...v0.1.0
