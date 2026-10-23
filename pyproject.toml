@@ -69,14 +69,19 @@ google = ["pydantic-ai-slim[google]>=2.16,<3"]
 # django-service-specs 0.10.0, reads a selector's channels from the spec's own
 # ``reads=``, refuses at registration what drf-services refuses on every call,
 # and answers a selector's ``Http404`` as a missing row rather than aborting the
-# run. It moves in lockstep with the ``[specs]`` extra below: the two routes
-# reach the same specs, and a mismatched pair would offer one spec as a tool on
-# one route and an error on the other, or word one refusal two ways.
+# run. Its floor moves with the kernel's in the ``[specs]`` extra below, which
+# is what ``spec_tools`` asks of every spec: the two routes reach the same
+# compiled spec, and a mismatched pair would offer one spec as a tool on one
+# route and an error on the other, or word one refusal two ways.
 drf-mcp = ["djangorestframework-mcp-server>=0.53.1"]
-# Expose drf-services specs directly as agent tools via ``spec_tools``'
-# SpecCapability, with no MCP server in the path. The requirements are listed
-# in the extra itself, each with what its floor buys. They move in lockstep
-# with the ``[drf-mcp]`` floor above, for the reason given there.
+# Expose specs directly as agent tools via ``spec_tools``' SpecCapability, with
+# no MCP server in the path. A spec is whatever the kernel compiles, a
+# django-service-specs spec or a drf-services one. DRF and drf-services are
+# still listed because ``spec_tools`` imports the few names
+# ``tests/test_boundary.py`` lists as residuals, each awaiting a change
+# upstream. The requirements are listed in the extra itself, each with what its
+# floor buys. The kernel's floor moves with the ``[drf-mcp]`` floor above, for
+# the reason given there.
 specs = [
     "djangorestframework>=3.14",
     # 0.58.0, and a hard floor: drf-services is an adapter over

@@ -54,7 +54,10 @@ def test_get_toolset_returns_a_spec_toolset_with_the_tools():
 
 
 def test_id_defaults_and_forwards():
-    assert SpecCapability({"go": ping_spec()}).id == "drf-specs"
+    # The default names what the tools are, not the library one of their specs
+    # was declared with, and the toolset built alone defaults to the same id.
+    assert SpecCapability({"go": ping_spec()}).id == "spec-tools"
+    assert SpecToolset({"go": ping_spec()}).id == "spec-tools"
     cap = SpecCapability({"go": ping_spec()}, id="orders")
     assert cap.id == "orders"
     assert cap.get_toolset().id == "orders"
@@ -226,7 +229,7 @@ def test_an_unguarded_spec_is_refused_through_the_capability_too():
     """Worth asserting on the wrapper and not only the toolset: the refusal is the
     entire security content of ``require_permissions``, and it travels through a
     constructor that must forward it."""
-    with pytest.raises(ImproperlyConfigured, match="no permission_classes"):
+    with pytest.raises(ImproperlyConfigured, match="with no permissions"):
         SpecCapability({"list": list_spec(permission_classes=None)})
 
 

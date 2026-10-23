@@ -12,6 +12,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import FieldAudience, FieldMarking, SelectorKind, SpecRegistry
 from rest_framework.permissions import AllowAny
 from rest_framework_services import (
+    JsonSchemaRegistry,
     PolymorphicServiceSpec,
     QueryParam,
     SelectorSpec,
@@ -117,91 +118,145 @@ class TestToolsetFromRegistry:
             SpecToolset(registry)
 
 
-def _native_registry() -> SpecRegistry:
-    # A django-service-specs spec, which the registry accepts because it
-    # compiles to a kernel spec, and which drf-services cannot dispatch.
-    registry = SpecRegistry()
-    registry.register(
-        "native_create",
-        django_service_specs.ServiceSpec(
-            service=create_widget, permissions=[django_service_specs.Unrestricted()]
-        ),
+def ping(*, user: Any) -> dict[str, str]:
+    """Answer with the acting user's name."""
+    return {"pong": user.username}
+
+
+def _native_spec() -> django_service_specs.ServiceSpec:
+    """A django-service-specs spec, declared on the kernel with no drf-services in it."""
+    return django_service_specs.ServiceSpec(
+        service=ping, permissions=[django_service_specs.Unrestricted()]
     )
+
+
+def _native_registry() -> SpecRegistry:
+    registry = SpecRegistry()
+    registry.register("native_ping", _native_spec())
     return registry
 
 
-_NATIVE_REFUSAL = (
-    r"^SpecToolset tool 'native_create': django_service_specs\.ServiceSpec is not a "
-    r"rest_framework_services\.ServiceSpec or SelectorSpec\. "
-)
+class TestANativeSpecIsServed:
+    """A kernel-native spec is a tool like a drf-services one. The toolset reads
+    every spec through ``kernel_spec``, which a django-service-specs spec answers
+    with itself, so nothing in it asks which library declared the spec."""
 
-
-class TestANativeSpecIsRefused:
-    """A kernel-native spec is refused when the toolset is built. Left to the
-    toolset's internals it would die on the first drf-services attribute it
-    lacks, an ``AttributeError`` naming neither the tool nor what to do. The
-    refusal is a ``TypeError`` because the value is the wrong kind, and it names
-    the tool and both ways out."""
-
+    @pytest.mark.django_db(transaction=True)
     @pytest.mark.parametrize(
         ("build", "source"),
         [
             (SpecToolset, _native_registry),
             (SpecToolset, lambda: _native_registry().specs()),
-            (SpecCapability, _native_registry),
+            (lambda source: SpecCapability(source).get_toolset(), _native_registry),
         ],
         ids=["registry", "mapping", "capability"],
     )
-    def test_whichever_way_it_arrives(self, build: Any, source: Any) -> None:
-        with pytest.raises(TypeError, match=_NATIVE_REFUSAL) as raised:
-            build(source())
+    async def test_whichever_way_it_arrives(self, build: Any, source: Any) -> None:
+        toolset = build(source())
+        user = await User.objects.acreate(username="native")
+        tools = await toolset.get_tools(ctx_for(user))
 
-        assert "django_service_specs.dispatch" in str(raised.value)
+        result = await toolset.call_tool("native_ping", {}, ctx_for(user), tools["native_ping"])
 
-    def test_a_native_selector_spec_is_pointed_at_dispatch_too(self) -> None:
+        assert result == {"pong": "native"}
+        assert tools["native_ping"].tool_def.description == "Answer with the acting user's name."
+
+    def test_a_native_selector_spec_is_a_read_only_tool(self) -> None:
         native = django_service_specs.SelectorSpec(
             kind=SelectorKind.LIST,
             selector=list_widgets,
             permissions=[django_service_specs.Unrestricted()],
         )
 
-        with pytest.raises(TypeError, match=r"SelectorSpec is not a ") as raised:
-            SpecToolset({"native_list": native})
+        toolset = SpecToolset({"native_list": native})
 
-        assert "django_service_specs.dispatch" in str(raised.value)
+        assert toolset._tool_defs["native_list"].metadata == {"annotations": {"readOnlyHint": True}}
 
-    def test_a_polymorphic_spec_is_pointed_at_its_variants(self) -> None:
-        # A drf-services class, so the kernel's dispatch is the wrong way out:
-        # the polymorphic actions page expands ``.specs`` into one tool per
-        # variant, and the message says that instead.
+    @pytest.mark.parametrize(
+        "native",
+        [
+            pytest.param(_native_spec, id="service"),
+            pytest.param(
+                lambda: django_service_specs.SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=list_widgets,
+                    permissions=[django_service_specs.Unrestricted()],
+                ),
+                id="selector",
+            ),
+        ],
+    )
+    def test_a_native_spec_is_described_alike_under_a_consumer_registry(self, native: Any) -> None:
+        """A toolset's ``json_schema_registry`` describes drf-services'
+        serializers and filters, which a native spec has none of: its tool is
+        described as under the default registry, rather than reflected through
+        drf-services, which reads only its own classes."""
+        spec = native()
+
+        default = SpecToolset({"t": spec})._tool_defs["t"]
+        consumer = SpecToolset({"t": spec}, json_schema_registry=JsonSchemaRegistry())._tool_defs[
+            "t"
+        ]
+
+        assert consumer.parameters_json_schema == default.parameters_json_schema
+        assert consumer.return_schema == default.return_schema
+
+    @pytest.mark.parametrize(
+        ("sent", "seen"),
+        [({}, "all"), ({"region": None}, None), ({"region": "north"}, "north")],
+        ids=["omitted-takes-the-default", "null-is-a-value", "sent"],
+    )
+    async def test_a_native_read_s_null_is_a_value_where_it_is_nullable(
+        self, sent: dict[str, Any], seen: Any
+    ) -> None:
+        """A null is dropped as the model declining a read only where the read
+        cannot be null. A native read declared ``nullable`` admits it, so the
+        callable gets the ``None`` sent, never the default in its place."""
+
+        def region_of(*, region: str | None = "unset") -> dict[str, Any]:
+            """The region asked for."""
+            return {"region": region}
+
+        native = django_service_specs.SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=region_of,
+            reads=django_service_specs.Parameters.of(
+                django_service_specs.Parameter("region", "string", nullable=True, default="all")
+            ),
+            permissions=[django_service_specs.Unrestricted()],
+        )
+        toolset = SpecToolset({"region": native})
+        tools = await toolset.get_tools(ctx_for(User(username="u")))
+
+        result = await toolset.call_tool(
+            "region", sent, ctx_for(User(username="u")), tools["region"]
+        )
+
+        assert result == {"region": seen}
+
+    def test_a_polymorphic_spec_is_refused_naming_its_variants(self) -> None:
+        """Refused by its own ``as_kernel_spec``, which names the remedy: one
+        tool per variant. The toolset adds the tool's name."""
         moderate = PolymorphicServiceSpec(
             discriminator=lambda *, data: data["op"],
             specs={"create": _create_spec()},
         )
 
-        with pytest.raises(
-            TypeError,
-            match=(
-                r"^SpecToolset tool 'moderate': rest_framework_services\."
-                r"PolymorphicServiceSpec is not a rest_framework_services\.ServiceSpec "
-                r"or SelectorSpec\. "
-            ),
-        ) as raised:
+        with pytest.raises(TypeError, match=r"^SpecToolset tool 'moderate': ") as raised:
             SpecToolset({"moderate": moderate})
 
-        assert ".specs" in str(raised.value)
-        assert "django_service_specs.dispatch" not in str(raised.value)
+        assert "Register each variant from its `specs` mapping" in str(raised.value)
 
-    def test_a_registry_entry_is_not_pointed_at_dispatch(self) -> None:
-        # ``RegisteredSpec`` lives in django-service-specs too, but it is an
-        # entry, not a spec dispatch could run: only a kernel spec is pointed
-        # there, whatever module the value comes from.
-        entry = _native_registry().get("native_create")
+    def test_a_value_that_compiles_to_no_spec_is_refused_naming_the_tool(self) -> None:
+        # A registry entry is not a spec, though django-service-specs defines
+        # both: the kernel refuses it, and the toolset names the tool.
+        entry = _native_registry().get("native_ping")
 
-        with pytest.raises(TypeError, match=r"RegisteredSpec is not a ") as raised:
-            SpecToolset({"native_create": entry})
-
-        assert "django_service_specs.dispatch" not in str(raised.value)
+        with pytest.raises(
+            TypeError,
+            match=r"^SpecToolset tool 'native_ping': expected a ServiceSpec or SelectorSpec",
+        ):
+            SpecToolset({"native_ping": entry})
 
 
 class TestCapabilityFromRegistry:
@@ -232,16 +287,16 @@ class TestCapabilityFromRegistry:
         assert capability.id == capability.get_toolset().id == "reads"
 
 
-class TestTheEntrysOfflineContract:
+class TestTheSpecsOwnReads:
     """What a caller with no HTTP request has to be told, declared on the spec.
 
     Over HTTP the URLconf supplies the route captures and the query string the
     read-shaping params, so a spec mounted on a view is already complete. Off
     HTTP nobody supplies them, and every agent transport needs the *identical*
     answer -- which is why the declaration belongs to the spec (``reads=`` and
-    ``field_audiences=``), whose registry entry answers it as
-    ``entry.agent_contract``, rather than to this toolset's constructor or an
-    MCP server's registrar.
+    ``field_audiences=``), compiled into the spec's reads and presenter, rather
+    than to this toolset's constructor or an MCP server's registrar. A registry
+    and a bare mapping hand the toolset the same spec, so they serve it alike.
     """
 
     def _contract_registry(
@@ -258,21 +313,19 @@ class TestTheEntrysOfflineContract:
         return registry
 
     @pytest.mark.parametrize(
-        ("read", "name", "channel"),
-        [
-            (UrlKwarg("tenant_pk"), "tenant_pk", "_tool_url_kwargs"),
-            (QueryParam(name="since"), "since", "_tool_query_params"),
-        ],
+        ("read", "name"),
+        [(UrlKwarg("tenant_pk"), "tenant_pk"), (QueryParam(name="since"), "since")],
         ids=["url-kwarg", "query-param"],
     )
+    @pytest.mark.parametrize("source", ["registry", "mapping"])
     def test_reads_reach_the_tool_with_nothing_in_the_constructor(
-        self, read: UrlKwarg | QueryParam, name: str, channel: str
+        self, read: UrlKwarg | QueryParam, name: str, source: str
     ) -> None:
-        toolset = SpecToolset(self._contract_registry(reads=(read,)))
+        registry = self._contract_registry(reads=(read,))
+        toolset = SpecToolset(registry if source == "registry" else registry.specs())
 
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
         assert name in props
-        assert getattr(toolset, channel)["list_widgets"] == (read,)
 
     def test_field_audiences_reach_the_projection(self) -> None:
         # The audiences are part of the spec's own output declaration, so one
@@ -321,14 +374,15 @@ class TestTheEntrysOfflineContract:
         assert "'nope'" in str(raised.value)
 
     @pytest.mark.django_db(transaction=True)
-    async def test_a_bare_mapping_advertises_the_spec_s_reads_and_routes_them(self) -> None:
-        """``registry.specs()`` flattens the entry to its spec, and the toolset
-        reads channels off the entry alone, so a bare mapping's tool declares
-        none of its own. The spec still carries its ``reads``, which are
-        parameters of the compiled spec, so the kernel's schema the tool
-        advertises lists them as a registry-built tool's does, and drf-services
-        routes a value sent under one of them onto the offline view and its query
-        string as it does for any caller.
+    @pytest.mark.parametrize("source", ["registry", "mapping"])
+    async def test_each_source_advertises_the_spec_s_reads_and_routes_them(
+        self, source: str
+    ) -> None:
+        """The spec carries its ``reads``, which are parameters of the compiled
+        spec, so the kernel's schema the tool advertises lists them whichever
+        way the spec arrived, and drf-services routes a value sent under one of
+        them onto the offline view and its query string as it does for any
+        caller.
         """
         spec = replace(
             _agent_list_spec(),
@@ -340,7 +394,7 @@ class TestTheEntrysOfflineContract:
 
         user = await User.objects.acreate(username="u")
 
-        toolset = SpecToolset(registry.specs())
+        toolset = SpecToolset(registry if source == "registry" else registry.specs())
         tools = await toolset.get_tools(ctx_for(user))
         await toolset.call_tool(
             "list_widgets",
@@ -349,8 +403,6 @@ class TestTheEntrysOfflineContract:
             tools["list_widgets"],
         )
 
-        assert toolset._tool_url_kwargs["list_widgets"] == ()
-        assert toolset._tool_query_params["list_widgets"] == ()
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
         assert {"tenant_pk", "since"} <= set(props)
         assert RecordingPermission.seen["kwargs"] == {"tenant_pk": "5"}

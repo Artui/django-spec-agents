@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as server-filled, is served from the seed, and a value the model sends for it
   is replaced, where the call used to be retried.
 
+- `SpecToolset` and `SpecCapability` serve django-service-specs specs: a
+  `ServiceSpec` or `SelectorSpec` of the kernel's, in a mapping or a
+  `SpecRegistry`, is a tool like a drf-services one. Every spec is read through
+  `kernel_spec`, so what a tool advertises, fills and refuses is the compiled
+  spec's whichever library declared it. A native read declared `nullable`
+  keeps a `null` the model sends as its value.
+
 ### Removed
 
 - `SpecToolset.build_context` and `SpecToolset.output_extras`, and the
@@ -161,6 +168,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     an `input` phase that is not a mapping, were refused in the same words
     already.
 
+- **Breaking:** the default `id` of `SpecToolset` and `SpecCapability` is
+  `spec-tools`, where it was `drf-specs`. A project that keys anything on the
+  id, such as a deferred capability's catalog entry or a log filter, passes
+  `id="drf-specs"` to keep it.
+- **Breaking:** a tool built from a bare mapping, such as
+  `registry.specs()`, is checked as a registry-built one is: a read the spec
+  declares under a registered pool seed's name, at the top level or on a
+  service's target lookup, fails the whole toolset when it is built, with
+  `ImproperlyConfigured` naming the tool, where the tool used to build and
+  every call to it was refused. Rename the read. A registry and its mapping
+  now build the same tools, and the instructions' read-shaping line names a
+  mapping-built tool's shapes too.
+- A value in `specs` that compiles to no spec raises `TypeError` in the
+  kernel's words, prefixed with the tool's name, rather than the toolset's
+  own; a drf-services `PolymorphicServiceSpec` is refused this way, the
+  message saying to register each variant under its own name.
+- A spec with no permissions is refused, or warned about, in words that no
+  longer name `permission_classes` alone: "with no permissions", naming
+  `permission_classes` as a drf-services spec's spelling. A spec declaring
+  `permission_classes=[]` is still neither refused nor warned about.
+- A `UrlKwarg` declared `required=True` and sent as `null` is retried in the
+  kernel's words, `name: This field is required.`, from a registry as from a
+  mapping, where a registry-built tool said ``Missing required argument(s):
+  `name`.``
+- A refusal keyed under Django's `__all__` is read as a message about the
+  whole input, without the key, as one under `non_field_errors` is.
+- `json_schema_registry=` describes drf-services specs only: a native spec is
+  described by its compiled parameters under any registry. A drf-services spec
+  declaring its own `json_schema_registry=` already carries its serializers'
+  nodes into the tool's schemas, so the keyword is needed only for a
+  `filter_set`'s filter type.
+
 ### Known differences
 
 - A `returns_many` service with no `selector` that returns a single row raises
@@ -176,6 +215,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `view.kwargs` rather than by name is still accepted, and advertised, and
   reaches nothing: the call answers as if it
   had not been sent.
+- A `UrlKwarg` named `ordering` is no longer refused for the name: it is an
+  argument like any other, advertised and left in the call. A shape, a read
+  no callable takes, is still refused under `page`, `limit` or `ordering`.
+- A read declared `required=True` with a `default` is no longer refused when
+  the toolset is built; the default answers a call that leaves it out, as the
+  kernel reads it.
+- A project that renames DRF's `NON_FIELD_ERRORS_KEY` gets a refusal under
+  that key printed as a path, where it was read as a message about the whole
+  input.
 
 ## [0.1.0] — 2026-10-21
 

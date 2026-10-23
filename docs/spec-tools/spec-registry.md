@@ -54,14 +54,19 @@ That is the whole change. Each entry becomes one tool, named as it is in the
 registry, in registration order.
 
 The registry is django-service-specs', and it accepts any spec that compiles to
-one of the kernel's. The toolset dispatches through drf-services, so every entry
-it is handed must be a `rest_framework_services.ServiceSpec` or `SelectorSpec`.
-A django-service-specs spec raises `TypeError` naming the tool when the toolset
-is built; call one through `django_service_specs.dispatch` instead.
+one of the kernel's, and so does the toolset: a django-service-specs
+`ServiceSpec` or `SelectorSpec`, or a drf-services spec, which compiles to one.
+The toolset reads every spec through `kernel_spec`, so it asks the compiled spec
+what to advertise and how to call it, whichever library declared it. A value
+that compiles to no spec raises `TypeError` naming the tool when the toolset is
+built, in the kernel's words: a drf-services `PolymorphicServiceSpec` is one,
+and the message says to register each variant under its own name (see
+[polymorphic actions](polymorphic-actions.md)).
 
-Pass the **registry**, not `registry.specs()`. The mapping is what the registry
-holds minus everything else the entry carries, and one of those things — the
-[agent contract](#what-the-spec-declares-for-an-agent) — is read here.
+`SpecToolset(registry)` and `SpecToolset(registry.specs())` build the same
+tools: the mapping is the flattened `name -> spec` view, and everything the
+toolset reads is on the spec. Pass the registry when you have one, so a
+filtered view of it can feed each toolset.
 
 The same goes for the capability:
 
@@ -120,9 +125,8 @@ them, which is the cost deferring was meant to avoid. `description` names the
 A spec declares what a caller with **no HTTP request** has to be told, because
 the URLconf and query string tell an HTTP one for free: `reads=` names the route
 captures and query values it reads, and `field_audiences=` marks output fields
-for an agent. Its registry entry answers both as one
-[`OfflineContract`][rest_framework_services.types.offline_contract.OfflineContract]
-(`entry.agent_contract`).
+for an agent. Both compile into the spec: each read is one of its parameters,
+and the audiences are part of its output.
 
 ```python
 from dataclasses import replace
@@ -143,31 +147,34 @@ registry.register(
 in its own constructor. `SpecRegistry.register` takes no contract of its own:
 the spec is the one place it is said.
 
-`SpecToolset` reads the contract off the entry, and so does an MCP server's
-`register_specs`. That is the point of putting it there: an operation needs the
-*identical* description of the absent request whichever agent transport calls
-it, which is why a toolset takes no channel declarations of its own:
+`SpecToolset` reads them off the compiled spec, and an MCP server's
+`register_specs` reads the same spec. That is the point of putting them there:
+an operation needs the *identical* description of the absent request whichever
+agent transport calls it, which is why a toolset takes no channel declarations
+of its own:
 `SpecToolset` has no `query_params=`, `tool_query_params=`, `url_kwargs=` or
 `tool_url_kwargs=`, and passing one is a `TypeError`.
 `field_audiences` is part of the spec's output declaration, so every projection
 of the spec carries it, whichever transport or mapping it is reached through.
 
-**A registry and `registry.specs()` build the same tools.** The mapping is the
-flattened `name -> spec` view, and the toolset reads each entry's
-`agent_contract` off the entry, so a toolset built from the mapping has none.
-What the model sees barely depends on it: the tool's schema is the compiled
-spec's either way, the spec's `reads` are advertised from both, a read's
-`default` reaches a call that leaves it out or sends `null` from both, and a
-value the model sends under one of those names is admitted and routed onto the
-request as drf-services routes any caller's. One retry is worded differently: a
-`UrlKwarg` declared `required=True` and sent as `null` is handed back as
-``Missing required argument(s): `name`.`` from a registry and as
-`name: This field is required.` from a mapping. Pass the registry anyway, so
-the toolset checks each entry's channel declarations against its own reserved
-names and [pool seeds](quickstart.md#project-pool-seeds) when it is built: a
-`QueryParam` or `UrlKwarg` named after a registered seed is refused there,
-naming the tool. A mapping has no entry to check, so the same read builds and
-is refused on every call.
+**A registry and `registry.specs()` build the same tools.** The tool's schema
+is the compiled spec's, the spec's `reads` are advertised, a read's `default`
+reaches a call that leaves it out or sends `null`, and a value the model sends
+under one of those names is admitted and routed onto the request as
+drf-services routes any caller's. A `UrlKwarg` declared `required=True` and sent
+as `null` is handed back as `name: This field is required.`, the kernel's
+check. A read declared `required=True` with a `default` is not refused: the
+default answers a call that leaves it out, as the kernel reads it. A native
+read declared `nullable` keeps a `null` sent under it as the value.
+
+Every read the spec declares is checked against the
+[pool seeds](quickstart.md#project-pool-seeds) when the toolset is built,
+whichever source it came from: a read named after a registered seed, at the top
+level or on a service's target lookup, is refused there, naming the tool. A
+read no callable takes, such as a drf-services `QueryParam` the selector does
+not name, is a *shape*, and may not be named `page`, `limit` or `ordering`,
+which a list tool takes for itself. A `UrlKwarg` named `ordering` is an argument
+like any other, advertised and left in the call.
 
 **A read naming an input declares where the input comes from.** A `QueryParam`
 read naming a parameter the spec's selector takes, such as
@@ -276,8 +283,7 @@ simplification.
 
 ### Moving a channel declaration off the toolset
 
-A toolset that declared a read at the mount declares it on the spec instead,
-and is built from the registry:
+A toolset that declared a read at the mount declares it on the spec instead:
 
 ```python
 registry.register(

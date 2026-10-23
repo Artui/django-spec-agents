@@ -21,7 +21,7 @@ from django_spec_agents.spec_tools.types.agent_conventions import AgentConventio
 
 
 class SpecCapability(AbstractCapability[Any]):
-    """A Pydantic-AI capability exposing drf-services specs as tools.
+    """A Pydantic-AI capability exposing specs as tools.
 
     [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] is a first-class toolset you
     can attach directly (``Agent(toolsets=[SpecToolset(...)])``), and it already
@@ -59,9 +59,11 @@ class SpecCapability(AbstractCapability[Any]):
         specs: As ``SpecToolset``, including a
             ``SpecRegistry``
             or a filtered view of one, so a project declaring its specs once can
-            project several capabilities from them. Every entry must be a
-            drf-services spec: a django-service-specs one raises ``TypeError``
-            when the capability is built, as it does for the toolset.
+            project several capabilities from them. Every entry is a
+            django-service-specs spec or a declaration that compiles to one,
+            such as a drf-services spec; one that compiles to no spec raises
+            ``TypeError`` when the capability is built, as it does for the
+            toolset.
         defer_loading: Hide the whole spec toolset and its instructions behind
             Pydantic-AI's native ``load_capability`` tool until the model loads
             it — progressive disclosure for a large spec map.
@@ -84,7 +86,7 @@ class SpecCapability(AbstractCapability[Any]):
         self,
         specs: SpecSource,
         *,
-        id: str = "drf-specs",
+        id: str = "spec-tools",
         defer_loading: bool = False,
         description: str | None = None,
         instructions: str | None = None,

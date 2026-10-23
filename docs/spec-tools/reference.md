@@ -1,8 +1,9 @@
 # Reference
 
 `django_spec_agents.spec_tools` exports three symbols: `SpecToolset`,
-`SpecCapability` and `AgentConventions`. A spec declares what it reads with
-drf-services' `QueryParam` and `UrlKwarg`, imported from
+`SpecCapability` and `AgentConventions`. A django-service-specs spec declares
+what it reads as `Parameter`s in its `reads` and `shapes`; a drf-services spec
+declares them with drf-services' `QueryParam` and `UrlKwarg`, imported from
 `rest_framework_services` and rendered below for reference. The deps a run
 passes are the package's one
 [`AgentDeps`](../reference/agent.md#django_spec_agents.AgentDeps), and the

@@ -9,8 +9,10 @@ a tagged-union body can beat *N* endpoints.
 An agent toolset has no such scarcity, and a model calls tools far more
 reliably when each is a single-purpose tool with a flat parameter schema than
 when it has to choose a union arm *and* set a discriminator field correctly.
-So don't hand a `PolymorphicServiceSpec` to `SpecToolset` as one union tool —
-**expand it into one tool per variant.** The tool *name* selects the variant,
+So a `PolymorphicServiceSpec` is not one tool: it compiles to no single spec,
+and `SpecToolset` refuses it with a `TypeError` naming the tool, in the
+kernel's words, which say to register each variant under its own name.
+**Expand it into one tool per variant.** The tool *name* selects the variant,
 so the discriminator never runs and the model never sees a union.
 
 `SpecToolset` already takes a plain `Mapping[str, Spec]` (tool name → spec),

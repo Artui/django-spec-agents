@@ -34,7 +34,7 @@ def test_an_unguarded_spec_is_refused_rather_than_exposed() -> None:
     Asserted here rather than only upstream because this function is how every
     consumer builds the capability.
     """
-    with pytest.raises(ImproperlyConfigured, match="no permission_classes"):
+    with pytest.raises(ImproperlyConfigured, match="with no permissions"):
         build_spec_capability({"ping": ServiceSpec(service=_ok, atomic=False)})
 
 

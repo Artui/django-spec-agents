@@ -451,7 +451,7 @@ def test_the_default_conventions_beside_an_instructions_override_are_fine():
         _every_line(), instructions="House rules.", conventions=AgentConventions()
     )
 
-    assert toolset.id == "drf-specs"
+    assert toolset.id == "spec-tools"
 
 
 async def test_a_dropped_heading_drops_the_unavailable_list_after_an_override_too():

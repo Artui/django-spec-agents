@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, Any, Generic, TypeVar
 
 import django_filters
+import django_service_specs
 import pytest
 from asgiref.sync import async_to_sync, sync_to_async
 from django.contrib.auth.models import AnonymousUser, User
@@ -90,10 +91,9 @@ from django_spec_agents.spec_tools.spec_toolset import (
     _build_tool_def,
     _default_get_progress,
     _derive_instructions,
-    _fill_query_params,
+    _fill_reads,
     _input_schema,
     _is_list_selector,
-    _pop_url_kwargs,
     _return_schema,
     _shape_list,
     _spec_ordering_argument,
@@ -176,6 +176,7 @@ def _dispatch(
     *,
     toolset_kwargs: dict[str, Any] | None = None,
     query_params: Sequence[QueryParam] = (),
+    url_kwargs: Sequence[UrlKwarg] = (),
     **kwargs: Any,
 ) -> Any:
     """Run one spec through the toolset's dispatch pipeline.
@@ -183,11 +184,11 @@ def _dispatch(
     Calls ``SpecToolset._call_spec`` rather than the module-level function, so
     these tests exercise the same seam ``call_tool`` goes through — including
     the ``call_seeds`` / ``translate_exception`` overrides bound to the run.
-    ``query_params`` are declared on the spec's ``reads``, after its own, as a
-    registry entry declares them: the call compiles each from there.
+    ``query_params`` and ``url_kwargs`` are declared on the spec's ``reads``,
+    after its own: the toolset reads each off the compiled spec.
     """
     toolset_kwargs = toolset_kwargs or {}
-    declared = (*query_params, *kwargs.get("url_kwargs", ()))
+    declared = (*query_params, *url_kwargs)
     if declared:
         spec = replace(spec, reads=(*spec.reads, *declared))
     # A throwaway toolset per call; construction validation has its own
@@ -332,13 +333,16 @@ async def test_pagination_line_present_only_with_a_list_selector():
     assert _pagination_line(DEFAULT_PAGE_SIZE) not in service_only
 
 
-async def test_read_shaping_line_lists_declared_query_params_sorted():
-    toolset = SpecToolset(
-        reading({"list": list_spec()}, {"list": [QueryParam("query"), QueryParam("fields")]})
-    )
+@pytest.mark.parametrize("source", ["registry", "mapping"])
+async def test_read_shaping_line_lists_declared_query_params_sorted(source):
+    """The line names the compiled spec's shapes, so a tool built from a bare
+    mapping is told about the same arguments as one built from a registry."""
+    specs = {"list": replace(list_spec(), reads=(QueryParam("query"), QueryParam("fields")))}
+    toolset = SpecToolset(reading(specs, {}) if source == "registry" else specs)
     instr = await toolset.get_instructions(None)
     assert instr is not None
     assert "read-shaping parameters (`fields`, `query`)" in instr
+    assert _SCOPE_INSTRUCTION in instr
 
 
 async def test_read_shaping_line_absent_without_query_params():
@@ -360,7 +364,8 @@ def test_is_list_selector():
 def test_derive_instructions_matches_get_instructions_input():
     toolset = SpecToolset(reading({"list": list_spec()}, {"list": [QueryParam("query")]}))
     # The public ``get_instructions`` derives from exactly these two mappings.
-    assert _derive_instructions(toolset._specs, toolset._tool_query_params) == "\n".join(
+    shapes = {name: toolset._offered_shapes(name) for name in toolset._specs}
+    assert _derive_instructions(toolset._specs, shapes) == "\n".join(
         [
             _DEFAULTS.base,
             _pagination_line(DEFAULT_PAGE_SIZE),
@@ -446,7 +451,7 @@ def test_a_selector_spec_with_no_selector_is_refused_when_the_toolset_is_built()
 
 
 async def test_id_property():
-    assert SpecToolset({"list_widgets": list_spec()}).id == "drf-specs"
+    assert SpecToolset({"list_widgets": list_spec()}).id == "spec-tools"
     assert SpecToolset({"list_widgets": list_spec()}, id="custom").id == "custom"
 
 
@@ -1464,12 +1469,30 @@ async def test_a_read_default_appears_in_schema(read):
     assert props["fields"]["default"] == "id"
 
 
-@pytest.mark.parametrize("read", [QueryParam, UrlKwarg], ids=["query-param", "url-kwarg"])
-def test_a_reserved_read_name_is_rejected(read):
-    # Reserved-name checking is drf-services' shared validator, so one exception
-    # type covers every bad declaration, pagination names and seeds alike.
-    with pytest.raises(ImproperlyConfigured, match="reserved transport keys"):
-        SpecToolset(reading({"list_widgets": list_spec()}, {"list_widgets": [read("ordering")]}))
+def test_a_reserved_read_name_is_rejected():
+    # A ``QueryParam`` no callable takes compiles to a shape, which nothing
+    # sorts: advertised as the tool's ``ordering``, it would be the sort the
+    # model is offered and never applied.
+    with pytest.raises(
+        ImproperlyConfigured, match=r"^SpecToolset tool 'list_widgets': .*\['ordering'\]"
+    ):
+        SpecToolset(
+            reading({"list_widgets": list_spec()}, {"list_widgets": [QueryParam("ordering")]})
+        )
+
+
+def test_a_route_capture_named_ordering_is_an_argument_like_any_other():
+    """A ``UrlKwarg`` is a read the call carries to the permission check and
+    the lookup, not a shape, so ``ordering`` is not the toolset's to take from
+    it: the tool advertises it and leaves it in the call, as it leaves a
+    selector's own ``ordering``. Holds the shapes-only half of the reserved
+    check: checked over every declared read, this tool would be refused.
+    """
+    toolset = SpecToolset(
+        reading({"list_widgets": list_spec()}, {"list_widgets": [UrlKwarg("ordering")]})
+    )
+
+    assert "ordering" in _input_schema_of(toolset, "list_widgets")["properties"]
 
 
 # --- a selector parameter the toolset's own arguments take -------------------
@@ -1538,7 +1561,7 @@ def tasks_by_status(*, status: str = "open"):
 async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both_routes(args):
     """A spec's own ``QueryParam`` read of a name its selector takes is the
     declaration of where that parameter comes from, not a shadow of it. Neither
-    route makes it a channel of the toolset's: the parameter is advertised once,
+    route makes it a separate argument: the parameter is advertised once,
     as the selector declares it, and its value stays in the call for
     drf-services, which hands it to the selector and the query string both.
     """
@@ -1554,7 +1577,6 @@ async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both
     from_mapping = SpecToolset(registry.specs())
 
     assert _input_schema_of(from_registry, "tasks") == _input_schema_of(from_mapping, "tasks")
-    assert from_registry._tool_query_params["tasks"] == ()
     served = await _call(from_registry, "tasks", AnonymousUser(), dict(args))
     seen_from_registry = RecordingPermission.seen["query_params"]
     expected = await _call(from_mapping, "tasks", AnonymousUser(), dict(args))
@@ -2417,14 +2439,21 @@ def test_supplying_a_required_url_kwarg_dispatches_normally():
     assert [w["name"] for w in _rows(result)] == ["a"]
 
 
-def test_required_url_kwarg_with_a_default_is_rejected():
-    with pytest.raises(ImproperlyConfigured, match="cannot also be required"):
-        SpecToolset(
-            reading(
-                {"list_widgets": list_spec()},
-                {"list_widgets": [UrlKwarg("project_pk", default="P1", required=True)]},
-            )
-        )
+@pytest.mark.django_db
+def test_a_required_read_with_a_default_is_served_under_its_default():
+    """The kernel's reading of a required read that declares a default: an
+    absent value is not refused, the default is it. The toolset builds such a
+    tool and fills the default into an omitted call, rather than refusing a
+    declaration the spec compiled.
+    """
+    read = UrlKwarg("project_pk", default="P1", required=True)
+    spec = list_spec(permission_classes=[RecordingPermission])
+    # A registry builds it as a mapping does.
+    SpecToolset(reading({"list_widgets": spec}, {"list_widgets": [read]}))
+
+    _dispatch(spec, None, {}, url_kwargs=[read])
+
+    assert RecordingPermission.seen["kwargs"] == {"project_pk": "P1"}
 
 
 # Wording for refusals of a mount's channel declarations that the toolset does not
@@ -2645,11 +2674,22 @@ def test_require_permissions_false_downgrades_to_a_warning():
     with pytest.warns(UnguardedSpecWarning, match="list_widgets"):
         toolset = SpecToolset({"list_widgets": _unguarded_list_spec()}, require_permissions=False)
 
-    assert toolset.id == "drf-specs"
+    assert toolset.id == "spec-tools"
 
 
 def test_a_guarded_spec_says_nothing(recwarn):
     SpecToolset({"list_widgets": list_spec()})
+    assert [w for w in recwarn.list if issubclass(w.category, UnguardedSpecWarning)] == []
+
+
+def test_an_explicitly_unrestricted_spec_is_neither_refused_nor_warned_about(recwarn):
+    """``permission_classes=[]`` is a declaration that anyone may call, which
+    the spec compiles to the kernel's ``Unrestricted``; only a spec declaring
+    no permissions at all is the absence the toolset refuses. The kernel's
+    own ``unguarded_specs`` would flag this spec, which is why the toolset asks
+    the compiled spec rather than it."""
+    SpecToolset({"list_widgets": list_spec(permission_classes=[])})
+
     assert [w for w in recwarn.list if issubclass(w.category, UnguardedSpecWarning)] == []
 
 
@@ -3286,7 +3326,7 @@ async def test_a_call_is_timed_at_debug(caplog):
     with caplog.at_level(logging.DEBUG, logger="django_spec_agents.spec_tools"):
         await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
 
-    assert "Tool 'list_widgets' on toolset 'drf-specs' took" in caplog.text
+    assert "Tool 'list_widgets' on toolset 'spec-tools' took" in caplog.text
 
 
 @pytest.mark.django_db(transaction=True)
@@ -3756,42 +3796,32 @@ async def test_handle_instruction_present_only_when_a_tool_has_a_handle():
     assert _DEFAULTS.handles not in without
 
 
+def _declaring(*reads: Parameter, shapes: Sequence[Parameter] = ()):
+    """A kernel spec declaring ``reads`` and ``shapes``, for the reads the call fills."""
+    return django_service_specs.SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda **_: None,
+        reads=Parameters.of(*reads),
+        shapes=Parameters.of(*shapes),
+        permissions=[django_service_specs.Unrestricted()],
+    )
+
+
 @pytest.mark.parametrize("no_default", [None, UNSET])
-def test_a_kwarg_declaring_no_default_contributes_nothing(no_default: Any) -> None:
-    """Both sentinels for "no default", ``None`` and ``UNSET``, read as absent.
+def test_a_query_param_declaring_no_default_contributes_nothing(no_default: Any) -> None:
+    """Both sentinels for "no default", ``None`` and ``UNSET``, read as absent,
+    for a shape and an advertised read alike.
 
     ``UNSET`` is the "no default" that lets ``default=None`` mean an explicit
     null, and a check of only ``is not None`` reads it as a real value and hands
     the sentinel object to the spec as an argument.
     """
     args: dict[str, Any] = {}
-    values = _pop_url_kwargs(
-        [UrlKwarg(name="project_pk", type="integer", default=no_default)], args
-    )
-    assert values == {}
-
-
-@pytest.mark.parametrize("no_default", [None, UNSET])
-def test_a_required_kwarg_is_not_satisfied_by_the_no_default_sentinel(no_default: Any) -> None:
-    """The requiredness check must still run, and must still name the kwarg.
-
-    Reading the sentinel as a value skips the ``elif required`` arm entirely, so
-    the model would get no ``ModelRetry`` naming what it omitted -- the spec would
-    be handed the sentinel and fail further in, where the reason is far less legible.
-    """
-    with pytest.raises(ModelRetry, match="project_pk"):
-        _pop_url_kwargs(
-            [UrlKwarg(name="project_pk", type="integer", required=True, default=no_default)], {}
-        )
-
-
-@pytest.mark.parametrize("no_default", [None, UNSET])
-def test_a_query_param_declaring_no_default_contributes_nothing(no_default: Any) -> None:
-    """A shape and an advertised read alike, each with no default, are left out."""
-    args: dict[str, Any] = {}
-    _fill_query_params(
-        (QueryParam("expand", default=no_default),),
-        Parameters.of(Parameter("fields", "string", default=no_default)),
+    _fill_reads(
+        _declaring(
+            Parameter("expand", "string", default=no_default),
+            shapes=[Parameter("fields", "string", default=no_default)],
+        ),
         args,
     )
     assert args == {}
@@ -3799,14 +3829,24 @@ def test_a_query_param_declaring_no_default_contributes_nothing(no_default: Any)
 
 def test_a_real_default_still_reaches_the_spec() -> None:
     """The other half of the predicate: a declared default is still applied."""
-    assert _pop_url_kwargs([UrlKwarg(name="pk", type="integer", default=7)], {}) == {"pk": 7}
     args: dict[str, Any] = {}
-    _fill_query_params(
-        (QueryParam("expand", default="all"),),
-        Parameters.of(Parameter("fields", "string", default="id")),
+    _fill_reads(
+        _declaring(
+            Parameter("expand", "string", default="all"),
+            shapes=[Parameter("fields", "string", default="id")],
+        ),
         args,
     )
     assert args == {"fields": "id", "expand": "all"}
+
+
+def test_a_reflected_read_s_default_is_its_callable_s_to_apply() -> None:
+    """A read the kernel reflects off a callable's signature carries the
+    callable's own default, which the callable applies; only a declared read's
+    default is the toolset's to fill."""
+    args: dict[str, Any] = {}
+    _fill_reads(_declaring(Parameter("region", "string", default="all", reflected=True)), args)
+    assert args == {}
 
 
 # --- what a permission class sees off HTTP -----------------------------------
@@ -4587,21 +4627,19 @@ async def test_a_registered_seed_outranks_a_model_argument_of_the_same_name():
     assert "tenant" not in schema.get("required", [])
 
 
-def test_a_read_shape_a_registered_seed_fills_is_not_advertised():
-    """A ``QueryParam`` shape named like a registered seed is the server's, so
-    it leaves the schema with the seed, and the scope sentence a list tool adds
-    to its shapes is not written for a property that is not there. Holds the
-    ``shapes & properties.keys()`` in ``_with_scope``: scoping every shape would
-    refuse this toolset at construction for a ``tenant`` it no longer lists."""
-    spec = SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=list_widgets,
-        output_serializer=WidgetSerializer,
-        reads=[QueryParam("tenant")],
-        permission_classes=[AllowAny],
+def test_a_shape_a_schema_fragment_drops_is_told_nothing():
+    """A ``metadata["json_schema"]["input"]`` fragment wins key by key, so one
+    carrying its own ``properties`` can leave a declared shape out of the
+    schema, and the scope sentence a list tool adds to its shapes is not
+    written for a property that is not there. Holds the
+    ``shapes & properties.keys()`` in ``_with_scope``: scoping every shape
+    would fail building this tool on a ``fields`` it no longer lists."""
+    spec = list_spec(
+        reads=[QueryParam("fields")],
+        metadata={"json_schema": {"input": {"properties": {}}}},
     )
 
-    schema = _input_schema_of(SpecToolset({"rows": spec}, pool_seeds=_tenant_seeds()), "rows")
+    schema = _input_schema_of(SpecToolset({"rows": spec}), "rows")
 
     assert list(schema["properties"]) == ["page", "limit"]
 
@@ -5121,52 +5159,49 @@ def test_a_partial_flag_drf_services_does_not_compile_as_partial_exempts_nothing
 def test_a_channel_named_after_a_registered_seed_is_refused(channel):
     """A registered seed is reserved like a built-in one, so a channel cannot name it.
 
-    Accepted, a ``UrlKwarg`` named after one would be stripped by dispatch
-    before the selector saw it, and the model would be told about an argument
-    that is silently dropped.
+    Accepted, the tool would build and be advertised, and the kernel would
+    refuse every call to it, sent or not, for an argument meeting a seed in one
+    pool.
     """
     with pytest.raises(ImproperlyConfigured, match="tenant"):
         SpecToolset(reading({"list": list_spec()}, {"list": channel}), pool_seeds=_tenant_seeds())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=pytest.fail.Exception,
-    reason=(
-        "a bare mapping carries no registry entry, so its reads are not checked "
-        "against the toolset's reserved names and seeds when it is built; the "
-        "kernel refuses the read on every call instead"
-    ),
-)
 @pytest.mark.parametrize(
     "read", [QueryParam("tenant"), UrlKwarg("tenant")], ids=["query_param", "url_kwarg"]
 )
 def test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build(read):
     """What a registry-built tool is refused at build
     (``test_a_channel_named_after_a_registered_seed_is_refused``), a tool built
-    from a bare mapping is not: the check runs over the entry's declarations,
-    and a mapping has no entry. Strict, so the day the check runs over the
-    spec's own ``reads`` this passes and fails the suite, and
-    ``_resolve_contracts`` and the guide stop saying a mapping skips it."""
+    from a bare mapping is refused too: the check reads the compiled spec's own
+    reads, which a mapping's spec carries as a registry's does."""
     spec = replace(list_spec(), reads=(read,))
 
-    with pytest.raises(ImproperlyConfigured, match="tenant"):
+    with pytest.raises(ImproperlyConfigured, match=r"^SpecToolset tool 'list': .*'tenant'"):
         SpecToolset({"list": spec}, pool_seeds=_tenant_seeds())
 
 
-@pytest.mark.parametrize(
-    "read", [QueryParam("tenant"), UrlKwarg("tenant")], ids=["query_param", "url_kwarg"]
-)
-async def test_a_mapping_read_named_after_a_registered_seed_is_refused_on_every_call(read):
-    """The other half of what a mapping misses at build: the read is still a
-    parameter of the compiled spec, and the kernel refuses a parameter a seed
-    occupies when the call is dispatched, sent or not, so the tool builds and
-    no call to it is served."""
-    toolset = SpecToolset({"list": replace(list_spec(), reads=(read,))}, pool_seeds=_tenant_seeds())
+def test_a_lookup_read_named_after_a_registered_seed_is_refused_at_build():
+    """A ``UrlKwarg`` the target lookup takes compiles onto the lookup's reads,
+    not the service's, and is checked there too: the kernel refuses it on every
+    call as it does a top-level one."""
 
-    for sent in ({}, {"tenant": "x"}):
-        with pytest.raises(ImproperlyConfigured, match=r"\['tenant'\], which a registered pool"):
-            await _call(toolset, "list", User(username="u"), sent)
+    def get_by_tenant(*, tenant: str):
+        """The row of one tenant."""
+        return Widget.objects.get(name=tenant)
+
+    spec = ServiceSpec(
+        service=lambda *, instance: {"name": instance.name},
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=get_by_tenant, permission_classes=[AllowAny]
+        ),
+        reads=(UrlKwarg("tenant", required=True),),
+        permission_classes=[AllowAny],
+        atomic=False,
+    )
+
+    with pytest.raises(ImproperlyConfigured, match=r"^SpecToolset tool 'rename': .*'tenant'"):
+        SpecToolset({"rename": spec}, pool_seeds=_tenant_seeds())
 
 
 # --- what a call needs from the model -----------------------------------------
@@ -5321,9 +5356,8 @@ async def test_a_url_kwarg_s_default_never_replaces_the_value_the_model_sent(sou
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 async def test_a_null_under_a_url_kwarg_is_the_model_declining_it(source):
     """A ``null`` sent under a ``UrlKwarg`` is the model declining to fill it,
-    as under a ``QueryParam``, so the read's default answers, from a registry,
-    whose entry pops the read off the call, as from a mapping, which has no
-    entry to pop it through."""
+    as under a ``QueryParam``, so the read's default answers, from a registry
+    as from a mapping: both hand the toolset the same compiled read."""
     reads = {"in_project": [UrlKwarg("project_pk", type="integer", default=7)]}
     specs = {"in_project": _name_list_spec(names_in_project)}
     toolset = SpecToolset(
@@ -5337,19 +5371,13 @@ async def test_a_null_under_a_url_kwarg_is_the_model_declining_it(source):
     assert _rows(result) == [{"name": "project-7"}]
 
 
-@pytest.mark.parametrize(
-    ("source", "retry"),
-    [
-        ("registry", r"^Missing required argument\(s\): `project_pk`\.$"),
-        ("mapping", r"^project_pk: This field is required\.$"),
-    ],
-)
-async def test_a_null_under_a_required_url_kwarg_is_retried_in_each_source_s_words(source, retry):
-    """The one difference a model sees between the two sources: a required
-    ``UrlKwarg`` sent as ``null`` is retried either way, by the entry's pop in
-    the toolset's words from a registry, and by the kernel's check in its own
-    from a mapping, which has no entry to pop it through. The guide's
-    ``spec-registry`` page states both wordings."""
+@pytest.mark.parametrize("source", ["registry", "mapping"])
+async def test_a_null_under_a_required_url_kwarg_is_retried_alike_from_either_source(source):
+    """A required ``UrlKwarg`` sent as ``null`` is the model declining a value
+    it must send, so the kernel's check retries it, in the kernel's words,
+    whichever way the spec arrived: neither source pops the read off the call
+    before the kernel sees it. The guide's ``spec-registry`` page states the
+    wording."""
     reads = {"in_project": [UrlKwarg("project_pk", type="integer", required=True)]}
     specs = {"in_project": _name_list_spec(names_in_project)}
     toolset = SpecToolset(
@@ -5358,7 +5386,7 @@ async def test_a_null_under_a_required_url_kwarg_is_retried_in_each_source_s_wor
         else {name: replace(spec, reads=tuple(reads[name])) for name, spec in specs.items()}
     )
 
-    with pytest.raises(ModelRetry, match=retry):
+    with pytest.raises(ModelRetry, match=r"^project_pk: This field is required\.$"):
         await _call(toolset, "in_project", User(username="u"), {"project_pk": None})
 
 
@@ -7554,6 +7582,56 @@ async def test_a_consumer_registry_reaches_the_input_schema():
     assert props["rating"] == _RATING_SCHEMA
 
 
+@pytest.mark.parametrize("phase", ["input", "return"])
+async def test_a_spec_s_own_registry_reaches_its_schemas_with_none_on_the_toolset(phase):
+    """The way to describe a project's own field type without the toolset's
+    keyword: the spec declares ``json_schema_registry=`` itself, which it
+    compiles into its parameters and its output, so the kernel's schema
+    already carries the node."""
+    if phase == "input":
+        spec = ServiceSpec(
+            service=create_widget,
+            input_serializer=_RatedWidgetSerializer,
+            json_schema_registry=_RATING_REGISTRY,
+            permission_classes=[AllowAny],
+        )
+    else:
+        spec = replace(
+            _rated_spec(kind=SelectorKind.RETRIEVE), json_schema_registry=_RATING_REGISTRY
+        )
+    tools = await SpecToolset({"t": spec}).get_tools(None)
+
+    tool_def = tools["t"].tool_def
+    schema = tool_def.parameters_json_schema if phase == "input" else tool_def.return_schema
+    assert schema["properties"]["rating"] == _RATING_SCHEMA
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "drf-services compiles a spec's json_schema_registry into its serializers' "
+        "nodes, not its filter_set's, so a filter type still needs the toolset's "
+        "keyword"
+    ),
+)
+async def test_a_spec_s_own_registry_reaches_a_filter_with_none_on_the_toolset():
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=list_widgets,
+        output_serializer=WidgetSerializer,
+        filter_set=_RatedFilterSet,
+        json_schema_registry=DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+            filters=[(_RatingFilter, _RATING_SCHEMA)]
+        ),
+        permission_classes=[AllowAny],
+    )
+    tools = await SpecToolset({"list": spec}).get_tools(None)
+
+    rating = tools["list"].tool_def.parameters_json_schema["properties"]["rating"]
+    assert {key: rating.get(key) for key in _RATING_SCHEMA} == _RATING_SCHEMA
+
+
 async def test_a_consumer_registry_leaves_what_it_does_not_describe_as_the_kernel_spells_it():
     """A consumer registry changes the node of the field it describes and
     nothing else: every other property, the argument set, ``required`` and
@@ -8751,3 +8829,17 @@ def test_a_service_validation_error_reads_the_same_way():
         _dispatch(_raises(ServiceValidationError({"price": ["Must be positive."]})), object(), {})
 
     assert retry.value.message == "price: Must be positive."
+
+
+@pytest.mark.parametrize("key", ["non_field_errors", "__all__"], ids=["drf-key", "django-key"])
+def test_a_message_about_the_whole_input_is_read_without_its_key(key):
+    """A service re-raising a model's ``message_dict`` carries its form-wide
+    messages under Django's ``__all__``, and the kernel's under
+    ``non_field_errors``: either is the line on its own, never a path naming an
+    argument the model could not find."""
+    detail = {key: ["Name and owner must make a unique set."], "name": ["Too long."]}
+
+    with pytest.raises(ModelRetry) as retry:
+        _dispatch(_raises(ServiceValidationError(detail)), object(), {})
+
+    assert retry.value.message == "Name and owner must make a unique set.\nname: Too long."

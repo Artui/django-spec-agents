@@ -206,6 +206,85 @@ def test_spec_tools_imports_nothing_from_the_host_but_agent_deps() -> None:
     assert others == []
 
 
+def _imports_under(source: str, *packages: str) -> set[str]:
+    """Each name ``source`` imports from any of ``packages``, as a dotted path."""
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return {name for name in names if any(_is_or_under(name, p) for p in packages)}
+
+
+# What ``spec_tools`` still imports from Django REST Framework and drf-services,
+# each name beside the change upstream that lets it go. Every other read is the
+# compiled spec's, through the kernel.
+_DRF = ("rest_framework", "rest_framework_services")
+DRF_RESIDUALS = {
+    # A permission class raising DRF's refusal itself, rather than answering
+    # False, reaches the toolset as DRF's class: drf-services' compiled
+    # permission check does not translate it into the kernel's ``NotPermitted``.
+    "spec_toolset.py: rest_framework.exceptions.PermissionDenied",
+    # drf-services' ``SerializerPresenter`` raises DRF's ``ValidationError``
+    # where the kernel's ``InvalidArguments`` belongs, and a service raising
+    # DRF's class reaches the kernel route as it was raised.
+    "spec_toolset.py: rest_framework.exceptions.ValidationError",
+    # An input serializer field required under a name drf-services fills
+    # itself: no compiled Validator declares it, so only the serializer can say
+    # it is there. drf-services' compile could refuse it instead.
+    "spec_toolset.py: rest_framework_services.ServiceSpec",
+    "spec_toolset.py: rest_framework_services.service_specs.utils.describe_serializer",
+    # ``json_schema_registry=``: a spec's own registry reaches its fields'
+    # schemas when it compiles, and not its filters', which the kernel's filter
+    # adapter describes with no registry. The keyword, and drf-services'
+    # reflection behind it, go once a filter compiles from the spec's registry.
+    "spec_capability.py: rest_framework_services.DEFAULT_JSON_SCHEMA_REGISTRY",
+    "spec_capability.py: rest_framework_services.JsonSchemaRegistry",
+    "spec_toolset.py: rest_framework_services.DEFAULT_JSON_SCHEMA_REGISTRY",
+    "spec_toolset.py: rest_framework_services.JsonSchemaRegistry",
+    "spec_toolset.py: rest_framework_services.SelectorSpec",
+    "spec_toolset.py: rest_framework_services.can_present_nothing",
+    "spec_toolset.py: rest_framework_services.output_to_json_schema",
+    "spec_toolset.py: rest_framework_services.spec_to_json_schema",
+}
+
+
+def _drf_imports() -> set[str]:
+    return {
+        f"{path.relative_to(SPEC_TOOLS).as_posix()}: {name}"
+        for path in _spec_tools_files()
+        for name in _imports_under(path.read_text(), *_DRF)
+    }
+
+
+def test_spec_tools_imports_of_drf_are_exactly_the_named_residuals() -> None:
+    """Pinned as a set, so a new import of either package fails here, and so
+    does a residual left listed after its use has gone."""
+    assert _drf_imports() == DRF_RESIDUALS
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "spec_tools still imports DRF and drf-services for the residuals "
+        "DRF_RESIDUALS names: DRF's PermissionDenied and ValidationError, which "
+        "drf-services' permission check, presenter and services raise untranslated; "
+        "describe_serializer, which a compiled Validator cannot stand in for; and "
+        "json_schema_registry=, which a filter's schema still needs"
+    ),
+)
+def test_spec_tools_imports_neither_drf_nor_drf_services() -> None:
+    assert _drf_imports() == set()
+
+
+def test_the_drf_scan_sees_a_guarded_import() -> None:
+    source = "def f():\n    from rest_framework_services.types import QueryParam\n"
+
+    assert _imports_under(source, *_DRF) == {"rest_framework_services.types.QueryParam"}
+
+
 @pytest.mark.parametrize(
     "source",
     [
