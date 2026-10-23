@@ -139,6 +139,14 @@ description in both. It is the kernel's `spec_output_schema`. A spec declaring a
 such as a `fields` query param, requires none of a row's fields, since the
 shape may leave any of them out.
 
+A spec's `metadata["json_schema"]` is merged over both schemas, keyed by phase,
+as drf-services' `spec_to_json_schema` merges it: `{"input": {...}}` over the
+parameter schema and `{"output": {...}}` over the `return_schema`. The merge is
+shallow, so a key the fragment names is the fragment's whole, and an `output`
+fragment never makes a `return_schema` for a spec with none. A fragment that is
+not keyed by phase is refused when the toolset is built, in drf-services' words,
+naming the tool.
+
 It is populated but **not sent** by default, because a return schema costs
 context on every turn of every run and only your model and your serializers say
 whether that trade is worth it. Pydantic-AI owns the opt-in, at either scope:
@@ -184,8 +192,7 @@ the compiled spec, the argument set `dispatch` checks, less the kernel's
 `server_owned_keys` for the toolset's seeds:
 
 - **A name the toolset fills is not advertised.** That is the dispatcher's own
-  pool seeds (`request`, `user`, `progress` and the rest), a serializer field
-  under one of those names included, every name registered
+  pool seeds (`request`, `user`, `progress` and the rest), every name registered
   in [`pool_seeds`](#project-pool-seeds), and the keys a `kwargs=` provider
   returns when its return annotation is a `TypedDict`, less any it may decline
   with `UNSET` (below). The annotation is read by the kernel's
@@ -194,6 +201,14 @@ the compiled spec, the argument set `dispatch` checks, less the kernel's
   that declares a `default` fills its name too, so the selector's parameter of
   that name is not required, but the `UrlKwarg` itself stays advertised, as the
   optional argument it always is.
+- **An input serializer field named like one of the dispatcher's own names**
+  (`user`, `data`, `instance`, `collection`, `result`, `queryset`, `progress`,
+  `call_context`) is refused when the toolset is built, with
+  `ImproperlyConfigured` naming the tool and the field, under either
+  [`unknown_arguments`](#unexpected-arguments) policy. Dispatch fills the name
+  itself, so the model's value would be refused or dropped and the serializer
+  would still require it: no call could be served. A `read_only` field, and a
+  field of a `many=True` service's rows, are left alone. Rename the field.
 - **Every other parameter without a default is required.** `get_widget(user, pk)`
   is advertised as `{"properties": {"pk": {}}, "required": ["pk"]}`. A parameter
   with a default stays optional, and `InputRequired` still makes one required.

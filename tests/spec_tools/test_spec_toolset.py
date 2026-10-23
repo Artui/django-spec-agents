@@ -1059,22 +1059,11 @@ def test_an_argument_beside_the_list_is_dropped_under_ignore():
     assert Widget.objects.filter(owner=user).count() == 1
 
 
-_A_FRAGMENT_IS_NOT_COMPILED = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "drf-services' compile seam does not carry a spec's "
-        "metadata['json_schema'] fragment, and the kernel's schema has no seat "
-        "for one, so the tool's schema neither reads nor refuses it."
-    ),
-)
-
-
-@_A_FRAGMENT_IS_NOT_COMPILED
 def test_a_malformed_schema_fragment_is_refused_naming_the_tool():
-    """drf-services reads a spec's ``metadata["json_schema"]`` while the tool's
-    schema is built, and refuses one that is not keyed by phase in the spec's own
-    terms (``SelectorSpec.metadata[...]``), which every spec in a mapping shares.
-    The toolset prefixes the refusal with the tool, as it does at compile."""
+    """The toolset reads a spec's ``metadata["json_schema"]`` when it is built,
+    and refuses one that is not keyed by phase, in drf-services' words and the
+    spec's own terms (``SelectorSpec.metadata[...]``), prefixed with the tool as
+    a compile refusal is. Holds the mapping check in ``_schema_fragment``."""
     spec = list_spec(metadata={"json_schema": "not a mapping"})
 
     with pytest.raises(
@@ -1084,7 +1073,6 @@ def test_a_malformed_schema_fragment_is_refused_naming_the_tool():
         SpecToolset({"list_widgets": spec})
 
 
-@_A_FRAGMENT_IS_NOT_COMPILED
 def test_a_schema_fragment_reaches_the_tool_s_input_schema():
     """A spec's ``metadata["json_schema"]["input"]`` is merged over the schema
     of what it takes, so a description or a keyword the declaration cannot
@@ -1095,6 +1083,68 @@ def test_a_schema_fragment_reaches_the_tool_s_input_schema():
         _input_schema_of(SpecToolset({"list_widgets": spec}), "list_widgets")["description"]
         == "Widgets."
     )
+
+
+@pytest.mark.parametrize(
+    ("declared", "refusal"),
+    [
+        (
+            {"inputs": {"title": "Widgets"}},
+            r"SelectorSpec\.metadata\['json_schema'\] declares 'inputs', which name no schema phase\.",
+        ),
+        (
+            {"output": "Rows."},
+            r"SelectorSpec\.metadata\['json_schema'\]\['output'\] must be a mapping of JSON "
+            r"Schema keys to merge; got str\.",
+        ),
+    ],
+    ids=["unknown-phase", "phase-not-a-mapping"],
+)
+def test_a_fragment_drf_services_would_refuse_is_refused_naming_the_tool(declared, refusal):
+    """The rest of drf-services' reading, in its words: a key naming no phase,
+    which is the misplaced fragment the shape invites, and a phase that is not
+    a mapping, the ``output`` one included, though nothing reads it on the way
+    to the input schema. Holds the unknown-key and the phase-mapping checks in
+    ``_schema_fragment``."""
+    with pytest.raises(ImproperlyConfigured, match=rf"^SpecToolset tool 'rows': {refusal}"):
+        SpecToolset({"rows": list_spec(metadata={"json_schema": declared})})
+
+
+def test_a_schema_fragment_reaches_the_return_schema_and_wins_key_by_key():
+    """The ``output`` phase is merged over the kernel's return schema as the
+    ``input`` one is over the parameters, shallowly: a key the fragment names
+    is the fragment's whole, and the rest stay derived. Neither phase reaches
+    the other's schema."""
+    spec = list_spec(
+        metadata={
+            "json_schema": {
+                "input": {"title": "List widgets"},
+                "output": {"description": "A page of widgets.", "required": ["items"]},
+            }
+        }
+    )
+    tool = SpecToolset({"rows": spec})._tool_defs["rows"]
+
+    assert tool.return_schema["description"] == "A page of widgets."
+    assert tool.return_schema["required"] == ["items"]
+    assert set(tool.return_schema["properties"]) == {"items", "page", "totalPages", "hasNext"}
+    assert "title" not in tool.return_schema
+    assert tool.parameters_json_schema["title"] == "List widgets"
+    assert "description" not in tool.parameters_json_schema
+
+
+def test_an_output_fragment_never_conjures_a_return_schema():
+    """A spec declaring no output has no return schema, and an ``output``
+    fragment annotates a derived schema rather than authoring one, so it stays
+    ``None``. Holds the ``None`` check before the merge in ``_return_schema``."""
+    spec = ServiceSpec(
+        service=stamp_approval,
+        permission_classes=[AllowAny],
+        atomic=False,
+        metadata={"json_schema": {"output": {"description": "Nothing."}}},
+    )
+
+    assert SpecToolset({"approve": spec})._tool_defs["approve"].return_schema is None
 
 
 @pytest.mark.parametrize(
@@ -1645,22 +1695,6 @@ def _ceiling_from_fields(fields=None):
     return {"ceiling": 1}
 
 
-# The kernel's schema lists every read the spec declares with the default its
-# declaration gives, the reads a callable takes among them, and
-# ``_parameter_reads`` routes each such read out of the tool's ``query_params``.
-# ``_call_spec`` applies a declared default only to those, so a read a callable
-# takes is advertised with its default and handed none.
-_A_TAKEN_READ_S_DEFAULT_IS_NOT_APPLIED = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "The schema advertises a read's declared default, and _call_spec hands "
-        "_fill_query_params only the reads _parameter_reads leaves unrouted, so a "
-        "read a callable takes is handed no default."
-    ),
-)
-
-
-@_A_TAKEN_READ_S_DEFAULT_IS_NOT_APPLIED
 @pytest.mark.django_db
 async def test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default():
     """The kernel classes a read a ``**kwargs`` selector takes as the selector's
@@ -1685,16 +1719,14 @@ async def test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_de
 @pytest.mark.parametrize(
     ("spec_kwargs", "taken"),
     [
-        ({"selector": _names_naming_fields}, [("selector-named", None)]),
+        ({"selector": _names_naming_fields}, [("selector-named", "id")]),
         pytest.param(
             {"selector": _names_taking_anything},
             [("selector-kwargs", "id")],
-            marks=_A_TAKEN_READ_S_DEFAULT_IS_NOT_APPLIED,
         ),
         pytest.param(
             {"selector": _names_under_a_ceiling, "kwargs": _ceiling_from_fields},
             [("provider", "id")],
-            marks=_A_TAKEN_READ_S_DEFAULT_IS_NOT_APPLIED,
         ),
     ],
     ids=["selector-named", "selector-kwargs", "provider"],
@@ -1704,8 +1736,7 @@ async def test_an_explicit_null_for_a_query_param_a_callable_takes_is_treated_as
 ):
     """``{"fields": null}`` is the model declining to fill the read, as for a
     shape, whichever callable takes it: dropped, so the callable is handed what
-    an omitted read is -- the read's advertised default, or the callable's own
-    where the callable's signature is what advertises it -- rather than the call
+    an omitted read is, the read's advertised default, rather than the call
     being refused as a null the parameter does not admit."""
     _TAKEN.clear()
     spec = _name_list_spec(**spec_kwargs)
@@ -1718,7 +1749,6 @@ async def test_an_explicit_null_for_a_query_param_a_callable_takes_is_treated_as
     assert taken == _TAKEN
 
 
-@_A_TAKEN_READ_S_DEFAULT_IS_NOT_APPLIED
 @pytest.mark.django_db
 async def test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advertises():
     """The read's declaration stands for the parameter of its name, so the tool
@@ -4744,36 +4774,94 @@ def _noting(policy: UnknownArguments = UnknownArguments.REJECT) -> SpecToolset:
 
 
 @pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
-def test_a_field_named_like_a_dispatcher_name_is_not_advertised(policy):
-    """drf-services' compiled Validator declares no parameter for a field
-    named like one of the dispatcher's own names, so the kernel's schema, and
-    the tool's, lists no such argument: the call refuses one sent under
-    ``REJECT`` and drops it under ``IGNORE``, so it is not the model's to send."""
-    schema = _input_schema_of(_noting(policy), "note")
+def test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool(policy):
+    """No call can serve a service whose input serializer declares a field
+    under one of the dispatcher's own names: drf-services' compiled Validator
+    declares no parameter for it, so the kernel refuses the model's value as an
+    unknown argument under ``REJECT`` and drops it under ``IGNORE``, and the
+    serializer then requires it. So the toolset refuses the spec when it is
+    built, under either policy, naming the tool and the field."""
+    with pytest.raises(
+        ImproperlyConfigured,
+        match=(
+            r"^SpecToolset tool 'note': the input serializer declares \['user'\], "
+            r"which the dispatcher fills"
+        ),
+    ):
+        _noting(policy)
 
-    assert "user" not in schema["properties"]
-    assert "user" not in schema.get("required", [])
 
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "The tool's schema no longer advertises an input serializer field named "
-        "like a dispatcher name, and the serializer still requires it: the kernel "
-        "refuses the field as an unknown argument under REJECT and drops it under "
-        "IGNORE, so no call can hand the serializer a value for it."
-    ),
+@pytest.mark.parametrize(
+    "name",
+    ["user", "data", "instance", "collection", "result", "queryset", "progress", "call_context"],
 )
-async def test_a_call_sending_what_the_schema_requires_is_served():
-    """A model sending exactly what the advertised schema requires gets an answer.
+def test_each_dispatcher_name_the_guide_lists_is_refused_as_a_field(name):
+    """The names ``docs/spec-tools/quickstart.md`` lists as refused are the ones
+    the toolset refuses."""
+    serializer = type("_Named", (serializers.Serializer,), {name: serializers.CharField()})
 
-    The schema and the dispatch have to agree on the argument set, or the
-    tool is one no model can call however it reads the schema.
-    """
-    toolset = _noting()
-    required = _input_schema_of(toolset, "note").get("required", [])
+    def keep(data: dict[str, Any]) -> dict[str, Any]:
+        """Keep it."""
+        return dict(data)
 
-    await _call(toolset, "note", User(username="acme"), dict.fromkeys(required, "x"))
+    spec = ServiceSpec(
+        service=keep, input_serializer=serializer, atomic=False, permission_classes=[AllowAny]
+    )
+
+    with pytest.raises(ImproperlyConfigured, match=rf"declares \['{name}'\], which the dispatcher"):
+        SpecToolset({"keep": spec})
+
+
+class _ReadOnlyUserSerializer(serializers.Serializer):
+    user = serializers.CharField(read_only=True)
+    text = serializers.CharField()
+
+
+def test_a_read_only_field_may_carry_a_dispatcher_name():
+    """A ``read_only`` field takes no input, so naming one ``user`` asks the
+    model for nothing the dispatcher fills, and the tool builds. Holds the
+    ``read_only`` conjunct of the check."""
+
+    def note(data: dict[str, Any]) -> dict[str, Any]:
+        """Keep a note."""
+        return dict(data)
+
+    toolset = SpecToolset(
+        {
+            "note": ServiceSpec(
+                service=note,
+                input_serializer=_ReadOnlyUserSerializer,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        }
+    )
+
+    assert list(_input_schema_of(toolset, "note")["properties"]) == ["text"]
+
+
+def test_a_bulk_row_may_name_a_field_like_a_dispatcher_name():
+    """A ``many=True`` service's rows are one argument's items, never the
+    call's top-level arguments, so a row field named ``user`` meets no
+    dispatcher name and the tool builds. Holds the ``many`` arm of the check."""
+
+    def note_all(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Keep the notes."""
+        return data
+
+    toolset = SpecToolset(
+        {
+            "notes": ServiceSpec(
+                service=note_all,
+                input_serializer=_UserFieldSerializer,
+                many=True,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        }
+    )
+
+    assert "items" in _input_schema_of(toolset, "notes")["properties"]
 
 
 @pytest.mark.parametrize(

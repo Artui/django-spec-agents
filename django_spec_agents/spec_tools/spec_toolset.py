@@ -44,6 +44,7 @@ from django.db import connections
 from django_service_specs import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_POOL_SEEDS,
+    RESERVED_POOL_SEEDS,
     UNSET,
     ActionUnavailable,
     AdditionalInputRequired,
@@ -1732,6 +1733,11 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
     A ``QueryParam`` the spec reads under an input's name is not refused here or
     anywhere: ``_parameter_reads`` leaves it in the call, where the kernel
     hands it to the input as its argument.
+
+    The same pass refuses the two other declarations no call can serve: a
+    ``metadata["json_schema"]`` fragment drf-services would refuse
+    (``_schema_fragment``), and an input serializer field under one of the
+    dispatcher's own names (``_refuse_dispatcher_named_fields``).
     """
     for tool_name, spec in specs.items():
         # The first assembly of each spec's whole argument set, for every spec
@@ -1742,6 +1748,13 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
         # ``test_a_field_sharing_a_lookup_parameter_s_name_is_refused_naming_the_tool``.
         with _refusals_name_the_tool(tool_name):
             own = kernel_spec(spec).parameters().names()
+            # Both phases, so a malformed fragment is refused when the toolset
+            # is built, naming the tool, whichever phase it is in and whether or
+            # not that phase derives a schema
+            # (``test_a_fragment_drf_services_would_refuse_is_refused_naming_the_tool``).
+            for phase in _SCHEMA_PHASES:
+                _schema_fragment(spec, phase)
+            _refuse_dispatcher_named_fields(spec)
         pagination = sorted(own & _PAGINATION_ARGUMENTS) if _is_list_selector(spec) else []
         if pagination:
             raise ImproperlyConfigured(
@@ -1751,6 +1764,88 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
                 "out of the call before the selector runs, so the parameter would never "
                 "receive the model's value. Rename the parameter."
             )
+
+
+def _refuse_dispatcher_named_fields(spec: Spec) -> None:
+    """Refuse an input serializer field under one of the dispatcher's own names.
+
+    drf-services' compiled Validator declares no parameter for such a field,
+    since dispatch seeds the name into every pool itself, so the kernel's
+    schema does not advertise it and its ``dispatch`` refuses a value the model
+    sends for it as an unknown argument under ``REJECT`` and drops it under
+    ``IGNORE``. The serializer still requires it, so no call can be served:
+    over HTTP the edge hands the serializer the body, which this toolset has no
+    equivalent of (``test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool``).
+
+    Only a field the model would send: a ``read_only`` one takes no input
+    (``test_a_read_only_field_may_carry_a_dispatcher_name``), and a ``many``
+    service's rows are one argument's items, never the call's top-level
+    arguments (``test_a_bulk_row_may_name_a_field_like_a_dispatcher_name``). A
+    selector, and a service with no serializer, declare no fields.
+    """
+    if not isinstance(spec, ServiceSpec) or spec.input_serializer is None or spec.many:
+        return
+    fields = spec.input_serializer().fields
+    named = sorted(
+        name
+        for name, field in fields.items()
+        if name in RESERVED_POOL_SEEDS and not field.read_only
+    )
+    if named:
+        raise ImproperlyConfigured(
+            f"the input serializer declares {named!r}, which the dispatcher fills: "
+            "the tool would not advertise the field, a call sending it would be refused "
+            "under REJECT or have it dropped under IGNORE, and the serializer would then "
+            "require it, so no call could be served. Rename the field."
+        )
+
+
+# ``metadata["json_schema"]``, keyed by phase, as drf-services' ``spec_to_json_schema``
+# reads it. Its reader there is private and the kernel's schema builders read no
+# metadata, so the toolset reads the fragment itself, in drf-services' words, to
+# keep a consumer's declaration reaching the model as it did when the schemas
+# were drf-services'.
+_JSON_SCHEMA_METADATA_KEY = "json_schema"
+_SCHEMA_PHASES = ("input", "output")
+
+
+def _schema_fragment(spec: Spec, phase: str) -> Mapping[str, Any] | None:
+    """The spec's ``metadata["json_schema"][phase]`` fragment, or ``None`` if undeclared.
+
+    Read off the spec the toolset was handed, never a nested one, and refused
+    in drf-services' words where drf-services would refuse it: a declaration
+    that is not a mapping (``test_a_malformed_schema_fragment_is_refused_naming_the_tool``),
+    one naming a key that is no phase, and a phase that is not a mapping
+    (``test_a_fragment_drf_services_would_refuse_is_refused_naming_the_tool``).
+    """
+    declared = (spec.metadata or {}).get(_JSON_SCHEMA_METADATA_KEY)
+    if declared is None:
+        return None
+    label = f"{type(spec).__name__}.metadata[{_JSON_SCHEMA_METADATA_KEY!r}]"
+    if not isinstance(declared, Mapping):
+        raise ImproperlyConfigured(
+            f"{label} must be a mapping keyed by schema phase "
+            f"({' / '.join(repr(name) for name in _SCHEMA_PHASES)}); got "
+            f"{type(declared).__name__}."
+        )
+    unknown = sorted(str(key) for key in declared if key not in _SCHEMA_PHASES)
+    if unknown:
+        raise ImproperlyConfigured(
+            f"{label} declares {', '.join(repr(name) for name in unknown)}, which name no "
+            f"schema phase. Nest the fragment under "
+            f"{' or '.join(repr(name) for name in _SCHEMA_PHASES)} \u2014 an input schema and an "
+            "output schema describe different things and cannot share one title or one "
+            "description."
+        )
+    fragment = declared.get(phase)
+    if fragment is None:
+        return None
+    if not isinstance(fragment, Mapping):
+        raise ImproperlyConfigured(
+            f"{label}[{phase!r}] must be a mapping of JSON Schema keys to merge; got "
+            f"{type(fragment).__name__}."
+        )
+    return fragment
 
 
 def _validate_channel_declarations(
@@ -2146,7 +2241,29 @@ def _return_schema(
     ``test_a_consumer_registry_reaches_the_return_schema``, which fails with
     the condition dropped, and by every default-registry return-schema test
     with it inverted.
+
+    **A ``metadata["json_schema"]["output"]`` fragment wins, key by key**, as
+    drf-services' ``spec_to_json_schema`` merged it, and annotates a derived
+    schema without conjuring one: a spec with no output keeps ``None``
+    (``test_an_output_fragment_never_conjures_a_return_schema``).
     """
+    fragment = _schema_fragment(spec, "output")
+    derived = _derived_return_schema(
+        spec, projection=projection, registry=registry, conventions=conventions
+    )
+    if derived is None or fragment is None:
+        return derived
+    return {**derived, **fragment}
+
+
+def _derived_return_schema(
+    spec: Spec,
+    *,
+    projection: AudienceProjection | None,
+    registry: JsonSchemaRegistry,
+    conventions: AgentConventions,
+) -> dict[str, Any] | None:
+    """``_return_schema`` before the spec's ``output`` fragment is merged over it."""
     handle_description = _render(conventions.handle_field_description)
     if registry is DEFAULT_JSON_SCHEMA_REGISTRY:
         return spec_output_schema(
@@ -2237,6 +2354,11 @@ def _input_schema(
     A ``many=True`` spec's schema is already the object a model can send: one
     required array property named by ``spec.many_argument``.
 
+    **A ``metadata["json_schema"]["input"]`` fragment wins, key by key**, over
+    the spec's schema and before the toolset's own arguments, as drf-services'
+    ``spec_to_json_schema`` merged it
+    (``test_a_schema_fragment_reaches_the_return_schema_and_wins_key_by_key``).
+
     **Less ``server_names``, last**: every name ``tool_server_arguments``
     binds or withholds leaves ``properties`` and ``required``
     (``test_bound_and_withheld_names_leave_the_schema_and_its_required``,
@@ -2247,6 +2369,9 @@ def _input_schema(
     # rather than reflecting every tool through drf-services twice to find that.
     if registry is not DEFAULT_JSON_SCHEMA_REGISTRY:
         schema = _with_registry_nodes(spec, schema, registry)
+    fragment = _schema_fragment(spec, "input")
+    if fragment is not None:
+        schema = {**schema, **fragment}
     if _is_list_selector(spec):
         schema = {
             **schema,
@@ -2619,7 +2744,19 @@ def _call_spec(
             for parameter in compiled.shapes
             if args.get(parameter.name) is not None and parameter.name not in server_names
         ]
-        _fill_query_params(spec.reads, compiled.shapes, query_params, args)
+        # Every ``QueryParam`` read of the spec: the schema is the compiled
+        # spec's, so it states the declared default of a read a callable takes
+        # as of any other, and the call has to apply it
+        # (``test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advertises``).
+        # The tool's ``query_params`` are among them, so they are not added. A
+        # ``UrlKwarg`` is left out for the type: it has left the call already,
+        # and its popped value stands over the arguments in ``_call_arguments``.
+        _fill_query_params(
+            spec.reads,
+            compiled.shapes,
+            [read for read in spec.reads if isinstance(read, QueryParam)],
+            args,
+        )
         arguments = _call_arguments(
             args,
             url_kwarg_values,
