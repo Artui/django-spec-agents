@@ -103,6 +103,7 @@ from rest_framework_services import (
     spec_to_json_schema,
 )
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
+from rest_framework_services.service_specs.utils import describe_serializer
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.url_kwarg import UrlKwarg
 from rest_framework_services.types.validate_channel_names import validate_channel_names
@@ -1820,7 +1821,14 @@ def _refuse_unsendable_fields(spec: Spec) -> None:
     if compiled.partial:
         return
     validated = cast("Validator", compiled.validator).parameters().names()
-    fields = spec.input_serializer().fields
+    # Described as drf-services describes it, through its ``describe_serializer``:
+    # a dataclass read through a ``DataclassSerializer``, and a ``get_fields``
+    # reading ``self.context["request"]`` finding the key, ``None`` off a call.
+    # A bare instance raises from either at build, unnamed, failing every tool
+    # (``test_an_input_drf_services_describes_builds_and_serves``). A private
+    # path, like ``unguarded_specs`` above, because no public reader describes
+    # an input as dispatch validates it.
+    fields = describe_serializer(spec.input_serializer).fields
     unsendable = sorted(
         name for name, field in fields.items() if field.required and name not in validated
     )

@@ -58,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   omitted, and a declared default is applied whether or not the read shapes the
   output.
 
-- The `[specs]` extra requires `djangorestframework-services>=0.60.0` and
+- The `[specs]` extra requires `djangorestframework-services>=0.61.0` and
   `django-service-specs>=0.15.0`.
 - The failure policy's default `reraise` set now includes the kernel's
   `NotPermitted` and `PrincipalUnavailable`, so a refusal from the kernel's
@@ -136,7 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A read's declared default reaches the callable when a call leaves the read
     out, a `QueryParam` and a `UrlKwarg` alike, from a registry or a mapping.
   - A `null` sent under a `UrlKwarg` read is treated as omitted, as one under a
-    `QueryParam` already was, so the read's default answers, where it was
+    `QueryParam` now is, so the read's default answers, where it was
     refused as `This field cannot be null.`
   - A spec's `metadata["json_schema"]` fragments are merged over the kernel's
     schemas key by key, `input` over the input schema and `output` over the
@@ -150,14 +150,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   receiving the model's value under that name; drf-services' compiled
   Validator declares no parameter for the name, so no call could be served
   now. Rename the field, or make it optional, and the tool builds.
-- Two more declarations no call can serve are refused when the toolset is
-  built, with `ImproperlyConfigured` naming the tool, failing the whole
-  toolset where its other tools used to build:
+- Two more declarations are refused when the toolset is built, with
+  `ImproperlyConfigured` naming the tool, failing the whole toolset where its
+  other tools used to build:
   - an input serializer field sharing the name of a parameter of the service's
-    target lookup;
-  - a `metadata["json_schema"]` whose `output` phase is not a mapping. A key
-    naming no phase, and an `input` phase that is not a mapping, were refused
-    in the same words already.
+    target lookup, which no call can serve;
+  - a `metadata["json_schema"]` whose `output` phase is not a mapping, which
+    drf-services refuses when it derives the output schema
+    (`spec_to_json_schema(spec, phase="output")`). A key naming no phase, and
+    an `input` phase that is not a mapping, were refused in the same words
+    already.
 
 ### Known differences
 

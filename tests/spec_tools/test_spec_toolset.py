@@ -9,8 +9,8 @@ import time
 import warnings
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from dataclasses import fields as dataclass_fields
-from dataclasses import replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, Any, Generic, TypeVar
 
@@ -1596,21 +1596,9 @@ def test_a_spec_read_naming_a_lookup_parameter_builds_from_both_routes():
     )
 
 
-# drf-services compiles a declared read with no default, a ``UrlKwarg`` or a
-# ``QueryParam``, as an optional read over the callable parameter of its name,
-# even where that parameter has no default. The kernel's schema then does not
-# require it, while dispatch still refuses a call without it, in its own words.
-_A_DECLARED_READ_COMPILES_OPTIONAL = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "drf-services compiles a declared read with no default as optional over a "
-        "callable parameter that has none, so the schema does not require what "
-        "dispatch refuses the call without."
-    ),
-)
-
-
-@_A_DECLARED_READ_COMPILES_OPTIONAL
+# A declared read with no default, a ``UrlKwarg`` or a ``QueryParam``, keeps the
+# requiredness of the callable parameter it names, which drf-services compiles
+# from 0.61.0, the floor's reason in ``pyproject.toml``.
 async def test_a_read_naming_a_lookup_parameter_keeps_it_required():
     """A ``QueryParam`` read naming a parameter of a service's target lookup
     declares where the value comes from, not that the lookup can run without
@@ -5030,6 +5018,81 @@ async def test_a_bulk_row_s_optional_dispatcher_named_field_builds_and_serves(po
     ]
 
 
+class _RequestScopedNoteSerializer(serializers.Serializer):
+    """Reads its request while building its fields, as a serializer scoping a
+    field to the caller does; off HTTP the request is ``None``."""
+
+    def get_fields(self):
+        # A scoping serializer would branch on the request; reading the key is
+        # what a bare instance, with no context, cannot do.
+        self.context["request"]
+        return {"text": serializers.CharField()}
+
+
+@dataclass
+class _DataclassNote:
+    text: str
+
+
+@dataclass
+class _DataclassUserNote:
+    user: str
+    text: str
+
+
+def _keep_any_note(data: Any) -> Any:
+    """Keep a note, or several."""
+    if isinstance(data, list):
+        return [_keep_any_note(row) for row in data]
+    return asdict(data) if is_dataclass(data) else dict(data)
+
+
+@pytest.mark.parametrize("many", [False, True], ids=["single", "many"])
+@pytest.mark.parametrize(
+    "declaration",
+    [_RequestScopedNoteSerializer, _DataclassNote],
+    ids=["context-reading", "dataclass"],
+)
+async def test_an_input_drf_services_describes_builds_and_serves(declaration, many):
+    """The field check reads the serializer as drf-services describes it: a
+    dataclass through a ``DataclassSerializer``, and a ``get_fields`` reading
+    ``self.context["request"]`` with the key present and ``None``. Built bare,
+    the first raises ``TypeError`` and the second ``KeyError`` when the
+    toolset is built, failing every tool in it unnamed."""
+    toolset = SpecToolset(
+        {
+            "note": ServiceSpec(
+                service=_keep_any_note,
+                input_serializer=declaration,
+                many=many,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        }
+    )
+
+    sent = {"items": [{"text": "hi"}]} if many else {"text": "hi"}
+    served = await _call(toolset, "note", User(username="u"), sent)
+
+    assert served == ([{"text": "hi"}] if many else {"text": "hi"})
+
+
+def test_a_dataclass_input_requiring_a_dispatcher_name_is_refused():
+    """A dataclass's fields are described as drf-services validates them, so a
+    required ``user`` field on one is refused as on a serializer."""
+    with pytest.raises(ImproperlyConfigured, match=r"requires \['user'\]"):
+        SpecToolset(
+            {
+                "note": ServiceSpec(
+                    service=_keep_any_note,
+                    input_serializer=_DataclassUserNote,
+                    atomic=False,
+                    permission_classes=[AllowAny],
+                )
+            }
+        )
+
+
 def test_a_partial_flag_drf_services_does_not_compile_as_partial_exempts_nothing():
     """drf-services compiles a spec partial only when its ``partial`` is
     ``True``, so a truthy ``1`` leaves every field required, and a required
@@ -5304,7 +5367,6 @@ def names_in_required_project(user, project_pk: Annotated[int, InputRequired] = 
     return [{"name": f"project-{project_pk}"}]
 
 
-@_A_DECLARED_READ_COMPILES_OPTIONAL
 @pytest.mark.parametrize(
     "selector",
     [names_in_project, names_in_required_project],

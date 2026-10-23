@@ -99,7 +99,12 @@ specs = [
     # or a spread service's parameter of its name when the toolset dispatches
     # the kernel's spec; below it the kernel refuses that parameter as an
     # argument meeting a seed.
-    "djangorestframework-services>=0.60.0",
+    # 0.61.0: a declared read keeps the requiredness of the parameter it names,
+    # so a ``QueryParam`` or ``UrlKwarg`` over a callable parameter with no
+    # default, or marked ``InputRequired``, is advertised as required and a call
+    # without it is handed back as a retry; below it the read compiles optional
+    # and the call reaches the callable without the value.
+    "djangorestframework-services>=0.61.0",
     # Declared because the toolset imports the kernel-owned names from here
     # rather than through drf-services' re-exports, which are being retired.
     # The floor is above drf-services' own because ``tool_server_arguments`` is
@@ -161,7 +166,7 @@ dev = [
     # The [specs] extra's requirements, so ``spec_tools`` and its tests run in
     # dev, at the extra's floors: ``uv sync --all-groups`` installs no extra.
     "djangorestframework>=3.14",
-    "djangorestframework-services>=0.60.0",
+    "djangorestframework-services>=0.61.0",
     "django-service-specs>=0.15.0",
     "djangorestframework-stubs>=3.15",
     # The [filter] extra's backing package, for the filtered-selector tests.
