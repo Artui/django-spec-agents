@@ -14,13 +14,12 @@ from typing import Any
 import pytest
 from django.contrib.auth.models import User
 from django.test import RequestFactory
-from django_service_specs import DEFAULT_POOL_SEEDS, Affordance
+from django_service_specs import DEFAULT_POOL_SEEDS, Affordance, ServiceSpec
 from pydantic_ai import RunContext
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecToolset
+from tests.spec_tools.kernel_specs import allow
 from tests.spec_tools.test_spec_toolset import ctx_for
 
 
@@ -28,7 +27,7 @@ def _service(service: Callable[..., Any], **kwargs: Any) -> ServiceSpec:
     return ServiceSpec(
         service=service,
         atomic=False,
-        permission_classes=[AllowAny],
+        permissions=allow(),
         **kwargs,
     )
 

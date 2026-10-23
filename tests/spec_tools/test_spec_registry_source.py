@@ -9,21 +9,23 @@ import django_service_specs
 import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
-from django_service_specs import FieldAudience, FieldMarking, SelectorKind, SpecRegistry
-from pydantic_ai import ModelRetry
-from rest_framework.permissions import AllowAny
-from rest_framework_services import (
-    PolymorphicServiceSpec,
-    QueryParam,
+from django_service_specs import (
+    FieldAudience,
+    FieldMarking,
+    OutputField,
+    Parameter,
+    Parameters,
+    SelectorKind,
     SelectorSpec,
     ServiceSpec,
-    UrlKwarg,
+    SpecRegistry,
 )
+from pydantic_ai import ModelRetry
 
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
-from tests.spec_tools.test_spec_toolset import RecordingPermission, ctx_for
+from tests.spec_tools.kernel_specs import RowPresenter, allow
+from tests.spec_tools.test_spec_toolset import ctx_for
 from tests.spec_tools.testapp.models import Widget
-from tests.spec_tools.testapp.serializers import AgentWidgetSerializer, WidgetSerializer
 
 
 def list_widgets(user):
@@ -36,27 +38,40 @@ def create_widget(user, data):
     return Widget.objects.create(owner=user, **data)
 
 
+def _widget(*markings: FieldMarking | None) -> RowPresenter:
+    """A widget's ``id``, ``name`` and ``price``, each marked as ``markings`` says, in order."""
+    types = (("id", "integer"), ("name", "string"), ("price", "integer"))
+    return RowPresenter(
+        *(
+            OutputField(name, kind, marking=marking)
+            for (name, kind), marking in zip(types, markings or (None,) * 3, strict=True)
+        )
+    )
+
+
+def _agent_widget() -> RowPresenter:
+    """The widget with agent markings: a handle, a label and a hidden price."""
+    return _widget(
+        FieldMarking.handle("Widget handle."), FieldMarking.label(), FieldMarking.hidden()
+    )
+
+
 def _list_spec() -> SelectorSpec:
     return SelectorSpec(
         kind=SelectorKind.LIST,
         selector=list_widgets,
-        output_serializer=WidgetSerializer,
-        permission_classes=[AllowAny],
+        presenter=_widget(),
+        permissions=allow(),
     )
 
 
 def _agent_list_spec() -> SelectorSpec:
-    """The same read, through the serializer that carries agent markings."""
-    return SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=list_widgets,
-        output_serializer=AgentWidgetSerializer,
-        permission_classes=[AllowAny],
-    )
+    """The same read, through the presenter that carries agent markings."""
+    return replace(_list_spec(), presenter=_agent_widget())
 
 
 def _create_spec() -> ServiceSpec:
-    return ServiceSpec(service=create_widget, permission_classes=[AllowAny], atomic=False)
+    return ServiceSpec(service=create_widget, permissions=allow(), atomic=False)
 
 
 def _registry() -> SpecRegistry:
@@ -124,7 +139,7 @@ def ping(*, user: Any) -> dict[str, str]:
 
 
 def _native_spec() -> django_service_specs.ServiceSpec:
-    """A django-service-specs spec, declared on the kernel with no drf-services in it."""
+    """A service spec declared on the kernel, its user a pool seed."""
     return django_service_specs.ServiceSpec(
         service=ping, permissions=[django_service_specs.Unrestricted()]
     )
@@ -136,10 +151,29 @@ def _native_registry() -> SpecRegistry:
     return registry
 
 
+class _Variants:
+    """A declaration of several operations, chosen between per call.
+
+    It compiles to no one spec, so its ``as_kernel_spec`` refuses, as a
+    library's declaration of several specs does, and says what to register
+    instead.
+    """
+
+    def __init__(self, **specs: Any) -> None:
+        self.specs = specs
+
+    def as_kernel_spec(self) -> Any:
+        raise TypeError(
+            f"{type(self).__name__} declares {len(self.specs)} operations, not one spec. "
+            "Register each variant from its `specs` mapping as a tool of its own."
+        )
+
+
 class TestANativeSpecIsServed:
-    """A kernel-native spec is a tool like a drf-services one. The toolset reads
+    """A kernel spec is a tool however it reaches the toolset. The toolset reads
     every spec through ``kernel_spec``, which a django-service-specs spec answers
-    with itself, so nothing in it asks which library declared the spec."""
+    with itself, and a declaration of another library's with what it compiles
+    to, so nothing in it asks which library declared the spec."""
 
     @pytest.mark.django_db(transaction=True)
     @pytest.mark.parametrize(
@@ -206,12 +240,10 @@ class TestANativeSpecIsServed:
         assert result == {"region": seen}
 
     def test_a_polymorphic_spec_is_refused_naming_its_variants(self) -> None:
-        """Refused by its own ``as_kernel_spec``, which names the remedy: one
-        tool per variant. The toolset adds the tool's name."""
-        moderate = PolymorphicServiceSpec(
-            discriminator=lambda *, data: data["op"],
-            specs={"create": _create_spec()},
-        )
+        """A declaration of several specs is refused by its own ``as_kernel_spec``,
+        which names the remedy: one tool per variant. The toolset adds the
+        tool's name."""
+        moderate = _Variants(create=_create_spec())
 
         with pytest.raises(TypeError, match=r"^SpecToolset tool 'moderate': ") as raised:
             SpecToolset({"moderate": moderate})
@@ -262,37 +294,44 @@ class TestTheSpecsOwnReads:
     """What a caller with no HTTP request has to be told, declared on the spec.
 
     Over HTTP the URLconf supplies the route captures and the query string the
-    read-shaping params, so a spec mounted on a view is already complete. Off
-    HTTP nobody supplies them, and every agent transport needs the *identical*
-    answer -- which is why the declaration belongs to the spec (``reads=`` and
-    ``field_audiences=``), compiled into the spec's reads and presenter, rather
-    than to this toolset's constructor or an MCP server's registrar. A registry
-    and a bare mapping hand the toolset the same spec, so they serve it alike.
+    read-shaping arguments, so a spec mounted on a view is already complete.
+    Off HTTP nobody supplies them, and every agent transport needs the
+    *identical* answer -- which is why the declaration belongs to the spec
+    (``reads=``, ``shapes=`` and the markings on its presenter's output)
+    rather than to this toolset's constructor or an MCP server's registrar. A
+    registry and a bare mapping hand the toolset the same spec, so they serve
+    it alike.
     """
 
     def _contract_registry(
         self,
         *,
-        reads: tuple[UrlKwarg | QueryParam, ...] = (),
-        field_audiences: dict[str, FieldMarking] | None = None,
+        reads: Parameters | None = None,
+        shapes: Parameters | None = None,
+        presenter: RowPresenter | None = None,
     ) -> SpecRegistry:
         registry = SpecRegistry()
         registry.register(
             "list_widgets",
-            replace(_agent_list_spec(), reads=reads, field_audiences=field_audiences),
+            replace(
+                _agent_list_spec(),
+                reads=reads or Parameters(),
+                shapes=shapes or Parameters(),
+                presenter=presenter or _agent_widget(),
+            ),
         )
         return registry
 
     @pytest.mark.parametrize(
-        ("read", "name"),
-        [(UrlKwarg("tenant_pk"), "tenant_pk"), (QueryParam(name="since"), "since")],
-        ids=["url-kwarg", "query-param"],
+        ("seat", "name"),
+        [("reads", "tenant_pk"), ("shapes", "since")],
+        ids=["read", "shape"],
     )
     @pytest.mark.parametrize("source", ["registry", "mapping"])
     def test_reads_reach_the_tool_with_nothing_in_the_constructor(
-        self, read: UrlKwarg | QueryParam, name: str, source: str
+        self, seat: str, name: str, source: str
     ) -> None:
-        registry = self._contract_registry(reads=(read,))
+        registry = self._contract_registry(**{seat: Parameters.of(Parameter(name, "string"))})
         toolset = SpecToolset(registry if source == "registry" else registry.specs())
 
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
@@ -302,26 +341,24 @@ class TestTheSpecsOwnReads:
         # The audiences are part of the spec's own output declaration, so one
         # spec projects the same field set whichever agent transport serves it,
         # and the registry and a bare mapping project alike.
-        registry = self._contract_registry(field_audiences={"price": FieldMarking()})
+        registry = self._contract_registry()
 
         from_registry = SpecToolset(registry)._projections["list_widgets"]
         from_mapping = SpecToolset(registry.specs())._projections["list_widgets"]
 
-        assert from_registry.audience("price") is FieldAudience.CONTENT
-        assert from_mapping.audience("price") is FieldAudience.CONTENT
-
-    def test_the_serializer_still_decides_when_the_contract_is_silent(self) -> None:
-        toolset = SpecToolset(self._contract_registry())
-
-        assert toolset._projections["list_widgets"].audience("price") is FieldAudience.HIDDEN
+        for projection in (from_registry, from_mapping):
+            assert projection.audience("price") is FieldAudience.HIDDEN
+            assert projection.label == "name"
 
     def test_a_field_audiences_clash_is_refused_when_the_toolset_is_built(self) -> None:
-        # ``name`` is already the serializer's label; claiming it for ``id`` as
-        # well leaves two, and a record has one name. The refusal is
-        # drf-services', from the spec's own output declaration, and the toolset
-        # prefixes it with the tool: drf-services names the output, which a
+        # ``name`` is already the output's label; claiming it for ``id`` as
+        # well leaves two, and a record has one name. The refusal is the
+        # kernel's, from the spec's own output declaration, and the toolset
+        # prefixes it with the tool: the kernel names the output, which a
         # registry of many specs shares across tools.
-        registry = self._contract_registry(field_audiences={"id": FieldMarking.label()})
+        registry = self._contract_registry(
+            presenter=_widget(FieldMarking.label(), FieldMarking.label(), None)
+        )
 
         with pytest.raises(
             ImproperlyConfigured,
@@ -329,41 +366,41 @@ class TestTheSpecsOwnReads:
         ) as raised:
             SpecToolset(registry)
 
-        # Re-raised, not replaced: drf-services' own refusal is the cause.
+        # Re-raised, not replaced: the kernel's own refusal is the cause.
         assert isinstance(raised.value.__cause__, ImproperlyConfigured)
         assert str(raised.value.__cause__).startswith("Output: both 'id' and 'name'")
 
-    def test_a_field_audiences_key_naming_no_output_field_is_refused(self) -> None:
-        # A marking for a field the output does not carry would silently project
-        # nothing; drf-services refuses it, and the toolset names the tool.
-        registry = self._contract_registry(field_audiences={"nope": FieldMarking.label()})
-
-        with pytest.raises(ImproperlyConfigured) as raised:
-            SpecToolset(registry)
-
-        assert str(raised.value).startswith("SpecToolset tool 'list_widgets': ")
-        assert "'nope'" in str(raised.value)
-
-    @pytest.mark.django_db(transaction=True)
     @pytest.mark.parametrize("source", ["registry", "mapping"])
     async def test_each_source_advertises_the_spec_s_reads_and_routes_them(
         self, source: str
     ) -> None:
-        """The spec carries its ``reads``, which are parameters of the compiled
-        spec, so the kernel's schema the tool advertises lists them whichever
-        way the spec arrived, and drf-services routes a value sent under one of
-        them onto the offline view and its query string as it does for any
-        caller.
+        """The spec carries its ``reads`` and ``shapes``, which are parameters of
+        the compiled spec, so the kernel's schema the tool advertises lists them
+        whichever way the spec arrived, and a value sent under each reaches its
+        seat: a read the selector, as its argument, and a shape the presenter,
+        on the call's shapes.
         """
-        spec = replace(
-            _agent_list_spec(),
-            permission_classes=[RecordingPermission],
-            reads=(UrlKwarg("tenant_pk"), QueryParam(name="since")),
+        seen: dict[str, Any] = {}
+
+        def in_tenant(*, tenant_pk: str) -> list[dict[str, Any]]:
+            """One row per tenant asked for."""
+            seen["tenant_pk"] = tenant_pk
+            return [{"id": 1, "name": "gear", "price": 1}]
+
+        def record(shapes: Any) -> None:
+            seen["shapes"] = dict(shapes)
+
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=in_tenant,
+            reads=Parameters.of(Parameter("tenant_pk", "string", required=True)),
+            shapes=Parameters.of(Parameter("since", "string")),
+            presenter=RowPresenter(OutputField("name", "string"), refuse=record),
+            permissions=allow(),
         )
         registry = SpecRegistry()
         registry.register("list_widgets", spec)
-
-        user = await User.objects.acreate(username="u")
+        user = User(username="u")
 
         toolset = SpecToolset(registry if source == "registry" else registry.specs())
         tools = await toolset.get_tools(ctx_for(user))
@@ -376,8 +413,7 @@ class TestTheSpecsOwnReads:
 
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
         assert {"tenant_pk", "since"} <= set(props)
-        assert RecordingPermission.seen["kwargs"] == {"tenant_pk": "5"}
-        assert RecordingPermission.seen["query_params"] == {"since": ["2020"]}
+        assert seen == {"tenant_pk": "5", "shapes": {"since": "2020"}}
 
 
 # --- the native example the spec-registry page shows -------------------------
