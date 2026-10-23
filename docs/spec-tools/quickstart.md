@@ -381,8 +381,12 @@ result = await agent.run(prompt, deps=deps)
 ```
 
 A callable declaring `request` is then handed that request, and a permission
-check declaring `call_context` reads it there. A run that arrived
-on none hands a callable declaring `request` `None`. What a call writes to its
+check declaring `call_context` reads it there. The toolset builds no request
+and no view of its own, so a selector or provider declaring `request` or `view`
+receives `None` unless the run puts one here or a
+[`call_seeds`](#per-call-seeds-and-the-runs-context) override returns one. A
+value it would read off a view's captures or a request's query string it takes
+by name instead, as one of the spec's reads. What a call writes to its
 copy does not reach the next call, nor the run's dict, so two calls the model
 makes at once never see each other's `action`.
 
@@ -413,7 +417,8 @@ whatever `get_user` returns. The request a run arrived on never contributes an
 identity.
 
 A check reading more of the call than its principal names it, as the kernel's
-`PermissionCheck` documents: a keyword `call_context` is handed the
+`PermissionCheck` documents: a keyword `arguments` is handed the call's
+arguments, as a read-only mapping, a keyword `call_context` is handed the
 [run's context](#per-call-seeds-and-the-runs-context), with the tool's name
 under `action`, and a keyword named after a registered
 [pool seed](#project-pool-seeds) is handed that seed's value.

@@ -24,6 +24,9 @@ import pytest
 import django_spec_agents.spec_tools as spec_tools
 
 DOCS = pathlib.Path(__file__).resolve().parents[2] / "docs" / "spec-tools"
+# The page for a project moving from the old packages teaches the same imports,
+# for both halves, from outside the spec-tools section.
+MOVING = DOCS.parent / "moving.md"
 
 # An import statement inside a fenced Python block, from this package or from
 # the kernel the pages declare their specs on: a parenthesised list over as many
@@ -48,7 +51,7 @@ def _imports_in(block: str) -> list[tuple[str, str]]:
 
 def _documented_imports() -> list[tuple[str, str, str]]:
     found = []
-    for page in sorted(DOCS.glob("*.md")):
+    for page in [*sorted(DOCS.glob("*.md")), MOVING]:
         blocks = re.findall(r"^```python\n(.*?)^```", page.read_text(), re.MULTILINE | re.DOTALL)
         for block in blocks:
             found.extend((page.name, module, name) for module, name in _imports_in(block))

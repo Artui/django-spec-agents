@@ -21,8 +21,10 @@ declared it:
   validation, instance resolution and the output-selector re-fetch around
   them. Authorization is part of the dispatch, so no adapter can skip it;
 - **the run's `call_context`** carries the request the run arrived on, if any.
-  Where it carries none, a callable declaring `request` or `view` is handed
-  `None`, and a permission check reads the principal off the call;
+  Where it carries none, and no `call_seeds` override returns one, a selector
+  or provider declaring `request` or `view` is handed `None`, while a
+  permission check reads the principal and, where it declares `arguments`,
+  the call's arguments;
 - **`spec_input_schema`**, the kernel's, derives each tool's parameter schema
   from the compiled spec, the argument set `dispatch` checks, and
   **`spec_output_schema`** its `return_schema`, projected for the audience;

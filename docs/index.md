@@ -19,7 +19,8 @@ pip install "django-spec-agents[specs]"   # and specs as agent tools
 ```
 
 The host was published as `django-pydantic-agent` and `spec_tools` as
-`djangorestframework-pydantic-ai`. The package root never imports `spec_tools`, so
+`djangorestframework-pydantic-ai`; [moving from them](moving.md) maps each
+old name and seam to its new one. The package root never imports `spec_tools`, so
 the host installs and runs without the extra.
 
 ## Is this the package you want?

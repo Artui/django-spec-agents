@@ -81,6 +81,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Moving from the old packages: moving.md
   - Agent host:
       - Concepts: concepts.md
       - Tools: tools.md
