@@ -338,7 +338,7 @@ async def test_pagination_line_present_only_with_a_list_selector():
 
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
-async def test_read_shaping_line_lists_declared_query_params_sorted(source):
+async def test_read_shaping_line_lists_declared_shapes_sorted(source):
     """The line names the compiled spec's shapes, so a tool built from a bare
     mapping is told about the same arguments as one built from a registry."""
     specs = {
@@ -1680,7 +1680,7 @@ def test_a_read_may_share_a_selector_parameters_name():
     ],
     ids=["sent", "default-seeded-when-omitted", "omitted-without-default-seeds-nothing"],
 )
-def test_query_param_reaches_the_serializer_via_request_query_params(args, declared, seen):
+def test_a_shape_reaches_the_presenter_under_its_default_when_left_out(args, declared, seen):
     """A shape reaches the presenter on ``PresentationContext.shapes``, under its
     declared default where the model left it out."""
     user = User.objects.create(username="u")
@@ -1741,7 +1741,7 @@ def _ceiling_from_fields(fields=None):
 
 
 @pytest.mark.django_db
-async def test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default():
+async def test_a_read_a_kwargs_selector_takes_is_its_argument_with_its_default():
     """A read a ``**kwargs`` selector takes is the selector's argument rather
     than one of the spec's shapes, so the tool advertises it as a plain
     argument -- not told it applies to each item -- and the default it
@@ -1780,7 +1780,7 @@ async def test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_de
     ],
     ids=["selector-named", "selector-kwargs", "provider"],
 )
-async def test_an_explicit_null_for_a_query_param_a_callable_takes_is_treated_as_omitted(
+async def test_an_explicit_null_for_a_read_a_callable_takes_is_treated_as_omitted(
     spec_kwargs, taken
 ):
     """``{"fields": null}`` is the model declining to fill the read, as for a
@@ -1843,7 +1843,7 @@ async def test_a_read_s_default_never_replaces_a_value_the_model_sent():
     [(Parameter("fields", "string", default="id"), "id"), (Parameter("fields", "string"), None)],
     ids=["default applies", "no default"],
 )
-def test_an_explicit_null_query_param_is_treated_as_omitted(declared, seen):
+def test_an_explicit_null_shape_is_treated_as_omitted(declared, seen):
     """``{"fields": null}`` is a model declining to fill the param. It must not
     reach the presenter as the string ``"None"``, and a default still applies."""
     user = User.objects.create(username="u")
@@ -3768,7 +3768,7 @@ def _declaring(*reads: Parameter, shapes: Sequence[Parameter] = ()):
 
 
 @pytest.mark.parametrize("no_default", [None, UNSET])
-def test_a_query_param_declaring_no_default_contributes_nothing(no_default: Any) -> None:
+def test_a_read_or_shape_declaring_no_default_contributes_nothing(no_default: Any) -> None:
     """Both sentinels for "no default", ``None`` and ``UNSET``, read as absent,
     for a shape and an advertised read alike.
 
@@ -3828,7 +3828,7 @@ async def _call(toolset: SpecToolset, name: str, user: Any, args: dict[str, Any]
 
 
 @pytest.mark.django_db
-async def test_the_tool_name_is_the_view_action_a_permission_class_reads():
+async def test_the_tool_name_is_the_action_a_permission_check_reads():
     """The call's ``action`` is the tool name, never ``None``.
 
     A permission check branching on the action -- strict for the actions it
@@ -4963,7 +4963,7 @@ def names_in_project(user, project_pk):
 
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
-async def test_a_url_kwarg_answers_for_the_parameter_it_fills(source):
+async def test_a_read_s_default_answers_for_the_parameter_it_fills(source):
     """A read with a default fills the parameter whenever the model leaves it
     out, so the model is not asked for it, from a registry and from a bare
     mapping alike.
@@ -6024,7 +6024,7 @@ def stamp_widget(*, instance, note: str = ""):
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_serializer_less_service_advertises_what_dispatch_admits():
+async def test_a_validator_less_service_advertises_what_dispatch_admits():
     """A service with no Validator is dispatched under the toolset's
     argument binding, ``AUTO``, which binds a service ``BUNDLE``: ``REJECT``
     admits its target lookup's keys and none of its own parameters. The schema
@@ -7888,7 +7888,7 @@ def test_a_tool_that_does_not_page_is_not_told_about_a_page():
 
 
 @pytest.mark.django_db
-def test_render_error_with_no_query_param_supplied_still_raises():
+def test_render_error_with_no_shape_supplied_still_raises():
     """Nothing the model sent shaped this render, so nothing it could send would
     change it: a retry would spend the budget on a server bug and hide it."""
     user = User.objects.create(username="u")

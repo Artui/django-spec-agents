@@ -224,9 +224,8 @@ def _resolve_specs(specs: SpecSource) -> Mapping[str, Spec]:
 def _refusals_name_the_tool(name: str) -> Generator[None, None, None]:
     """Prefix a refusal raised while building one tool with that tool.
 
-    The kernel, and a library compiling its own declaration, name what they
-    refuse by the spec's own parts - the output, the serializer, the
-    parameters - which a mapping of many specs leaves the reader to match to a
+    The kernel names what it refuses by the spec's own parts - the output,
+    the Validator, the parameters - which a mapping of many specs leaves the reader to match to a
     tool by hand. The refusal is re-raised rather than
     replaced, so its own wording, and its cause, survive.
     """
@@ -356,8 +355,8 @@ class SpecToolset(AbstractToolset[Any]):
     key the kernel's ``server_owned_keys`` names, which dispatch fills itself. A
     call leaving out a required selector parameter is handed back as
     ``ModelRetry`` naming each one left out, before anything runs. A required
-    serializer field is the serializer's to report, once the call runs, so a
-    call missing both hears about the field on its next turn.
+    input field is the Validator's to report, once the call is dispatched, so
+    a call missing both hears about the field on its next turn.
 
     **A list selector's result is a page, always.** It comes back as
     ``{"items": [...], "page": 1, "totalPages": N, "hasNext": bool}`` — never a
@@ -566,8 +565,8 @@ class SpecToolset(AbstractToolset[Any]):
             declares such a parameter and refused as unknown under ``REJECT``
             where the spec declares the name nowhere, no tool's input schema
             advertises it, and a read the spec declares under it, in any seat,
-            is refused here with ``ImproperlyConfigured``. An input serializer
-            field of the name is the one exception, and the model's to send:
+            is refused here with ``ImproperlyConfigured``. A Validator field
+            of the name is the one exception, and the model's to send:
             it is validated into ``data``, while the service's parameter of the
             name still receives the seed's value. Toolset-wide, with no
             per-tool or per-call form: a seed is ambient to the deployment, and
@@ -668,10 +667,10 @@ class SpecToolset(AbstractToolset[Any]):
         # as read-shaping in the instructions. A read a ``**kwargs`` selector or
         # a ``kwargs=`` provider takes is that callable's argument, advertised
         # as a plain one
-        # (``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``).
+        # (``test_a_read_a_kwargs_selector_takes_is_its_argument_with_its_default``).
         # Read off the compiled spec, so a tool built from a bare mapping is
         # told about its shapes as one built from a registry is
-        # (``test_read_shaping_line_lists_declared_query_params_sorted[mapping]``).
+        # (``test_read_shaping_line_lists_declared_shapes_sorted[mapping]``).
         self._tool_shapes: dict[str, frozenset[str]] = {
             name: kernel_spec(spec).shapes.names() for name, spec in self._specs.items()
         }
@@ -680,9 +679,9 @@ class SpecToolset(AbstractToolset[Any]):
         for name, spec in self._specs.items():
             _validate_declared_reads(name, spec, seeds=pool_seeds)
         _validate_inputs_pagination_takes(self._specs)
-        # Agent markings are pure in the serializer, like the schemas below, so
-        # they are resolved once rather than paying a serializer instantiation
-        # on every tool call.
+        # Agent markings are pure in the presenter's output declaration, like
+        # the schemas below, so they are resolved once rather than walking the
+        # output on every tool call.
         #
         # **Built before the tool definitions, which read them.** A tool's
         # ``return_schema`` describes the payload the model actually receives,
@@ -694,10 +693,9 @@ class SpecToolset(AbstractToolset[Any]):
         # way. Held by
         # ``test_a_field_audiences_clash_is_refused_when_the_toolset_is_built``.
         #
-        # The markings are the compiled output's: a library declaring markings
-        # of its own beside its output lays them over the output when the
-        # spec compiles, so a bare
-        # mapping projects as a registry does
+        # The markings are the compiled spec's, the ``FieldMarking``s on its
+        # presenter's output, so the same spec projects the same fields whether
+        # the toolset was built from a registry or from a bare mapping
         # (``test_field_audiences_reach_the_projection``).
         self._projections: dict[str, AudienceProjection] = {}
         for name, spec in self._specs.items():
@@ -770,10 +768,10 @@ class SpecToolset(AbstractToolset[Any]):
 
         Only the spec's shapes: a read a callable takes is advertised as a plain
         argument, so the instructions do not call it read-shaping
-        (``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``).
+        (``test_a_read_a_kwargs_selector_takes_is_its_argument_with_its_default``).
         Less every name the server answers for, which the tool's schema does
         not advertise either, so the instructions never name an argument the
-        model was not given (``test_a_bound_query_param_is_not_offered_in_the_instructions``).
+        model was not given (``test_a_bound_shape_is_not_offered_in_the_instructions``).
         """
         return self._tool_shapes[name] - self._server_names(name)
 
@@ -1252,8 +1250,8 @@ class SpecToolset(AbstractToolset[Any]):
         Two cases want that. A **chaining pipeline** feeding one spec's output
         into the next needs the handles the next step reads by, and the kernel
         says so in ``present_for_audience``'s own docstring: project them away
-        and the next step has nothing to key on. And a serializer with a single
-        ``ChoiceField`` whose display differs from its value is projected
+        and the next step has nothing to key on. And an output field declaring
+        ``choices`` whose display differs from its value is projected
         **without any marking being declared** -- ``choice_labels`` is derived
         from the field itself -- so "we marked nothing, so nothing is
         projected" is not true, and an override is how a project that means it
@@ -1587,7 +1585,7 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
         # The first assembly of each spec's whole argument set, for every spec
         # and not only a list selector, so the refusals assembling it can raise
         # surface here, at construction, prefixed with the tool like the
-        # compile's: a serializer field sharing a target lookup parameter's
+        # compile's: a Validator field sharing a target lookup parameter's
         # name, which the kernel refuses as one name from two sources. Held by
         # ``test_a_field_sharing_a_lookup_parameter_s_name_is_refused_naming_the_tool``.
         with _refusals_name_the_tool(tool_name):
@@ -1595,7 +1593,7 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
             # Both phases, so a malformed fragment is refused when the toolset
             # is built, naming the tool, whichever phase it is in and whether or
             # not that phase derives a schema
-            # (``test_a_fragment_drf_services_would_refuse_is_refused_naming_the_tool``).
+            # (``test_a_malformed_phase_is_refused_naming_the_tool``).
             for phase in _SCHEMA_PHASES:
                 _schema_fragment(spec, phase)
             _refuse_unsendable_fields(spec)
@@ -2047,7 +2045,7 @@ def _build_tool_def(
     ``include_return_schema`` is deliberately **left at its default**, which
     resolves to ``False``. Populating ``return_schema`` costs nothing; putting it
     on the wire costs context on every turn of every run, and whether that trade
-    is worth it depends on the model and the size of the serializer — neither of
+    is worth it depends on the model and the size of the output — neither of
     which this package knows. Pydantic-AI already owns the opt-in, at both
     scopes: ``SpecToolset(...).include_return_schemas()`` for one toolset, or the
     ``IncludeToolReturnSchemas`` capability for a run. A knob here would be a
@@ -2323,7 +2321,7 @@ def _required_arguments(
     is refused for and what the model was told cannot drift apart. Only the
     reads: a service's Validator fields, and the list a ``many`` service takes,
     are checked by dispatch, which answers a missing one itself
-    (``test_an_input_serializer_still_words_its_own_required_fields``).
+    (``test_a_validator_still_words_its_own_required_fields``).
 
     **Less every read a provider whose keys cannot be read may fill**: the
     schema keeps such a read required where a marker says so, and dispatch
@@ -2378,7 +2376,7 @@ def _spec_ordering_argument(
 
     Restricted to list selectors because that is the only kind the toolset
     pages: elsewhere there is no ownership to contest, and a service whose
-    input serializer happens to have a field named ``ordering`` must not be
+    Validator happens to have a field named ``ordering`` must not be
     read as a clash.
 
     **Read off ``_caller_schema``, the schema the tool advertises**, told the
@@ -2460,11 +2458,12 @@ def _call_spec(
     # called without a parameter it has no default for raises ``TypeError``,
     # which would escape the run. The names are the ones the tool's schema
     # requires of the selector, from the same reflection, a required declared
-    # read among them (``test_a_required_url_kwarg_omitted_is_handed_back``).
+    # read among them
+    # (``test_a_required_read_with_no_default_is_handed_back_when_left_out``).
     # Not one a provider only may fill, which only the assembled pool can
-    # settle. The serializer's fields are not checked here; it reports those.
-    # It runs before the permission check, which drf-mcp's does not: drf-mcp's
-    # listing hides a tool its caller is denied, so answering there first would
+    # settle. The Validator's fields are not checked here; dispatch reports
+    # those. It runs before the permission check, which the MCP transport's
+    # does not: its listing hides a tool its caller is denied, so answering there first would
     # confirm the tool exists. This catalog is not permission-filtered (see
     # ``get_tools``), so the names asked for here are ones every run was shown.
     missing = [
@@ -2478,7 +2477,7 @@ def _call_spec(
     page_args = _pop_pagination(spec, args, pool_seeds=pool_seeds)
     try:
         # Inside the ``try``, as every refusal the call can meet is: compiling
-        # the spec and reading its parameters can refuse it (a serializer field
+        # the spec and reading its parameters can refuse it (a Validator field
         # sharing a lookup parameter's name), and the consumer's map is asked
         # about that as about anything ``dispatch`` raises.
         compiled = kernel_spec(spec)
@@ -2541,8 +2540,8 @@ def _call_spec(
             # mean "the arguments were wrong", so the model retries with the
             # detail -- flattened to text, one line per message. The kernel's
             # ``InvalidArguments`` is its own refusal of the arguments' shape and
-            # a serializer's refusal of their values
-            # (``test_a_serializer_less_service_advertises_what_dispatch_admits``);
+            # a Validator's refusal of their values
+            # (``test_a_validator_less_service_advertises_what_dispatch_admits``);
             # and ``ServiceValidationError`` a service's
             # (``test_service_validation_error_is_model_retry``). Each fails
             # without its member.
@@ -2629,14 +2628,14 @@ def _call_spec(
             return handler(exc)
         # **Only when the caller shaped the render.** With no read-shaping value
         # sent, nothing the model could change would change the outcome -- a
-        # serializer that raises unprompted, or a declared default it rejects --
+        # presenter that raises unprompted, or a declared default it rejects --
         # so a retry would spend the budget on a server bug and hide it.
         # Validation errors only, for the same reason: an ``AttributeError`` in
-        # a serializer is a server bug whatever the caller sent.
+        # a presenter is a server bug whatever the caller sent.
         #
         # One arc to coverage, and its parts live in how the names were
         # gathered, so what holds each is named here. Deleting this condition
-        # fails ``test_render_error_with_no_query_param_supplied_still_raises``,
+        # fails ``test_render_error_with_no_shape_supplied_still_raises``,
         # ``test_render_error_from_a_seeded_default_still_raises`` and
         # ``test_render_error_with_an_explicit_null_still_raises``; counting a
         # null as supplied fails the third alone, and counting a bound value as
@@ -2655,7 +2654,7 @@ def _call_spec(
     if page is not None:
         # **After the render, never before.** The projection lands on the rows;
         # ``items`` / ``page`` / ``totalPages`` / ``hasNext`` are the envelope's
-        # own keys and belong to no serializer, so a projection walking them
+        # own keys and belong to no presenter, so a projection walking them
         # would look for markings that cannot exist.
         rendered = page.envelope(rendered)
     # Measured on the envelope, because the envelope is what is sent. It adds
@@ -2768,10 +2767,10 @@ def _refusal_message(exc: ActionUnavailable) -> str:
 
     **Written for the model and for a person reading a tool card, not for a
     program.** The format is a convention across the family's agent transports
-    rather than this toolset's own -- this package's drf-mcp bridge is
-    meant to render the same refusal as the same text, so changing it here means
-    changing it there. A program that branches on the code should read ``.code``
-    off the exception instead, either in
+    rather than this toolset's own -- the MCP transport this package's
+    ``[drf-mcp]`` bridge reaches is meant to render the same refusal as the
+    same text, so changing it here means changing it there. A program that
+    branches on the code should read ``.code`` off the exception instead, either in
     [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
     or on the ``ToolFailed``'s ``__cause__``. Parsing it back out of the sentence
     couples that program to wording this function is free to change.
@@ -2783,12 +2782,12 @@ def _format_validation_detail(detail: Any) -> str:
     """A validation detail as text a model can act on.
 
     Not ``str(exc.detail)``, which for a nested detail is the Python repr of
-    its dicts and lists, and for a serializer's error objects carries a class
+    its dicts and lists, and for a Validator's error objects carries a class
     name and a ``code`` the model has no use for, around the one sentence it
     needs.
 
     One line per message, each prefixed with the path to the argument it is about:
-    ``name: This field is required.``, a nested serializer's field as
+    ``name: This field is required.``, a nested object's field as
     ``address.city: ...``, a position in a list as ``tags[0]: ...``. A message not
     about any one argument -- a bare string, a list of strings, or one under
     ``non_field_errors`` -- is the line on its own, because printing that key
@@ -2808,9 +2807,8 @@ def _validation_detail_lines(detail: Any, *, path: str) -> Iterator[str]:
         for index, value in enumerate(detail):
             # A message in a list belongs to the list's own path -- ``name: [a, b]``
             # is two messages about ``name`` -- while a nested structure is one
-            # entry of several (a ``many=True`` serializer's rows, which DRF
-            # aligns by position with ``{}`` for a valid one) and needs its
-            # position to be found again.
+            # entry of several (the rows of a ``many`` call, each refused at its
+            # position) and needs its position to be found again.
             nested = isinstance(value, Mapping | list | tuple)
             yield from _validation_detail_lines(
                 value, path=_validation_detail_path(path, index) if nested else path
@@ -2823,7 +2821,7 @@ def _validation_detail_path(path: str, key: Any) -> str:
     """Extend ``path`` by one step: ``[i]`` for a position, ``.name`` for a field.
 
     An ``int`` key is a position whether it came from a list or from the dict a
-    DRF ``ListField`` / ``DictField`` keys its child errors by. The non-field key
+    Validator keys a list field's child errors by. The non-field key
     adds nothing, so its messages print against the object that holds them.
     """
     if isinstance(key, int):
@@ -2838,11 +2836,11 @@ def _render_rejection_message(names: Sequence[str], detail: Any, *, scope: str |
 
     For example ``"`fields` was rejected while rendering the result: Unknown
     field `items`."`` Names the argument first, because the detail alone -- the
-    serializer's own wording -- says nothing about *which* argument the model has to
+    presenter's own wording -- says nothing about *which* argument the model has to
     change, and "while rendering the result" tells it the rest of the call was
     accepted.
 
-    **Several supplied names are all named, joined with "or".** The serializer
+    **Several supplied names are all named, joined with "or".** The presenter
     does not say which one it refused, so singling one out would be a guess
     presented as a fact, and "and ... were" would claim all of them were. The
     MCP transport words it the same way.
@@ -2928,10 +2926,10 @@ def _call_context(ctx: RunContext[Any], tool_name: str) -> dict[str, Any]:
     as the same objects, and what a stage writes stays in its call
     (``test_each_call_of_a_run_is_handed_its_own_copy_of_the_run_s_context``).
     The tool's name is the call's ``action``, which a permission check
-    reading the view it runs for reads as ``view.action``
-    (``test_the_tool_name_is_the_view_action_a_permission_class_reads``), and
-    ``request``, ``view`` and ``format`` are present on every call, as an
-    HTTP serializer context's are
+    declaring ``call_context`` reads there
+    (``test_the_tool_name_is_the_action_a_permission_check_reads``), and
+    ``request``, ``view`` and ``format`` are present on every call, ``None``
+    where the run put none, so a callable reading one finds the key
     (``test_the_three_standard_entries_are_none_where_the_run_put_none``).
     """
     context: dict[str, Any] = {
@@ -2988,9 +2986,9 @@ def _fill_reads(compiled: KernelServiceSpec | KernelSelectorSpec, args: dict[str
     A ``null`` under a declared read that cannot be null is the model declining
     to fill it, so it is dropped rather than handed to the kernel, whose check
     would refuse it: for a shape
-    (``test_an_explicit_null_query_param_is_treated_as_omitted``) and for a read
+    (``test_an_explicit_null_shape_is_treated_as_omitted``) and for a read
     a callable takes alike
-    (``test_an_explicit_null_for_a_query_param_a_callable_takes_is_treated_as_omitted``).
+    (``test_an_explicit_null_for_a_read_a_callable_takes_is_treated_as_omitted``).
     A read declared ``nullable`` admits it, so a ``null`` sent there is a value
     and stays (``test_a_native_read_s_null_is_a_value_where_it_is_nullable``).
     One arc to coverage: ``value is None`` is held by every case sending a
@@ -3001,15 +2999,15 @@ def _fill_reads(compiled: KernelServiceSpec | KernelSelectorSpec, args: dict[str
     default without applying it, and hands a read a callable takes nothing it
     was not sent, so with nobody filling it the presenter or the callable would
     be handed none (the ``default-seeded-when-omitted`` case of
-    ``test_query_param_reaches_the_serializer_via_request_query_params``,
-    ``test_a_query_param_a_kwargs_selector_takes_is_its_argument_with_its_default``,
+    ``test_a_shape_reaches_the_presenter_under_its_default_when_left_out``,
+    ``test_a_read_a_kwargs_selector_takes_is_its_argument_with_its_default``,
     ``test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advertises``
-    and ``test_a_url_kwarg_answers_for_the_parameter_it_fills``). A value the
+    and ``test_a_read_s_default_answers_for_the_parameter_it_fills``). A value the
     call carries is never replaced
     (``test_a_read_s_default_never_replaces_a_value_the_model_sent``).
     ``UNSET`` declares none, and a default of ``None`` is no value, as a
     ``null`` sent is none: one arc to coverage, and each conjunct is held by
-    its own case of ``test_a_query_param_declaring_no_default_contributes_nothing``.
+    its own case of ``test_a_read_or_shape_declaring_no_default_contributes_nothing``.
     """
     declared = _declared_reads(compiled)
     for parameter in declared:
@@ -3107,7 +3105,7 @@ def _shape_list(
     """Paginate a list selector's queryset with ``paginate_output``, then force it to evaluate.
 
     Forced (``list(...)``) so that *nothing downstream* holds a lazy queryset
-    once this returns: a serializer re-evaluating one would run the query a
+    once this returns: a presenter re-evaluating one would run the query a
     second time, and the envelope's counts and its rows could then come from two
     different reads. ``replace`` rather than mutation because ``OutputPage`` is
     frozen, and here rather than at the call site because the guarantee belongs

@@ -270,7 +270,7 @@ def _shaped_spec(fields: Parameter, seen: dict[str, Any]) -> SelectorSpec:
     )
 
 
-async def test_a_bound_query_param_is_not_offered_in_the_instructions():
+async def test_a_bound_shape_is_not_offered_in_the_instructions():
     """The read-shaping line names every shape a tool offers; a bound one is not
     offered, so it is not named."""
     registry = _registry(vendors=_shaped_spec(_string("fields"), {}))

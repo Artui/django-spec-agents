@@ -309,7 +309,7 @@ async def test_a_doubled_brace_reaches_the_model_as_one():
     assert surfaces["missing_retry"] == "Send {`pk`}."
 
 
-async def test_an_input_serializer_still_words_its_own_required_fields():
+async def test_a_validator_still_words_its_own_required_fields():
     """``missing_arguments`` is the check made before the serializer, and only that."""
     surfaces = await _surfaces(conventions=AgentConventions(missing_arguments="Need {names}."))
 
