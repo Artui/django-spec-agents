@@ -13,13 +13,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from django_service_specs import ServiceSpec
 from pydantic_ai import Agent
 from pydantic_ai.models.function import FunctionModel
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec
 
 from django_spec_agents.spec_tools import SpecToolset
 from django_spec_agents.testing import tool_calling_model
+from tests.spec_tools.kernel_specs import allow
 
 
 def ping(user):
@@ -57,7 +57,7 @@ class _Scoped(SpecToolset):
 def _toolset() -> _Scoped:
     return _Scoped(
         {
-            name: ServiceSpec(service=service, permission_classes=[AllowAny], atomic=False)
+            name: ServiceSpec(service=service, permissions=allow(), atomic=False)
             for name, service in (("ping", ping), ("pong", pong))
         },
         id="scoped",

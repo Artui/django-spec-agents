@@ -7,19 +7,23 @@ from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_POOL_SEEDS,
+    OutputField,
+    Parameter,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
     UnknownArguments,
 )
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
-from rest_framework.permissions import AllowAny
-from rest_framework_services import QueryParam, ServiceSpec
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.spec_tools.spec_toolset import UnguardedSpecWarning
 from django_spec_agents.testing import tool_calling_model
-from tests.spec_tools.test_spec_toolset import list_spec, reading, retrieve_spec
+from tests.spec_tools.kernel_specs import RowPresenter, allow, shaping
+from tests.spec_tools.test_spec_toolset import list_spec, retrieve_spec
 
 # The wording the toolset says by default, for the tests about *whether* a line
 # is said. What each default says is pinned as text in ``test_default_wording.py``.
@@ -39,8 +43,24 @@ def ping(user):
 
 
 def ping_spec(**kwargs):
-    kwargs.setdefault("permission_classes", [AllowAny])
+    kwargs.setdefault("permissions", allow())
     return ServiceSpec(service=ping, atomic=False, **kwargs)
+
+
+def names():
+    """Two plain rows, so a list tool renders without a database."""
+    return [{"name": "a"}, {"name": "b"}]
+
+
+def names_spec(**kwargs):
+    """A list selector over ``names``, guarded unless ``permissions`` says otherwise."""
+    kwargs.setdefault("permissions", allow())
+    return SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=names,
+        presenter=RowPresenter(OutputField("name", "string")),
+        **kwargs,
+    )
 
 
 # --- get_toolset -------------------------------------------------------------
@@ -168,7 +188,7 @@ async def test_pool_seeds_forward_to_the_built_toolset():
         return {"tenant": tenant}
 
     cap = SpecCapability(
-        {"stamp": ServiceSpec(service=stamp, atomic=False, permission_classes=[AllowAny])},
+        {"stamp": ServiceSpec(service=stamp, atomic=False, permissions=allow())},
         pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda user: f"tenant-of-{user}"),
     )
     agent = Agent(tool_calling_model("stamp"), deps_type=AgentDeps, capabilities=[cap])
@@ -230,7 +250,7 @@ def test_an_unguarded_spec_is_refused_through_the_capability_too():
     entire security content of ``require_permissions``, and it travels through a
     constructor that must forward it."""
     with pytest.raises(ImproperlyConfigured, match="with no permissions"):
-        SpecCapability({"list": list_spec(permission_classes=None)})
+        SpecCapability({"list": names_spec(permissions=None)})
 
 
 def test_the_migration_escape_hatch_is_reachable_from_the_capability():
@@ -238,9 +258,7 @@ def test_the_migration_escape_hatch_is_reachable_from_the_capability():
     downgrades to the warning through the capability, without dropping to
     ``from_toolset``."""
     with pytest.warns(UnguardedSpecWarning):
-        cap = SpecCapability(
-            {"list": list_spec(permission_classes=None)}, require_permissions=False
-        )
+        cap = SpecCapability({"list": names_spec(permissions=None)}, require_permissions=False)
 
     assert cap.get_toolset() is not None
 
@@ -248,7 +266,7 @@ def test_the_migration_escape_hatch_is_reachable_from_the_capability():
 async def test_a_bound_forwards_all_the_way_to_what_the_model_is_told():
     """One end-to-end forwarding case, on the arguments the model actually sees.
 
-    ``max_page_size`` and the spec's ``QueryParam`` read both change the
+    ``max_page_size`` and the spec's ``query`` shape both change the
     advertised schema — one narrows a property the toolset contributes, the other
     adds one — so this
     asserts the values survived the hop rather than that an attribute was
@@ -256,8 +274,8 @@ async def test_a_bound_forwards_all_the_way_to_what_the_model_is_told():
     directly is one the consumers composing through a capability never get.
     """
     cap = SpecCapability(
-        reading(
-            {"list": list_spec()}, {"list": [QueryParam("query", description="field selection")]}
+        shaping(
+            {"list": names_spec()}, {"list": [Parameter("query", "string", help="field selection")]}
         ),
         max_page_size=50,
     )
@@ -289,9 +307,7 @@ async def test_capability_executes_its_tool_in_process():
         tool_calling_model("run"),
         deps_type=AgentDeps,
         capabilities=[
-            SpecCapability(
-                {"run": ServiceSpec(service=tool, permission_classes=[AllowAny], atomic=False)}
-            )
+            SpecCapability({"run": ServiceSpec(service=tool, permissions=allow(), atomic=False)})
         ],
     )
     result = await agent.run("go", deps=AgentDeps(user="alice"))
