@@ -66,6 +66,7 @@ from django_service_specs import (
     ServiceValidationError,
     SpecRegistry,
     UnknownArguments,
+    Validator,
     apply_server_arguments,
     base_pool,
     check_server_arguments,
@@ -294,7 +295,8 @@ def _resolve_contracts(specs: SpecSource) -> Mapping[str, OfflineContract]:
     none is checked against the toolset's reserved names and seeds when it is
     built, so a read named after a registered seed is refused by the kernel on
     every call instead
-    (``test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build``,
+    (``test_a_mapping_read_named_after_a_registered_seed_is_refused_on_every_call``;
+    ``test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build`` is
     a strict ``xfail`` until the check reads the spec's own ``reads``).
     """
     if not isinstance(specs, SpecRegistry):
@@ -1759,7 +1761,7 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
             # (``test_a_fragment_drf_services_would_refuse_is_refused_naming_the_tool``).
             for phase in _SCHEMA_PHASES:
                 _schema_fragment(spec, phase)
-            _refuse_unsendable_fields(spec, own)
+            _refuse_unsendable_fields(spec)
         pagination = sorted(own & _PAGINATION_ARGUMENTS) if _is_list_selector(spec) else []
         if pagination:
             raise ImproperlyConfigured(
@@ -1771,7 +1773,7 @@ def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
             )
 
 
-def _refuse_unsendable_fields(spec: Spec, own: frozenset[str]) -> None:
+def _refuse_unsendable_fields(spec: Spec) -> None:
     """Refuse an input serializer field the serializer requires and no call can send.
 
     drf-services' compiled Validator declares no parameter for a field under a
@@ -1782,35 +1784,45 @@ def _refuse_unsendable_fields(spec: Spec, own: frozenset[str]) -> None:
     the field then fails every call: over HTTP the edge hands the serializer the
     body, which this toolset has no equivalent of
     (``test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool``).
-    Read off the compiled spec's ``parameters()`` (``own``) rather than a list
-    of names, so a name drf-services adds to what it fills is refused with no
-    change here, and a field the server fills from a seed, a server argument or
-    a call seed, which is a parameter, is never refused
-    (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``,
+    A ``many`` service's rows go through the same Validator, so a row field is
+    refused alike
+    (``test_a_bulk_row_requiring_a_dispatcher_name_is_refused_naming_the_tool``).
+    Read off the compiled Validator's own ``parameters()``, the fields it
+    validates, rather than the compiled spec's, which for a ``many`` service
+    name the list argument and none of a row's fields, so every bulk tool
+    would be refused
+    (``test_a_many_tool_creates_every_item_and_returns_the_rendered_list``),
+    and rather than a list of names, so a name drf-services adds to what
+    it fills is refused with no change here, and a field the server fills from
+    a seed, a server argument or a call seed, which is a parameter, is never
+    refused (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``,
     ``test_a_required_field_the_server_binds_is_not_refused``,
     ``test_a_required_field_named_like_a_call_seed_is_not_refused``).
 
     Only a field the serializer would demand of a call: an optional one is left
     out like any other and costs the tool nothing but the field
-    (``test_an_optional_field_named_like_a_dispatcher_name_still_builds_and_serves``),
-    a ``partial`` service demands none of its fields
-    (``test_a_partial_service_may_name_a_required_field_like_a_dispatcher_name``),
-    DRF never marks a ``read_only`` field required
-    (``test_a_read_only_field_may_carry_a_dispatcher_name``), and a ``many``
-    service's rows are one argument's items, never the call's top-level
-    arguments (``test_a_bulk_row_may_name_a_field_like_a_dispatcher_name``). A
-    selector, and a service with no serializer, declare no fields.
+    (``test_an_optional_field_named_like_a_dispatcher_name_still_builds_and_serves``,
+    ``test_a_bulk_row_s_optional_dispatcher_named_field_builds_and_serves``),
+    and DRF never marks a ``read_only`` field required
+    (``test_a_read_only_field_may_carry_a_dispatcher_name``). A spec compiled
+    partial demands none of its fields
+    (``test_a_partial_service_may_name_a_required_field_like_a_dispatcher_name``);
+    the compiled flag rather than the spec's own, since drf-services compiles
+    only ``partial=True`` as partial
+    (``test_a_partial_flag_drf_services_does_not_compile_as_partial_exempts_nothing``).
+    A selector, and a service with no serializer, declare no fields.
     """
-    if (
-        not isinstance(spec, ServiceSpec)
-        or spec.input_serializer is None
-        or spec.many
-        or spec.partial
-    ):
+    if not isinstance(spec, ServiceSpec) or spec.input_serializer is None:
         return
+    # A service with an input serializer compiles to a kernel service whose
+    # Validator is drf-services' over that serializer, so both casts hold.
+    compiled = cast("KernelServiceSpec", kernel_spec(spec))
+    if compiled.partial:
+        return
+    validated = cast("Validator", compiled.validator).parameters().names()
     fields = spec.input_serializer().fields
     unsendable = sorted(
-        name for name, field in fields.items() if field.required and name not in own
+        name for name, field in fields.items() if field.required and name not in validated
     )
     if unsendable:
         raise ImproperlyConfigured(
@@ -3210,7 +3222,10 @@ def _pop_url_kwargs(
     """Strip the registered URL kwargs from ``args`` into a plain ``dict``.
 
     A declared kwarg the model supplied is popped; one it omitted contributes its
-    ``default`` if set, else nothing. ``_call_arguments`` puts the result back
+    ``default`` if set, else nothing. A ``null`` is the model declining to fill
+    it, as under any read, so it counts as omitted, and ``_fill_query_params``
+    drops it from the call
+    (``test_a_null_under_a_url_kwarg_is_the_model_declining_it[registry]``). ``_call_arguments`` puts the result back
     among the call's arguments.
 
     A kwarg registered ``required=True`` that the model omitted raises
@@ -3223,7 +3238,7 @@ def _pop_url_kwargs(
     values: dict[str, Any] = {}
     missing: list[str] = []
     for url_kwarg in url_kwargs:
-        if url_kwarg.name in args:
+        if args.get(url_kwarg.name) is not None:
             values[url_kwarg.name] = args.pop(url_kwarg.name)
         elif _declares_default(url_kwarg.default):
             values[url_kwarg.name] = url_kwarg.default

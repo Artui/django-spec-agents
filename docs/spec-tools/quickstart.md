@@ -210,9 +210,10 @@ the compiled spec, the argument set `dispatch` checks, less the kernel's
   compiled Validator declares no parameter for such a field, so the tool does
   not advertise it, the model's value would be refused or dropped, and the
   serializer would fail every call for the missing field. Rename the field or
-  make it optional. An optional field under one of those names builds, and a
-  call is served without it; a `read_only` one, a `partial` service's, and a
-  field of a `many=True` service's rows are left alone. A field named like one
+  make it optional. A `many=True` service's rows are validated the same way, so
+  a row field is refused alike. An optional field under one of those names
+  builds, and a call is served without it; a `read_only` one, and the fields of
+  a service declaring `partial=True`, are left alone. A field named like one
   of your own [`pool_seeds`](#project-pool-seeds), such as `tenant`, is a
   parameter, so it is the model's to send and is not refused.
 - **Every other parameter without a default is required.** `get_widget(user, pk)`

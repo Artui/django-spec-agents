@@ -135,20 +135,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     before the list a many-spec takes, where the reads used to come last.
   - A read's declared default reaches the callable when a call leaves the read
     out, a `QueryParam` and a `UrlKwarg` alike, from a registry or a mapping.
+  - A `null` sent under a `UrlKwarg` read is treated as omitted, as one under a
+    `QueryParam` already was, so the read's default answers, where it was
+    refused as `This field cannot be null.`
   - A spec's `metadata["json_schema"]` fragments are merged over the kernel's
     schemas key by key, `input` over the input schema and `output` over the
     return schema, as drf-services merged them.
-- Three declarations no call can serve are now refused when the toolset is
-  built, with `ImproperlyConfigured` naming the tool, and the refusal fails the
-  whole toolset where its other tools used to build:
+- **Breaking:** an input serializer field the serializer requires under a name
+  drf-services fills itself (`user`, `data`, `instance`, `collection`,
+  `result`, `queryset`, `progress`, `call_context` or `serializer`), on a
+  single service or on a `many=True` service's rows, now fails the whole
+  toolset when it is built, with `ImproperlyConfigured` naming the tool and
+  the field. 0.1.0 built the tool and served the call, the serializer
+  receiving the model's value under that name; drf-services' compiled
+  Validator declares no parameter for the name, so no call could be served
+  now. Rename the field, or make it optional, and the tool builds.
+- Two more declarations no call can serve are refused when the toolset is
+  built, with `ImproperlyConfigured` naming the tool, failing the whole
+  toolset where its other tools used to build:
   - an input serializer field sharing the name of a parameter of the service's
     target lookup;
-  - an input serializer field the serializer requires under a name
-    drf-services fills itself, `user` or `serializer` among them, which the
-    tool used to advertise as required and refuse when sent. Rename the field
-    or make it optional;
-  - a `metadata["json_schema"]` fragment drf-services would refuse: a key
-    naming no phase, or a phase that is not a mapping.
+  - a `metadata["json_schema"]` whose `output` phase is not a mapping. A key
+    naming no phase, and an `input` phase that is not a mapping, were refused
+    in the same words already.
 
 ### Known differences
 

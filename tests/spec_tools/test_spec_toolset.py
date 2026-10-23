@@ -4979,28 +4979,75 @@ def test_a_read_only_field_may_carry_a_dispatcher_name():
     assert list(_input_schema_of(toolset, "note")["properties"]) == ["text"]
 
 
-def test_a_bulk_row_may_name_a_field_like_a_dispatcher_name():
-    """A ``many=True`` service's rows are one argument's items, never the
-    call's top-level arguments, so a row field named ``user`` meets no
-    dispatcher name and the tool builds. Holds the ``many`` arm of the check."""
+def _keep_notes(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the notes."""
+    return [dict(row) for row in data]
 
-    def note_all(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Keep the notes."""
-        return data
 
+def test_a_bulk_row_requiring_a_dispatcher_name_is_refused_naming_the_tool():
+    """A ``many=True`` service's rows are validated by the same compiled
+    Validator, which declares no parameter for a row field named ``user``
+    either, so under ``REJECT`` a row carrying it is refused
+    (``items[0].user: Unknown argument.``) and under ``IGNORE`` it is dropped
+    and then missing: no call can be served, and the toolset refuses the spec
+    when it is built, as for a single row."""
+    with pytest.raises(
+        ImproperlyConfigured,
+        match=r"^SpecToolset tool 'notes': the input serializer requires \['user'\]",
+    ):
+        SpecToolset(
+            {
+                "notes": ServiceSpec(
+                    service=_keep_notes,
+                    input_serializer=_UserFieldSerializer,
+                    many=True,
+                    atomic=False,
+                    permission_classes=[AllowAny],
+                )
+            }
+        )
+
+
+@pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
+async def test_a_bulk_row_s_optional_dispatcher_named_field_builds_and_serves(policy):
+    """A row field named ``user`` the serializer does not require costs the
+    rows nothing but the field: the toolset builds and serves rows without it."""
     toolset = SpecToolset(
         {
             "notes": ServiceSpec(
-                service=note_all,
-                input_serializer=_UserFieldSerializer,
+                service=_keep_notes,
+                input_serializer=_OptionalUserSerializer,
                 many=True,
                 atomic=False,
                 permission_classes=[AllowAny],
             )
-        }
+        },
+        unknown_arguments=policy,
     )
 
-    assert "items" in _input_schema_of(toolset, "notes")["properties"]
+    assert await _call(toolset, "notes", User(username="u"), {"items": [{"text": "hi"}]}) == [
+        {"text": "hi"}
+    ]
+
+
+def test_a_partial_flag_drf_services_does_not_compile_as_partial_exempts_nothing():
+    """drf-services compiles a spec partial only when its ``partial`` is
+    ``True``, so a truthy ``1`` leaves every field required, and a required
+    ``user`` field is refused as on any other service, where reading the
+    spec's own flag would have built a tool no call can serve. Holds the
+    partial arm of ``_refuse_unsendable_fields`` reading the compiled spec."""
+    with pytest.raises(ImproperlyConfigured, match=r"requires \['user'\]"):
+        SpecToolset(
+            {
+                "note": ServiceSpec(
+                    service=_keep_note,
+                    input_serializer=_UserFieldSerializer,
+                    partial=1,
+                    atomic=False,
+                    permission_classes=[AllowAny],
+                )
+            }
+        )
 
 
 @pytest.mark.parametrize(
@@ -5028,17 +5075,35 @@ def test_a_channel_named_after_a_registered_seed_is_refused(channel):
         "kernel refuses the read on every call instead"
     ),
 )
-def test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build():
+@pytest.mark.parametrize(
+    "read", [QueryParam("tenant"), UrlKwarg("tenant")], ids=["query_param", "url_kwarg"]
+)
+def test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build(read):
     """What a registry-built tool is refused at build
     (``test_a_channel_named_after_a_registered_seed_is_refused``), a tool built
     from a bare mapping is not: the check runs over the entry's declarations,
     and a mapping has no entry. Strict, so the day the check runs over the
     spec's own ``reads`` this passes and fails the suite, and
     ``_resolve_contracts`` and the guide stop saying a mapping skips it."""
-    spec = replace(list_spec(), reads=(UrlKwarg("tenant"),))
+    spec = replace(list_spec(), reads=(read,))
 
     with pytest.raises(ImproperlyConfigured, match="tenant"):
         SpecToolset({"list": spec}, pool_seeds=_tenant_seeds())
+
+
+@pytest.mark.parametrize(
+    "read", [QueryParam("tenant"), UrlKwarg("tenant")], ids=["query_param", "url_kwarg"]
+)
+async def test_a_mapping_read_named_after_a_registered_seed_is_refused_on_every_call(read):
+    """The other half of what a mapping misses at build: the read is still a
+    parameter of the compiled spec, and the kernel refuses a parameter a seed
+    occupies when the call is dispatched, sent or not, so the tool builds and
+    no call to it is served."""
+    toolset = SpecToolset({"list": replace(list_spec(), reads=(read,))}, pool_seeds=_tenant_seeds())
+
+    for sent in ({}, {"tenant": "x"}):
+        with pytest.raises(ImproperlyConfigured, match=r"\['tenant'\], which a registered pool"):
+            await _call(toolset, "list", User(username="u"), sent)
 
 
 # --- what a call needs from the model -----------------------------------------
@@ -5190,11 +5255,67 @@ async def test_a_url_kwarg_s_default_never_replaces_the_value_the_model_sent(sou
     assert _rows(result) == [{"name": "project-3"}]
 
 
+@pytest.mark.parametrize("source", ["registry", "mapping"])
+async def test_a_null_under_a_url_kwarg_is_the_model_declining_it(source):
+    """A ``null`` sent under a ``UrlKwarg`` is the model declining to fill it,
+    as under a ``QueryParam``, so the read's default answers, from a registry,
+    whose entry pops the read off the call, as from a mapping, which has no
+    entry to pop it through."""
+    reads = {"in_project": [UrlKwarg("project_pk", type="integer", default=7)]}
+    specs = {"in_project": _name_list_spec(names_in_project)}
+    toolset = SpecToolset(
+        reading(specs, reads)
+        if source == "registry"
+        else {name: replace(spec, reads=tuple(reads[name])) for name, spec in specs.items()}
+    )
+
+    result = await _call(toolset, "in_project", User(username="u"), {"project_pk": None})
+
+    assert _rows(result) == [{"name": "project-7"}]
+
+
+@pytest.mark.parametrize(
+    ("source", "retry"),
+    [
+        ("registry", r"^Missing required argument\(s\): `project_pk`\.$"),
+        ("mapping", r"^project_pk: This field is required\.$"),
+    ],
+)
+async def test_a_null_under_a_required_url_kwarg_is_retried_in_each_source_s_words(source, retry):
+    """The one difference a model sees between the two sources: a required
+    ``UrlKwarg`` sent as ``null`` is retried either way, by the entry's pop in
+    the toolset's words from a registry, and by the kernel's check in its own
+    from a mapping, which has no entry to pop it through. The guide's
+    ``spec-registry`` page states both wordings."""
+    reads = {"in_project": [UrlKwarg("project_pk", type="integer", required=True)]}
+    specs = {"in_project": _name_list_spec(names_in_project)}
+    toolset = SpecToolset(
+        reading(specs, reads)
+        if source == "registry"
+        else {name: replace(spec, reads=tuple(reads[name])) for name, spec in specs.items()}
+    )
+
+    with pytest.raises(ModelRetry, match=retry):
+        await _call(toolset, "in_project", User(username="u"), {"project_pk": None})
+
+
+def names_in_required_project(user, project_pk: Annotated[int, InputRequired] = 0):
+    """The names in one project, which the caller must name."""
+    return [{"name": f"project-{project_pk}"}]
+
+
 @_A_DECLARED_READ_COMPILES_OPTIONAL
-async def test_a_url_kwarg_with_no_default_leaves_the_selector_to_require_it():
+@pytest.mark.parametrize(
+    "selector",
+    [names_in_project, names_in_required_project],
+    ids=["no-default", "input-required"],
+)
+async def test_a_url_kwarg_with_no_default_leaves_the_selector_to_require_it(selector):
     """With no default the value reaches the pool only when the model sends it,
-    so the selector's own signature says whether it must, and a call without it
-    is handed back rather than reaching the selector as a ``TypeError``.
+    so the selector's own signature says whether it must, by declaring no
+    default or by marking the parameter ``InputRequired``, and a call without
+    it is handed back rather than reaching the selector as a ``TypeError`` or
+    its own default.
 
     Holds ``_required_arguments``' reading of the schema's ``required``: a
     pre-check blind to it would hand the call to the selector without
@@ -5202,7 +5323,7 @@ async def test_a_url_kwarg_with_no_default_leaves_the_selector_to_require_it():
     """
     toolset = SpecToolset(
         reading(
-            {"in_project": _name_list_spec(names_in_project)},
+            {"in_project": _name_list_spec(selector)},
             {"in_project": [UrlKwarg("project_pk", type="integer")]},
         )
     )
