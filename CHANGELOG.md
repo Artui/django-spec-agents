@@ -70,9 +70,7 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
     name is in the call's context under `action`;
   - the request a run arrived on is `call_context["request"]`, put there by
     whoever starts the run, where `http_request=` and `get_http_request=` named
-    it;
-  - the run's request is at `call_context["request"]`, where a presenter can
-    read it to make a URL absolute, for example with
+    it. A presenter can read it there to make a URL absolute, for example with
     `request.build_absolute_uri`, where `host=` named one; the kernel's
     presenters do not do this;
   - `output_extras` goes with the `page`, `result` and `instance` keys it
@@ -176,7 +174,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
 - A read declared `required=True` with a `default` is no longer refused when
   the toolset is built; the default answers a call that leaves it out, as the
   kernel reads it.
-- **Breaking:** a call is answered by the kernel's refusals only. Its
+- **Breaking:** a call is answered by the kernel's refusals, and Django's own
+  `PermissionDenied`, only. Its
   `NotPermitted` and `PrincipalUnavailable`, and Django's own
   `PermissionDenied`, are a denial, logged and re-raised, and its `InvalidArguments` and `ServiceValidationError`, raised
   while dispatching or while rendering a read-shaping argument the model sent,

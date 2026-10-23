@@ -6568,18 +6568,40 @@ async def test_a_retrieve_tool_says_whether_it_can_return_null(allow_none, root_
     assert return_schema["type"] == root_type
 
 
-async def test_an_input_that_admits_none_is_one_node_listing_null_beside_its_type():
-    """A nullable read is advertised as a single schema node whose ``type`` lists
-    ``"null"`` beside its own type, not as a choice (``anyOf``) between two nodes."""
-    spec = retrieve_spec(
-        reads=Parameters.of(_PK, Parameter("note", "string", nullable=True)),
+@dataclass
+class _OptionalNoteInput:
+    name: str
+    note: str | None = None
+
+
+def _optional_note_service(name, note=None):
+    """Take an optional note."""
+    return {"id": 1}
+
+
+def _nullable_read_spec() -> SelectorSpec:
+    return retrieve_spec(reads=Parameters.of(_PK, Parameter("note", "string", nullable=True)))
+
+
+def _optional_field_spec() -> ServiceSpec:
+    return ServiceSpec(
+        service=_optional_note_service,
+        validator=django_service_specs.DataclassValidator(_OptionalNoteInput),
+        permissions=allow(),
+        atomic=False,
     )
-    tools = await SpecToolset({"get": spec}).get_tools(None)
+
+
+@pytest.mark.parametrize("spec", [_nullable_read_spec, _optional_field_spec])
+async def test_an_input_that_admits_none_is_one_node_listing_null_beside_its_type(spec):
+    """A nullable read, and a Validator field annotated ``str | None``, are each
+    advertised as a single schema node whose ``type`` lists ``"null"`` beside its
+    own type, not as a choice (``anyOf``) between two nodes."""
+    tools = await SpecToolset({"get": spec()}).get_tools(None)
     properties = tools["get"].tool_def.parameters_json_schema["properties"]
 
     assert properties["note"]["type"] == ["string", "null"]
     assert "anyOf" not in properties["note"]
-    assert properties["pk"]["type"] == "integer"
 
 
 def archive_widget():
