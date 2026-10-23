@@ -29,10 +29,11 @@ needs Django and `pydantic-ai-slim` only. It provides:
   not declare a `StepStore` protocol of its own.)
 - `testing`, the run-loop test doubles, which import pydantic-ai only.
 
-**`spec_tools`**, behind the `[specs]` extra, serves djangorestframework-services
-specs as agent tools in process: `SpecToolset`, and `SpecCapability` over it. It
-needs Django REST Framework, drf-services and the spec kernel, which the extra
-installs.
+**`spec_tools`**, behind the `[specs]` extra, serves django-service-specs specs
+as agent tools in process: `SpecToolset`, and `SpecCapability` over it. It reads
+every spec through the kernel's `kernel_spec` and imports nothing from Django REST
+Framework or any other spec library, so the extra installs the kernel alone. DRF
+and drf-mcp's own spec library arrive only with the `[drf-mcp]` bridge.
 
 The host was published as `django-pydantic-agent` and `spec_tools` as
 `djangorestframework-pydantic-ai`.
@@ -58,10 +59,10 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
 
 ## The boundary between the halves
 
-- **The root never imports `spec_tools`**, nor anything only `[specs]` installs
-  (`rest_framework`, `rest_framework_services`, `django_service_specs`), nor
-  `testing`. A host-only install, which is what django-admin-agent ships, would
-  fail at import otherwise. The host reaches `spec_tools` in one place,
+- **The root never imports `spec_tools`**, nor anything only `[specs]` or
+  `[drf-mcp]` installs (`django_service_specs`, `rest_framework`,
+  `rest_framework_services`), nor `testing`. A host-only install, which is what
+  django-admin-agent ships, would fail at import otherwise. The host reaches `spec_tools` in one place,
   `integrations/build_spec_capability.py`, through a function-local import under
   rule 4's optional-dependency exception. `integrations/__init__.py` stays empty:
   django-ag-ui patches the function as an attribute of that submodule, which a
@@ -69,11 +70,14 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
 - **`spec_tools` imports nothing from the host but `AgentDeps`, and never
   `contrib.store`.** It reads the acting user structurally, as `ctx.deps.user`, so
   a project's own deps type works as long as it has a `user`.
+- **`spec_tools` imports nothing from Django REST Framework or drf-services**,
+  eagerly or in a function body. It reads every spec through the kernel.
 
-`tests/test_boundary.py` holds both: each half in a fresh interpreter under
+`tests/test_boundary.py` holds all three: each half in a fresh interpreter under
 settings that list neither `rest_framework` nor the spec test app
 (`tests/host_only_settings.py`, and `tests/host_only_store_settings.py` with the
-store app), and an import scan of every module under `spec_tools/`. Inside the
+store app), and import scans of every module under `spec_tools/`, for the host
+names it reaches and for DRF and drf-services. Inside the
 suite's own process the check would prove nothing, because pytest-django has
 imported `rest_framework` by collection time. `make test-host-only`, and the
 `host-only install` CI job that runs it, runs that file on an install with no
@@ -211,8 +215,9 @@ are fine — module-level **mutable** state is not.
   package as a whole sit at `tests/` root: the boundary, the lock, the kept
   spellings and the module paths django-ag-ui imports (`test_consumer_paths.py`).
 - `tests/conftest_settings.py` is the Django settings module pytest uses (set via
-  `DJANGO_SETTINGS_MODULE` in `pyproject.toml`): the store app, `rest_framework`,
-  `rest_framework_services` and the spec test app, so one run covers both halves.
+  `DJANGO_SETTINGS_MODULE` in `pyproject.toml`): the store app, the spec test app
+  whose models the `spec_tools` suites' kernel specs serve, and `rest_framework`,
+  for the `[drf-mcp]` bridge's tests alone, so one run covers both halves.
 - Async tests: `async def test_...` with pytest-asyncio (`asyncio_mode = "auto"`).
 - A store that writes through `sync_to_async` needs
   `@pytest.mark.django_db(transaction=True)` — its ORM calls run on a different
@@ -245,7 +250,7 @@ Change a rule here and change the config with it, or they drift apart again.
 | Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
 | Pydantic-AI | 2.16 (`ToolFailurePolicy` imports `ToolFailed`, which first exists there); 2.33 with `[anthropic]` (older releases hand the 1.x SDK an `httpx` client it rejects) | latest in matrix |
-| `[specs]` | Django REST Framework, djangorestframework-services and django-service-specs, at the floors `pyproject.toml` declares and says the reason for | latest in matrix; the floors in the `lowest declared versions` job |
+| `[specs]` | django-service-specs, at the floor `pyproject.toml` declares and says the reason for | latest in matrix; the floor in the `lowest declared versions` job |
 
 ## Branching
 
