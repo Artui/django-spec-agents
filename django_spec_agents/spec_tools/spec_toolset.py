@@ -1475,6 +1475,8 @@ def _validate_permissions(specs: Mapping[str, Spec], *, require: bool) -> None:
     has said so, and is not refused: that is a decision, where ``None`` is an
     absence (``test_an_explicitly_unrestricted_spec_is_neither_refused_nor_warned_about``).
     The kernel's own ``unguarded_specs`` reports those, the other question.
+    ``is None`` and a falsy check agree on every compiled spec, because the
+    kernel refuses an empty ``permissions`` when the spec is declared.
 
     ``ImproperlyConfigured`` rather than the ``ValueError`` the checks below
     raise: this is a deployment misconfiguration rather than a coding error, and
