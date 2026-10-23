@@ -25,13 +25,25 @@ import django_spec_agents.spec_tools as spec_tools
 
 DOCS = pathlib.Path(__file__).resolve().parents[2] / "docs" / "spec-tools"
 
-# An import statement inside a fenced Python block, over one line or several,
-# from this package or from the kernel the pages declare their specs on.
+# An import statement inside a fenced Python block, from this package or from
+# the kernel the pages declare their specs on: a parenthesised list over as many
+# lines as it takes, or a bare one ending its line. One lazy group for both
+# stops at the first line end, so it reads one name of a parenthesised list.
 _IMPORT = re.compile(
     r"^from\s+((?:django_spec_agents|django_service_specs)[\w.]*)"
-    r"\s+import\s+\(?\s*([\w,\s]+?)\s*\)?$",
+    r"\s+import\s+(?:\(([^)]*)\)|([\w, ]+)$)",
     re.MULTILINE,
 )
+
+
+def _imports_in(block: str) -> list[tuple[str, str]]:
+    """Each ``(module, name)`` one Python block imports from either package."""
+    return [
+        (module, name.strip())
+        for module, listed, bare in _IMPORT.findall(block)
+        for name in (listed or bare).split(",")
+        if name.strip()
+    ]
 
 
 def _documented_imports() -> list[tuple[str, str, str]]:
@@ -39,10 +51,7 @@ def _documented_imports() -> list[tuple[str, str, str]]:
     for page in sorted(DOCS.glob("*.md")):
         blocks = re.findall(r"^```python\n(.*?)^```", page.read_text(), re.MULTILINE | re.DOTALL)
         for block in blocks:
-            for module, names in _IMPORT.findall(block):
-                found.extend(
-                    (page.name, module, name.strip()) for name in names.split(",") if name.strip()
-                )
+            found.extend((page.name, module, name) for module, name in _imports_in(block))
     return found
 
 
@@ -66,6 +75,18 @@ def test_the_spec_source_alias_stays_at_its_module_path():
     assert spec_toolset.SpecSource is not None
     for module in (django_spec_agents, spec_tools, spec_toolset):
         assert "SpecSource" not in module.__all__
+
+
+def test_a_parenthesised_import_yields_every_name_it_lists():
+    """The pages import the kernel's names a block at a time, one per line, so
+    a reader of the first line alone checks one name of several."""
+    block = "from django_service_specs import (\n    Parameter,\n    Parameters,\n    SpecRegistry,\n)\n"
+
+    assert _imports_in(block) == [
+        ("django_service_specs", "Parameter"),
+        ("django_service_specs", "Parameters"),
+        ("django_service_specs", "SpecRegistry"),
+    ]
 
 
 def test_the_pages_teach_imports():
