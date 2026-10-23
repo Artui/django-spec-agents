@@ -62,7 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     which declares no name; an argument named like a registered seed that the
     spec never declares; an argument of a name marked `NotClientInput`,
     whatever the selector's input set; and an argument named like one of the
-    dispatcher's own, such as `user`, which no tool's schema advertises.
+    dispatcher's own, such as `user`, which the dispatcher fills where a
+    selector or service reads it and no schema advertises as a parameter (an
+    input serializer field of the name is a known difference, below).
     `IGNORE` drops each of them, and none reaches the callable.
 
 ### Known differences

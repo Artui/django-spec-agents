@@ -229,7 +229,7 @@ list_spec = SelectorSpec(kind=SelectorKind.LIST, selector=priced_under, kwargs=s
   what binds its type parameters, so `-> Scope[str | UnsetType]` declines
   `Scope`'s `tenant: T` as the written-out `tenant: str | UnsetType` does.
   If the provider declines the key and the model has not sent it either,
-  drf-services refuses the call before the selector runs, and the model is
+  the kernel refuses the call before the selector runs, and the model is
   handed back ``ceiling: This field is required.`` to send it on its next
   turn, as it is when an untyped provider leaves a parameter unfilled.
   Where the selector can run without the value, give the parameter a default.
@@ -611,9 +611,8 @@ object and has no other channel to carry an undeclared name to the callable; to
 hand one over, declare it, as a `reads` entry, a serializer field or a parameter.
 
 A parameter marked `NotClientInput`
-is not the model's under any policy: `REJECT` refuses a value sent for it where
-the input set is closed, and everywhere else drf-services drops the value before
-any callable in the call reads it.
+is not the model's under any policy: `REJECT` refuses a value sent for it, and
+`IGNORE` drops the value before any callable in the call reads it.
 
 ## A list as input
 

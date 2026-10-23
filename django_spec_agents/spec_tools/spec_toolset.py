@@ -554,7 +554,7 @@ class SpecToolset(AbstractToolset[Any]):
             every key sent to it is refused.
             ``PASSTHROUGH`` raises ``ImproperlyConfigured`` here: a tool call
             has no channel that carries an undeclared name through to the
-            callable, and drf-services refuses it on every call.
+            callable, and the kernel's dispatch refuses it on every call.
         tool_server_arguments: Values the server supplies for a tool's
             arguments, and names it keeps from the model, keyed by tool name --
             a django-service-specs
@@ -1318,11 +1318,11 @@ class SpecToolset(AbstractToolset[Any]):
         (``project_pk: Annotated[int, NotClientInput]``): the name is left out
         of the schema, so the model is never asked for it, and the override
         fills it. Under the default ``unknown_arguments`` a call that sends it
-        anyway is handed back as an unexpected argument where the selector's
-        input set is closed (no ``filter_set``, no ``**kwargs``); otherwise, and
-        under the other policies, drf-services drops the model's value before
-        the selector reads its arguments, so the override's value is the one it
-        receives
+        anyway is handed back as an unexpected argument, whatever the
+        selector's input set
+        (``test_a_marked_name_sent_to_an_open_selector_is_refused``); under
+        ``IGNORE`` the model's value is dropped before the selector reads its
+        arguments, so the override's value is the one it receives
         (``test_a_value_the_model_sends_for_a_marked_name_never_reaches_the_selector``).
         Where the value can be
         resolved from what a seed resolver receives, register it in
@@ -2027,7 +2027,7 @@ def _validate_unknown_arguments(unknown_arguments: UnknownArguments) -> None:
         f"SpecToolset: unknown_arguments={spelled!r} is not accepted. Use "
         "UnknownArguments.REJECT or UnknownArguments.IGNORE. A tool call has no "
         "channel that carries a name the spec does not declare through to the "
-        "callable, and drf-services refuses PASSTHROUGH on every call. Declare "
+        "callable, and the kernel's dispatch refuses PASSTHROUGH on every call. Declare "
         "the argument instead: a reads entry, a serializer field or a parameter."
     )
 

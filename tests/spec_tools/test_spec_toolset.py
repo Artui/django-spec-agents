@@ -4387,6 +4387,82 @@ async def test_a_seed_named_argument_a_spec_never_declares_is_refused():
     for options in ({}, {"pool_seeds": _tenant_seeds()}):
         with pytest.raises(ModelRetry, match=r"^tenant: Unknown argument\.$"):
             await _call(toolset(**options), "ping", user, {"tenant": "globex"})
+        ignoring = toolset(**options, unknown_arguments=UnknownArguments.IGNORE)
+        assert await _call(ignoring, "ping", user, {"tenant": "globex"}) == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    ("policy", "served"),
+    [(UnknownArguments.REJECT, False), (UnknownArguments.IGNORE, True)],
+    ids=["reject", "ignore"],
+)
+async def test_a_dispatcher_name_the_model_sends_is_refused_or_dropped(policy, served):
+    """``user`` is the dispatcher's, so a selector reading it is never handed the model's.
+
+    No schema advertises it, and the kernel declares no parameter of its name,
+    so a model sending it anyway sends an undeclared key: ``REJECT`` refuses
+    it, and ``IGNORE`` drops it and the selector still reads the caller.
+    drf-services' ``dispatch_spec`` dropped it under both.
+    """
+
+    def mine(user: Any) -> dict[str, str]:
+        """Who is asking."""
+        return {"who": str(user)}
+
+    toolset = SpecToolset(
+        {
+            "mine": SelectorSpec(
+                selector=mine, kind=SelectorKind.RETRIEVE, permission_classes=[AllowAny]
+            )
+        },
+        unknown_arguments=policy,
+    )
+    user = User(username="acme")
+
+    assert "user" not in _input_schema_of(toolset, "mine").get("properties", {})
+    if served:
+        assert await _call(toolset, "mine", user, {"user": "globex"}) == {"who": "acme"}
+    else:
+        with pytest.raises(ModelRetry, match=r"^user: Unknown argument\.$"):
+            await _call(toolset, "mine", user, {"user": "globex"})
+
+
+class _UserFieldSerializer(serializers.Serializer):
+    user = serializers.CharField()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "The tool's schema advertises an input serializer field named like a "
+        "dispatcher name as required, and the kernel, which declines to validate "
+        "such a field, refuses it as an unknown argument, so no call is served."
+    ),
+)
+async def test_a_call_sending_what_the_schema_requires_is_served():
+    """A model sending exactly what the advertised schema requires gets an answer.
+
+    The schema and the dispatch have to agree on the argument set, or the
+    tool is one no model can call however it reads the schema.
+    """
+
+    def note(data: dict[str, Any]) -> dict[str, Any]:
+        """Keep a note."""
+        return dict(data)
+
+    toolset = SpecToolset(
+        {
+            "note": ServiceSpec(
+                service=note,
+                input_serializer=_UserFieldSerializer,
+                atomic=False,
+                permission_classes=[AllowAny],
+            )
+        }
+    )
+    required = _input_schema_of(toolset, "note").get("required", [])
+
+    await _call(toolset, "note", User(username="acme"), dict.fromkeys(required, "x"))
 
 
 @pytest.mark.parametrize(
