@@ -12,11 +12,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
+from django import forms
 from django_service_specs import (
+    FormValidator,
     Output,
     OutputField,
     Parameter,
     Parameters,
+    PermissionCheck,
     PresentationContext,
     Presenter,
     SpecRegistry,
@@ -60,6 +63,34 @@ class RowPresenter(Presenter):
         if self._refuse is not None and context is not None:
             self._refuse(context.shapes)
         return self.present(value)
+
+
+def widget_presenter() -> RowPresenter:
+    """A widget row as its ``id``, ``name`` and ``price``."""
+    return RowPresenter(
+        OutputField("id", "integer"),
+        OutputField("name", "string"),
+        OutputField("price", "integer"),
+    )
+
+
+class WidgetInputForm(forms.Form):
+    """A widget's writable fields, with the bounds a write is refused past."""
+
+    name = forms.CharField(max_length=100)
+    price = forms.IntegerField(min_value=0)
+
+
+def widget_input() -> FormValidator:
+    """The Validator of a widget write: ``name`` and a non-negative ``price``."""
+    return FormValidator(WidgetInputForm)
+
+
+class DenyAll(PermissionCheck):
+    """Refuses every principal."""
+
+    def has_permission(self, principal: Any, spec: Any) -> bool:
+        return False
 
 
 def shaping(specs: Mapping[str, Any], shapes: Mapping[str, Sequence[Parameter]]) -> SpecRegistry:
