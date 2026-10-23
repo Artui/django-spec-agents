@@ -130,6 +130,7 @@ where it installed `[spec-tools]`.
 | `rest_framework_pydantic_ai.QueryParam`, `UrlKwarg` | a kernel `Parameter` in the spec's `reads=` or `shapes=`; see [Specs](#specs) |
 | `rest_framework_pydantic_ai.testing` | `django_spec_agents.testing`, with the same three doubles |
 | `rest_framework_pydantic_ai.__version__` | `django_spec_agents.__version__` |
+| `rest_framework_pydantic_ai.spec_toolset`, `.spec_capability`, `.types.agent_conventions` | the same module under `django_spec_agents.spec_tools`, such as `django_spec_agents.spec_tools.spec_toolset` for the `SpecSource` alias a subclass annotates with |
 
 ```python
 from django_spec_agents import AgentDeps
