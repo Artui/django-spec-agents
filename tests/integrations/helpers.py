@@ -1,5 +1,9 @@
-"""What the two bridges' tests drive alike: a real run context, and a run in
-which a model leaves out an argument and then sends it."""
+"""What both integration routes' tests drive alike: a real run context, and a
+run in which a model leaves out an argument and then sends it.
+
+The calls are shared and the declarations are per route: the drf-mcp bridge's
+tests serve the specs in ``drf_specs_lookup``, which that bridge registers, and
+the spec capability's serve the kernel's own in ``kernel_specs``."""
 
 from __future__ import annotations
 
@@ -20,8 +24,6 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 
@@ -38,21 +40,10 @@ def run_context(deps: AgentDeps) -> RunContext[AgentDeps]:
     return RunContext(deps=deps, model=TestModel(), usage=RunUsage())
 
 
-def _ok(user: Any) -> dict[str, Any]:
-    """A no-op spec service."""
-    return {"ok": True}
-
-
-def open_spec() -> ServiceSpec:
-    """A spec that dispatches for anyone. Its permissions are declared because
-    ``SpecRegistry.register`` and the spec capability refuse a spec that declares
-    none."""
-    return ServiceSpec(service=_ok, atomic=False, permission_classes=[AllowAny])
-
-
-# Each tool reads its row through a selector taking ``pk`` with no default: the
-# selector tool's own selector, and the service tool's target lookup. A call
-# leaving ``pk`` out is corrected by sending it.
+# Each tool reads its row by a ``pk`` it requires: the selector tool's own
+# selector, and the service tool's target lookup. Over drf-mcp that is a
+# selector taking ``pk`` with no default; on the kernel's specs it is a read
+# declared ``required=True``. A call leaving ``pk`` out is corrected by sending it.
 LOOKUP_CALLS = [
     pytest.param("get_row", {}, {"pk": 1}, {"id": 1, "name": "first"}, id="selector"),
     pytest.param(

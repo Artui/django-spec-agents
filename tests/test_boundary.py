@@ -3,11 +3,12 @@
 The package is two halves. The host, the root and everything outside
 ``spec_tools``, needs pydantic-ai and Django only, and django-admin-agent ships it
 with no extra. ``spec_tools`` serves specs as agent tools and needs the ``[specs]``
-extra: Django REST Framework, drf-services and the spec kernel. So:
+extra, which installs the spec kernel. So:
 
-- **The root never imports ``spec_tools``**, nor anything only ``[specs]`` installs.
-  A root that did would fail at import on a host-only install, or, where the extra
-  happens to be installed, load DRF into every project that never asked for it.
+- **The root never imports ``spec_tools``**, nor anything only ``[specs]`` or
+  ``[drf-mcp]`` installs. A root that did would fail at import on a host-only
+  install, or, where an extra happens to be installed, load the kernel or DRF
+  into every project that never asked for it.
 - **``spec_tools`` imports nothing from the host but ``AgentDeps``, and never
   ``contrib.store``.** The tool half reads the acting user off the deps it is
   handed, and a project's own deps type works as long as it has a ``user``; a

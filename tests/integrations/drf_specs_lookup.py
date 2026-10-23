@@ -1,11 +1,13 @@
 """Specs that read one row by a ``pk`` their selector takes with no default.
 
-Shared by both bridges' tests, so the two routes are asserted against the same
-declaration rather than two copies that could drift apart. Neither spec says
-anywhere but in the selector's signature that ``pk`` is required: a selector
-tool reading a row, and a service whose target lookup is that selector. That is
-the case where both routes once advertised ``pk`` as optional and then raised
-``TypeError`` out of the run for a call that left it out.
+The drf-mcp bridge's tests serve these, since that bridge registers
+drf-services specs. The spec capability's tests serve the kernel's equivalents
+in ``kernel_specs``, and both drive the same calls, ``helpers.LOOKUP_CALLS``.
+Neither spec here says anywhere but in the selector's signature that ``pk`` is
+required: a selector tool reading a row, and a service whose target lookup is
+that selector. That is the case where both routes once advertised ``pk`` as
+optional and then raised ``TypeError`` out of the run for a call that left it
+out.
 """
 
 from __future__ import annotations
