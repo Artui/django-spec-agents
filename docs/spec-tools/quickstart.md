@@ -183,11 +183,12 @@ which the toolset fills. So the schema is the kernel's `spec_input_schema` of
 the compiled spec, the argument set `dispatch` checks, less the kernel's
 `server_owned_keys` for the toolset's seeds:
 
-- **A name the toolset fills is not advertised.** That is drf-services' own
-  pool seeds (`request`, `user`, `progress` and the rest), every name registered
+- **A name the toolset fills is not advertised.** That is the dispatcher's own
+  pool seeds (`request`, `user`, `progress` and the rest), a serializer field
+  under one of those names included, every name registered
   in [`pool_seeds`](#project-pool-seeds), and the keys a `kwargs=` provider
   returns when its return annotation is a `TypedDict`, less any it may decline
-  with `UNSET` (below). The annotation is read by drf-services'
+  with `UNSET` (below). The annotation is read by the kernel's
   `provider_keys`, the reader dispatch's own contract is stated in, so this
   toolset and drf-mcp read a provider the same way. A [`UrlKwarg`](#url-derived-values-route-captures)
   that declares a `default` fills its name too, so the selector's parameter of
@@ -297,14 +298,14 @@ service declares: drf-services refuses a spec declaring both when it is built,
 and any lookup beside `many=True`, so a `many=True` service's schema stays the
 list alone. A rename tool whose instance selector is
 `task_by_pk(user, *, pk)` asks for `pk` as well as the new title, and requires
-it. Where a lookup parameter and a serializer field share a name, the
-serializer's property is the one advertised, since the serializer validates
-the value, and the name is required if either requires it, since the lookup
-cannot run without it whatever a `partial` serializer says.
+it. A lookup parameter and a serializer field sharing a name are two
+declarations of one argument, and the toolset refuses the spec when it is
+built with `ImproperlyConfigured` naming the tool and the parameter, rather
+than advertising one of them. Rename one of the two.
 
 A key that any callable in the call marks `NotClientInput`, the service, one
 of its `preconditions` or the lookup itself, is left out of what the lookup
-contributes, as drf-services' `server_owned_keys` names them: dispatch keeps the
+contributes, as the kernel's `server_owned_keys` names them: dispatch keeps the
 caller's value for it from every callable, and refuses it as an
 [unexpected argument](#unexpected-arguments), so the lookup naming it plainly
 does not make it the model's to send. A field the input serializer declares

@@ -279,9 +279,9 @@ def reading(specs, reads):
     """``specs`` as a ``SpecRegistry``, each tool ``reads`` names declaring those
     reads on its spec, after any it declares already.
 
-    A toolset learns what a tool reads off HTTP from the tool's registry entry,
-    so a bare mapping advertises none of a spec's reads: a test of a read builds
-    its toolset from this.
+    A toolset reads a tool's offline contract off its registry entry, so a test
+    of a read builds its toolset from this, as a project passing its registry
+    does; the schema is the compiled spec's from either source.
     """
     registry = SpecRegistry()
     for name, spec in specs.items():
@@ -2340,6 +2340,17 @@ async def test_required_url_kwarg_is_advertised_as_required():
     assert schema["required"] == ["project_pk"]
 
 
+def test_a_required_url_kwarg_is_required_from_a_bare_mapping_too():
+    """The schema is the compiled spec's, so a tool built from a mapping
+    requires the ``UrlKwarg`` its spec declares required, as one built from the
+    registry does."""
+    spec = replace(list_spec(), reads=(UrlKwarg("project_pk", type="integer", required=True),))
+
+    schema = _input_schema_of(SpecToolset({"list_widgets": spec}), "list_widgets")
+
+    assert schema["required"] == ["project_pk"]
+
+
 def test_omitting_a_required_url_kwarg_raises_model_retry():
     # Schema ``required`` is a hint models routinely ignore, so the runtime has
     # to give the model a way back: ModelRetry naming the argument, not a crash.
@@ -2865,6 +2876,8 @@ async def test_the_advertised_ordering_enum_is_the_filters_own_vocabulary():
         "type": "string",
         "enum": ["cost", "-cost", "title", "-title"],
     }
+    # The kernel's bound on how many sort keys one call may send.
+    assert props["ordering"]["maxItems"] == 1000
 
 
 @pytest.mark.django_db
