@@ -32,6 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Breaking:** the `json_schema_registry=` keyword of `SpecToolset` and
+  `SpecCapability`. A tool's input schema is the kernel's `spec_input_schema`
+  of the compiled spec and its return schema the kernel's
+  `spec_output_schema`, with no registry laid over either. A field's schema is
+  whatever the spec compiles for it, and a `filter_set`'s filter is described
+  as the kernel derives it from the filter set: a `NumberFilter` subclass is a
+  decimal string, whatever type a project meant by it. A toolset-wide rule
+  has no replacement; describe the field on the spec instead.
+- The `[specs]` extra installs `django-service-specs` alone: `spec_tools`
+  imports nothing from Django REST Framework or any other spec library, and
+  reads every spec through the kernel.
+- The `[filter]` extra. Nothing in this package imports django-filter: a
+  project declaring a `filter_set` has it installed already, and
+  `django-service-specs[filter]` declares it for the kernel's own use.
 - `SpecToolset.build_context` and `SpecToolset.output_extras`, and the
   `http_request=`, `get_http_request=` and `host=` keywords of `SpecToolset` and
   `SpecCapability`. Each named a DRF request or view the toolset built for a
@@ -153,15 +167,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A spec's `metadata["json_schema"]` fragments are merged over the kernel's
     schemas key by key, `input` over the input schema and `output` over the
     return schema, as drf-services merged them.
-- **Breaking:** an input serializer field the serializer requires under a name
-  drf-services fills itself (`user`, `data`, `instance`, `collection`,
-  `result`, `queryset`, `progress`, `call_context` or `serializer`), on a
-  single service or on a `many=True` service's rows, now fails the whole
-  toolset when it is built, with `ImproperlyConfigured` naming the tool and
-  the field. 0.1.0 built the tool and served the call, the serializer
-  receiving the model's value under that name; drf-services' compiled
-  Validator declares no parameter for the name, so no call could be served
-  now. Rename the field, or make it optional, and the tool builds.
+- **Breaking:** an input field the spec's Validator requires and no call can
+  send now fails the whole toolset when it is built, with
+  `ImproperlyConfigured` naming the tool and the field. A Validator says so as
+  an `unsendable` attribute, a collection of field names, read off the
+  compiled spec's Validator and naming no package, so any Validator answering
+  it is read alike; one that does not answer names none. A spec compiled
+  `partial` is not refused. Rename the field, or make it optional, and the
+  tool builds.
+- **Breaking:** a call is answered by the kernel's refusals only. Its
+  `NotPermitted` and `PrincipalUnavailable` are a denial, logged and
+  re-raised, and its `InvalidArguments` and `ServiceValidationError`, raised
+  while dispatching or while rendering a read-shaping argument the model sent,
+  are handed back to the model as a retry. Django REST Framework's `PermissionDenied` and
+  `ValidationError` are neither any longer: one raised during a call escapes it
+  unchanged, so a spec library that raises them has to translate them into the
+  kernel's.
 - Two more declarations are refused when the toolset is built, with
   `ImproperlyConfigured` naming the tool, failing the whole toolset where its
   other tools used to build:
@@ -202,11 +223,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `name`.``
 - A refusal keyed under Django's `__all__` is read as a message about the
   whole input, without the key, as one under `non_field_errors` is.
-- `json_schema_registry=` describes drf-services specs only: a native spec is
-  described by its compiled parameters under any registry. A drf-services spec
-  declaring its own `json_schema_registry=` already carries its serializers'
-  nodes into the tool's schemas, so the keyword is needed only for a
-  `filter_set`'s filter type.
 
 ### Known differences
 

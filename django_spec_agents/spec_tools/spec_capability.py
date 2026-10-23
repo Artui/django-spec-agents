@@ -8,7 +8,6 @@ from typing import Any
 
 from django_service_specs import DEFAULT_POOL_SEEDS, PoolSeeds, ServerArguments, UnknownArguments
 from pydantic_ai.capabilities import AbstractCapability
-from rest_framework_services import DEFAULT_JSON_SCHEMA_REGISTRY, JsonSchemaRegistry
 
 from django_spec_agents.spec_tools.spec_toolset import (
     ExceptionHandler,
@@ -60,10 +59,9 @@ class SpecCapability(AbstractCapability[Any]):
             ``SpecRegistry``
             or a filtered view of one, so a project declaring its specs once can
             project several capabilities from them. Every entry is a
-            django-service-specs spec or a declaration that compiles to one,
-            such as a drf-services spec; one that compiles to no spec raises
-            ``TypeError`` when the capability is built, as it does for the
-            toolset.
+            django-service-specs spec or a declaration that compiles to one;
+            one that compiles to no spec raises ``TypeError`` when the
+            capability is built, as it does for the toolset.
         defer_loading: Hide the whole spec toolset and its instructions behind
             Pydantic-AI's native ``load_capability`` tool until the model loads
             it — progressive disclosure for a large spec map.
@@ -103,7 +101,6 @@ class SpecCapability(AbstractCapability[Any]):
         require_permissions: bool = True,
         descriptions: Mapping[str, str] | None = None,
         exception_map: Mapping[type[BaseException], ExceptionHandler] | None = None,
-        json_schema_registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
         pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
         thread_sensitive: bool = True,
         executor: ThreadPoolExecutor | None = None,
@@ -125,7 +122,6 @@ class SpecCapability(AbstractCapability[Any]):
             require_permissions=require_permissions,
             descriptions=descriptions,
             exception_map=exception_map,
-            json_schema_registry=json_schema_registry,
             pool_seeds=pool_seeds,
             thread_sensitive=thread_sensitive,
             executor=executor,

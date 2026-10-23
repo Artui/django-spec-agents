@@ -21,10 +21,10 @@ from django_service_specs import (
     DEFAULT_POOL_SEEDS,
     SelectorKind,
     ServerArguments,
+    ServiceValidationError,
     SpecRegistry,
 )
 from pydantic_ai import Agent
-from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework_services import QueryParam, SelectorSpec, UrlKwarg
 
 from django_spec_agents import AgentDeps
@@ -39,7 +39,7 @@ from tests.spec_tools.test_spec_toolset import (
     _NameSerializer,
     _paged_spec,
     _rows,
-    _StrictRestqlWidget,
+    _SelectingPresenter,
     _tool_return,
     ctx_for,
 )
@@ -360,12 +360,12 @@ async def test_a_bound_selection_the_render_rejects_is_the_server_s_error_not_a_
     user = await User.objects.acreate(username="u")
     await Widget.objects.acreate(owner=user, name="a")
     toolset = SpecToolset(
-        _registry(widgets=replace(_paged_spec(_StrictRestqlWidget), reads=(QueryParam("query"),))),
-        tool_server_arguments={"widgets": ServerArguments(values={"query": "{name, bogus}"})},
+        _registry(widgets=_paged_spec(_SelectingPresenter())),
+        tool_server_arguments={"widgets": ServerArguments(values={"fields": "name, bogus"})},
     )
 
-    with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
-        await _call(toolset, "widgets", user, {"query": "{id}"})
+    with pytest.raises(ServiceValidationError, match="`bogus` field is not found"):
+        await _call(toolset, "widgets", user, {})
 
 
 # --- a consumer scoping each run ----------------------------------------------

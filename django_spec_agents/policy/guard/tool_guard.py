@@ -38,7 +38,7 @@ class ToolGuard(AbstractCapability[Any]):
     - **MCP tool annotations** — ``metadata["annotations"]["readOnlyHint"] is
       False``. A toolset that speaks MCP's own vocabulary rather than this
       package's key declares a mutation this way, ``SpecToolset`` over a
-      drf-services ``ServiceSpec`` among them. Reading it gates a spec
+      ``ServiceSpec`` among them. Reading it gates a spec
       attached in process the way the bridge's key gates the same spec over
       drf-mcp, so a transport swap cannot silently remove the gate.
     - **The ``x-destructive`` schema stamp** at the root of

@@ -13,7 +13,6 @@ from django_service_specs import FieldAudience, FieldMarking, SelectorKind, Spec
 from pydantic_ai import ModelRetry
 from rest_framework.permissions import AllowAny
 from rest_framework_services import (
-    JsonSchemaRegistry,
     PolymorphicServiceSpec,
     QueryParam,
     SelectorSpec,
@@ -172,35 +171,6 @@ class TestANativeSpecIsServed:
         toolset = SpecToolset({"native_list": native})
 
         assert toolset._tool_defs["native_list"].metadata == {"annotations": {"readOnlyHint": True}}
-
-    @pytest.mark.parametrize(
-        "native",
-        [
-            pytest.param(_native_spec, id="service"),
-            pytest.param(
-                lambda: django_service_specs.SelectorSpec(
-                    kind=SelectorKind.LIST,
-                    selector=list_widgets,
-                    permissions=[django_service_specs.Unrestricted()],
-                ),
-                id="selector",
-            ),
-        ],
-    )
-    def test_a_native_spec_is_described_alike_under_a_consumer_registry(self, native: Any) -> None:
-        """A toolset's ``json_schema_registry`` describes drf-services'
-        serializers and filters, which a native spec has none of: its tool is
-        described as under the default registry, rather than reflected through
-        drf-services, which reads only its own classes."""
-        spec = native()
-
-        default = SpecToolset({"t": spec})._tool_defs["t"]
-        consumer = SpecToolset({"t": spec}, json_schema_registry=JsonSchemaRegistry())._tool_defs[
-            "t"
-        ]
-
-        assert consumer.parameters_json_schema == default.parameters_json_schema
-        assert consumer.return_schema == default.return_schema
 
     @pytest.mark.parametrize(
         ("sent", "seen"),

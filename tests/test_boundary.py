@@ -43,8 +43,8 @@ HOST_ONLY = "host_only_settings"
 HOST_ONLY_WITH_STORE = "host_only_store_settings"
 
 # What a bare root import must leave unloaded: the tool half, what only the
-# ``[specs]`` extra installs, and the run-loop test doubles, whose module says the
-# root never imports them.
+# ``[specs]`` and ``[drf-mcp]`` extras install, and the run-loop test doubles,
+# whose module says the root never imports them.
 NOT_FROM_THE_ROOT = (
     "django_spec_agents.spec_tools",
     "django_spec_agents.testing",
@@ -217,37 +217,9 @@ def _imports_under(source: str, *packages: str) -> set[str]:
     return {name for name in names if any(_is_or_under(name, p) for p in packages)}
 
 
-# What ``spec_tools`` still imports from Django REST Framework and drf-services,
-# each name beside the change upstream that lets it go. Every other read is the
-# compiled spec's, through the kernel.
+# ``spec_tools`` reads every spec through the kernel, so it imports nothing from
+# Django REST Framework or drf-services.
 _DRF = ("rest_framework", "rest_framework_services")
-DRF_RESIDUALS = {
-    # A permission class raising DRF's refusal itself, rather than answering
-    # False, reaches the toolset as DRF's class: drf-services' compiled
-    # permission check does not translate it into the kernel's ``NotPermitted``.
-    "spec_toolset.py: rest_framework.exceptions.PermissionDenied",
-    # drf-services' ``SerializerPresenter`` raises DRF's ``ValidationError``
-    # where the kernel's ``InvalidArguments`` belongs, and a service raising
-    # DRF's class reaches the kernel route as it was raised.
-    "spec_toolset.py: rest_framework.exceptions.ValidationError",
-    # An input serializer field required under a name drf-services fills
-    # itself: no compiled Validator declares it, so only the serializer can say
-    # it is there. drf-services' compile could refuse it instead.
-    "spec_toolset.py: rest_framework_services.ServiceSpec",
-    "spec_toolset.py: rest_framework_services.service_specs.utils.describe_serializer",
-    # ``json_schema_registry=``: a spec's own registry reaches its fields'
-    # schemas when it compiles, and not its filters', which the kernel's filter
-    # adapter describes with no registry. The keyword, and drf-services'
-    # reflection behind it, go once a filter compiles from the spec's registry.
-    "spec_capability.py: rest_framework_services.DEFAULT_JSON_SCHEMA_REGISTRY",
-    "spec_capability.py: rest_framework_services.JsonSchemaRegistry",
-    "spec_toolset.py: rest_framework_services.DEFAULT_JSON_SCHEMA_REGISTRY",
-    "spec_toolset.py: rest_framework_services.JsonSchemaRegistry",
-    "spec_toolset.py: rest_framework_services.SelectorSpec",
-    "spec_toolset.py: rest_framework_services.can_present_nothing",
-    "spec_toolset.py: rest_framework_services.output_to_json_schema",
-    "spec_toolset.py: rest_framework_services.spec_to_json_schema",
-}
 
 
 def _drf_imports() -> set[str]:
@@ -258,24 +230,9 @@ def _drf_imports() -> set[str]:
     }
 
 
-def test_spec_tools_imports_of_drf_are_exactly_the_named_residuals() -> None:
-    """Pinned as a set, so a new import of either package fails here, and so
-    does a residual left listed after its use has gone."""
-    assert _drf_imports() == DRF_RESIDUALS
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "spec_tools still imports DRF and drf-services for the residuals "
-        "DRF_RESIDUALS names: DRF's PermissionDenied and ValidationError, which "
-        "drf-services' permission check, presenter and services raise untranslated; "
-        "describe_serializer, which a compiled Validator cannot stand in for; and "
-        "json_schema_registry=, which a filter's schema still needs"
-    ),
-)
 def test_spec_tools_imports_neither_drf_nor_drf_services() -> None:
+    """Pinned as an empty set, so a new import of either package fails here,
+    naming the module and the name it imports."""
     assert _drf_imports() == set()
 
 

@@ -9,12 +9,12 @@ from typing import Any, Protocol, runtime_checkable
 class SpecSource(Protocol):
     """Anything that can hand back a ``name -> spec`` mapping.
 
-    ``djangorestframework-services``' ``SpecRegistry`` is the intended
+    ``django-service-specs``' ``SpecRegistry`` is the intended
     implementation: a project exposing the same specs over more than one
     transport declares them there once, and each transport reads that source.
 
     It is matched structurally rather than imported, because this substrate
-    depends on ``pydantic-ai-slim`` alone and drf-services arrives only with the
+    depends on ``pydantic-ai-slim`` alone and the kernel arrives only with the
     optional ``[specs]`` extra. Naming ``SpecRegistry`` in a signature would
     force that dependency on every install or bury the type behind a lazy import
     where a signature cannot reach it.

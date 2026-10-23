@@ -1,8 +1,8 @@
-"""Build a Pydantic-AI capability over drf-services specs, with no MCP hop.
+"""Build a Pydantic-AI capability over django-service-specs specs, with no MCP hop.
 
 Requires the ``django-spec-agents[specs]`` extra, so consumers import
-this module lazily and ``spec_tools``, with the DRF and drf-services it needs,
-stays optional.
+this module lazily and ``spec_tools``, with the kernel it needs, stays
+optional.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ def build_spec_capability(
 ) -> Any:
     """A ``SpecCapability`` over ``specs``, acting as the run's ``deps.user``.
 
-    Each spec is called in process through drf-services' transport-neutral
-    surface, which enforces its ``permission_classes``. Nothing here closes over
+    Each spec is called in process through the kernel's ``dispatch``, which
+    enforces its ``permissions``. Nothing here closes over
     a request: ``SpecToolset``'s default extractor already reads
     ``ctx.deps.user``, so a run given
     [`AgentDeps`][django_spec_agents.AgentDeps] binds the

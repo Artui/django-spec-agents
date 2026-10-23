@@ -25,7 +25,6 @@ from django.db import connection, connections
 from django.db.models import Q
 from django.http import Http404
 from django.test import RequestFactory
-from django_restql.mixins import DynamicFieldsMixin
 from django_service_specs import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_POOL_SEEDS,
@@ -64,12 +63,10 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.request import Request
 from rest_framework.views import APIView
 from rest_framework_services import (
-    DEFAULT_JSON_SCHEMA_REGISTRY,
     MARKING,
     InputRequired,
     NotClientInput,
@@ -1114,7 +1111,7 @@ def test_a_schema_fragment_wins_over_the_input_schema_key_by_key():
     ],
     ids=["unknown-phase", "phase-not-a-mapping"],
 )
-def test_a_fragment_drf_services_would_refuse_is_refused_naming_the_tool(declared, refusal):
+def test_a_malformed_phase_is_refused_naming_the_tool(declared, refusal):
     """The rest of drf-services' reading, in its words: a key naming no phase,
     which is the misplaced fragment the shape invites, and a phase that is not
     a mapping, the ``output`` one included, though nothing reads it on the way
@@ -3412,32 +3409,27 @@ async def test_a_denial_is_logged_at_warning_and_still_raises(caplog):
     assert "Permission denied calling tool 'list_widgets'" in caplog.text
 
 
-def _refusing_with(refusal: BaseException) -> ServiceSpec:
-    """A guarded spec whose service raises ``refusal`` exactly, and nothing else."""
+@pytest.mark.django_db(transaction=True)
+async def test_a_refusal_the_service_raises_is_logged_as_a_denial(caplog):
+    """The kernel's ``NotPermitted``, raised bare by the service itself rather
+    than by a permission check, is answered by the denial arm all the same."""
 
     def refuse(user):
         """Refuse."""
-        raise refusal
+        raise NotPermitted("not yours")
 
-    return ServiceSpec(service=refuse, permission_classes=[AllowAny], atomic=False)
-
-
-@pytest.mark.parametrize(
-    "refusal",
-    [NotPermitted("not yours"), PermissionDenied("not yours")],
-    ids=["the-kernel-s", "drf-s"],
-)
-@pytest.mark.django_db(transaction=True)
-async def test_each_kind_of_refusal_is_logged_as_a_denial(caplog, refusal):
-    """The denial arm answers both refusals, each raised bare, so neither
-    class in its tuple stands in for the other: drf-services' own permission
-    refusal subclasses both and would hold neither."""
     user = await sync_to_async(User.objects.create)(username="u")
-    toolset = SpecToolset({"refuse": _refusing_with(refusal)})
+    toolset = SpecToolset(
+        {
+            "refuse": django_service_specs.ServiceSpec(
+                service=refuse, permissions=[django_service_specs.Unrestricted()], atomic=False
+            )
+        }
+    )
 
     with (
         caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"),
-        pytest.raises(type(refusal)),
+        pytest.raises(NotPermitted),
     ):
         await toolset.call_tool("refuse", {}, ctx_for(user), None)
 
@@ -4863,354 +4855,91 @@ async def test_a_dispatcher_name_the_model_sends_is_refused_or_dropped(policy, s
             await _call(toolset, "mine", user, {"user": "globex"})
 
 
-class _UserFieldSerializer(serializers.Serializer):
-    user = serializers.CharField()
+@dataclass
+class _NoteInput:
+    text: str
 
 
-def _noting(policy: UnknownArguments = UnknownArguments.REJECT) -> SpecToolset:
-    """A toolset whose one service's input serializer requires a ``user`` field."""
+class _UnsendableValidator(django_service_specs.DataclassValidator):
+    """A Validator answering that it requires ``user``, which no call can send."""
 
-    def note(data: dict[str, Any]) -> dict[str, Any]:
-        """Keep a note."""
-        return dict(data)
-
-    return SpecToolset(
-        {
-            "note": ServiceSpec(
-                service=note,
-                input_serializer=_UserFieldSerializer,
-                atomic=False,
-                permission_classes=[AllowAny],
-            )
-        },
-        unknown_arguments=policy,
-    )
+    unsendable = frozenset({"user"})
 
 
-@pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
-def test_a_field_named_like_a_dispatcher_name_is_refused_naming_the_tool(policy):
-    """No call can serve a service whose input serializer requires a field
-    under one of the dispatcher's own names: drf-services' compiled Validator
-    declares no parameter for it, so the kernel refuses the model's value as an
-    unknown argument under ``REJECT`` and drops it under ``IGNORE``, and the
-    serializer then fails the call for the missing field. So the toolset
-    refuses the spec when it is built, under either policy, naming the tool and
-    the field."""
-    with pytest.raises(
-        ImproperlyConfigured,
-        match=(
-            r"^SpecToolset tool 'note': the input serializer requires \['user'\], "
-            r"which no call can send"
-        ),
-    ):
-        _noting(policy)
+class _PartialUnsendableValidator(_UnsendableValidator):
+    """The same answer, from a Validator that can validate a partial call."""
+
+    supports_partial = True
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        "user",
-        "data",
-        "instance",
-        "collection",
-        "result",
-        "queryset",
-        "progress",
-        "call_context",
-        "serializer",
-    ],
-)
-def test_each_name_the_guide_lists_is_refused_as_a_required_field(name):
-    """The names ``docs/spec-tools/quickstart.md`` lists, each as a required
-    field, are refused: the dispatcher's own names and ``serializer``, the
-    name drf-services' Validator binds, none of which its compiled Validator
-    declares a parameter for."""
-    serializer = type("_Named", (serializers.Serializer,), {name: serializers.CharField()})
-
-    def keep(data: dict[str, Any]) -> dict[str, Any]:
-        """Keep it."""
-        return dict(data)
-
-    spec = ServiceSpec(
-        service=keep, input_serializer=serializer, atomic=False, permission_classes=[AllowAny]
-    )
-
-    with pytest.raises(
-        ImproperlyConfigured, match=rf"requires \['{name}'\], which no call can send"
-    ):
-        SpecToolset({"keep": spec})
-
-
-class _OptionalUserSerializer(serializers.Serializer):
-    user = serializers.CharField(required=False)
-    text = serializers.CharField()
-
-
-def _keep_note(data: dict[str, Any]) -> dict[str, Any]:
+def _keep_note(data: Any) -> Any:
     """Keep a note."""
-    return dict(data)
-
-
-@pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
-async def test_an_optional_field_named_like_a_dispatcher_name_still_builds_and_serves(policy):
-    """A call can leave an optional field out, so a ``user`` field the
-    serializer does not require costs the tool nothing but the field: the
-    toolset builds, does not advertise it, and serves a call without it. Holds
-    the ``required`` conjunct of ``_refuse_unsendable_fields``."""
-    toolset = SpecToolset(
-        {
-            "note": ServiceSpec(
-                service=_keep_note,
-                input_serializer=_OptionalUserSerializer,
-                atomic=False,
-                permission_classes=[AllowAny],
-            )
-        },
-        unknown_arguments=policy,
-    )
-
-    assert list(_input_schema_of(toolset, "note")["properties"]) == ["text"]
-    assert await _call(toolset, "note", User(username="u"), {"text": "hi"}) == {"text": "hi"}
-
-
-async def test_a_partial_service_may_name_a_required_field_like_a_dispatcher_name():
-    """A ``partial`` serializer requires none of its fields of a call, so a
-    ``user`` field it declares required is left out as any other is, and the
-    tool builds and serves. Holds the ``partial`` arm of
-    ``_refuse_unsendable_fields``."""
-    toolset = SpecToolset(
-        {
-            "note": ServiceSpec(
-                service=_keep_note,
-                input_serializer=_UserFieldSerializer,
-                partial=True,
-                atomic=False,
-                permission_classes=[AllowAny],
-            )
-        }
-    )
-
-    assert await _call(toolset, "note", User(username="u"), {}) == {}
-
-
-class _ReadOnlyUserSerializer(serializers.Serializer):
-    user = serializers.CharField(read_only=True)
-    text = serializers.CharField()
-
-
-class _OrgNoteSerializer(serializers.Serializer):
-    org = serializers.CharField()
-    text = serializers.CharField()
-
-
-def _org_note_spec() -> ServiceSpec:
-    return ServiceSpec(
-        service=_keep_note,
-        input_serializer=_OrgNoteSerializer,
-        atomic=False,
-        permission_classes=[AllowAny],
-    )
-
-
-async def test_a_required_field_the_server_binds_is_not_refused():
-    """A required field ``tool_server_arguments`` binds is one of the compiled
-    Validator's parameters, as every bound name must be, so the toolset builds,
-    the tool does not ask the model for it, and the call is served the bound
-    value. Holds the ``not in own`` conjunct of ``_refuse_unsendable_fields``
-    for a field the server fills."""
-    toolset = SpecToolset(
-        {"note": _org_note_spec()},
-        tool_server_arguments={"note": ServerArguments(values={"org": "acme"})},
-    )
-
-    assert list(_input_schema_of(toolset, "note")["properties"]) == ["text"]
-    assert await _call(toolset, "note", User(username="u"), {"text": "hi"}) == {
-        "org": "acme",
-        "text": "hi",
-    }
-
-
-def test_a_required_field_named_like_a_call_seed_is_not_refused():
-    """A name only a ``call_seeds`` override fills is not one drf-services
-    fills itself, so a required field of that name is a parameter, and the
-    toolset builds."""
-
-    class OrgSeeded(SpecToolset):
-        def call_seeds(self, *, ctx, tool_name):
-            return {"org": lambda: "seeded"}
-
-    toolset = OrgSeeded({"note": _org_note_spec()})
-
-    assert "note" in toolset._tool_defs
-
-
-def test_a_read_only_field_may_carry_a_dispatcher_name():
-    """A ``read_only`` field takes no input, so naming one ``user`` asks the
-    model for nothing the dispatcher fills, and the tool builds: DRF never
-    marks a ``read_only`` field ``required``."""
-
-    def note(data: dict[str, Any]) -> dict[str, Any]:
-        """Keep a note."""
-        return dict(data)
-
-    toolset = SpecToolset(
-        {
-            "note": ServiceSpec(
-                service=note,
-                input_serializer=_ReadOnlyUserSerializer,
-                atomic=False,
-                permission_classes=[AllowAny],
-            )
-        }
-    )
-
-    assert list(_input_schema_of(toolset, "note")["properties"]) == ["text"]
-
-
-def _keep_notes(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Keep the notes."""
-    return [dict(row) for row in data]
-
-
-def test_a_bulk_row_requiring_a_dispatcher_name_is_refused_naming_the_tool():
-    """A ``many=True`` service's rows are validated by the same compiled
-    Validator, which declares no parameter for a row field named ``user``
-    either, so under ``REJECT`` a row carrying it is refused
-    (``items[0].user: Unknown argument.``) and under ``IGNORE`` it is dropped
-    and then missing: no call can be served, and the toolset refuses the spec
-    when it is built, as for a single row."""
-    with pytest.raises(
-        ImproperlyConfigured,
-        match=r"^SpecToolset tool 'notes': the input serializer requires \['user'\]",
-    ):
-        SpecToolset(
-            {
-                "notes": ServiceSpec(
-                    service=_keep_notes,
-                    input_serializer=_UserFieldSerializer,
-                    many=True,
-                    atomic=False,
-                    permission_classes=[AllowAny],
-                )
-            }
-        )
-
-
-@pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
-async def test_a_bulk_row_s_optional_dispatcher_named_field_builds_and_serves(policy):
-    """A row field named ``user`` the serializer does not require costs the
-    rows nothing but the field: the toolset builds and serves rows without it."""
-    toolset = SpecToolset(
-        {
-            "notes": ServiceSpec(
-                service=_keep_notes,
-                input_serializer=_OptionalUserSerializer,
-                many=True,
-                atomic=False,
-                permission_classes=[AllowAny],
-            )
-        },
-        unknown_arguments=policy,
-    )
-
-    assert await _call(toolset, "notes", User(username="u"), {"items": [{"text": "hi"}]}) == [
-        {"text": "hi"}
-    ]
-
-
-class _RequestScopedNoteSerializer(serializers.Serializer):
-    """Reads its request while building its fields, as a serializer scoping a
-    field to the caller does; off HTTP the request is ``None``."""
-
-    def get_fields(self):
-        # A scoping serializer would branch on the request; reading the key is
-        # what a bare instance, with no context, cannot do.
-        self.context["request"]
-        return {"text": serializers.CharField()}
-
-
-@dataclass
-class _DataclassNote:
-    text: str
-
-
-@dataclass
-class _DataclassUserNote:
-    user: str
-    text: str
-
-
-def _keep_any_note(data: Any) -> Any:
-    """Keep a note, or several."""
-    if isinstance(data, list):
-        return [_keep_any_note(row) for row in data]
     return asdict(data) if is_dataclass(data) else dict(data)
 
 
-@pytest.mark.parametrize("many", [False, True], ids=["single", "many"])
-@pytest.mark.parametrize(
-    "declaration",
-    [_RequestScopedNoteSerializer, _DataclassNote],
-    ids=["context-reading", "dataclass"],
-)
-async def test_an_input_drf_services_describes_builds_and_serves(declaration, many):
-    """The field check reads the serializer as drf-services describes it: a
-    dataclass through a ``DataclassSerializer``, and a ``get_fields`` reading
-    ``self.context["request"]`` with the key present and ``None``. Built bare,
-    the first raises ``TypeError`` and the second ``KeyError`` when the
-    toolset is built, failing every tool in it unnamed."""
-    toolset = SpecToolset(
-        {
-            "note": ServiceSpec(
-                service=_keep_any_note,
-                input_serializer=declaration,
-                many=many,
-                atomic=False,
-                permission_classes=[AllowAny],
-            )
-        }
+def _note_spec(
+    validator: django_service_specs.Validator, *, partial: bool = False
+) -> django_service_specs.ServiceSpec:
+    return django_service_specs.ServiceSpec(
+        service=_keep_note,
+        validator=validator,
+        partial=partial,
+        atomic=False,
+        permissions=[django_service_specs.Unrestricted()],
     )
 
-    sent = {"items": [{"text": "hi"}]} if many else {"text": "hi"}
-    served = await _call(toolset, "note", User(username="u"), sent)
 
-    assert served == ([{"text": "hi"}] if many else {"text": "hi"})
-
-
-def test_a_dataclass_input_requiring_a_dispatcher_name_is_refused():
-    """A dataclass's fields are described as drf-services validates them, so a
-    required ``user`` field on one is refused as on a serializer."""
-    with pytest.raises(ImproperlyConfigured, match=r"requires \['user'\]"):
+@pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
+def test_a_field_the_validator_calls_unsendable_is_refused_naming_the_tool(policy):
+    """A Validator's ``unsendable`` names the required fields it declares no
+    parameter for, so the kernel refuses the model's value for one as an
+    unknown argument under ``REJECT`` and drops it under ``IGNORE``, and the
+    Validator then fails the call for the missing field. So the toolset refuses
+    the spec when it is built, under either policy, naming the tool and the
+    field. Read duck-typed, naming no package, so any Validator answering it is
+    read alike."""
+    with pytest.raises(
+        ImproperlyConfigured,
+        match=(
+            r"^SpecToolset tool 'note': the input requires \['user'\], "
+            r"which no call can send"
+        ),
+    ):
         SpecToolset(
-            {
-                "note": ServiceSpec(
-                    service=_keep_any_note,
-                    input_serializer=_DataclassUserNote,
-                    atomic=False,
-                    permission_classes=[AllowAny],
-                )
-            }
+            {"note": _note_spec(_UnsendableValidator(_NoteInput))}, unknown_arguments=policy
         )
 
 
-def test_a_partial_flag_drf_services_does_not_compile_as_partial_exempts_nothing():
-    """drf-services compiles a spec partial only when its ``partial`` is
-    ``True``, so a truthy ``1`` leaves every field required, and a required
-    ``user`` field is refused as on any other service, where reading the
-    spec's own flag would have built a tool no call can serve. Holds the
-    partial arm of ``_refuse_unsendable_fields`` reading the compiled spec."""
-    with pytest.raises(ImproperlyConfigured, match=r"requires \['user'\]"):
-        SpecToolset(
-            {
-                "note": ServiceSpec(
-                    service=_keep_note,
-                    input_serializer=_UserFieldSerializer,
-                    partial=1,
-                    atomic=False,
-                    permission_classes=[AllowAny],
-                )
-            }
-        )
+async def test_a_validator_that_does_not_answer_unsendable_builds_and_serves():
+    """A Validator without the attribute names no field, so the tool builds
+    and serves: the attribute is optional, and its absence is "none"."""
+    toolset = SpecToolset({"note": _note_spec(django_service_specs.DataclassValidator(_NoteInput))})
+
+    assert await _call(toolset, "note", User(username="u"), {"text": "hi"}) == {"text": "hi"}
+
+
+async def test_an_empty_answer_builds_and_serves():
+    """An empty ``unsendable`` refuses nothing."""
+
+    class Sendable(django_service_specs.DataclassValidator):
+        unsendable: frozenset[str] = frozenset()
+
+    toolset = SpecToolset({"note": _note_spec(Sendable(_NoteInput))})
+
+    assert await _call(toolset, "note", User(username="u"), {"text": "hi"}) == {"text": "hi"}
+
+
+def test_a_partial_service_is_not_refused_for_an_unsendable_field():
+    """A partial call may leave any field out, so a field no call can send is
+    left out as any other is and the tool builds. The attribute names the field
+    whether or not the spec is partial, so the toolset reads the compiled
+    spec's ``partial`` itself. Holds the ``partial`` arm of
+    ``_refuse_unsendable_fields``."""
+    toolset = SpecToolset(
+        {"note": _note_spec(_PartialUnsendableValidator(_NoteInput), partial=True)}
+    )
+
+    assert "note" in toolset._tool_defs
 
 
 @pytest.mark.parametrize(
@@ -7593,285 +7322,39 @@ def test_translate_exception_sees_the_code_before_the_default_renders_it():
     assert caught.value.message == "The books are closed. (code: books_closed)"
 
 
-# --- JsonSchemaRegistry threading ---------------------------------------------
-
-
-class _RatingField(serializers.IntegerField):
-    """A project's own field type, which the built-in walkers know nothing about."""
-
-
-class _RatedWidgetSerializer(serializers.ModelSerializer):
-    rating = _RatingField(required=False)
-
-    class Meta:
-        model = Widget
-        fields = ["id", "name", "rating"]
-
-
-def _rated_spec(kind=SelectorKind.LIST):
-    return SelectorSpec(
-        kind=kind,
-        selector=list_widgets,
-        output_serializer=_RatedWidgetSerializer,
-        permission_classes=[AllowAny],
-    )
-
-
-_RATING_SCHEMA = {"type": "integer", "minimum": 1, "maximum": 5}
-_RATING_REGISTRY = DEFAULT_JSON_SCHEMA_REGISTRY.extend(fields=[(_RatingField, _RATING_SCHEMA)])
-
-
-async def test_a_consumer_registry_reaches_the_return_schema():
-    """Without it a project's own field type reaches the model as ``{}`` -- the
-    schema saying nothing at the field most likely to be got wrong."""
-    tools = await SpecToolset(
-        {"list": _rated_spec()}, json_schema_registry=_RATING_REGISTRY
-    ).get_tools(None)
-
-    item = tools["list"].tool_def.return_schema["properties"]["items"]["items"]
-    assert item["properties"]["rating"] == _RATING_SCHEMA
-
-
-async def test_a_consumer_registry_reaches_the_input_schema():
-    spec = ServiceSpec(
-        service=create_widget,
-        input_serializer=_RatedWidgetSerializer,
-        permission_classes=[AllowAny],
-    )
-    tools = await SpecToolset({"make": spec}, json_schema_registry=_RATING_REGISTRY).get_tools(None)
-
-    props = tools["make"].tool_def.parameters_json_schema["properties"]
-    assert props["rating"] == _RATING_SCHEMA
-
-
-@pytest.mark.parametrize("phase", ["input", "return"])
-async def test_a_spec_s_own_registry_reaches_its_schemas_with_none_on_the_toolset(phase):
-    """The way to describe a project's own field type without the toolset's
-    keyword: the spec declares ``json_schema_registry=`` itself, which it
-    compiles into its parameters and its output, so the kernel's schema
-    already carries the node."""
-    if phase == "input":
-        spec = ServiceSpec(
-            service=create_widget,
-            input_serializer=_RatedWidgetSerializer,
-            json_schema_registry=_RATING_REGISTRY,
-            permission_classes=[AllowAny],
-        )
-    else:
-        spec = replace(
-            _rated_spec(kind=SelectorKind.RETRIEVE), json_schema_registry=_RATING_REGISTRY
-        )
-    tools = await SpecToolset({"t": spec}).get_tools(None)
-
-    tool_def = tools["t"].tool_def
-    schema = tool_def.parameters_json_schema if phase == "input" else tool_def.return_schema
-    assert schema["properties"]["rating"] == _RATING_SCHEMA
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "drf-services compiles a spec's json_schema_registry into its serializers' "
-        "nodes, not its filter_set's, so a filter type still needs the toolset's "
-        "keyword"
-    ),
-)
-async def test_a_spec_s_own_registry_reaches_a_filter_with_none_on_the_toolset():
-    spec = SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=list_widgets,
-        output_serializer=WidgetSerializer,
-        filter_set=_RatedFilterSet,
-        json_schema_registry=DEFAULT_JSON_SCHEMA_REGISTRY.extend(
-            filters=[(_RatingFilter, _RATING_SCHEMA)]
-        ),
-        permission_classes=[AllowAny],
-    )
-    tools = await SpecToolset({"list": spec}).get_tools(None)
-
-    rating = tools["list"].tool_def.parameters_json_schema["properties"]["rating"]
-    assert {key: rating.get(key) for key in _RATING_SCHEMA} == _RATING_SCHEMA
-
-
-async def test_a_registry_on_both_the_spec_and_the_toolset_reaches_every_node():
-    """The spec's own registry and the toolset's keyword together: the filter
-    node, which only the keyword reaches, carries the custom schema beside the
-    serializer field the spec's registry reaches. Holds the default registry
-    in ``_with_registry_nodes``' comparison: reflected without it, drf-services
-    falls back to the spec's own registry, both reflections agree, and the
-    filter keeps the node the kernel spelled."""
-    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
-        fields=[(_RatingField, _RATING_SCHEMA)], filters=[(_RatingFilter, _RATING_SCHEMA)]
-    )
-    spec = SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=list_widgets,
-        output_serializer=_RatedWidgetSerializer,
-        filter_set=_RatedFilterSet,
-        json_schema_registry=registry,
-        permission_classes=[AllowAny],
-    )
-
-    tools = await SpecToolset({"list": spec}, json_schema_registry=registry).get_tools(None)
-
-    tool_def = tools["list"].tool_def
-    rating = tool_def.parameters_json_schema["properties"]["rating"]
-    assert {key: rating.get(key) for key in _RATING_SCHEMA} == _RATING_SCHEMA
-    item = tool_def.return_schema["properties"]["items"]["items"]
-    assert item["properties"]["rating"] == _RATING_SCHEMA
-
-
-async def test_a_consumer_registry_leaves_what_it_does_not_describe_as_the_kernel_spells_it():
-    """A consumer registry changes the node of the field it describes and
-    nothing else: every other property, the argument set, ``required`` and
-    ``additionalProperties`` are the kernel's, as a toolset with no registry of
-    its own advertises them."""
-    spec = ServiceSpec(
-        service=create_widget,
-        input_serializer=_RatedWidgetSerializer,
-        permission_classes=[AllowAny],
-    )
-    plain = _input_schema_of(SpecToolset({"make": spec}), "make")
-
-    rated = _input_schema_of(
-        SpecToolset({"make": spec}, json_schema_registry=_RATING_REGISTRY), "make"
-    )
-
-    assert rated["properties"]["rating"] != plain["properties"]["rating"]
-    assert {key: value for key, value in rated.items() if key != "properties"} == {
-        key: value for key, value in plain.items() if key != "properties"
-    }
-    assert {name: node for name, node in rated["properties"].items() if name != "rating"} == {
-        name: node for name, node in plain["properties"].items() if name != "rating"
-    }
-
-
-async def test_without_a_registry_a_custom_field_says_nothing():
-    """The pre-change behaviour, kept as the contrast: the default registry is
-    empty, so an unrecognised field falls back to "any value"."""
-    tools = await SpecToolset({"list": _rated_spec()}).get_tools(None)
-
-    item = tools["list"].tool_def.return_schema["properties"]["items"]["items"]
-    assert item["properties"]["rating"] != _RATING_SCHEMA
+# --- A filter's schema ----------------------------------------------------------
 
 
 class _RatingFilter(django_filters.NumberFilter):
-    """A custom filter type, for the other half of the registry."""
-
-
-class _RatedOrderedFilterSet(django_filters.FilterSet):
-    rating = _RatingFilter(field_name="price")
-    ordering = django_filters.OrderingFilter(fields=(("price", "cost"),))
-
-    class Meta:
-        model = Widget
-        fields = []
-
-
-def test_a_consumer_registry_takes_no_node_it_does_not_change():
-    """Only the nodes a consumer registry changes are drf-services'. An
-    ``OrderingFilter`` beside the registry's own filter type keeps the kernel's
-    array of sort keys, where drf-services' reflection spells the filter as a
-    set of labelled choices, so the overlay is not a swap of one schema for the
-    other. Holds the comparison in ``_with_registry_nodes``."""
-    spec = SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=list_widgets,
-        output_serializer=WidgetSerializer,
-        filter_set=_RatedOrderedFilterSet,
-        permission_classes=[AllowAny],
-    )
-    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(filters=[(_RatingFilter, _RATING_SCHEMA)])
-
-    plain = _input_schema_of(SpecToolset({"list": spec}), "list")
-    rated = _input_schema_of(SpecToolset({"list": spec}, json_schema_registry=registry), "list")
-
-    assert rated["properties"]["rating"] != plain["properties"]["rating"]
-    assert rated["properties"]["ordering"] == plain["properties"]["ordering"]
-    assert rated["properties"]["ordering"]["type"] == "array"
-
-
-def test_a_list_tool_with_a_read_shape_promises_no_field_of_its_rows():
-    """A read shape may leave any field out of a row, so the return schema of a
-    spec declaring one requires none of the row's fields, where the same spec
-    without it requires what its serializer always writes."""
-    plain = SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=list_widgets,
-        output_serializer=WidgetSerializer,
-        permission_classes=[AllowAny],
-    )
-    toolset = SpecToolset({"plain": plain, "shaped": replace(plain, reads=(QueryParam("fields"),))})
-
-    def row(name: str) -> dict[str, Any]:
-        return toolset._tool_defs[name].return_schema["properties"]["items"]["items"]
-
-    assert row("plain")["required"] == ["name"]
-    assert "required" not in row("shaped")
-    assert row("shaped")["properties"] == row("plain")["properties"]
-
-
-def test_a_number_filter_is_advertised_as_the_decimal_string_it_parses():
-    """A ``NumberFilter`` is a ``DecimalField`` underneath, and the kernel
-    spells its argument as the decimal string that field parses, bounded as
-    the field bounds it, rather than as a JSON number."""
-    schema = _input_schema_of(SpecToolset({"rows": _filtered_list_spec()}), "rows")
-
-    node = schema["properties"]["min_price"]
-    assert (node["type"], node["format"]) == ("string", "decimal")
-
-
-def widgets_in_region(user, region: str | None = None):
-    """The rows in one region, or every row."""
-    return Widget.objects.all()
-
-
-def test_a_nullable_parameter_is_one_type_list_with_its_default():
-    """A parameter admitting ``None`` is one node whose ``type`` lists
-    ``"null"``, with the default it declares stated, rather than an ``anyOf``
-    of two nodes."""
-    spec = SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=widgets_in_region,
-        output_serializer=WidgetSerializer,
-        permission_classes=[AllowAny],
-    )
-
-    node = _input_schema_of(SpecToolset({"rows": spec}), "rows")["properties"]["region"]
-
-    assert node == {"type": ["string", "null"], "default": None}
+    """A project's own filter type, which no rule anywhere describes."""
 
 
 class _RatedFilterSet(django_filters.FilterSet):
-    rating = _RatingFilter(field_name="price")
+    rating = _RatingFilter(field_name="id")
 
     class Meta:
         model = Widget
         fields = []
 
 
-async def test_a_consumer_registry_reaches_the_ordering_predicate_too():
-    """``_spec_ordering_argument`` reads the same reflected schema the builder
-    does, so it has to read it against the same registry -- one signal, one
-    answer, whatever rules a consumer added.
-    """
-    spec = SelectorSpec(
+async def test_a_filter_is_described_as_the_kernel_derives_it():
+    """The toolset takes no schema registry, so a filter's node is the kernel's
+    derivation from the filter set, as ``spec_input_schema`` states it: a
+    ``NumberFilter`` subclass is a decimal string, whatever type the project
+    means by it. What is advertised is what the kernel's dispatch enforces."""
+    spec = django_service_specs.SelectorSpec(
         kind=SelectorKind.LIST,
         selector=list_widgets,
-        output_serializer=WidgetSerializer,
         filter_set=_RatedFilterSet,
-        permission_classes=[AllowAny],
+        permissions=[django_service_specs.Unrestricted()],
     )
-    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(filters=[(_RatingFilter, _RATING_SCHEMA)])
 
-    tools = await SpecToolset({"list": spec}, json_schema_registry=registry).get_tools(None)
+    tools = await SpecToolset({"list": spec}).get_tools(None)
 
     rating = tools["list"].tool_def.parameters_json_schema["properties"]["rating"]
-    # The registry supplies the *type*; drf-services still annotates what the
-    # filter matches, which is the half a consumer rule has no opinion about.
-    assert {key: rating[key] for key in _RATING_SCHEMA} == _RATING_SCHEMA
-    assert _spec_ordering_argument(spec) is None
+    assert rating == spec_input_schema(spec)["properties"]["rating"]
+    assert rating["type"] == "string"
+    assert rating["format"] == "decimal"
 
 
 def _thread_naming_spec() -> ServiceSpec:
@@ -8440,67 +7923,59 @@ async def test_an_instructions_override_never_derives_at_all():
 # --- a read-shaping value the render rejects ----------------------------------
 #
 # A read-shaping param is the one caller input read while the output renders
-# rather than while the call dispatches: a ``fields`` or ``query`` selection is
-# parsed inside the output serializer's ``to_representation``. So a selection it
-# rejects fails after the dispatch arms have closed, where a raw DRF
-# ``ValidationError`` would end the run. These pin what the model gets back, and
-# the cases where nothing it sent could have caused the error and the error stays
-# loud. The toolset never reads the value, so the producers are mixed on purpose:
-# real django-restql, the strict selector most likely to be in use, and a
-# serializer that parses its own ``fields`` and words its own refusal.
+# rather than while the call dispatches: a ``fields`` selection reaches the
+# presenter on the kernel's ``shapes`` and is read as each row is presented. So
+# a selection it rejects fails after the dispatch arms have closed, where a raw
+# refusal would end the run. These pin what the model gets back, and the cases
+# where nothing it sent could have caused the error and the error stays loud.
 
 
-class _StrictRestqlWidget(DynamicFieldsMixin, serializers.ModelSerializer):
-    """Real django-restql at its upstream default: an unknown field raises."""
-
-    class Meta:
-        model = Widget
-        fields = ["id", "name"]
+def _selection(shapes: Any) -> list[str] | None:
+    raw = shapes.get("fields")
+    return [name.strip() for name in raw.split(",")] if raw else None
 
 
-def _rejecting(exc: BaseException) -> type[serializers.Serializer]:
-    """A serializer that refuses to render, whatever the query string holds.
+class _SelectingPresenter(django_service_specs.Presenter):
+    """A row's ``id`` and ``name``, narrowed by a ``fields`` selection it parses.
 
-    For the cases about *who* shaped the render, where the serializer has to
-    fail with nothing supplied as well -- which real restql, correctly, does not.
+    Refuses an unknown name in its own words, with no full stop, so a test
+    through it shows the retry carries whatever the presenter says.
     """
 
-    class Rejecting(serializers.Serializer):
-        def to_representation(self, instance: Any) -> Any:
-            raise exc
+    def output(self) -> django_service_specs.Output:
+        return django_service_specs.Output(
+            (
+                django_service_specs.OutputField("id", "integer"),
+                django_service_specs.OutputField("name", "string"),
+            )
+        )
 
-    return Rejecting
+    def present(self, value: Any) -> Any:
+        return {"id": value.pk, "name": value.name}
 
-
-def _restql_not_found(name: str) -> DRFValidationError:
-    """Exactly what django-restql 0.18.0's ``is_field_found`` raises from
-    ``to_representation``, so a stand-in built on it describes a producer that
-    exists rather than one the tests agree with by construction."""
-    return DRFValidationError(f"`{name}` field is not found", code="not_found")
-
-
-class _OwnFieldsWidget(serializers.ModelSerializer):
-    """A selection with no library behind it: ``?fields=id,name``, parsed here.
-
-    Refuses an unknown name in its own words and with its own code, so a test
-    through it shows the retry carries whatever the serializer says rather than
-    anything shaped for django-restql.
-    """
-
-    class Meta:
-        model = Widget
-        fields = ["id", "name"]
-
-    def to_representation(self, instance: Any) -> Any:
-        data = super().to_representation(instance)
-        raw = self.context["request"].query_params.get("fields")
-        if not raw:
+    def presented(self, value: Any, context: Any) -> Any:
+        data = self.present(value)
+        wanted = _selection(context.shapes) if context is not None else None
+        if wanted is None:
             return data
-        wanted = [name.strip() for name in raw.split(",")]
         for name in wanted:
             if name not in data:
-                raise DRFValidationError(f"Unknown field `{name}`.", code="unknown_field")
+                raise ServiceValidationError(f"`{name}` field is not found")
         return {name: data[name] for name in wanted}
+
+
+class _RejectingPresenter(_SelectingPresenter):
+    """A presenter that refuses to render, whatever the call shaped.
+
+    For the cases about *who* shaped the render, where the presenter has to
+    fail with nothing supplied as well.
+    """
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+
+    def presented(self, value: Any, context: Any) -> Any:
+        raise self._exc
 
 
 def _ordered_widgets(user):
@@ -8508,46 +7983,50 @@ def _ordered_widgets(user):
     return Widget.objects.filter(owner=user).order_by("pk")
 
 
-def _paged_spec(serializer: type) -> SelectorSpec:
-    return SelectorSpec(
+def _fields_shape(**kwargs: Any) -> django_service_specs.Parameter:
+    return django_service_specs.Parameter("fields", "string", nullable=True, **kwargs)
+
+
+def _paged_spec(
+    presenter: django_service_specs.Presenter, *shapes: django_service_specs.Parameter
+) -> django_service_specs.SelectorSpec:
+    return django_service_specs.SelectorSpec(
         kind=SelectorKind.LIST,
         selector=_ordered_widgets,
-        output_serializer=serializer,
-        permission_classes=[AllowAny],
+        presenter=presenter,
+        shapes=Parameters.of(*(shapes or (_fields_shape(),))),
+        permissions=[django_service_specs.Unrestricted()],
     )
 
 
-def _single_spec(serializer: type) -> SelectorSpec:
-    return SelectorSpec(
+def _single_spec(presenter: django_service_specs.Presenter) -> django_service_specs.SelectorSpec:
+    return django_service_specs.SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=get_widget,
-        output_serializer=serializer,
-        permission_classes=[AllowAny],
+        reads=Parameters.of(Parameter("pk", "integer", required=True)),
+        presenter=presenter,
+        shapes=Parameters.of(_fields_shape()),
+        permissions=[django_service_specs.Unrestricted()],
     )
 
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_selection_written_against_the_envelope_is_one_retry_then_the_page():
-    """The reported case, through a real run and real restql: ``{items{id, name}}``
-    matches the documented page shape exactly, and restql reads it against one
-    row. The model is told which argument, why, and what it applies to, and its
-    second call gets the page."""
+    """The reported case, through a real run: ``items`` names the documented
+    page's key, and the presenter reads it against one row. The model is told
+    which argument, why, and what it applies to, and its second call gets the
+    page."""
     user = await User.objects.acreate(username="alice")
     first = await Widget.objects.acreate(owner=user, name="a")
     second = await Widget.objects.acreate(owner=user, name="b")
-    queries = iter(["{items{id, name}}", "{id, name}"])
+    selections = iter(["items", "id, name"])
 
     def model(messages: list[Any], info: Any) -> ModelResponse:
         if any(isinstance(part, ToolReturnPart) for part in messages[-1].parts):
             return ModelResponse(parts=[TextPart("done")])
-        return ModelResponse(parts=[ToolCallPart("list_widgets", {"query": next(queries)})])
+        return ModelResponse(parts=[ToolCallPart("list_widgets", {"fields": next(selections)})])
 
-    toolset = SpecToolset(
-        reading(
-            {"list_widgets": _paged_spec(_StrictRestqlWidget)},
-            {"list_widgets": [QueryParam("query")]},
-        )
-    )
+    toolset = SpecToolset({"list_widgets": _paged_spec(_SelectingPresenter())})
     result = await Agent(FunctionModel(model), deps_type=AgentDeps, toolsets=[toolset]).run(
         "go", deps=AgentDeps(user=user)
     )
@@ -8559,7 +8038,7 @@ async def test_a_selection_written_against_the_envelope_is_one_retry_then_the_pa
         if isinstance(part, RetryPromptPart)
     ]
     assert [retry.content for retry in retries] == [
-        "`query` was rejected while rendering the result: `items` field is not found. "
+        "`fields` was rejected while rendering the result: `items` field is not found. "
         + _SCOPE_DESCRIPTION
     ]
     page = _tool_return(result).content
@@ -8569,22 +8048,20 @@ async def test_a_selection_written_against_the_envelope_is_one_retry_then_the_pa
 
 @pytest.mark.django_db
 def test_an_unknown_row_field_is_a_retry_not_a_dead_run():
-    """Not specific to the envelope: any field strict restql cannot find."""
+    """Not specific to the envelope: any field the presenter cannot find. A
+    valid selection still shapes the rows."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    spec = _paged_spec(_SelectingPresenter())
 
     with pytest.raises(ModelRetry) as retry:
-        _dispatch(
-            _paged_spec(_StrictRestqlWidget),
-            user,
-            {"query": "{name, bogus}"},
-            query_params=(QueryParam("query"),),
-        )
+        _dispatch(spec, user, {"fields": "name, bogus"})
 
     assert retry.value.message == (
-        "`query` was rejected while rendering the result: `bogus` field is not found. "
+        "`fields` was rejected while rendering the result: `bogus` field is not found. "
         + _SCOPE_DESCRIPTION
     )
+    assert _rows(_dispatch(spec, user, {"fields": "name"})) == [{"name": "a"}]
 
 
 @pytest.mark.django_db
@@ -8594,39 +8071,11 @@ def test_a_tool_that_does_not_page_is_not_told_about_a_page():
     widget = Widget.objects.create(owner=user, name="a")
 
     with pytest.raises(ModelRetry) as retry:
-        _dispatch(
-            _single_spec(_StrictRestqlWidget),
-            user,
-            {"pk": widget.pk, "query": "{bogus}"},
-            query_params=(QueryParam("query"),),
-        )
+        _dispatch(_single_spec(_SelectingPresenter()), user, {"pk": widget.pk, "fields": "bogus"})
 
     assert retry.value.message == (
-        "`query` was rejected while rendering the result: `bogus` field is not found."
+        "`fields` was rejected while rendering the result: `bogus` field is not found."
     )
-
-
-@pytest.mark.django_db
-def test_a_selection_no_library_parses_is_retried_in_the_serializers_own_words():
-    """Nothing here is restql: a ``fields`` param, parsed by the serializer itself.
-
-    The retry names the param the model sent and then quotes the serializer
-    verbatim, full stop included and not doubled, which is the whole contract a
-    consumer's own selection relies on. A valid selection still shapes the rows.
-    """
-    user = User.objects.create(username="u")
-    Widget.objects.create(owner=user, name="a")
-    fields = (QueryParam("fields"),)
-
-    with pytest.raises(ModelRetry) as retry:
-        _dispatch(_paged_spec(_OwnFieldsWidget), user, {"fields": "items"}, query_params=fields)
-
-    assert retry.value.message == (
-        "`fields` was rejected while rendering the result: Unknown field `items`. "
-        + _SCOPE_DESCRIPTION
-    )
-    page = _dispatch(_paged_spec(_OwnFieldsWidget), user, {"fields": "name"}, query_params=fields)
-    assert page["items"] == [{"name": "a"}]
 
 
 @pytest.mark.django_db
@@ -8635,83 +8084,62 @@ def test_render_error_with_no_query_param_supplied_still_raises():
     change it: a retry would spend the budget on a server bug and hide it."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    refusal = ServiceValidationError("`bogus` field is not found")
 
-    with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
-        _dispatch(
-            _paged_spec(_rejecting(_restql_not_found("bogus"))),
-            user,
-            {},
-            query_params=(QueryParam("query"),),
-        )
+    with pytest.raises(ServiceValidationError, match="`bogus` field is not found"):
+        _dispatch(_paged_spec(_RejectingPresenter(refusal)), user, {})
 
 
 @pytest.mark.django_db
 def test_render_error_from_a_seeded_default_still_raises():
     """A default is seeded when the model omits the argument, so after the pop it
     looks exactly like a value the model sent. It is configuration, and a bad one
-    has to stay loud. Real restql, so the default is the only thing wrong."""
+    has to stay loud. The selecting presenter, so the default is the only thing
+    wrong."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    spec = _paged_spec(_SelectingPresenter(), _fields_shape(default="name, bogus"))
 
-    with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
-        _dispatch(
-            _paged_spec(_StrictRestqlWidget),
-            user,
-            {},
-            query_params=(QueryParam("query", default="{name, bogus}"),),
-        )
+    with pytest.raises(ServiceValidationError, match="`bogus` field is not found"):
+        _dispatch(spec, user, {})
 
 
 @pytest.mark.django_db
 def test_an_explicit_null_selection_renders_every_field():
-    """Real restql: a forwarded null would arrive as ``?query=None``, which it
-    cannot parse, and end the run for a model declining the param."""
+    """``{"fields": null}`` is a model declining the param, so every field renders."""
     user = User.objects.create(username="u")
     widget = Widget.objects.create(owner=user, name="a")
 
-    result = _dispatch(
-        _paged_spec(_StrictRestqlWidget),
-        user,
-        {"query": None},
-        query_params=(QueryParam("query"),),
-    )
+    result = _dispatch(_paged_spec(_SelectingPresenter()), user, {"fields": None})
 
     assert _rows(result) == [{"id": widget.pk, "name": "a"}]
 
 
 @pytest.mark.django_db
 def test_render_error_with_an_explicit_null_still_raises():
-    """``{"query": null}`` is how a model says it chose not to fill the param."""
+    """``{"fields": null}`` is how a model says it chose not to fill the param."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    refusal = ServiceValidationError("`bogus` field is not found")
 
-    with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
-        _dispatch(
-            _paged_spec(_rejecting(_restql_not_found("bogus"))),
-            user,
-            {"query": None},
-            query_params=(QueryParam("query"),),
-        )
+    with pytest.raises(ServiceValidationError, match="`bogus` field is not found"):
+        _dispatch(_paged_spec(_RejectingPresenter(refusal)), user, {"fields": None})
 
 
 @pytest.mark.django_db
 def test_a_render_error_that_is_not_a_validation_error_stays_loud():
-    """An ``AttributeError`` in a serializer is a server bug whatever was sent."""
+    """An ``AttributeError`` in a presenter is a server bug whatever was sent."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    spec = _paged_spec(_RejectingPresenter(AttributeError("no such attribute")))
 
     with pytest.raises(AttributeError, match="no such attribute"):
-        _dispatch(
-            _paged_spec(_rejecting(AttributeError("no such attribute"))),
-            user,
-            {"query": "{name}"},
-            query_params=(QueryParam("query"),),
-        )
+        _dispatch(spec, user, {"fields": "name"})
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "args", [{"query": "{bogus}"}, {}], ids=["query supplied", "nothing supplied"]
+    "args", [{"fields": "bogus"}, {}], ids=["selection supplied", "nothing supplied"]
 )
 def test_translate_exception_sees_a_render_error_before_the_default_arm(args):
     """The consumer's map runs first on this path as on the dispatch path, and its
@@ -8719,14 +8147,14 @@ def test_translate_exception_sees_a_render_error_before_the_default_arm(args):
     the render, because the map is the consumer's decision, not the default's."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    refusal = ServiceValidationError("`bogus` field is not found")
 
     result = _dispatch(
-        _paged_spec(_rejecting(_restql_not_found("bogus"))),
+        _paged_spec(_RejectingPresenter(refusal)),
         user,
         args,
-        query_params=(QueryParam("query"),),
         toolset_kwargs={
-            "exception_map": {DRFValidationError: lambda exc: {"translated": exc.detail[0]}}
+            "exception_map": {ServiceValidationError: lambda exc: {"translated": exc.detail}}
         },
     )
 
@@ -8736,8 +8164,7 @@ def test_translate_exception_sees_a_render_error_before_the_default_arm(args):
 @pytest.mark.django_db
 def test_a_render_output_override_is_covered_too():
     """The ``try`` holds the call to the seam, not the default behind it, so a
-    consumer rendering its own way gets the same containment -- here with a
-    service validation error, the other type the arm takes."""
+    consumer rendering its own way gets the same containment."""
 
     class OwnRender(SpecToolset):
         def render_output(self, spec: Any, result: Any, *, ctx: Any, **kwargs: Any) -> Any:
@@ -8745,29 +8172,16 @@ def test_a_render_output_override_is_covered_too():
 
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
-    spec = replace(_paged_spec(WidgetSerializer), reads=(QueryParam("query"),))
+    spec = _paged_spec(_SelectingPresenter())
     toolset = OwnRender({"list_widgets": spec})
 
     with pytest.raises(ModelRetry) as retry:
-        toolset._call_spec(spec, user, {"query": "{name}"}, ctx=ctx_for(user), label="list_widgets")
+        toolset._call_spec(spec, user, {"fields": "name"}, ctx=ctx_for(user), label="list_widgets")
 
     assert retry.value.message == (
-        "`query` was rejected while rendering the result: the selection names no field "
+        "`fields` was rejected while rendering the result: the selection names no field "
         "this tool has. " + _SCOPE_DESCRIPTION
     )
-
-
-class _KernelRefusing(serializers.ModelSerializer):
-    """A row refusing any ``query`` selection with the kernel's own refusal."""
-
-    class Meta:
-        model = Widget
-        fields = ("id", "name")
-
-    def to_representation(self, instance: Any) -> Any:
-        if self.context["request"].query_params.get("query"):
-            raise InvalidArguments({"query": ["No field this tool has."]})
-        return super().to_representation(instance)
 
 
 @pytest.mark.django_db
@@ -8776,17 +8190,13 @@ def test_a_presenter_refusing_a_shape_with_the_kernel_s_refusal_is_a_retry():
     ``InvalidArguments``, and the render arm reads it as the caller's to fix."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    refusal = InvalidArguments({"fields": ["No field this tool has."]})
 
     with pytest.raises(ModelRetry) as retry:
-        _dispatch(
-            _paged_spec(_KernelRefusing),
-            user,
-            {"query": "{x}"},
-            query_params=(QueryParam("query"),),
-        )
+        _dispatch(_paged_spec(_RejectingPresenter(refusal)), user, {"fields": "x"})
 
     assert retry.value.message == (
-        "`query` was rejected while rendering the result: query: No field this tool has. "
+        "`fields` was rejected while rendering the result: fields: No field this tool has. "
         + _SCOPE_DESCRIPTION
     )
 
@@ -8804,19 +8214,20 @@ def test_a_presenter_refusing_a_shape_with_the_kernel_s_refusal_is_a_retry():
     ids=["two", "three"],
 )
 def test_several_supplied_values_are_all_named(args, subject):
-    """The serializer does not say which one it refused, so singling one out
+    """The presenter does not say which one it refused, so singling one out
     would be a guess presented as a fact. Declaration order, so the sentence
     reads the same on every call."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
+    spec = _paged_spec(
+        _RejectingPresenter(ServiceValidationError("`bogus` field is not found")),
+        Parameter("query", "string"),
+        _fields_shape(),
+        Parameter("expand", "string"),
+    )
 
     with pytest.raises(ModelRetry) as retry:
-        _dispatch(
-            _paged_spec(_rejecting(_restql_not_found("bogus"))),
-            user,
-            args,
-            query_params=(QueryParam("query"), QueryParam("fields"), QueryParam("expand")),
-        )
+        _dispatch(spec, user, args)
 
     assert retry.value.message == (
         f"{subject} rejected while rendering the result: `bogus` field is not found. "
@@ -8826,16 +8237,15 @@ def test_several_supplied_values_are_all_named(args, subject):
 
 @pytest.mark.django_db
 def test_a_detail_that_ends_a_sentence_is_not_given_a_second_full_stop():
-    """restql's messages carry none and DRF's do; the retry reads right either way."""
+    """Some refusals carry a full stop and some do not; the retry reads right
+    either way."""
     user = User.objects.create(username="u")
     widget = Widget.objects.create(owner=user, name="a")
+    refusal = ServiceValidationError({"name": ["Not selectable."]})
 
     with pytest.raises(ModelRetry) as retry:
         _dispatch(
-            _single_spec(_rejecting(DRFValidationError({"name": ["Not selectable."]}))),
-            user,
-            {"pk": widget.pk, "fields": "name"},
-            query_params=(QueryParam("fields"),),
+            _single_spec(_RejectingPresenter(refusal)), user, {"pk": widget.pk, "fields": "name"}
         )
 
     assert retry.value.message == (
@@ -8878,7 +8288,9 @@ def _raises(exc: BaseException):
     def service():
         raise exc
 
-    return ServiceSpec(service=service, atomic=False)
+    return django_service_specs.ServiceSpec(
+        service=service, atomic=False, permissions=[django_service_specs.Unrestricted()]
+    )
 
 
 @pytest.mark.parametrize(
@@ -8904,21 +8316,13 @@ def _raises(exc: BaseException):
     ids=["dict", "list", "nested dict", "non-field", "positional key", "rows", "string"],
 )
 def test_a_validation_retry_reads_as_text_not_a_repr(detail, expected):
-    """``str`` of a DRF detail is the repr of its ``ErrorDetail`` objects; the
-    model gets one ``path: message`` line per message instead, with the ``code``
-    left out and DRF's non-field key not mistaken for an argument's name."""
+    """A service's ``ServiceValidationError`` carries its detail un-coerced, in
+    any of these shapes; the model gets one ``path: message`` line per message,
+    with the non-field key not mistaken for an argument's name."""
     with pytest.raises(ModelRetry) as retry:
-        _dispatch(_raises(DRFValidationError(detail)), object(), {})
+        _dispatch(_raises(ServiceValidationError(detail)), object(), {})
 
     assert retry.value.message == expected
-
-
-def test_a_service_validation_error_reads_the_same_way():
-    """``ServiceValidationError`` carries the same shapes, un-coerced."""
-    with pytest.raises(ModelRetry) as retry:
-        _dispatch(_raises(ServiceValidationError({"price": ["Must be positive."]})), object(), {})
-
-    assert retry.value.message == "price: Must be positive."
 
 
 @pytest.mark.parametrize("key", ["non_field_errors", "__all__"], ids=["drf-key", "django-key"])

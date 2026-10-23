@@ -56,7 +56,7 @@ class AgentConventions:
     it true.
 
     Each transport words these for its own reader, which is why they live here and
-    not in drf-services, and why changing them here changes nothing the MCP
+    not in a shared library, and why changing them here changes nothing the MCP
     transport says about the same specs.
 
     Raises:
@@ -171,7 +171,7 @@ class AgentConventions:
     """The description of a handle field in a tool's output schema, when the field's
     own marking declares none.
 
-    drf-services supplies no wording for a handle on purpose: what a reader should
+    The kernel supplies no wording for a handle on purpose: what a reader should
     do with an identifier depends on the reader. No placeholders.
     """
 

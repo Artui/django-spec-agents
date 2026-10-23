@@ -66,7 +66,7 @@ class AgentDeps:
     progress: Callable[..., None] | None = None
     """Where a spec's ``progress(...)`` calls go for this run, or ``None``.
 
-    A drf-services ``ProgressReporter``: a callable
+    A django-service-specs ``ProgressReporter``: a callable
     ``(progress, *, total, message, meta) -> None``. ``SpecToolset`` reads this
     field by name and forwards it into the dispatch pool, so a service that
     declares a ``progress`` parameter reports to whatever the caller passed.
@@ -76,7 +76,7 @@ class AgentDeps:
     **Nothing here constructs one.** Where a report should go is a transport's
     decision — an SSE frame, a task record, a log line — and a substrate that
     picked one would have chosen a transport it does not own. ``None`` is the
-    honest default and costs nothing: drf-services substitutes its no-op, so a
+    honest default and costs nothing: the kernel substitutes its no-op, so a
     service declaring ``progress`` runs unchanged whether or not anyone is
     listening. A transport that wants the reports on the wire supplies the sink
     from its ``deps_factory`` and emits the events itself."""
