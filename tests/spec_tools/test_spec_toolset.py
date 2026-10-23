@@ -59,6 +59,7 @@ from django_service_specs import (
     UnsetType,
     audience_projection_for_spec,
     present,
+    provider_keys,
     spec_input_schema,
     spec_output_schema,
 )
@@ -5354,16 +5355,17 @@ def _unresolvable_ceiling(project_pk=None) -> _NotDeclaredAnywhere:  # noqa: F82
 
 def test_a_provider_whose_annotation_cannot_be_resolved_counts_as_untyped():
     """An annotation that cannot be read says nothing about the keys, so the
-    provider may fill anything, as an unannotated one may, and the read beside
-    it is neither dropped as filled nor relaxed: it stays as declared."""
+    provider may fill anything, as an unannotated one may: ``ceiling`` is not
+    dropped as filled, and, declared optional as beside any provider that may
+    fill it, the toolset requires nothing."""
     toolset = SpecToolset(
-        {"under": _under(kwargs=_unresolvable_ceiling)},
+        {"under": _under(kwargs=_unresolvable_ceiling, ceiling=_OPEN_CEILING)},
     )
 
     schema = _input_schema_of(toolset, "under")
 
     assert schema["properties"]["ceiling"] == {"type": "integer"}
-    assert schema["required"] == ["ceiling"]
+    assert "required" not in schema
 
 
 _Owner = TypeVar("_Owner")
@@ -5461,6 +5463,12 @@ _SCOPE_READS = Parameters.of(
     )
 )
 
+#: The same reads as that library leaves them beside a provider whose keys it
+#: cannot read, which may fill any of them: none required for lacking a default.
+_OPEN_SCOPE_READS = Parameters.of(
+    *(Parameter(name, "string", reflected=True) for name in _SCOPE_READS.names())
+)
+
 
 def ceiling_name(user, ceiling):
     """The name under one ceiling, which the provider may leave to the caller."""
@@ -5497,9 +5505,9 @@ def test_a_schema_whose_every_read_may_be_declined_requires_nothing():
         ),
         (_scope, ["owner", "region"], ["owner", "region"]),
         (_scope_for, ["currency", "region"], ["currency", "region"]),
-        (_scope_as_a_dict, *[["ceiling", "currency", "owner", "region"]] * 2),
-        (lambda view: {"ceiling": 10}, *[["ceiling", "currency", "owner", "region"]] * 2),
-        (_unresolvable_ceiling, *[["ceiling", "currency", "owner", "region"]] * 2),
+        (_scope_as_a_dict, ["ceiling", "currency", "owner", "region"], []),
+        (lambda view: {"ceiling": 10}, ["ceiling", "currency", "owner", "region"], []),
+        (_unresolvable_ceiling, ["ceiling", "currency", "owner", "region"], []),
         (_scope_or_decline, ["ceiling", "owner", "region"], ["owner", "region"]),
         (_wrapped_scope_or_decline, ["ceiling", "owner", "region"], ["owner", "region"]),
         (
@@ -5525,9 +5533,11 @@ def test_a_schema_whose_every_read_may_be_declined_requires_nothing():
 def test_a_providers_return_annotation_decides_what_the_model_is_asked_for(
     provider, asked, required
 ):
-    """A spec with no provider fills nothing, and one whose keys are not declared
-    cannot be told to fill anything, so beside either every read stays as
-    declared, here required. A typed provider's keys are dropped from the
+    """A spec with no provider fills nothing, which is not the "cannot tell" of
+    one whose keys are not declared: the first leaves every read without a
+    default required, the second none, its reads declared as a reflecting
+    compile leaves them beside such a provider, and the toolset adds no
+    requiredness of its own. A typed provider's keys are dropped from the
     schema, since it fills them. A ``NotRequired`` key is the provider's
     as much as a required one, and a parameterised ``TypedDict`` keeps its keys
     on its origin, where an alias does not relay them.
@@ -5552,7 +5562,7 @@ def test_a_providers_return_annotation_decides_what_the_model_is_asked_for(
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=name_in_scope,
-        reads=_SCOPE_READS,
+        reads=_SCOPE_READS if provider_keys(provider) is not None else _OPEN_SCOPE_READS,
         presenter=_NameSerializer(),
         permissions=allow(),
         kwargs=provider,
