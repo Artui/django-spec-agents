@@ -3,7 +3,9 @@ run in which a model leaves out an argument and then sends it.
 
 The calls are shared and the declarations are per route: the drf-mcp bridge's
 tests serve the specs in ``drf_specs_lookup``, which that bridge registers, and
-the spec capability's serve the kernel's own in ``kernel_specs``."""
+the spec capability's serve the kernel's own in ``kernel_specs``. The cross-route
+tests in ``test_drf_mcp`` also run ``build_spec_capability`` over the drfs specs
+on purpose, to exercise them through the ``[drf-mcp]`` bridge."""
 
 from __future__ import annotations
 

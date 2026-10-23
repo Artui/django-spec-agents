@@ -157,9 +157,7 @@ the same spec — so the schema and the payload cannot disagree about it.
 Each tool definition carries a `return_schema` derived from the spec's presenter
 output, projected the same way the payload is: a field marked
 [hidden](agent-audience.md) is absent from both, and a marked handle carries its
-description in both. It is the kernel's `spec_output_schema`. A spec declaring a read shape,
-such as a `fields` parameter in its `shapes`, requires none of a row's fields, since the
-shape may leave any of them out.
+description in both. It is the kernel's `spec_output_schema`.
 
 A spec's `metadata["json_schema"]` is merged over both schemas, keyed by phase:
 `{"input": {...}}` over the

@@ -234,8 +234,9 @@ sees:
   now takes by name, as a read.
 
 The request a run arrived on goes in the run's context, where the toolset's
-`http_request=` and `get_http_request=` used to name it, and absolute file URLs
-follow its host, where `host=` named one:
+`http_request=` and `get_http_request=` used to name it. A presenter can read it
+there to make a URL absolute, for example with `request.build_absolute_uri`, where
+`host=` named one; the kernel's presenters do not do this:
 
 ```python
 from django_spec_agents import AgentDeps

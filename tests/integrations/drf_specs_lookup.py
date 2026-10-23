@@ -1,8 +1,11 @@
 """Specs that read one row by a ``pk`` their selector takes with no default.
 
 The drf-mcp bridge's tests serve these, since that bridge registers
-drf-services specs. The spec capability's tests serve the kernel's equivalents
-in ``kernel_specs``, and both drive the same calls, ``helpers.LOOKUP_CALLS``.
+drf-services specs. Those cross-route tests in ``test_drf_mcp`` deliberately
+exercise drfs specs through the ``[drf-mcp]`` bridge, including
+``build_spec_capability`` over these specs, to hold that both routes agree. The
+spec capability's own tests serve the kernel's equivalents in ``kernel_specs``,
+and both drive the same calls, ``helpers.LOOKUP_CALLS``.
 Neither spec here says anywhere but in the selector's signature that ``pk`` is
 required: a selector tool reading a row, and a service whose target lookup is
 that selector. That is the case where both routes once advertised ``pk`` as

@@ -33,6 +33,12 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   `SpecRegistry`. Every spec is read through `kernel_spec`, so what a tool
   advertises, fills and refuses is the compiled spec's. A read declared
   `nullable` keeps a `null` the model sends as its value.
+- The toolset reads an optional `unsendable` attribute on a spec's Validator,
+  a collection of field names the Validator requires and fills itself, so no
+  call can send them. It refuses at build, with `ImproperlyConfigured` naming
+  the tool and the field, a non-partial service whose Validator lists one. A
+  Validator without the attribute names none, and a partial service is not
+  refused.
 
 ### Removed
 
@@ -52,7 +58,9 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   field's audience a `FieldMarking` on the presenter's output.
 - The `[filter]` extra. Nothing in this package imports django-filter: a
   project declaring a `filter_set` has it installed already, and
-  `django-service-specs[filter]` declares it for the kernel's own use.
+  `django-service-specs[filter]` declares it for the kernel's own use. A
+  project that relied on the extra to install django-filter declares
+  `django-filter` directly, or uses the kernel's `django-service-specs[filter]`.
 - `SpecToolset.build_context` and `SpecToolset.output_extras`, and the
   `http_request=`, `get_http_request=` and `host=` keywords of `SpecToolset` and
   `SpecCapability`. Each named a request or view the toolset built for a call,
@@ -63,8 +71,10 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   - the request a run arrived on is `call_context["request"]`, put there by
     whoever starts the run, where `http_request=` and `get_http_request=` named
     it;
-  - absolute file URLs follow the host of the run's request, where `host=`
-    named one;
+  - the run's request is at `call_context["request"]`, where a presenter can
+    read it to make a URL absolute, for example with
+    `request.build_absolute_uri`, where `host=` named one; the kernel's
+    presenters do not do this;
   - `output_extras` goes with the `page`, `result` and `instance` keys it
     handed output-context providers: the kernel presents a result row by row.
 
@@ -112,8 +122,9 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
     to a tool its caller may not use is handed back as a retry naming the
     argument, where it used to be refused with `PermissionDenied`.
   - A permission refusal is the kernel's `NotPermitted`, and a deactivated
-    principal its `PrincipalUnavailable`. Every refusal is logged at `WARNING`
-    naming the tool.
+    principal its `PrincipalUnavailable`; Django's own `PermissionDenied`,
+    raised bare by a service, is the same refusal. Every refusal is logged at
+    `WARNING` naming the tool.
   - A spec with no permissions, served by a toolset built with
     `require_permissions=False`, still runs unchecked, and only that spec: a
     spec that declares a check is asked it on every call.
@@ -165,17 +176,9 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
 - A read declared `required=True` with a `default` is no longer refused when
   the toolset is built; the default answers a call that leaves it out, as the
   kernel reads it.
-- **Breaking:** an input field the spec's Validator requires and no call can
-  send now fails the whole toolset when it is built, with
-  `ImproperlyConfigured` naming the tool and the field. A Validator says so as
-  an `unsendable` attribute, a collection of field names, read off the
-  compiled spec's Validator and naming no package, so any Validator answering
-  it is read alike; one that does not answer names none. A spec compiled
-  `partial` is not refused. Rename the field, or make it optional, and the
-  tool builds.
 - **Breaking:** a call is answered by the kernel's refusals only. Its
-  `NotPermitted` and `PrincipalUnavailable` are a denial, logged and
-  re-raised, and its `InvalidArguments` and `ServiceValidationError`, raised
+  `NotPermitted` and `PrincipalUnavailable`, and Django's own
+  `PermissionDenied`, are a denial, logged and re-raised, and its `InvalidArguments` and `ServiceValidationError`, raised
   while dispatching or while rendering a read-shaping argument the model sent,
   are handed back to the model as a retry. Django REST Framework's
   `PermissionDenied` and `ValidationError` are neither any longer: one raised
