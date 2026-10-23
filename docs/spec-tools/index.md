@@ -21,8 +21,9 @@ kernel, on the spec drf-services compiles for it:
   an offline request around the principal, so `permission_classes` and
   serializer context providers keep working, while a callable declaring
   `request` or `view` is handed `None`;
-- **`spec_to_json_schema`** derives each tool's parameter schema and
-  **`output_to_json_schema`** its `return_schema`, projected for the audience;
+- **`spec_input_schema`**, the kernel's, derives each tool's parameter schema
+  from the compiled spec, the argument set `dispatch` checks, and
+  **`spec_output_schema`** its `return_schema`, projected for the audience;
 - **`paginate_output`**, the kernel's, slices a list selector into the page the
   tool returns, the same shaper the MCP transport uses;
 - **`present_for_audience`**, the kernel's, renders the result through the

@@ -321,13 +321,14 @@ class TestTheEntrysOfflineContract:
         assert "'nope'" in str(raised.value)
 
     @pytest.mark.django_db(transaction=True)
-    async def test_a_bare_mapping_advertises_no_read_and_still_routes_one(self) -> None:
+    async def test_a_bare_mapping_advertises_the_spec_s_reads_and_routes_them(self) -> None:
         """``registry.specs()`` flattens the entry to its spec, and the toolset
-        reads channels off the entry alone, so a bare mapping's tool advertises
-        none of what the spec reads. The spec still carries its ``reads``, and
-        drf-services routes a value sent under one of those names onto the
-        offline view and its query string as it does for any caller, so the call
-        is served: what the mapping drops is the advertisement, not the read.
+        reads channels off the entry alone, so a bare mapping's tool declares
+        none of its own. The spec still carries its ``reads``, which are
+        parameters of the compiled spec, so the kernel's schema the tool
+        advertises lists them as a registry-built tool's does, and drf-services
+        routes a value sent under one of them onto the offline view and its query
+        string as it does for any caller.
         """
         spec = replace(
             _agent_list_spec(),
@@ -351,7 +352,6 @@ class TestTheEntrysOfflineContract:
         assert toolset._tool_url_kwargs["list_widgets"] == ()
         assert toolset._tool_query_params["list_widgets"] == ()
         props = toolset._tool_defs["list_widgets"].parameters_json_schema["properties"]
-        assert "tenant_pk" not in props
-        assert "since" not in props
+        assert {"tenant_pk", "since"} <= set(props)
         assert RecordingPermission.seen["kwargs"] == {"tenant_pk": "5"}
         assert RecordingPermission.seen["query_params"] == {"since": ["2020"]}

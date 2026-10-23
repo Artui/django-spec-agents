@@ -153,11 +153,11 @@ it, which is why a toolset takes no channel declarations of its own:
 of the spec carries it, whichever transport or mapping it is reached through.
 
 **Pass the registry, not `registry.specs()`.** The mapping is the flattened
-`name -> spec` view, and the toolset reads channels off the entry, so a toolset
-built from the mapping advertises none of the spec's `reads`. The spec still
-carries them, so a value the model sends under one of those names is admitted
-and routed onto the request as drf-services routes any caller's, but a model is
-not told it may send one.
+`name -> spec` view, and the toolset reads each entry's `agent_contract` off the
+entry, so a toolset built from the mapping has none. The tool's schema is the
+compiled spec's either way: the spec's `reads` are advertised from both, and a
+value the model sends under one of those names is admitted and routed onto the
+request as drf-services routes any caller's.
 
 **A read naming an input declares where the input comes from.** A `QueryParam`
 read naming a parameter the spec's selector takes, such as

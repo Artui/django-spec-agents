@@ -59,6 +59,7 @@ from django_service_specs import (
     PoolSeeds,
     PrincipalUnavailable,
     ProgressReporter,
+    ProviderKeys,
     SelectorKind,
     ServerArguments,
     ServiceError,
@@ -74,6 +75,8 @@ from django_service_specs import (
     paginate_output,
     present_for_audience,
     provider_keys,
+    spec_input_schema,
+    spec_output_schema,
     unmet_operation_affordance,
 )
 from django_service_specs import SelectorSpec as KernelSelectorSpec
@@ -88,7 +91,6 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.settings import api_settings
 from rest_framework_services import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
-    ArgumentBinding,
     JsonSchemaRegistry,
     OfflineContract,
     PolymorphicServiceSpec,
@@ -97,7 +99,6 @@ from rest_framework_services import (
     audience_projection_for_spec,
     can_present_nothing,
     output_to_json_schema,
-    server_owned_keys,
     spec_to_json_schema,
 )
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
@@ -313,9 +314,9 @@ _RESERVED_PARAM_NAMES = frozenset({"page", "limit", "ordering"})
 # to this shape (OpenAI / Anthropic function-name rules).
 _TOOL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
-# A no-op: the advertised parameter schemas are advisory (``spec_to_json_schema``
-# output, not a Pydantic model) and the real validation is the spec's own input
-# serializer at dispatch time.
+# A no-op: the advertised parameter schemas are advisory (the kernel's
+# ``spec_input_schema``, not a Pydantic model) and the real validation is the
+# kernel's shape check and the spec's own Validator at dispatch time.
 _TOOL_ARGS_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
 
 # The ``page`` tool arg a list selector accepts on top of its filter fields;
@@ -384,17 +385,6 @@ class _PageArgs:
 
     page: int | None
     limit: int | None
-
-
-# The binding every call is dispatched under, and so the one every input schema
-# is read under: ``AUTO``, which binds a selector's arguments spread and a
-# service's as one ``data`` bundle. One name for both ends, because
-# ``spec_to_json_schema`` lists a serializer-less service's own parameters under
-# a ``SPREAD_*`` binding and ``REJECT`` admits them only there, so a schema read
-# under another binding than the call's advertises what the call refuses.
-# ``test_a_serializer_less_service_advertises_what_dispatch_admits`` holds both
-# ends: either one changed alone, it fails.
-_ARGUMENT_BINDING = ArgumentBinding.AUTO
 
 
 class SpecToolset(AbstractToolset[Any]):
@@ -802,7 +792,7 @@ class SpecToolset(AbstractToolset[Any]):
             _validate_channel_declarations(
                 name, self._tool_url_kwargs[name], "url_kwargs", seeds=pool_seeds
             )
-        _validate_inputs_pagination_takes(self._specs, registry=json_schema_registry)
+        _validate_inputs_pagination_takes(self._specs)
         # Agent markings are pure in the serializer, like the schemas below, so
         # they are resolved once rather than paying a serializer instantiation
         # on every tool call.
@@ -830,8 +820,6 @@ class SpecToolset(AbstractToolset[Any]):
             name: _build_tool_def(
                 name,
                 spec,
-                self._tool_query_params[name],
-                self._tool_url_kwargs[name],
                 self._descriptions.get(name),
                 self._max_page_size,
                 shapes=self._tool_shapes[name],
@@ -840,6 +828,7 @@ class SpecToolset(AbstractToolset[Any]):
                 pool_seeds=pool_seeds,
                 conventions=self._conventions,
                 server_names=self._server_names(name),
+                unknown_arguments=unknown_arguments,
             )
             for name, spec in self._specs.items()
         }
@@ -1709,8 +1698,13 @@ def _parameter_reads(
     """
     if not entry_reads:
         return frozenset()
-    advertised = _caller_schema(spec, pool_seeds=pool_seeds, registry=registry).get(
-        "properties", {}
+    # The schema lists every read the compiled spec declares, its ``shapes``
+    # among them, and a shape is no callable's input: it stays this toolset's
+    # read-shaping argument, told its scope on a page and named in the
+    # instructions (``test_read_shaping_line_lists_declared_query_params_sorted``).
+    advertised = (
+        _caller_schema(spec, pool_seeds=pool_seeds).get("properties", {}).keys()
+        - kernel_spec(spec).shapes.names()
     )
     return frozenset(qp.name for qp in entry_reads if qp.name in advertised)
 
@@ -1721,11 +1715,7 @@ def _parameter_reads(
 _PAGINATION_ARGUMENTS = frozenset({"page", "limit"})
 
 
-def _validate_inputs_pagination_takes(
-    specs: Mapping[str, Spec],
-    *,
-    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
-) -> None:
+def _validate_inputs_pagination_takes(specs: Mapping[str, Spec]) -> None:
     """Refuse a list selector's parameter that the pagination arguments take away.
 
     The spec's side of the collision ``_validate_channel_declarations`` refuses
@@ -1737,23 +1727,21 @@ def _validate_inputs_pagination_takes(
     would run on its default whatever the call asked for. Only a list tool
     paginates, so a retrieve selector's ``page`` reaches it, and the condition is held by
     ``test_a_retrieve_selector_keeps_a_parameter_named_page``. Read off the
-    spec's own reflected input, which no provider's keys narrow.
+    compiled spec's own ``parameters()``, which no seed or provider narrows.
 
     A ``QueryParam`` the spec reads under an input's name is not refused here or
     anywhere: ``_parameter_reads`` leaves it in the call, where the kernel
     hands it to the input as its argument.
     """
     for tool_name, spec in specs.items():
-        # The first read of each spec's input schema, so drf-services' refusals
-        # of a malformed ``metadata["json_schema"]`` fragment or input marker
-        # surface here, naming the spec's class; they are prefixed with the tool
-        # like the compile's. Held by
-        # ``test_a_malformed_schema_fragment_is_refused_naming_the_tool``.
+        # The first assembly of each spec's whole argument set, for every spec
+        # and not only a list selector, so the refusals assembling it can raise
+        # surface here, at construction, prefixed with the tool like the
+        # compile's: a serializer field sharing a target lookup parameter's
+        # name, which the kernel refuses as one name from two sources. Held by
+        # ``test_a_field_sharing_a_lookup_parameter_s_name_is_refused_naming_the_tool``.
         with _refusals_name_the_tool(tool_name):
-            schema = spec_to_json_schema(
-                spec, phase="input", registry=registry, argument_binding=_ARGUMENT_BINDING
-            )
-        own = frozenset(cast("dict[str, Any]", schema).get("properties", {}))
+            own = kernel_spec(spec).parameters().names()
         pagination = sorted(own & _PAGINATION_ARGUMENTS) if _is_list_selector(spec) else []
         if pagination:
             raise ImproperlyConfigured(
@@ -2036,7 +2024,7 @@ def _derive_instructions(
     # ``sorting`` would otherwise be told about an argument that does not exist.
     ordering_names: list[str] = []
     for spec in specs.values():
-        advertised = _spec_ordering_argument(spec, pool_seeds=pool_seeds, registry=registry)
+        advertised = _spec_ordering_argument(spec, pool_seeds=pool_seeds)
         if advertised is not None and advertised not in ordering_names:
             ordering_names.append(advertised)
     if ordering_names:
@@ -2074,8 +2062,6 @@ def _derive_instructions(
 def _build_tool_def(
     name: str,
     spec: Spec,
-    query_params: Sequence[QueryParam] = (),
-    url_kwargs: Sequence[UrlKwarg] = (),
     description: str | None = None,
     max_page_size: int | None = None,
     *,
@@ -2085,6 +2071,7 @@ def _build_tool_def(
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
     server_names: frozenset[str] = frozenset(),
     shapes: frozenset[str] = frozenset(),
+    unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
 ) -> ToolDefinition:
     """One tool definition: what the model may send, and what it gets back.
 
@@ -2103,14 +2090,13 @@ def _build_tool_def(
         description=description,
         parameters_json_schema=_input_schema(
             spec,
-            query_params,
-            url_kwargs,
             max_page_size,
             registry=registry,
             pool_seeds=pool_seeds,
             conventions=conventions,
             server_names=server_names,
             shapes=shapes,
+            unknown_arguments=unknown_arguments,
         ),
         return_schema=_return_schema(
             spec, projection=projection, registry=registry, conventions=conventions
@@ -2128,50 +2114,50 @@ def _return_schema(
 ) -> dict[str, Any] | None:
     """The shape of what this tool returns, or ``None`` when the spec declares none.
 
-    Generated from the **projected** output path rather than from the raw
-    serializer, so it describes the payload the model is actually handed:
-    ``present_for_audience`` drops hidden fields and substitutes a choice field's
-    display value, and a schema still advertising either would be worse than no
-    schema at all — a model asking for a field the render removes gets nothing
-    back and no reason why.
+    The kernel's ``spec_output_schema`` over the compiled spec: the schema of
+    what dispatch presents, so the same one every transport serving the spec
+    states. Generated from the **projected** output rather than from the whole
+    declaration, so it describes the payload the model is actually handed:
+    ``present_for_audience`` drops hidden fields and substitutes a choice
+    field's display value, and a schema still advertising either would be worse
+    than no schema at all — a model asking for a field the render removes gets
+    nothing back and no reason why.
 
-    ``paginate`` is ``_is_list_selector`` and not ``kind is LIST``, because it
-    has to answer *does this toolset wrap the result*, not *is the result a
-    collection*. A ``ServiceSpec`` whose
-    ``output_selector_spec`` is a LIST returns a bare array here — the toolset
-    paginates list *selectors* only — so claiming the envelope for it would
-    advertise a shape its payload never has.
+    ``paginate`` is ``_is_list_selector`` and not "the result is a list",
+    because it answers *does this toolset wrap the result*: the toolset pages
+    list selectors only, so a service whose output is a list -- a ``LIST``
+    re-read, a ``many`` service, or one that ``returns_many`` -- is a bare array
+    here, and claiming the envelope for it would advertise a shape its payload
+    never has (``test_a_service_whose_output_is_a_list_is_an_array_not_an_envelope``).
+    Where it admits ``null``, and the ``affordances`` object each item carries,
+    are the kernel's answers too, so this schema and dispatch cannot disagree
+    about either.
 
-    ``affordances`` declares the object the render adds to every item when the
-    selector spec it renders through declares them: per name, whether the
-    operation is available and, when it is not, the ``code`` -- enumerated from
-    the declaration -- and ``reason``. Left out, the schema would advertise items
-    without the key while every payload carries it -- the same disagreement, over
-    the one key that tells a model what it can do next. A spec declaring none
-    passes ``None`` and its schema is unchanged.
+    ``None`` for a spec with no presenter is the correct answer and not a gap:
+    the kernel refuses to fabricate a shape it cannot derive, and a guessed one
+    would be a claim the payload never has to honour.
 
-    ``None`` for a spec with no ``output_serializer`` is the correct answer and
-    not a gap: drf-services refuses to fabricate a shape it cannot derive, and a
-    guessed one would be a claim the payload never has to honour.
-
-    ``kind`` is ``LIST`` for a ``many=True`` service whatever its
-    ``output_selector_spec`` declares. That selector is ``RETRIEVE`` by
-    convention, because its kind describes one row, while drf-services renders
-    the list it returns as a list; the kind alone would advertise an object for
-    a payload that is always an array. Otherwise the kind is the rendered spec's,
-    which is the kind dispatch presents: a single-row service declaring a
-    ``LIST`` output is an array whether or not that output has a ``selector`` to
-    re-read through, since dispatch presents the service's own return as the
-    list when it has none
-    (``test_a_service_whose_output_is_a_list_is_an_array_not_an_envelope``), and
-    raises ``ImproperlyConfigured`` for a return that is not a set of rows rather
-    than present one row against this array
-    (``test_a_list_output_with_nothing_to_reread_refuses_a_single_row``).
-
-    The root admits ``null`` exactly where drf-services' ``can_present_nothing``
-    says dispatch may present ``None``, so this schema and every other route's
-    output schema state the same ``null``.
+    **A toolset built with its own ``json_schema_registry``** describes the
+    output through drf-services' ``output_to_json_schema`` instead, which reads
+    that registry, so a project's own field type is still described where the
+    spec compiled no schema for it. The kernel's builders take no registry: a
+    spec that declares its own ``json_schema_registry`` reaches the default
+    branch with its schema compiled in. Held by
+    ``test_a_consumer_registry_reaches_the_return_schema``, which fails with
+    the condition dropped, and by every default-registry return-schema test
+    with it inverted.
     """
+    handle_description = _render(conventions.handle_field_description)
+    if registry is DEFAULT_JSON_SCHEMA_REGISTRY:
+        return spec_output_schema(
+            spec,
+            paginate=_is_list_selector(spec),
+            projection=projection,
+            # The fallback for a handle declaring no wording of its own. The
+            # kernel supplies none on purpose, and ``None`` here leaves such a
+            # field undescribed, which is what dropping the line means.
+            handle_description=handle_description,
+        )
     rendered = _rendered_selector_spec(spec)
     if rendered is None:
         return None
@@ -2180,22 +2166,11 @@ def _return_schema(
         kind=SelectorKind.LIST if _takes_a_list(spec) else rendered.kind,
         paginate=_is_list_selector(spec),
         projection=projection,
-        # The fallback for a handle declaring no wording of its own. drf-services
-        # supplies none on purpose, and ``None`` here leaves such a field
-        # undescribed, which is what dropping the line means.
-        handle_description=_render(conventions.handle_field_description),
+        handle_description=handle_description,
         registry=registry,
         affordances=rendered.affordances,
-        # Whether dispatch may hand the model ``None``, as drf-services answers
-        # it for every route that states an output schema: an ``allow_none``
-        # retrieve that finds nothing, a service whose re-read can find no row,
-        # and a service declaring ``ServiceSpec(allow_none=True)``. Never a
-        # list, and never off the nested spec's ``allow_none``, which dispatch
-        # does not read. Read off ``spec``, not ``rendered``: the re-read and
-        # the service's declaration are on the service. Held by
-        # ``test_a_service_whose_reread_can_find_no_row_admits_null`` and
-        # ``test_a_service_declaring_allow_none_admits_null``, and its limits by
-        # ``test_a_service_admits_null_only_where_dispatch_may_present_it``.
+        # Read off ``spec``, not ``rendered``: the re-read and the service's
+        # ``allow_none`` declaration are on the service.
         allow_none=can_present_nothing(spec),
     )
 
@@ -2230,8 +2205,6 @@ def _spec_description(spec: Spec) -> str | None:
 
 def _input_schema(
     spec: Spec,
-    query_params: Sequence[QueryParam] = (),
-    url_kwargs: Sequence[UrlKwarg] = (),
     max_page_size: int | None = None,
     *,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
@@ -2239,84 +2212,87 @@ def _input_schema(
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
     server_names: frozenset[str] = frozenset(),
     shapes: frozenset[str] = frozenset(),
+    unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
 ) -> dict[str, Any]:
-    """The tool's parameter schema, with list-selector pagination + registered
-    query params + URL kwargs merged into ``properties``.
+    """The tool's parameter schema: what the spec takes, with a list selector's pagination.
 
-    The base is what the spec itself asks of the model, from
-    ``_caller_schema``: a selector's reflected parameters, less the names this
-    toolset fills, or a service's input with its target lookup merged in.
+    The base is ``_caller_schema``, the kernel's schema of the compiled spec
+    less the names the server fills. Every read the spec declares is one of
+    its parameters there, a ``QueryParam`` or a ``UrlKwarg`` alike, with the
+    node, the ``required`` and the default the compiled spec gives it, so a
+    tool built off ``registry.specs()`` advertises its reads as one built off
+    the registry does.
 
-    **No sort argument is contributed here.** A tool that can sort says so in its
-    own reflected schema — a ``filter_set``'s ``OrderingFilter``, or an
-    ``ordering`` parameter on the selector callable — and that reflected property
-    passes straight through. Writing one into ``extra`` would land it *over* the
-    reflected properties in the merge below, replacing a FilterSet's public
-    choices with a second vocabulary the FilterSet would then reject.
+    **No sort argument is contributed here.** A tool that can sort says so in
+    its own schema — a ``filter_set``'s ``OrderingFilter``, or an ``ordering``
+    parameter on the selector callable — and that property passes straight
+    through.
 
-    The registered declarations are merged **over** the reflected properties, so
-    an explicit ``UrlKwarg`` for a key drf-services already reflected (from a
-    selector's ``Unpack[TypedDict]``, or a serializer field) wins — it is the
-    intentional one, and the channel the value arrives by.
+    **A list selector gains ``page`` and ``limit``**, which the toolset takes
+    out of the call before dispatch, and each of the spec's ``shapes`` is told
+    what it applies to on a page (``_with_scope``). A read a callable takes is
+    that callable's argument, which the page's items never see, so it is told
+    nothing.
 
-    The reflected ``required`` list is preserved and *extended* by any
-    ``UrlKwarg(required=True)``. A key that is both reflected-required and
-    registered-required appears once: that is one statement made twice, not two
-    requirements.
-
-    A ``many=True`` spec's reflected schema is already the object a model can
-    send -- one required array property named by ``spec.many_argument``, and
-    ``additionalProperties: false`` -- so the merge below applies to it unchanged.
-    The ``false`` is carried over and stays true: a declared channel is a
-    property, not an additional one, and ``_call_spec`` pops it before dispatch
-    holds anything else sent beside the list to the toolset's
-    ``unknown_arguments``: refused under ``REJECT``, dropped under ``IGNORE``.
+    A ``many=True`` spec's schema is already the object a model can send: one
+    required array property named by ``spec.many_argument``.
 
     **Less ``server_names``, last**: every name ``tool_server_arguments``
-    binds or withholds leaves ``properties`` and ``required``, after the
-    channels are merged in, since a read reaches the schema as a channel of
-    this toolset's, and a required ``UrlKwarg`` would otherwise be written
-    back (``test_bound_and_withheld_names_leave_the_schema_and_its_required``).
-    A tool with nothing to merge takes the early return, which subtracts too
-    (``test_a_tool_with_no_channels_loses_the_bound_name_too``).
+    binds or withholds leaves ``properties`` and ``required``
+    (``test_bound_and_withheld_names_leave_the_schema_and_its_required``,
+    ``test_a_tool_with_no_channels_loses_the_bound_name_too``).
     """
-    schema = _caller_schema(spec, url_kwargs, pool_seeds=pool_seeds, registry=registry)
-    extra: dict[str, Any] = {}
-    paged = _is_list_selector(spec)
-    if paged:
-        extra["page"] = _PAGE_PARAM_SCHEMA
-        extra["limit"] = _limit_param_schema(max_page_size)
-    scope = _render(conventions.query_param_on_pages) if paged else None
-    # Only a shape is told what it applies to on a page: a read a callable
-    # takes is that callable's argument, which the page's items never see.
-    extra.update(
-        {
-            qp.name: _query_param_schema(qp, scope=scope if qp.name in shapes else None)
-            for qp in query_params
+    schema = _caller_schema(spec, pool_seeds=pool_seeds, unknown_arguments=unknown_arguments)
+    # Against the default registry the overlay changes nothing, so it is skipped
+    # rather than reflecting every tool through drf-services twice to find that.
+    if registry is not DEFAULT_JSON_SCHEMA_REGISTRY:
+        schema = _with_registry_nodes(spec, schema, registry)
+    if _is_list_selector(spec):
+        schema = {
+            **schema,
+            "properties": {
+                **_with_scope(
+                    schema["properties"], shapes, _render(conventions.query_param_on_pages)
+                ),
+                "page": _PAGE_PARAM_SCHEMA,
+                "limit": _limit_param_schema(max_page_size),
+            },
         }
-    )
-    extra.update({uk.name: uk.json_schema() for uk in url_kwargs})
-    required: list[str] = list(schema.get("required", []))
-    required.extend(uk.name for uk in url_kwargs if uk.required and uk.name not in required)
-    if not extra:
-        return _without(schema, server_names)
-    merged: dict[str, Any] = {
-        **schema,
-        "type": "object",
-        "properties": {**schema.get("properties", {}), **extra},
-    }
-    if required:
-        merged["required"] = required
-    return _without(merged, server_names)
+    return _without(schema, server_names)
+
+
+def _with_scope(
+    properties: dict[str, Any], shapes: frozenset[str], scope: str | None
+) -> dict[str, Any]:
+    """``properties`` with ``scope`` appended to each of ``shapes``' descriptions.
+
+    Every list selector here returns a page, and a read-shaping argument's
+    declared description is written by someone thinking of a row -- "fields to
+    return" -- while the model reads it beside a documented
+    ``{"items": [...], ...}`` result. The scope sentence closes that gap at the
+    parameter, where the model is choosing a value. Appended after the declared
+    text, which stays first because it is the part that says what the argument
+    *is*; with no declared text it is the whole description. ``None``, when the
+    conventions dropped the sentence, leaves every declaration as written. A
+    shape the server fills is not among ``properties`` and is told nothing
+    (``test_a_read_shape_a_registered_seed_fills_is_not_advertised``).
+    """
+    if scope is None:
+        return properties
+    scoped = dict(properties)
+    for name in shapes & properties.keys():
+        declared = scoped[name].get("description")
+        scoped[name] = {**scoped[name], "description": f"{declared} {scope}" if declared else scope}
+    return scoped
 
 
 def _without(schema: dict[str, Any], names: frozenset[str]) -> dict[str, Any]:
     """``schema`` with ``names`` out of its ``properties`` and its ``required``.
 
     The schema itself when there is nothing to take out, so a tool no binding
-    names is advertised unchanged. Otherwise a new mapping, never an
-    edit of the one passed in, which may be drf-services' own. A ``required``
-    left empty is dropped, as a merge requiring nothing writes none.
+    names is advertised unchanged. Otherwise a new mapping, never an edit of
+    the one passed in. A ``required`` left empty is dropped, as the kernel
+    writes none for a spec requiring nothing.
     """
     if not names:
         return schema
@@ -2330,267 +2306,141 @@ def _without(schema: dict[str, Any], names: frozenset[str]) -> dict[str, Any]:
     return cut
 
 
+def _with_registry_nodes(
+    spec: Spec, schema: dict[str, Any], registry: JsonSchemaRegistry
+) -> dict[str, Any]:
+    """``schema`` with drf-services' node for each property ``registry`` describes otherwise.
+
+    For a toolset built with its own ``json_schema_registry``. The kernel's
+    schema builders take no registry, so a project's own field or filter type
+    the spec compiled no schema for reaches them as ``{}``; drf-services'
+    reflection reads the registry. The node is taken only where reflecting the
+    spec against ``registry`` and against the default registry disagree, which
+    is exactly what the registry contributes. The argument set, ``required``
+    and ``additionalProperties`` stay the kernel's, so what is advertised is
+    still what dispatch admits. Held by
+    ``test_a_consumer_registry_reaches_the_input_schema`` and
+    ``test_a_consumer_registry_reaches_the_ordering_predicate_too``; the comparison by
+    ``test_a_consumer_registry_takes_no_node_it_does_not_change``.
+    """
+    own = cast("dict[str, Any]", spec_to_json_schema(spec, phase="input", registry=registry))
+    default = cast("dict[str, Any]", spec_to_json_schema(spec, phase="input"))
+    plain = default.get("properties", {})
+    changed = {
+        name: node for name, node in own.get("properties", {}).items() if node != plain.get(name)
+    }
+    return {
+        **schema,
+        "properties": {
+            name: changed.get(name, node) for name, node in schema.get("properties", {}).items()
+        },
+    }
+
+
 def _caller_schema(
     spec: Spec,
-    url_kwargs: Sequence[UrlKwarg] = (),
     *,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
 ) -> dict[str, Any]:
-    """What ``spec`` itself asks of the model, before this toolset's own channels.
+    """What ``spec`` itself asks of the model, before this toolset's own arguments.
 
-    A selector tool asks for its selector's parameters, as ``_selector_inputs``
-    reflects them. A service tool asks for its input serializer's fields and for
-    its **target lookup**, the selector ``_called_selector`` names: drf-services
-    hands the arguments it validates against the serializer to the selector that
-    resolves the row or the set as well, and its unknown-argument check admits
-    what that selector declares. Described by the serializer alone, a tool
-    renaming a row would never tell the model about the ``pk`` naming which
-    row, and a call without one would reach the lookup as a ``TypeError``.
+    The kernel's ``spec_input_schema`` of the compiled spec, the argument set
+    its ``dispatch`` checks: a selector's reads and shapes, or a service's
+    target lookup's reads, its own, its shapes and its Validator's fields. Read
+    under the toolset's own ``unknown_arguments``, because the schema closes the
+    argument set, ``"additionalProperties": false``, exactly where dispatch
+    does: under ``REJECT`` and not under ``IGNORE``
+    (``test_the_schema_closes_the_argument_set_only_where_the_call_does``).
 
-    **A serializer field sharing its name with a lookup parameter keeps the
-    serializer's property**: the serializer validates the value, so its
-    declaration is the more precise one, and the lookup's is written first and
-    overlaid. **Requiredness is the union**, because the lookup cannot run
-    without a parameter it requires whatever the serializer says about the name,
-    and a ``partial`` serializer says nothing is required.
-    ``test_a_serializer_field_keeps_its_schema_when_a_lookup_shares_its_name``
-    holds both, and a name both sides require is listed once
-    (``test_a_name_the_lookup_and_the_serializer_both_require_is_listed_once``).
+    **Less ``server_owned_keys`` for this toolset's seeds**: every name dispatch
+    fills from the server whatever the caller sends -- the dispatcher's own
+    seeds, every registered one, and each key a ``kwargs=`` or ``input_data=``
+    provider is annotated to fill. A registered seed's name a service's
+    Validator declares as a top-level field is not among them, since that field
+    is the caller's to send. Advertised, such a name would be an argument the
+    call drops or ``REJECT`` refuses
+    (``test_a_registered_seed_outranks_a_model_argument_of_the_same_name``).
 
-    A service whose lookup advertises nothing keeps its schema exactly, down to
-    a bare ``{"type": "object"}`` gaining no empty ``properties``
-    (``test_a_service_without_a_lookup_keeps_its_schema_byte_for_byte``), and a
-    merge requiring nothing writes no empty ``required``
-    (``test_a_lookup_that_can_run_without_arguments_requires_none``).
-
-    **The lookup's keys are merged less every key the call keeps from it**,
-    ``server_owned_keys(spec)``: one the service, a precondition or the lookup
-    marks ``NotClientInput``. The lookup's own reflection drops only the keys
-    the lookup marks, and asked of the service's spec rather than the nested
-    lookup's, the set has the others too. Dispatch drops the caller's value for
-    each before the lookup reads it and ``REJECT`` refuses it, so advertising
-    one would offer an argument every call carrying it is refused for
-    (``test_a_key_a_precondition_hides_is_not_advertised_beside_the_lookup``).
-    **A field the input serializer declares under such a name stays**, because
-    the serializer's properties are overlaid after the subtraction: the field is
-    client input, validated into ``data``, whatever a callable hides under its
-    name (``test_a_serializer_field_under_a_hidden_name_stays_advertised``).
-
-    The service's own schema is read under ``_ARGUMENT_BINDING``, the binding it
-    is dispatched under, so a service with no input serializer lists what
-    ``REJECT`` admits of it.
-
-    ``spec_to_json_schema(phase="input")`` always returns a dict (only the
-    output phase is nullable), so the result is narrowed for the type-checker.
+    **A read a provider may decline is advertised and not required**: the
+    kernel lists it as declared, ``required`` meaning the call needs the value
+    from someone, and dispatch does not demand it of the caller, since the
+    provider may fill it
+    (``test_a_key_the_provider_may_decline_stays_the_models_to_send``), and in
+    its own seat only
+    (``test_a_key_one_seat_may_decline_is_still_required_by_another``); relaxing
+    the last one leaves no ``required`` at all
+    (``test_a_schema_whose_every_read_may_be_declined_requires_nothing``). A read
+    beside a provider whose keys cannot be read stays as the compiled spec
+    declares it: drf-services compiles one inferred required from a missing
+    default as optional there, and one an ``InputRequired`` marker requires as
+    required (``test_a_marked_parameter_stays_required_beside_an_untyped_provider``).
     """
-    called = _called_selector(spec)
-    reflected: dict[str, Any] = (
-        {}
-        if called is None
-        else _selector_inputs(called, url_kwargs, pool_seeds=pool_seeds, registry=registry)[0]
+    compiled = kernel_spec(spec)
+    schema = _without(
+        spec_input_schema(compiled, unknown_arguments=unknown_arguments),
+        kernel_server_owned_keys(compiled, pool_seeds=pool_seeds),
     )
-    if isinstance(spec, SelectorSpec):
-        return reflected
-    schema = cast(
-        "dict[str, Any]",
-        spec_to_json_schema(
-            spec, phase="input", registry=registry, argument_binding=_ARGUMENT_BINDING
-        ),
-    )
-    owned = server_owned_keys(spec)
-    properties: dict[str, Any] = {
-        name: value for name, value in reflected.get("properties", {}).items() if name not in owned
-    }
-    if not properties:
+    declinable: set[str] = set()
+    for names, keys in _read_seats(compiled):
+        if keys is not None:
+            declinable |= names & keys.declinable
+    required = [name for name in schema.get("required", []) if name not in declinable]
+    if required == schema.get("required", []):
         return schema
-    properties.update(schema.get("properties", {}))
-    required = [
-        *(name for name in reflected.get("required", []) if name not in owned),
-        *schema.get("required", []),
-    ]
-    merged: dict[str, Any] = {**schema, "type": "object", "properties": properties}
+    relaxed = {key: value for key, value in schema.items() if key != "required"}
     if required:
-        merged["required"] = list(dict.fromkeys(required))
-    return merged
+        relaxed["required"] = required
+    return relaxed
+
+
+def _read_seats(
+    compiled: KernelServiceSpec | KernelSelectorSpec,
+) -> list[tuple[frozenset[str], ProviderKeys | None]]:
+    """Each seat of reads in ``compiled`` with what its provider says it fills.
+
+    A selector's ``reads`` beside its ``kwargs=``; a service's own beside its
+    ``kwargs=``, and its target lookup's beside the lookup's. Each provider's
+    values reach its own seat only, so a provider's keys say nothing about a
+    read in another. ``None`` is a provider whose keys cannot be read, which
+    may fill any read in its seat; no provider at all fills nothing. A
+    Validator's fields are not a seat here: the Validator answers for them.
+    The target's seat is held by ``test_a_service_call_missing_its_lookup_is_handed_back``.
+    """
+    seats = [(compiled.reads.names(), provider_keys(compiled.kwargs))]
+    target = compiled.target_selector_spec() if isinstance(compiled, KernelServiceSpec) else None
+    if target is not None:
+        seats.append((target.reads.names(), provider_keys(target.kwargs)))
+    return seats
 
 
 def _required_arguments(
     spec: Spec,
-    url_kwargs: Sequence[UrlKwarg] = (),
     *,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
 ) -> tuple[str, ...]:
-    """The arguments a call to ``spec`` cannot go without, as its schema requires them.
+    """The reads a call to ``spec`` cannot go without, as its schema requires them.
 
-    Read off the same ``_selector_inputs`` the schema is built from, so what a
-    call is refused for and what the model was told cannot drift apart. Only
-    the selector's half: a service's serializer fields are checked by the
-    serializer, which answers a missing one itself.
+    Read off ``_caller_schema``, the schema the tool advertises, so what a call
+    is refused for and what the model was told cannot drift apart. Only the
+    reads: a service's Validator fields, and the list a ``many`` service takes,
+    are checked by dispatch, which answers a missing one itself
+    (``test_an_input_serializer_still_words_its_own_required_fields``).
 
-    Less ``server_owned_keys(spec)``, as ``_caller_schema`` merges the lookup's
-    keys less them: a key the call keeps from the lookup is not advertised, and
-    a call is not refused for leaving it out. One nothing fills is a
-    configuration error that fails as the lookup's own ``TypeError``, as
-    drf-services fails it, rather than a retry asking the model for an argument
-    ``REJECT`` then refuses
-    (``test_a_call_is_not_refused_for_a_key_no_caller_can_send``). A selector
-    tool's own reflection has already left the set out, so the subtraction
-    changes nothing there.
+    **Less every read a provider whose keys cannot be read may fill**: the
+    schema keeps such a read required where a marker says so, and dispatch
+    does not demand it of the caller, since only the assembled pool can say
+    whether it arrived
+    (``test_an_untyped_provider_filling_a_marked_parameter_is_not_refused``).
     """
-    called = _called_selector(spec)
-    if called is None:
-        return ()
-    owned = server_owned_keys(spec)
-    checked = _selector_inputs(called, url_kwargs, pool_seeds=pool_seeds, registry=registry)[1]
-    return tuple(name for name in checked if name not in owned)
-
-
-def _called_selector(spec: Spec) -> SelectorSpec[Any, Any] | None:
-    """The selector spec a call to ``spec`` hands the model's arguments to, if any.
-
-    A selector tool's own spec. For a service, the **target lookup** drf-services
-    resolves the row or the set through: its ``collection_selector_spec`` or its
-    ``instance_selector_spec``, whichever it declares, and ``None`` for neither.
-    The collection arm is held by
-    ``test_a_collection_lookup_is_advertised_as_an_instance_lookup_is``.
-
-    There is no precedence between the two lookups and no ``many=True`` arm,
-    because drf-services refuses both shapes when the spec is built: a lookup
-    dispatch would never call, beside the other lookup or beside a list payload
-    that resolves no target
-    (``test_a_lookup_dispatch_never_calls_cannot_reach_the_toolset``). So a
-    ``many=True`` service declares no lookup to read, and its schema stays the
-    list alone, closed with ``additionalProperties: false``.
-    """
-    if isinstance(spec, SelectorSpec):
-        return spec
-    if spec.collection_selector_spec is not None:
-        return spec.collection_selector_spec
-    return spec.instance_selector_spec
-
-
-def _selector_inputs(
-    spec: SelectorSpec[Any, Any],
-    url_kwargs: Sequence[UrlKwarg] = (),
-    *,
-    pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
-) -> tuple[dict[str, Any], tuple[str, ...]]:
-    """A selector's input schema as this toolset calls it, and what a call needs.
-
-    A signature alone cannot say which parameters the caller sends and which the
-    transport fills, so drf-services' reflection is told: ``supplied`` names
-    what this toolset fills in the pool the kernel's ``dispatch`` calls the
-    selector with, read from the sources that pool is built from, less the model's own
-    arguments. A supplied name is not advertised, and every other parameter
-    without a default is required, except a name a provider *may* fill (below).
-    The union has three parts, each held by a test, because deleting one leaves
-    every branch covered:
-
-    - ``pool_seeds.reserved``, the set dispatch reserves against the model's
-      arguments: drf-services' own seeds and the registered ones. ``base_pool``
-      fills ``request`` / ``user`` / ``progress`` and every registered seed, and
-      dispatch strips every reserved name from what the model sends, so a
-      ``data`` or ``instance`` the selector path never fills is not the model's
-      to send either. drf-services adds its own seeds to any ``supplied`` set
-      itself, so the registered half is the part only this toolset can state:
-      held by ``test_a_registered_seed_outranks_a_model_argument_of_the_same_name``
-      and ``test_a_service_tool_advertises_its_target_lookup``.
-      ``test_a_dispatcher_seed_is_neither_advertised_nor_required`` holds the
-      built-in half's outcome, whichever of the two states it.
-    - the name of every ``UrlKwarg`` declaring a ``default``, which fills the
-      pool whenever the model leaves it out. Held by
-      ``test_a_url_kwarg_answers_for_the_parameter_it_fills``. One with no
-      default reaches the pool only when the model sends it, so it is the
-      model's to send, and the selector's signature still says whether it must;
-      ``test_a_url_kwarg_with_no_default_leaves_the_selector_to_require_it``
-      holds that filter. A ``call_seeds`` override filling a name is code
-      nothing here can read, which is why its docstring asks for the name to be
-      declared as one of these or as a mount seed.
-    - the keys the spec's ``kwargs=`` provider always fills, as drf-services'
-      ``provider_keys`` reads them: its ``filled`` set. Held by
-      ``test_a_name_a_typed_provider_returns_is_not_asked_for``.
-
-    **The provider's annotation is read by drf-services, not here**, so this
-    toolset, drf-mcp and dispatch read it one way and a copy here could only
-    drift from theirs. What the reading decides is held on the
-    tool definition the model sees, one test per shape:
-    ``test_a_key_holding_unset_inside_a_container_is_not_offered_to_the_model``,
-    ``test_an_annotation_imported_only_for_type_checking_leaves_the_keys_readable``,
-    ``test_a_generic_typed_dict_declines_what_its_binding_declines`` and
-    ``test_a_providers_return_annotation_decides_what_the_model_is_asked_for``.
-
-    **A name the provider may fill, without saying it will, is advertised and
-    not required for lacking a default**: every name, beside a provider whose
-    keys cannot be read (``provider_keys`` answers ``None``), and a key it may
-    decline with ``UNSET``, leaving the caller's value through (its
-    ``declinable`` set). ``required`` keeps such a name only where the
-    reflection requires it without ``supplied`` (an ``InputRequired`` marker, a
-    required ``TypedDict`` key), and keeps no name the toolset fills even then.
-    Nor is the call checked for it here, since only the assembled pool can say
-    whether it arrived: drf-services checks that pool itself, and refuses a
-    parameter nothing filled as a missing argument the model can send on its
-    next turn. Each half of that is held by a test:
-
-    - every other name staying required:
-      ``test_a_selector_parameter_without_a_default_is_required``;
-    - the untyped provider:
-      ``test_an_untyped_provider_leaves_every_parameter_optional``;
-    - a declinable key: ``test_a_key_the_provider_may_decline_stays_the_models_to_send``;
-    - a marker standing: ``test_a_marked_parameter_stays_required_beside_an_untyped_provider``;
-    - a marker on a name the toolset fills:
-      ``test_a_marked_parameter_a_url_kwarg_fills_is_not_required_beside_an_untyped_provider``;
-    - no check for such a name:
-      ``test_an_untyped_provider_filling_a_marked_parameter_is_not_refused`` and
-      the ``filled`` case of the declinable-key test.
-
-    The second value is what ``_call_spec`` refuses a call without: the
-    schema's own ``required`` less every name a provider may fill, so the call
-    and the schema cannot disagree.
-    """
-    provided = provider_keys(spec.kwargs)
-    defaulted = {uk.name for uk in url_kwargs if _declares_default(uk.default)}
-    filled = frozenset() if provided is None else provided.filled
-    supplied = pool_seeds.reserved | defaulted | filled
-    schema = cast(
-        "dict[str, Any]",
-        spec_to_json_schema(spec, phase="input", registry=registry, supplied=supplied),
-    )
-    uninformed = cast("dict[str, Any]", spec_to_json_schema(spec, phase="input", registry=registry))
-    declared: list[str] = uninformed.get("required", [])
-    # ``None`` is every name: a provider whose keys cannot be read may fill any.
-    may_fill = None if provided is None else provided.declinable
-    required: list[str] = schema.get("required", [])
-    checked = tuple(name for name in required if may_fill is not None and name not in may_fill)
-    kept = [name for name in required if name in checked or name in declared]
-    cut: dict[str, Any] = {key: value for key, value in schema.items() if key != "required"}
-    if kept:
-        cut["required"] = kept
-    return cut, checked
-
-
-def _query_param_schema(query_param: QueryParam, *, scope: str | None) -> dict[str, Any]:
-    """One ``QueryParam``'s property, told what it applies to when the tool pages.
-
-    Every list selector here returns a page, and the declared description is
-    written by someone thinking of a row -- "fields to return" -- while
-    the model reads it beside a documented ``{"items": [...], ...}`` result. The
-    scope sentence closes that gap at the parameter, where the model is choosing
-    a value. Appended after the declared text, which stays first because it is
-    the part that says what the param *is*; with no declared text it is the
-    whole description.
-
-    ``scope`` is ``None`` on a tool that does not page, and on one that does when
-    the conventions dropped the sentence; either way the declaration stands as
-    written.
-    """
-    schema = query_param.json_schema()
-    if scope is not None:
-        declared = schema.get("description")
-        schema["description"] = f"{declared} {scope}" if declared else scope
-    return schema
+    reads: set[str] = set()
+    may_fill: set[str] = set()
+    for names, keys in _read_seats(kernel_spec(spec)):
+        reads |= names
+        if keys is None:
+            may_fill |= names
+    required = _caller_schema(spec, pool_seeds=pool_seeds).get("required", [])
+    return tuple(name for name in required if name in reads and name not in may_fill)
 
 
 def _is_list_selector(spec: Spec) -> bool:
@@ -2615,22 +2465,19 @@ def _spec_ordering_argument(
     spec: Spec,
     *,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
 ) -> str | None:
     """The argument name a list spec advertises its sort under, or ``None``.
 
-    **The one signal, read by both the schema builder and the dispatch path, so
+    **The one signal, read by both the instructions and the dispatch path, so
     they cannot disagree** — the invariant being *whatever the schema advertises,
     the dispatch must deliver*.
 
-    **Returns the name rather than a yes/no.** Asking only whether the
-    reflected schema contains the literal ``"ordering"`` would assume the one
-    name the documentation happens to suggest. For a project whose
-    ``OrderingFilter`` is called ``sorting`` the sort would still apply — the
-    FilterSet reads ``params`` either way — but the usage instruction would be
-    dropped, and the value never popped out of the callable's kwarg pool, so a
-    selector declaring ``**kwargs`` would receive a read-shaping argument it
-    never asked for: the hazard :func:`_pop_filter_ordering` exists to prevent.
+    **Returns the name rather than a yes/no.** Asking only whether the schema
+    contains the literal ``"ordering"`` would assume the one name the
+    documentation happens to suggest. For a project whose ``OrderingFilter`` is
+    called ``sorting`` the sort would still apply, but the usage instruction
+    would be dropped, and a sort sent under ``ordering`` would not be refused
+    as one the tool never offered.
 
     **Duck-typed, not an ``isinstance`` test against ``django_filters``.**
     django-filter is an optional extra this package never imports, and a spec's
@@ -2641,31 +2488,25 @@ def _spec_ordering_argument(
 
     Falls back to the literal ``"ordering"``, which covers the case a
     ``filter_set`` cannot answer for: a list selector with no ``filter_set``
-    whose *callable* declares an ``ordering`` parameter, reflected into the
-    schema like any other selector argument and consumed by the callable itself.
+    whose *callable* declares an ``ordering`` parameter, listed in the schema
+    like any other selector argument and consumed by the callable itself.
 
-    Restricted to list selectors because that is the only kind the toolset ever
-    contributes a sort argument to: elsewhere there is no ownership to contest,
-    and a service whose input serializer happens to have a field named
-    ``ordering`` must not be read as a clash.
+    Restricted to list selectors because that is the only kind the toolset
+    pages: elsewhere there is no ownership to contest, and a service whose
+    input serializer happens to have a field named ``ordering`` must not be
+    read as a clash.
 
-    **Read off the reflection the tool's schema is built from**, told the same
-    names this toolset fills. A selector whose ``ordering`` parameter a typed
-    provider or a registered seed fills is offered no sort, so no instruction
-    may teach one and a sort the model sends anyway is refused. Read without
-    them, this would answer ``"ordering"`` for a property the schema dropped:
-    held by ``test_an_ordering_the_toolset_fills_is_refused_from_the_model`` and
-    ``test_an_ordering_the_toolset_fills_gets_no_usage_line``. Without
-    ``url_kwargs``, because they cannot change the answer: no ``UrlKwarg`` may
-    be named ``ordering`` (``_RESERVED_PARAM_NAMES``), and a ``filter_set``'s
-    sort is reflected whatever ``supplied`` says.
+    **Read off ``_caller_schema``, the schema the tool advertises**, told the
+    same seeds. A selector whose ``ordering`` parameter a typed provider or a
+    registered seed fills is offered no sort, so no instruction may teach one
+    and a sort the model sends anyway is refused. Read without them, this
+    would answer ``"ordering"`` for a property the schema dropped: held by
+    ``test_an_ordering_the_toolset_fills_is_refused_from_the_model`` and
+    ``test_an_ordering_the_toolset_fills_gets_no_usage_line``.
     """
     if not _is_list_selector(spec):
         return None
-    # ``_is_list_selector`` has just said it is one; it answers ``bool``.
-    selector = cast("SelectorSpec[Any, Any]", spec)
-    reflected = _selector_inputs(selector, pool_seeds=pool_seeds, registry=registry)[0]
-    properties = reflected.get("properties", {})
+    properties = _caller_schema(spec, pool_seeds=pool_seeds).get("properties", {})
     filter_set = getattr(spec, "filter_set", None)
     for name, declared in getattr(filter_set, "base_filters", {}).items():
         # Advertised as well as declared: a filter the schema does not carry is
@@ -2745,11 +2586,7 @@ def _call_spec(
     # confirm the tool exists. This catalog is not permission-filtered (see
     # ``get_tools``), so the names asked for here are ones every run was shown.
     missing = [
-        name
-        for name in _required_arguments(
-            spec, url_kwargs, pool_seeds=pool_seeds, registry=json_schema_registry
-        )
-        if name not in args
+        name for name in _required_arguments(spec, pool_seeds=pool_seeds) if name not in args
     ]
     if missing:
         raise _missing_arguments(missing, conventions)
@@ -2760,8 +2597,6 @@ def _call_spec(
     # is an argument like any other, and the kernel hands what the caller sent
     # for the spec's declared ``shapes`` to the presenter alone.
     url_kwarg_values = _pop_url_kwargs(url_kwargs, args, conventions=conventions)
-    # A string sort read as the list the FilterSet's widget would split it into.
-    _list_filter_ordering(spec, args, pool_seeds=pool_seeds, registry=json_schema_registry)
     try:
         # Inside the ``try``, as every refusal the call can meet is: compiling
         # the spec and reading its parameters can refuse it (a serializer field
@@ -3203,44 +3038,9 @@ def _pop_pagination(
     # Popped in a fixed order (limit, ordering, page) so that a call carrying two
     # bad arguments is corrected on the same one every time.
     limit: int | None = _coerce_positive_int(args.pop("limit", None), "limit")
-    if _spec_ordering_argument(spec, pool_seeds=pool_seeds, registry=registry) is None:
+    if _spec_ordering_argument(spec, pool_seeds=pool_seeds) is None:
         _refuse_unadvertised_ordering(args.pop("ordering", None))
     return _PageArgs(page=_coerce_positive_int(args.pop("page", None), "page"), limit=limit)
-
-
-def _list_filter_ordering(
-    spec: Spec,
-    args: dict[str, Any],
-    *,
-    pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
-    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
-) -> None:
-    """A filter-owned ``ordering`` in ``args`` as the list its FilterSet reads.
-
-    The input schema offers a FilterSet's ``OrderingFilter`` as one of its
-    strings, while the compiled spec types it as what the filter's widget
-    reads, an array: a string is the comma-separated parts the widget splits
-    it into, ``""`` none of them. A list, or anything else, is left for the
-    kernel's shape check to judge. The value stays in ``args``, where the
-    compiled spec's filter step reads it.
-
-    **The two checks here are not redundant with each other.**
-    :func:`_spec_ordering_argument` answers *what the spec calls* its sort; the
-    ``filter_set`` check answers *whose reading of it applies*. When only the
-    selector's own signature advertised it there is no FilterSet, and the
-    selector takes the string it declared.
-
-    **The name is asked for rather than assumed**, so a FilterSet whose
-    ``OrderingFilter`` is called anything other than ``ordering`` is read too.
-    """
-    if not isinstance(spec, SelectorSpec) or spec.filter_set is None:
-        return
-    name = _spec_ordering_argument(spec, pool_seeds=pool_seeds, registry=registry)
-    if name is None:
-        return
-    ordering = args.get(name)
-    if isinstance(ordering, str):
-        args[name] = ordering.split(",") if ordering else []
 
 
 def _declares_default(default: Any) -> bool:

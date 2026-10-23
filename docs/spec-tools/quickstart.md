@@ -84,7 +84,7 @@ result = await agent.run(
     setting a fan-out genuinely needs.
 
 For that request the model can call `list_orders` with
-`{"limit": 5, "ordering": "-created"}` and the toolset enforces permissions,
+`{"limit": 5, "ordering": ["-created"]}` and the toolset enforces permissions,
 runs the selector as `request.user`, hands `ordering` to the selector's
 [`filter_set`](#ordering), slices the result, and renders it through
 `OrderSerializer`.
@@ -135,7 +135,9 @@ the same spec — so the schema and the payload cannot disagree about it.
 Each tool definition carries a `return_schema` derived from the spec's output
 serializer, projected the same way the payload is: a field marked
 [hidden](agent-audience.md) is absent from both, and a marked handle carries its
-description in both.
+description in both. It is the kernel's `spec_output_schema`. A spec declaring a read shape,
+such as a `fields` query param, requires none of a row's fields, since the
+shape may leave any of them out.
 
 It is populated but **not sent** by default, because a return schema costs
 context on every turn of every run and only your model and your serializers say
@@ -148,7 +150,7 @@ agent = Agent(model, toolsets=[SpecToolset(specs).include_return_schemas()])
 A spec with no `output_serializer` gets `None` rather than a guessed shape.
 
 A `return_schema` admits `null`, with the root `type` `["object", "null"]`,
-where the spec says dispatch may hand the model `None`, as drf-services'
+where the spec says dispatch may hand the model `None`, as the kernel's
 `can_present_nothing` answers it for every route that states an output schema:
 
 - a retrieve selector declaring `allow_none=True`, when nothing matches;
@@ -156,7 +158,8 @@ where the spec says dispatch may hand the model `None`, as drf-services'
   dispatch materializes the re-read with `.first()`, and a re-read that filters
   out the row it wrote finds none;
 - a service with nothing to re-read that declares `ServiceSpec(allow_none=True)`,
-  since dispatch then presents the service's own return, a `None` included.
+  since dispatch then presents the service's own return, a `None` included, a
+  `many=True` service's too, whose `return_schema` is then `["array", "null"]`.
 
 **A `None` the spec does not declare is still handed to the model.** A service
 with nothing to re-read and no `allow_none=True` that returns `None` is
@@ -176,8 +179,9 @@ Return the rows, or declare `RETRIEVE` to present one.
 
 A tool's parameter schema is the model's only account of what to send, and a
 selector's signature cannot say on its own which parameters the model sends and
-which the toolset fills. So the toolset says so when it builds the schema
-(through drf-services' `spec_to_json_schema(supplied=...)`):
+which the toolset fills. So the schema is the kernel's `spec_input_schema` of
+the compiled spec, the argument set `dispatch` checks, less the kernel's
+`server_owned_keys` for the toolset's seeds:
 
 - **A name the toolset fills is not advertised.** That is drf-services' own
   pool seeds (`request`, `user`, `progress` and the rest), every name registered
@@ -691,7 +695,8 @@ The model sends `{"widgets": [{...}, {...}]}` and the service receives the list,
 exactly as it would from a REST view's bare array body. The tool's parameter
 schema says so: an object with that one required property, an array of the item
 schema, carrying the list serializer's `allow_empty`, `min_length` and
-`max_length` as `minItems` / `maxItems`, and `additionalProperties: false`. A
+`max_length` as `minItems` / `maxItems`, and, under the default
+[`REJECT`](#unexpected-arguments), `additionalProperties: false`. A
 declared `QueryParam` or `UrlKwarg` is advertised beside it, since the toolset
 takes those out of the arguments before dispatch. The result is the rendered
 list, and the tool's `return_schema` describes it as an array even though the
@@ -749,11 +754,14 @@ class OrderFilterSet(django_filters.FilterSet):
         fields = ["status"]
 ```
 
-drf-services reflects that filter into the tool's input schema as its public
-choices (`created`, `-created`, `total`, `-total`) — `OrderingFilter` subclasses
-`ChoiceFilter`, which the schema generator maps to a set of `const` options
-carrying the filter's own labels — so the model is told exactly what it may sort
-by, in the words the FilterSet uses. At call time the value is handed to
+The kernel lists that filter in the tool's input schema as an array of its
+public choices, `{"type": "array", "items": {"type": "string", "enum":
+["created", "-created", "total", "-total"]}}`, as `OrderingFilter` takes a list
+of sort keys, so the model is told exactly what it may sort by, in the words the
+FilterSet uses. The choices' labels are not carried. A single key is sent as a
+one-element list, `["-created"]`; one sent as a bare string is handed back as
+`ordering: Expected an array.` for the model to correct, rather than read as
+one key. At call time the value is handed to
 the FilterSet as filter data: it validates the choice, applies its own
 `param_map`, and a value outside the enum comes back as a `ModelRetry`. The
 toolset contributes nothing and takes nothing away.
@@ -1103,6 +1111,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 | Non-integer `page` / `limit` | `ModelRetry` — naming what is accepted |
 | An `ordering` sent to a list tool that advertises no sort at all | `ModelRetry` — saying the tool has none, rather than letting it fall through as an unknown key |
 | A `limit` over `max_page_size`, or a `page` past the last one | Clamped, not refused — the envelope reports the `page` and `totalPages` actually served, so the clamp is visible rather than silent |
+| An `OrderingFilter`'s `ordering` sent as one string rather than a list | `ModelRetry` — `ordering: Expected an array.`, as the schema advertises an array |
 | An `ordering` outside a `filter_set`'s `OrderingFilter` choices | `ModelRetry` — the FilterSet rejects it, which arrives as the `ValidationError` row above |
 | A FilterSet `param_map` target that isn't a real column | Django's `FieldError` propagates — an author's error the model cannot correct by picking a different sort, and one that can't be checked at construction without a queryset |
 | Denied `permission_classes` (class-level `has_permission` **or** object-level `has_object_permission`), the kernel's `NotPermitted`, or a deactivated principal (`PrincipalUnavailable`, refused before any check) | The refusal is raised, logged at `WARNING` naming the tool, and aborts the run — see the caveat below |
