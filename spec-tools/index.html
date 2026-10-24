@@ -295,6 +295,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
       
@@ -325,10 +352,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -532,7 +559,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -554,14 +581,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -753,8 +780,6 @@
       
         
       
-        
-      
     
     
     
@@ -768,7 +793,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -790,14 +815,14 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link md-nav__link--active" for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -852,34 +877,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1069,39 +1066,47 @@
 
 
 <h1 id="specs-as-tools">Specs as tools<a class="headerlink" href="#specs-as-tools" title="Permanent link">&para;</a></h1>
-<p>Expose <a href="https://github.com/Artui/djangorestframework-services"><code>djangorestframework-services</code></a>
-services and selectors as a <a href="https://ai.pydantic.dev">Pydantic-AI</a> toolset, so a
-plain <code>pydantic_ai.Agent</code> can call them as tools — <strong>no MCP server and no AG-UI
-bridge</strong> in the path.</p>
+<p>Expose services and selectors declared as specs as a
+<a href="https://ai.pydantic.dev">Pydantic-AI</a> toolset, so a plain <code>pydantic_ai.Agent</code>
+can call them as tools — <strong>no MCP server and no AG-UI bridge</strong> in the path. A
+spec is anything
+<a href="https://github.com/Artui/django-service-specs"><code>django-service-specs</code></a>
+compiles: one of its own <code>ServiceSpec</code> or <code>SelectorSpec</code>, or a value its
+<code>kernel_spec</code> compiles to one.</p>
 <h2 id="what-this-is">What this is<a class="headerlink" href="#what-this-is" title="Permanent link">&para;</a></h2>
 <p>A single thin adapter, <a href="reference/#django_spec_agents.spec_tools.SpecToolset"><code>SpecToolset</code></a>,
-that turns a <code>name -&gt; spec</code> mapping into agent tools. Every call routes through
-drf-services' transport-neutral surface:</p>
+that turns a <code>name -&gt; spec</code> mapping into agent tools. Every call runs on the
+kernel, on the compiled spec, so a spec is served the same way whichever library
+declared it:</p>
 <ul>
-<li><strong><code>dispatch_spec</code></strong> executes the service or selector (validation, instance
-  resolution, output-selector re-fetch);</li>
-<li><strong><code>build_offline_context</code></strong> supplies a synthetic request / view / principal so
-  <code>permission_classes</code>, <code>extend_queryset</code>, and context providers keep working;</li>
-<li><strong><code>enforce_permissions</code></strong> runs <code>spec.permission_classes</code> — <code>dispatch_spec</code>
-  deliberately does not, so building a toolset naively on it would skip
-  authorization;</li>
-<li><strong><code>spec_to_json_schema</code></strong> derives each tool's parameter schema and
-  <strong><code>output_to_json_schema</code></strong> its <code>return_schema</code>, projected for the audience;</li>
-<li><strong><code>paginate_output</code></strong> slices a list selector into the page the tool returns,
-  the same shaper the MCP transport uses;</li>
-<li><strong><code>render_for_audience</code></strong> renders the result through the spec's serializer and
-  applies the field markings.</li>
+<li><strong><code>dispatch</code></strong>, the kernel's, authorizes the call and executes the service
+  or selector: the class-level check of the spec's permissions before
+  anything is called, the object-level one on the resolved target, and
+  validation, instance resolution and the output-selector re-fetch around
+  them. Authorization is part of the dispatch, so no adapter can skip it;</li>
+<li><strong>the run's <code>call_context</code></strong> carries the request the run arrived on, if any.
+  Where it carries none, and no <code>call_seeds</code> override returns one, a selector
+  or provider declaring <code>request</code> or <code>view</code> is handed <code>None</code>, while a
+  permission check reads the principal and, where it declares <code>arguments</code>,
+  the call's arguments;</li>
+<li><strong><code>spec_input_schema</code></strong>, the kernel's, derives each tool's parameter schema
+  from the compiled spec, the argument set <code>dispatch</code> checks, and
+  <strong><code>spec_output_schema</code></strong> its <code>return_schema</code>, projected for the audience;</li>
+<li><strong><code>paginate_output</code></strong>, the kernel's, slices a list selector into the page the
+  tool returns, the same shaper the MCP transport uses;</li>
+<li><strong><code>present_for_audience</code></strong>, the kernel's, renders the result through the
+  spec's presenter and applies the field markings.</li>
 </ul>
 <p>The result is that an agent driving these tools sees exactly what an HTTP client
-would: the same validation errors, the same <code>permission_classes</code> checks (both
-class-level <code>has_permission</code> and object-level <code>has_object_permission</code> on the
-resolved row), the same rendered payloads — without the network hop, and without
-standing up an MCP server.</p>
+would: the same validation errors, the same permission checks (class-level
+before anything is called, and object-level on the resolved row), the same rendered payloads —
+without the network hop, and without standing up an MCP server.</p>
 <h2 id="how-it-compares">How it compares<a class="headerlink" href="#how-it-compares" title="Permanent link">&para;</a></h2>
 <p>If you already run an MCP server, <code>django-ag-ui</code>'s <code>DRFMCPToolset</code> exposes its
 tools to Pydantic-AI through the in-process MCP surface. <code>SpecToolset</code> is for the
-case where you want the specs as tools <strong>without</strong> any MCP layer: it depends only
-on <code>djangorestframework-services</code> and <code>pydantic-ai-slim</code>.</p>
+case where you want the specs as tools <strong>without</strong> any MCP layer: the <code>[specs]</code>
+extra installs it on <code>django-service-specs</code> and <code>pydantic-ai-slim</code> alone, and
+the toolset imports nothing from Django REST Framework.</p>
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="quickstart/">Quickstart</a> — wire a toolset to an agent.</li>

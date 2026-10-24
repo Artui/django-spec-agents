@@ -293,6 +293,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -325,10 +352,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -718,7 +745,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -740,14 +767,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -937,8 +964,6 @@
       
         
       
-        
-      
     
     
     
@@ -954,7 +979,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -976,14 +1001,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1038,34 +1063,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../spec-tools/polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1384,7 +1381,7 @@ tool-guard capabilities use.</p>
 <tbody>
 <tr>
 <td>Path</td>
-<td><code>drf-services</code> spec → tool, in process</td>
+<td><code>django-service-specs</code> spec → tool, in process</td>
 <td><code>drf-mcp-server</code> registry → toolset, in process</td>
 </tr>
 <tr>
@@ -1407,8 +1404,8 @@ tool-guard capabilities use.</p>
 </span></code></pre></div>
 <p><code>build_spec_capability(specs, request, exclude_names=…)</code> returns a
 <code>SpecCapability</code> over the specs, bound to <code>request.user</code>. Each call runs through
-drf-services' transport-neutral surface and enforces the spec's own
-<code>permission_classes</code>.</p>
+the kernel's transport-neutral dispatch and enforces the spec's own
+<code>permissions</code>.</p>
 <p>Choosing the capability over a bare toolset is deliberate. The tool-set
 conventions (list-tool <code>page</code> / <code>limit</code> / <code>ordering</code>, and the error contract)
 live on <code>SpecToolset.get_instructions()</code>, so they reach the model either way and
@@ -1427,20 +1424,20 @@ the <code>[drf-mcp]</code> route asks for the same arguments and retries the sam
 The extra is floored where a parameter a <code>kwargs=</code> provider
 declines, and the model left out, is retried the same way rather than reaching
 the selector, and where a selector parameter the toolset takes out of every
-call, a list selector's <code>page</code> or <code>limit</code> or a name a <code>QueryParam</code> also claims,
+call, a list selector's <code>page</code> or <code>limit</code>,
 makes <code>build_spec_capability</code> raise <code>ImproperlyConfigured</code> rather than
 advertising an argument whose value never arrives.</p>
 <h3 id="declaring-specs-once">Declaring specs once<a class="headerlink" href="#declaring-specs-once" title="Permanent link">&para;</a></h3>
 <p><code>specs</code> takes either a <code>name -&gt; spec</code> mapping or a <strong>spec registry</strong> —
-drf-services 0.27's <code>SpecRegistry</code>, the single declaration site for a project
+the kernel's <code>SpecRegistry</code>, the single declaration site for a project
 exposing the same specs over more than one transport:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.integrations.build_spec_capability</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_spec_capability</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">build_spec_capability</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
 </span></code></pre></div>
 <p>The registry is matched <strong>structurally</strong>, through a <code>SpecSource</code> Protocol
-declaring only <code>specs() -&gt; dict</code>. This package names no drf-services type and
-depends on <code>pydantic-ai-slim</code> alone; drf-services arrives only with the extra.</p>
+declaring only <code>specs() -&gt; dict</code>. The package root names no kernel type and
+depends on <code>pydantic-ai-slim</code> alone; the kernel arrives only with the extra.</p>
 <p>If you are writing a transport, normalise with <code>resolve_spec_mapping()</code> before
 you touch the argument. Iterating a registry yields <code>RegisteredSpec</code> <strong>records,
 not names</strong> — so a transport that reserves tool names by iterating the raw

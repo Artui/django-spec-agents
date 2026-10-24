@@ -293,6 +293,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -325,10 +352,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -532,7 +559,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -554,14 +581,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -977,8 +1004,6 @@
       
         
       
-        
-      
     
     
     
@@ -994,7 +1019,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1016,14 +1041,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1078,34 +1103,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../spec-tools/polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1467,8 +1464,8 @@ dependency. See <a href="../../integrations/">Integrations</a> for which to choo
     <div class="doc doc-contents first">
 
         <p>A <code>SpecCapability</code> over <code>specs</code>, acting as the run's <code>deps.user</code>.</p>
-<p>Each spec is called in process through drf-services' transport-neutral
-surface, which enforces its <code>permission_classes</code>. Nothing here closes over
+<p>Each spec is called in process through the kernel's <code>dispatch</code>, which
+enforces its <code>permissions</code>. Nothing here closes over
 a request: <code>SpecToolset</code>'s default extractor already reads
 <code>ctx.deps.user</code>, so a run given
 <a class="autorefs autorefs-internal" title="AgentDeps
@@ -1479,13 +1476,12 @@ a request: <code>SpecToolset</code>'s default extractor already reads
   " href="../agent/#django_spec_agents.AgentDeps"><code>AgentDeps</code></a> binds the
 acting user natively and the capability stays request-independent, which is
 what makes an agent built once reusable across runs.</p>
-<p><strong>Every spec here needs its own <code>permission_classes</code>.</strong> A spec with
-<code>permission_classes=None</code> makes <code>SpecCapability</code> raise
+<p><strong>Every spec here needs its own <code>permissions</code>.</strong> A spec with
+<code>permissions=None</code> makes <code>SpecCapability</code> raise
 <code>ImproperlyConfigured</code> rather than expose an ungated tool: over HTTP
-<code>None</code> means inherit — the view's classes, then
-<code>DEFAULT_PERMISSION_CLASSES</code> — and off HTTP there is nothing to inherit
-from, so a spec properly guarded behind a viewset would become callable by
-whatever the model decides to call.</p>
+<code>None</code> may mean inherit, from the view and then the project's defaults,
+and off HTTP there is nothing to inherit from, so a spec properly guarded
+behind a view would become callable by whatever the model decides to call.</p>
 <p>The <code>require_permissions=False</code> migration flag is not exposed here; a
 project migrating a large registry constructs <code>SpecCapability</code> itself and
 passes it to <code>AgentConfig(capabilities=...)</code>. That path skips the
@@ -1603,11 +1599,11 @@ silently stop detecting collisions.</p>
 
 
         <p>Anything that can hand back a <code>name -&gt; spec</code> mapping.</p>
-<p><code>djangorestframework-services</code>' <code>SpecRegistry</code> is the intended
+<p><code>django-service-specs</code>' <code>SpecRegistry</code> is the intended
 implementation: a project exposing the same specs over more than one
 transport declares them there once, and each transport reads that source.</p>
 <p>It is matched structurally rather than imported, because this substrate
-depends on <code>pydantic-ai-slim</code> alone and drf-services arrives only with the
+depends on <code>pydantic-ai-slim</code> alone and the kernel arrives only with the
 optional <code>[specs]</code> extra. Naming <code>SpecRegistry</code> in a signature would
 force that dependency on every install or bury the type behind a lazy import
 where a signature cannot reach it.</p>

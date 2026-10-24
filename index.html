@@ -14,7 +14,7 @@
       
       
       
-        <link rel="next" href="concepts/">
+        <link rel="next" href="moving/">
       
       
         
@@ -395,6 +395,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
       
@@ -425,10 +452,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -446,8 +473,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -632,7 +659,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -654,14 +681,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -851,8 +878,6 @@
       
         
       
-        
-      
     
     
     
@@ -868,7 +893,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -890,14 +915,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -952,34 +977,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="spec-tools/polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1201,14 +1198,15 @@ import path, <code>django_spec_agents</code>:</p>
   AG-UI over SSE, <code>django-a2a</code> for agent-to-agent) owns its settings namespace,
   builds an <code>AgentConfig</code>, and hands it down.</li>
 <li><strong><a href="spec-tools/"><code>spec_tools</code></a></strong>, behind the <code>[specs]</code> extra, serves
-  <code>djangorestframework-services</code> specs to an agent as tools, in process, with each
+  <code>django-service-specs</code> specs to an agent as tools, in process, with each
   spec's own validation, permissions and rendering.</li>
 </ul>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="w">            </span><span class="c1"># the agent host</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;django-spec-agents[specs]&quot;</span><span class="w">   </span><span class="c1"># and specs as agent tools</span>
 </span></code></pre></div>
 <p>The host was published as <code>django-pydantic-agent</code> and <code>spec_tools</code> as
-<code>djangorestframework-pydantic-ai</code>. The package root never imports <code>spec_tools</code>, so
+<code>djangorestframework-pydantic-ai</code>; <a href="moving/">moving from them</a> maps each
+old name and seam to its new one. The package root never imports <code>spec_tools</code>, so
 the host installs and runs without the extra.</p>
 <h2 id="is-this-the-package-you-want">Is this the package you want?<a class="headerlink" href="#is-this-the-package-you-want" title="Permanent link">&para;</a></h2>
 <p>Often not directly: <strong>most projects install a transport</strong> and get this as a

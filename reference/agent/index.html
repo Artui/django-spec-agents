@@ -293,6 +293,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -325,10 +352,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -532,7 +559,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -554,14 +581,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -894,6 +921,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentDeps.call_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_context
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1124,8 +1162,6 @@
       
         
       
-        
-      
     
     
     
@@ -1141,7 +1177,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1163,14 +1199,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1225,34 +1261,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../spec-tools/polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1632,6 +1640,17 @@
     <span class="md-ellipsis">
       
         progress
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentDeps.call_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_context
       
     </span>
   </a>
@@ -2350,7 +2369,7 @@ validation, which the adapter runs against <code>type(deps.state)</code>.</p>
     <div class="doc doc-contents ">
 
         <p>Where a spec's <code>progress(...)</code> calls go for this run, or <code>None</code>.</p>
-<p>A drf-services <code>ProgressReporter</code>: a callable
+<p>A django-service-specs <code>ProgressReporter</code>: a callable
 <code>(progress, *, total, message, meta) -&gt; None</code>. <code>SpecToolset</code> reads this
 field by name and forwards it into the dispatch pool, so a service that
 declares a <code>progress</code> parameter reports to whatever the caller passed.
@@ -2359,10 +2378,50 @@ dependency.</p>
 <p><strong>Nothing here constructs one.</strong> Where a report should go is a transport's
 decision — an SSE frame, a task record, a log line — and a substrate that
 picked one would have chosen a transport it does not own. <code>None</code> is the
-honest default and costs nothing: drf-services substitutes its no-op, so a
+honest default and costs nothing: the kernel substitutes its no-op, so a
 service declaring <code>progress</code> runs unchanged whether or not anyone is
 listening. A transport that wants the reports on the wire supplies the sink
 from its <code>deps_factory</code> and emits the events itself.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_spec_agents.AgentDeps.call_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">call_context</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.AgentDeps.call_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The run's context: one plain <code>dict</code> of values every tool call may read.</p>
+<p><code>SpecToolset</code> reads this field by name and hands each dispatch a <strong>copy</strong>
+of it as the kernel's <code>call_context</code>, with the tool's name under
+<code>action</code>, and <code>request</code>, <code>view</code> and <code>format</code> set to <code>None</code> where
+the run put none. So:</p>
+<ul>
+<li>the run's entries reach every call of the run as the same objects -- the
+  request a run arrived on, under <code>request</code>, is the one a serializer, a
+  permission check or a spec callable declaring <code>request</code> reads;</li>
+<li>what a stage writes to the context during one call does not reach the
+  next call, nor this dict: two calls of one run may run at once, and each
+  carries its own <code>action</code>.</li>
+</ul>
+<p>A new <code>dict</code> per deps, never a shared default. Whoever starts the run
+fills it, typically a transport's <code>deps_factory</code>. A project's own deps
+type without this field gets an empty context per call.</p>
 
     </div>
 

@@ -293,6 +293,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -325,10 +352,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -735,7 +762,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -757,14 +784,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -954,8 +981,6 @@
       
         
       
-        
-      
     
     
     
@@ -971,7 +996,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -993,14 +1018,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1055,34 +1080,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../spec-tools/polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1539,7 +1536,7 @@ one hook covers every tool regardless of origin:</p>
   pydantic-ai's tool metadata.</li>
 <li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]["readOnlyHint"] is False</code>,
   which is how a toolset speaking MCP's own vocabulary says it mutates. A
-  drf-services <code>ServiceSpec</code> exposed through <code>SpecToolset</code> is the case that
+  <code>ServiceSpec</code> exposed through <code>SpecToolset</code> is the case that
   matters: without this the <em>same</em> spec would be gated over the drf-mcp bridge and
   ungated attached in process, so a transport swap would remove the gate silently.</li>
 <li><strong>The <code>x-destructive</code> schema stamp</strong> at the root of <code>parameters_json_schema</code>,
@@ -1667,23 +1664,34 @@ instruction), and pydantic-ai's default request limit, which ends a run that
 keeps calling. Set run-level <code>UsageLimits</code> when a tool's side effects matter.</p>
 <p>To have a spent budget end the run, name the exception in <code>reraise</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDenied</span> <span class="k">as</span> <span class="n">DjangoPermissionDenied</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnexpectedModelBehavior</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDenied</span> <span class="k">as</span> <span class="n">DRFPermissionDenied</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">AgentConfig</span><span class="p">(</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="n">reraise</span><span class="o">=</span><span class="p">(</span><span class="n">UnexpectedModelBehavior</span><span class="p">,</span> <span class="n">DjangoPermissionDenied</span><span class="p">,</span> <span class="n">DRFPermissionDenied</span><span class="p">),</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="p">),</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">NotPermitted</span><span class="p">,</span> <span class="n">PrincipalUnavailable</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnexpectedModelBehavior</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDenied</span> <span class="k">as</span> <span class="n">DRFPermissionDenied</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="n">reraise</span><span class="o">=</span><span class="p">(</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>            <span class="n">UnexpectedModelBehavior</span><span class="p">,</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>            <span class="n">DjangoPermissionDenied</span><span class="p">,</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>            <span class="n">DRFPermissionDenied</span><span class="p">,</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>            <span class="n">NotPermitted</span><span class="p">,</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>            <span class="n">PrincipalUnavailable</span><span class="p">,</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="p">),</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="p">),</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="p">)</span>
 </span></code></pre></div>
+<p>The example re-lists every denial the default set holds, so it assumes DRF and
+the kernel are both installed. Leave out the ones your project cannot raise.</p>
 <p>Two caveats:</p>
 <ul>
 <li><strong><code>reraise</code> replaces the default set, it does not extend it.</strong> The default is
-  <code>django.core.exceptions.PermissionDenied</code> and, when DRF is installed,
-  <code>rest_framework.exceptions.PermissionDenied</code>
+  <code>django.core.exceptions.PermissionDenied</code>; <code>rest_framework.exceptions.PermissionDenied</code>
+  when DRF is installed; and <code>NotPermitted</code> and <code>PrincipalUnavailable</code> from
+  <code>django_service_specs</code> when the kernel is installed (the <code>[specs]</code> or <code>[drf-mcp]</code> extra)
   (<a href="#a-denial-is-not-a-tool-failure">a denial is not a tool failure</a>). A tuple
-  that leaves them out converts denials again, so re-list both.</li>
+  that leaves them out converts denials again, so re-list each one your project
+  can raise.</li>
 <li><strong>It ends the run for every <code>UnexpectedModelBehavior</code> a tool raises</strong>, not
   only for its own spent budget: a tool that lets a sub-agent's exhausted
   budget propagate ends the run too. The two cannot be told apart by type or
@@ -1691,9 +1699,19 @@ keeps calling. Set run-level <code>UsageLimits</code> when a tool's side effects
 </ul>
 <h3 id="a-denial-is-not-a-tool-failure">A denial is not a tool failure<a class="headerlink" href="#a-denial-is-not-a-tool-failure" title="Permanent link">&para;</a></h3>
 <p>An authorization refusal passes through untouched and ends the run, exactly as
-it would with the policy off. <code>django.core.exceptions.PermissionDenied</code> and —
-when DRF is installed — <code>rest_framework.exceptions.PermissionDenied</code> are both in
-the default set; a spec tool's permission check raises the latter.</p>
+it would with the policy off. Four classes are in the default set, because no
+one of them inherits from another:</p>
+<ul>
+<li><code>django.core.exceptions.PermissionDenied</code>, always.</li>
+<li><code>rest_framework.exceptions.PermissionDenied</code>, when DRF is installed (the
+  <code>[drf-mcp]</code> extra brings it); a DRF permission check behind that bridge
+  raises it.</li>
+<li><code>django_service_specs.NotPermitted</code>, when the kernel is installed (the
+  <code>[specs]</code> or <code>[drf-mcp]</code> extra); the kernel's dispatch raises it when a permission check
+  refuses the principal.</li>
+<li><code>django_service_specs.PrincipalUnavailable</code>, with it; the kernel raises it for
+  a principal that cannot act at all, such as a deactivated account.</li>
+</ul>
 <p>Converting one would leave the run alive with the model free to try the next
 row, and a converted denial stays distinguishable from a missing row. A sweep
 over ids therefore turns the permission boundary into an existence oracle over

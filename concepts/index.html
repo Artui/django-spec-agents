@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://artui.github.io/django-spec-agents/concepts/">
       
       
-        <link rel="prev" href="..">
+        <link rel="prev" href="../moving/">
       
       
         <link rel="next" href="../tools/">
@@ -293,6 +293,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -325,10 +352,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -645,7 +672,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -667,14 +694,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -864,8 +891,6 @@
       
         
       
-        
-      
     
     
     
@@ -881,7 +906,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -903,14 +928,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -965,34 +990,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../spec-tools/polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1292,6 +1289,12 @@ closing over the request. The difference matters beyond tidiness:</p>
   constructor argument, so one audited agent can serve requests from many
   clients. Taken only from the constructor, building once would silently stamp
   every audit record with the IP of whoever arrived first.</li>
+<li><strong>The request a run arrived on travels as data.</strong> <code>deps.call_context</code> is a
+  plain <code>dict</code> of values every tool call may read; a transport puts the request
+  there under <code>request</code>, and each spec tool call is handed its own copy with the
+  tool's name under <code>action</code>, so a callable or a permission check reads the
+  request without the agent ever holding it (see
+  <a href="../spec-tools/quickstart/#per-call-seeds-and-the-runs-context">per-call seeds and the run's context</a>).</li>
 <li><strong>AG-UI state has somewhere to land.</strong> <code>AgentDeps</code> satisfies pydantic-ai's
   <code>StateHandler</code> protocol, so a run's <code>RunAgentInput.state</code> is validated into
   <code>deps.state</code> instead of being dropped with a warning.</li>
@@ -1303,7 +1306,7 @@ shared, so the mutability is contained.</p>
 <li><strong>A spec's progress reports have somewhere to go.</strong> <code>SpecToolset</code> reads its
   reporter off <code>ctx.deps.progress</code> exactly as it reads the user off
   <code>ctx.deps.user</code>. Pass a callable and a long-running spec's <code>progress(...)</code>
-  calls reach it; leave it <code>None</code> and drf-services substitutes its no-op. Where
+  calls reach it; leave it <code>None</code> and the kernel substitutes its no-op. Where
   the reports <em>go</em> is a transport's decision, so nothing here constructs a sink.</li>
 </ul>
 <p><code>user</code> has <strong>no default</strong>: an unauthenticated run says <code>user=None</code> rather than

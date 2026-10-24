@@ -295,6 +295,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
       
@@ -325,10 +352,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -532,7 +559,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -554,14 +581,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -753,8 +780,6 @@
       
         
       
-        
-      
     
     
     
@@ -768,7 +793,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -790,14 +815,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -852,34 +877,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -1338,9 +1335,10 @@ primary key you put there, a row you already own. Never from the model's own
 output, and never from text the model was given — a run that can talk its way
 into a different <code>user</code> has no authorization boundary at all.</p>
 <div class="admonition warning">
-<p class="admonition-title"><code>http_request=</code> is not an identity</p>
-<p><a href="../reference/#django_spec_agents.spec_tools.SpecToolset"><code>http_request=</code> / <code>get_http_request=</code></a>
-exist so a serializer or scoping provider reading <code>request.META</code> finds
+<p class="admonition-title">The run's <code>request</code> is not an identity</p>
+<p>A request in the run's
+<a href="../quickstart/#per-call-seeds-and-the-runs-context"><code>call_context</code></a> is
+there so a callable or scoping provider reading <code>request.META</code> finds
 something plausible. Nothing downstream re-derives the acting user from it.
 Passing an authenticated request authorizes nothing, and leaning on it would
 put a second, invisible identity in the call.</p>
@@ -1348,7 +1346,7 @@ put a second, invisible identity in the call.</p>
 <h3 id="nobody-is-anonymous-by-accident">Nobody is anonymous by accident<a class="headerlink" href="#nobody-is-anonymous-by-accident" title="Permanent link">&para;</a></h3>
 <p>A view refuses an unauthenticated caller before the agent is reached. A worker
 has no such gate, so a task whose <code>user_id</code> is <code>None</code> runs with <code>user=None</code> and
-whatever <code>permission_classes</code> make of that. Decide it at the top of the task,
+whatever the spec's <code>permissions</code> make of that. Decide it at the top of the task,
 where the answer is obvious, rather than in a permission class three layers down.</p>
 <h2 id="concurrency-the-one-setting-a-worker-genuinely-needs">Concurrency: the one setting a worker genuinely needs<a class="headerlink" href="#concurrency-the-one-setting-a-worker-genuinely-needs" title="Permanent link">&para;</a></h2>
 <p>Every tool call goes through <code>sync_to_async</code>, which defaults
@@ -1448,19 +1446,20 @@ a correctness one, and in a fan-out it is multiplied by every concurrent run.</p
   the work</strong> — the thread runs to completion; the run stops waiting.</li>
 </ul>
 <h2 id="changing-the-pipeline">Changing the pipeline<a class="headerlink" href="#changing-the-pipeline" title="Permanent link">&para;</a></h2>
-<p>Six overridable methods cover a tool call end to end. The front half —
-<code>build_context</code> and <code>translate_exception</code> — is documented under
+<p>Five overridable methods cover a tool call end to end. The front half —
+<code>call_seeds</code> and <code>translate_exception</code> — is documented under
 <a href="../reference/#django_spec_agents.spec_tools.SpecToolset"><code>SpecToolset</code></a>; the back
-half is <code>shape_page</code>, <code>render_output</code>, <code>output_extras</code> and
-<code>enforce_result_bytes</code>. All six receive the live <code>RunContext</code>, which is the
-point: a run's typed deps are usually what needs to reach them.</p>
+half is <code>shape_page</code>, <code>render_output</code> and <code>enforce_result_bytes</code>. All five
+receive the live <code>RunContext</code>, which is the point: a run's typed deps are
+usually what needs to reach them.</p>
 <p>The one worth knowing about before you need it is
 <a href="../reference/#django_spec_agents.spec_tools.SpecToolset.render_output"><code>render_output</code></a>.
-By default a result is rendered through the spec's serializer <strong>and projected</strong>
+By default a result is rendered through the spec's presenter <strong>and projected</strong>
 for the agent audience. If a background job feeds one spec's output into the
-next, project the handles away and the next step has nothing to key on. Rendering
-with <code>render_spec_output</code> instead is the opt-out — and passing <code>projection=None</code>
-is <em>not</em> it, since that means "derive one from the spec".</p>
+next, project the handles away and the next step has nothing to key on.
+Presenting with the kernel's <code>present(spec, result)</code> instead is the opt-out —
+and passing <code>projection=None</code> is <em>not</em> it, since that means "derive one from
+the spec".</p>
 <h2 id="testing-it">Testing it<a class="headerlink" href="#testing-it" title="Permanent link">&para;</a></h2>
 <p>The run loop is where the interesting failures live, and it needs a model.
 <a href="../reference/#testing"><code>django_spec_agents.testing</code></a> ships the two
@@ -1490,7 +1489,7 @@ attempt, and whether the toolset's instructions reached the model.</p>
 <code>django_db(transaction=True)</code> — the same shape production uses.</p>
 <h2 id="progress-when-there-is-no-browser">Progress, when there is no browser<a class="headerlink" href="#progress-when-there-is-no-browser" title="Permanent link">&para;</a></h2>
 <p><code>AgentDeps.progress</code> takes a
-<a href="https://artui.github.io/djangorestframework-services/"><code>ProgressReporter</code></a>,
+<a href="https://artui.github.io/django-service-specs/"><code>ProgressReporter</code></a>,
 and a spec that reports progress calls it wherever it runs. This package never
 constructs one: picking a sink would be picking a transport it does not own.
 Off HTTP, the useful sinks are the ones a worker already has — a task-state

@@ -293,6 +293,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../moving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Moving from the old packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -325,10 +352,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -346,8 +373,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -532,7 +559,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -554,14 +581,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1265,8 +1292,6 @@
       
         
       
-        
-      
     
     
     
@@ -1282,7 +1307,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1304,14 +1329,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1366,34 +1391,6 @@
     
   
     Shared spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../spec-tools/polymorphic-actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Polymorphic actions
   
 
     
@@ -2779,7 +2776,7 @@ by default, so the gate never surprises a project that has not opted in.</p>
 <code>require_approval</code>; <code>exempt</code> overrides both. A tool counts as destructive
 when it is a registry <code>@tool(destructive=True)</code>, or when its definition
 says so — the drf-mcp bridge's metadata key, an MCP <code>readOnlyHint</code> of
-<code>False</code> (a drf-services <code>ServiceSpec</code> through <code>SpecToolset</code>, among
+<code>False</code> (a <code>ServiceSpec</code> through <code>SpecToolset</code>, among
 others), or an <code>x-destructive</code> stamp at the root of its parameter schema.</p>
 <p><strong>Nothing else is gated.</strong> A tool from a source that declares none of those
 is invisible to the gate however dangerous it is, and <code>require_approval</code>
@@ -2934,7 +2931,7 @@ so one hook covers every tool the agent sees wherever it came from:</p>
 <li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]["readOnlyHint"] is
   False</code>. A toolset that speaks MCP's own vocabulary rather than this
   package's key declares a mutation this way, <code>SpecToolset</code> over a
-  drf-services <code>ServiceSpec</code> among them. Reading it gates a spec
+  <code>ServiceSpec</code> among them. Reading it gates a spec
   attached in process the way the bridge's key gates the same spec over
   drf-mcp, so a transport swap cannot silently remove the gate.</li>
 <li><strong>The <code>x-destructive</code> schema stamp</strong> at the root of
@@ -3114,11 +3111,13 @@ the browser that renders its answer.</p>
 
         <p>Exception types that pass through untouched, ending the run as they would
 without the policy.</p>
-<p><code>None</code> means the built-in set: an authorization refusal, in both the
-flavours a Django project raises it — <code>django.core.exceptions</code>' and, when
-DRF is installed, <code>rest_framework.exceptions</code>'. Pass a tuple to replace
-that set wholesale, or <code>()</code> to convert every exception. Replacing means
-re-listing both <code>PermissionDenied</code> classes to keep denials exempt.</p>
+<p><code>None</code> means the built-in set: an authorization refusal, in each flavour a
+project raises it — <code>django.core.exceptions</code>' <code>PermissionDenied</code>;
+<code>rest_framework.exceptions</code>' when DRF is installed; and
+<code>django_service_specs</code>' <code>NotPermitted</code> and <code>PrincipalUnavailable</code> when
+the kernel is installed. Pass a tuple to replace that set wholesale, or
+<code>()</code> to convert every exception. Replacing means re-listing each of those
+classes your project can raise to keep denials exempt.</p>
 <p><strong>A spent tool retry budget.</strong> Add <code>UnexpectedModelBehavior</code> (from
 <code>pydantic_ai.exceptions</code>) to end the run when a tool's own <code>ModelRetry</code>
 has no retries left, rather than converting it into a failed result. It
