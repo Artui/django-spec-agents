@@ -2,15 +2,38 @@
 
 ## 1. Have some specs
 
-`SpecToolset` works with the `ServiceSpec` and `SelectorSpec` objects you already
-define for `djangorestframework-services`. A read selector and a write service:
+`SpecToolset` works with the `ServiceSpec` and `SelectorSpec` objects you
+declare on [django-service-specs](https://github.com/Artui/django-service-specs),
+the kernel, with no DRF in them (see
+[a spec declared on the kernel](spec-registry.md#a-spec-declared-on-the-kernel)).
+A read selector and a write service, their input and output declared as
+dataclasses:
 
 ```python
-from django_service_specs import SelectorKind
-from rest_framework_services import SelectorSpec, ServiceSpec
+from dataclasses import dataclass
+
+from django_service_specs import (
+    DataclassPresenter,
+    DataclassValidator,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+    Unrestricted,
+)
 
 
-def list_orders(user):
+@dataclass
+class OrderOut:
+    id: int
+    status: str
+
+
+@dataclass
+class OrderIn:
+    status: str
+
+
+def list_orders(*, user):
     """List the current user's orders."""
     return Order.objects.filter(owner=user)
 
@@ -18,22 +41,21 @@ def list_orders(user):
 list_orders_spec = SelectorSpec(
     kind=SelectorKind.LIST,
     selector=list_orders,
-    output_serializer=OrderSerializer,
+    presenter=DataclassPresenter(OrderOut),
+    permissions=[Unrestricted()],
 )
 
 
-def create_order(data, user):
+def create_order(*, data: OrderIn, user):
     """Create an order for the current user."""
-    return Order.objects.create(owner=user, **data)
+    return Order.objects.create(owner=user, status=data.status)
 
 
 create_order_spec = ServiceSpec(
     service=create_order,
-    input_serializer=OrderInputSerializer,
-    output_selector_spec=SelectorSpec(
-        kind=SelectorKind.RETRIEVE,
-        output_serializer=OrderSerializer,
-    ),
+    validator=DataclassValidator(OrderIn),
+    presenter=DataclassPresenter(OrderOut),
+    permissions=[Unrestricted()],
 )
 ```
 
@@ -51,10 +73,10 @@ toolset = SpecToolset(
 ```
 
 Each key is the tool name. The description comes from the selector/service
-docstring, the parameter schema from the selector's parameters or the service's
-input serializer and target lookup (see
+docstring, the parameter schema from the selector's reads or the service's
+Validator and target lookup (see
 [What a tool asks the model for](#what-a-tool-asks-the-model-for)), the
-`return_schema` from its output serializer, and the `readOnlyHint` annotation
+`return_schema` from its presenter's output, and the `readOnlyHint` annotation
 from the spec kind (selectors read, services mutate). List selectors
 additionally accept `page` and `limit` tool args, plus `ordering` where the
 selector's [`filter_set` declares one](#ordering).
@@ -84,10 +106,10 @@ result = await agent.run(
     setting a fan-out genuinely needs.
 
 For that request the model can call `list_orders` with
-`{"limit": 5, "ordering": "-created"}` and the toolset enforces permissions,
+`{"limit": 5, "ordering": ["-created"]}` and the toolset enforces permissions,
 runs the selector as `request.user`, hands `ordering` to the selector's
 [`filter_set`](#ordering), slices the result, and renders it through
-`OrderSerializer`.
+its presenter.
 
 ## Every list result is a page
 
@@ -132,23 +154,30 @@ the same spec — so the schema and the payload cannot disagree about it.
 
 ## The output schema
 
-Each tool definition carries a `return_schema` derived from the spec's output
-serializer, projected the same way the payload is: a field marked
+Each tool definition carries a `return_schema` derived from the spec's presenter
+output, projected the same way the payload is: a field marked
 [hidden](agent-audience.md) is absent from both, and a marked handle carries its
-description in both.
+description in both. It is the kernel's `spec_output_schema`.
+
+A spec's `metadata["json_schema"]` is merged over both schemas, keyed by phase:
+`{"input": {...}}` over the
+parameter schema and `{"output": {...}}` over the `return_schema`. The merge is
+shallow, so a key the fragment names is the fragment's whole, and an `output`
+fragment never makes a `return_schema` for a spec with none. A fragment that is
+not keyed by phase is refused when the toolset is built, naming the tool.
 
 It is populated but **not sent** by default, because a return schema costs
-context on every turn of every run and only your model and your serializers say
+context on every turn of every run and only your model and your outputs say
 whether that trade is worth it. Pydantic-AI owns the opt-in, at either scope:
 
 ```python
 agent = Agent(model, toolsets=[SpecToolset(specs).include_return_schemas()])
 ```
 
-A spec with no `output_serializer` gets `None` rather than a guessed shape.
+A spec with no presenter gets `None` rather than a guessed shape.
 
 A `return_schema` admits `null`, with the root `type` `["object", "null"]`,
-where the spec says dispatch may hand the model `None`, as drf-services'
+where the spec says dispatch may hand the model `None`, as the kernel's
 `can_present_nothing` answers it for every route that states an output schema:
 
 - a retrieve selector declaring `allow_none=True`, when nothing matches;
@@ -156,7 +185,8 @@ where the spec says dispatch may hand the model `None`, as drf-services'
   dispatch materializes the re-read with `.first()`, and a re-read that filters
   out the row it wrote finds none;
 - a service with nothing to re-read that declares `ServiceSpec(allow_none=True)`,
-  since dispatch then presents the service's own return, a `None` included.
+  since dispatch then presents the service's own return, a `None` included, a
+  `many=True` service's too, whose `return_schema` is then `["array", "null"]`.
 
 **A `None` the spec does not declare is still handed to the model.** A service
 with nothing to re-read and no `allow_none=True` that returns `None` is
@@ -174,28 +204,36 @@ Return the rows, or declare `RETRIEVE` to present one.
 
 ## What a tool asks the model for
 
-A tool's parameter schema is the model's only account of what to send, and a
-selector's signature cannot say on its own which parameters the model sends and
-which the toolset fills. So the toolset says so when it builds the schema
-(through drf-services' `spec_to_json_schema(supplied=...)`):
+A tool's parameter schema is the model's only account of what to send, and the
+kernel reflects nothing off a callable's signature: every argument is one the
+spec declares. So the schema is the kernel's `spec_input_schema` of the
+compiled spec, the argument set `dispatch` checks, less the kernel's
+`server_owned_keys` for the toolset's seeds:
 
-- **A name the toolset fills is not advertised.** That is drf-services' own
+- **A name the toolset fills is not advertised.** That is the dispatcher's own
   pool seeds (`request`, `user`, `progress` and the rest), every name registered
   in [`pool_seeds`](#project-pool-seeds), and the keys a `kwargs=` provider
   returns when its return annotation is a `TypedDict`, less any it may decline
-  with `UNSET` (below). The annotation is read by drf-services'
+  with `UNSET` (below). The annotation is read by the kernel's
   `provider_keys`, the reader dispatch's own contract is stated in, so this
-  toolset and drf-mcp read a provider the same way. A [`UrlKwarg`](#url-derived-values-route-captures)
-  that declares a `default` fills its name too, so the selector's parameter of
-  that name is not required, but the `UrlKwarg` itself stays advertised, as the
-  optional argument it always is.
-- **Every other parameter without a default is required.** `get_widget(user, pk)`
-  is advertised as `{"properties": {"pk": {}}, "required": ["pk"]}`. A parameter
-  with a default stays optional, and `InputRequired` still makes one required.
+  toolset and drf-mcp read a provider the same way.
+- **An input field the spec's Validator requires and no call can send** is
+  refused when the toolset is built, with `ImproperlyConfigured` naming the
+  tool and the field, under either [`unknown_arguments`](#unexpected-arguments)
+  policy. A Validator says so as its `unsendable` attribute, a collection of
+  field names: a field it fills itself under a name dispatch seeds, so it
+  declares no parameter for it, the tool does not advertise it, and the model's
+  value would be refused or dropped. Rename the field or make it optional. A
+  Validator that does not answer `unsendable` names none, and a spec compiled
+  `partial` is left alone. A field named like one of your own
+  [`pool_seeds`](#project-pool-seeds), such as `tenant`, is a parameter, so it
+  is the model's to send and is not refused.
+- **A read declared `required=True` is required**, and one with a `default` or
+  none stays optional.
 - **A `kwargs=` provider without a `TypedDict` return annotation may fill any
-  parameter**, a plain `dict` or a lambda included, so for its spec nothing is
-  required merely for lacking a default, though `InputRequired` still requires
-  one. So may a provider whose return annotation does not resolve. Only the
+  read**, a plain `dict` or a lambda included, so for its spec no read is
+  required of the model; the kernel checks it on the pool the call assembles
+  instead. So may a provider whose return annotation does not resolve. Only the
   return annotation is read for the keys, so a parameter typed with a name
   imported only under `TYPE_CHECKING` changes nothing, and a `TypedDict` value
   that does not resolve makes only its own key one the provider may decline, so
@@ -210,16 +248,26 @@ class ProjectScope(TypedDict):
     ceiling: int
 
 
-def scope(view) -> ProjectScope:
-    # ceiling is filled here, so the model is never asked for it.
-    return {"ceiling": ceiling_for(view.kwargs["project_pk"])}
+def scope(project_pk) -> ProjectScope:
+    # ceiling is filled here, so the model is never asked for it. project_pk is
+    # a read the tool declares, handed to the provider by name.
+    return {"ceiling": ceiling_for(project_pk)}
 
 
-list_spec = SelectorSpec(kind=SelectorKind.LIST, selector=priced_under, kwargs=scope)
+list_spec = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=priced_under,
+    reads=Parameters.of(
+        Parameter("project_pk", "integer", required=True),
+        Parameter("ceiling", "integer", required=True),
+    ),
+    kwargs=scope,
+    permissions=[Unrestricted()],
+)
 ```
 
 - **A key whose value admits `UnsetType` is not one the toolset fills.** A
-  provider may decline a key by returning drf-services' `UNSET` for it, which
+  provider may decline a key by returning the kernel's `UNSET` for it, which
   drops the key from the pool and lets the model's value through, so
   `ceiling: int | UnsetType` keeps `ceiling` advertised for the model to send,
   and optional, since the provider may fill it instead. The provider's other
@@ -229,105 +277,39 @@ list_spec = SelectorSpec(kind=SelectorKind.LIST, selector=priced_under, kwargs=s
   what binds its type parameters, so `-> Scope[str | UnsetType]` declines
   `Scope`'s `tenant: T` as the written-out `tenant: str | UnsetType` does.
   If the provider declines the key and the model has not sent it either,
-  drf-services refuses the call before the selector runs, and the model is
+  the kernel refuses the call before the selector runs, and the model is
   handed back ``ceiling: This field is required.`` to send it on its next
   turn, as it is when an untyped provider leaves a parameter unfilled.
-  Where the selector can run without the value, give the parameter a default.
-- **A name a
-  [`build_context`](reference.md#django_spec_agents.spec_tools.SpecToolset)
-  override fills has to be declared.** An override is code the schema cannot
-  read, so a selector parameter it fills through `kwargs` (which become
-  `view.kwargs`) is advertised as required like any other parameter without a
-  default, and a call leaving it out is handed back before the override runs.
-  Mark the selector parameter with drf-services' `NotClientInput`: the name is
-  left out of the schema and the override fills it. A call that sends it
-  anyway is handed back as an [unexpected argument](#unexpected-arguments) by
-  default where the selector's input set is closed (no `filter_set`, no
-  `**kwargs`). Otherwise, and under the other policies, drf-services drops the
-  model's value before the selector reads its arguments, so the value the
-  override writes is the one the selector receives.
-  Where the value can be resolved from what a seed resolver receives, register
-  it as a [pool seed](#project-pool-seeds) and resolve it there instead:
+  Where the selector can run without the value, give the read a default.
+- **A name only a
+  [`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds)
+  override fills is not a read.** An override is code the schema cannot read,
+  so leave the name out of `reads=`: the callable takes it by name from the
+  pool, as it takes `user`. Declared as a read, it is the model's to send, and
+  a seed of that name is refused at the call with `ImproperlyConfigured`: the
+  seed would replace whatever the model sent, so a model that asks for one
+  project would be served another's rows. Where the value is the same for
+  every run, register it as a [pool seed](#project-pool-seeds) instead, which
+  the schema does read.
 
-```python
-from typing import Annotated
+**A service tool also advertises its target lookup**: the reads of its
+`collection_selector_spec` or its `instance_selector_spec`, whichever the
+service declares, beside the Validator's fields. A rename tool whose instance
+selector reads `pk` asks for `pk` as well as the new title, and requires it. A
+lookup parameter and a Validator field sharing a name are two declarations of
+one argument, and the toolset refuses the spec when it is built with
+`ImproperlyConfigured` naming the tool and the parameter, rather than
+advertising one of them. Rename one of the two.
 
-from django_service_specs import SelectorKind
-from rest_framework_services import NotClientInput, SelectorSpec
-
-
-def list_tasks(user, project_pk: Annotated[int, NotClientInput]):
-    """List the user's tasks in the run's project."""
-    return Task.objects.filter(project_id=project_pk, assignee=user)
-
-
-class ProjectScopedToolset(SpecToolset):
-    def build_context(self, user, params, *, ctx, kwargs=None, **rest):
-        scoped = {**(kwargs or {}), "project_pk": current_project_pk(ctx)}
-        return super().build_context(user, params, ctx=ctx, kwargs=scoped, **rest)
-
-
-# project_pk is marked NotClientInput and filled by the override, so the model
-# is never asked for it, and a call that sends one is refused.
-toolset = ProjectScopedToolset(
-    {
-        "list_tasks": SelectorSpec(
-            kind=SelectorKind.LIST, selector=list_tasks, output_serializer=TaskSerializer
-        )
-    }
-)
-```
-
-A `UrlKwarg` with a `default` also keeps a call that leaves the name out from
-being refused, but it does not keep the name from the model. It stays
-advertised, as an optional argument the model can see and send, and the
-override's value replaces whatever the model sent, with nothing said to the
-model: a model that asks for one project is served another's rows.
-
-**A service tool also advertises its target lookup.** drf-services hands the
-arguments it validates against the input serializer to the selector that
-resolves the row or the set, too, so that selector's parameters are reflected
-beside the serializer's fields by the same rules. It is the
-`collection_selector_spec` or the `instance_selector_spec`, whichever the
-service declares: drf-services refuses a spec declaring both when it is built,
-and any lookup beside `many=True`, so a `many=True` service's schema stays the
-list alone. A rename tool whose instance selector is
-`task_by_pk(user, *, pk)` asks for `pk` as well as the new title, and requires
-it. Where a lookup parameter and a serializer field share a name, the
-serializer's property is the one advertised, since the serializer validates
-the value, and the name is required if either requires it, since the lookup
-cannot run without it whatever a `partial` serializer says.
-
-A key that any callable in the call marks `NotClientInput`, the service, one
-of its `preconditions` or the lookup itself, is left out of what the lookup
-contributes, as drf-services' `server_owned_keys` names them: dispatch keeps the
-caller's value for it from every callable, and refuses it as an
-[unexpected argument](#unexpected-arguments), so the lookup naming it plainly
-does not make it the model's to send. A field the input serializer declares
-under such a name is still advertised, since the serializer validates it into
-`data` whatever a callable hides under the name.
-
-A service with no input serializer takes the model's arguments as its `data`
-bundle, under drf-services' default binding for a service, so its own
-parameters are not arguments: its schema lists its lookup's keys and nothing
-else, which is what an [unexpected argument](#unexpected-arguments) check
-admits of it.
-
-**A call that leaves out a required selector parameter is handed back**, the
-tool's own or its target lookup's, as `ModelRetry` naming each one left out,
-as in ``Missing required argument(s): `pk`.``, the same sentence a required
-`UrlKwarg` gets, so the model corrects the call on its next turn. A required
-serializer field is checked by the serializer once the call runs, so a service
-call missing both `pk` and a field is told about `pk` first, and about the
-field on the turn after. A name a provider may fill is not checked before the
-call, since only the pool the call assembles can say whether it arrived, and
-drf-services checks that pool: a selector parameter nothing filled comes back
-as a retry naming it too, in drf-services' words for a missing field,
-``ceiling: This field is required.`` A
-required parameter no argument could fill, such as one a precondition marks
-`NotClientInput` and nothing supplies, is a
-configuration error rather than something the model can correct, and fails as
-the callable's own `TypeError`.
+**A call that leaves out a required argument is handed back**, the tool's own
+or its target lookup's, as `ModelRetry` naming each one left out, as in
+``Missing required argument(s): `pk`.``, so the model corrects the call on its
+next turn. A required Validator field is checked by the Validator once the call
+runs, so a service call missing both `pk` and a field is told about `pk` first,
+and about the field on the turn after. A name a provider may fill is not
+checked before the call, since only the pool the call assembles can say
+whether it arrived, and the kernel checks that pool: a read nothing filled
+comes back as a retry naming it too, ``ceiling: This field is required.``
 
 ## Custom identity
 
@@ -341,7 +323,7 @@ toolset = SpecToolset(specs, get_user=lambda ctx: ctx.deps.principal.user)
 ## Project pool seeds
 
 Over HTTP a service reads its tenant, locale or clock off `request`. Off HTTP
-there is no request carrying any of that, and drf-services'
+there is no request carrying any of that, and the kernel's
 [`PoolSeeds`][django_service_specs.PoolSeeds] is the channel
 for it. Hand the registry to the toolset as `pool_seeds=`:
 
@@ -354,8 +336,8 @@ toolset = SpecToolset(specs, pool_seeds=seeds)
 
 Every dispatch the toolset makes is handed the registry. A service, a selector
 or an affordance's condition that declares `tenant` therefore receives the
-resolver's value, as it would from `dispatch_spec(pool_seeds=seeds)` called
-directly. The per-step check that
+resolver's value, as it would from the kernel's `dispatch(pool_seeds=seeds)`
+called directly. The per-step check that
 [leaves out an unavailable operation](#an-operation-that-is-unavailable-right-now-is-left-out)
 asks its conditions against the same seeds, so a step's catalog and the call's
 own refusal answer alike.
@@ -365,45 +347,79 @@ A registered name is reserved the way `user` and `request` are:
 - **The model cannot supply it.** An argument of that name is not passed on and
   is not refused as unknown either, so the callable always sees the resolver's
   value.
-- **A channel cannot declare it.** A `QueryParam` or `UrlKwarg` with that name
+- **A read cannot declare it.** A read with that name in a spec's `reads=`
   raises `ImproperlyConfigured` when the toolset is built, as one named `user`
-  does. Dispatch strips a reserved name from the route captures it hands a
-  selector, so an accepted `UrlKwarg` would offer the model an argument that is
-  then dropped on every call.
+  does. The kernel refuses an argument that meets a seed, so an accepted read
+  would offer the model an argument every call is then refused for.
 - **No schema advertises it.** A selector or target lookup declaring the seed
   as a parameter does not offer it to the model, so the model is not asked for
   a value the call would ignore. See
   [What a tool asks the model for](#what-a-tool-asks-the-model-for).
 
-The registry applies to the whole toolset, with no per-tool or per-call form. A
-seed is ambient to the deployment, and what varies from call to call belongs in
-the resolver, which declares `user` or `request` to receive them.
+The registry applies to the whole toolset. A seed is ambient to the
+deployment, and what varies with the acting user belongs in the resolver,
+which declares `user` to receive it. What varies with the run or the tool
+being called is the [per-call form](#per-call-seeds-and-the-runs-context).
 
-## What a permission class sees
+## Per-call seeds and the run's context
 
-Every call is authorized by `spec.permission_classes`, run against a synthetic
-request and view. drf-services supports a permission class reading `request`,
-`view.action` and `view.kwargs` off HTTP — anything beyond those three (a
-`view.queryset`, as `DjangoModelPermissions` wants) is not available. Here is
-what this package puts in each:
+Two things reach every call beside its arguments, and neither is a request
+the toolset builds.
 
-- **`request.user`** is the acting identity — `deps.user`, or whatever
-  `get_user` returns. A configured `http_request` never contributes an identity.
-- **`request.query_params`** holds exactly the [query
-  params](#read-shaping-query-params) declared for that tool, and nothing else.
-  A tool that declares none dispatches with an empty query string even when the
-  toolset was given an `http_request`, so the ambient endpoint's own query
-  string can never reach a serializer or a `filter_set`.
-- **`view.action`** is the **tool name** — the key the spec is registered under
-  in the mapping you passed. Off HTTP there is no router to name an action, and
-  the tool name is the identity the model called, so it is the honest answer;
-  it is also what the MCP transport reports for the same spec. A permission
-  class branching on viewset action names (`"create"`, `"retrieve"`) will not
-  match one of those unless a tool happens to be named that — check the `else`
-  branch of such a class before exposing its spec, and rewrite `action` in a
-  `build_context` override if you need a specific one.
-- **`view.kwargs`** holds the [URL kwargs](#url-derived-values-route-captures)
-  declared for that tool, the off-HTTP counterpart of a route's captures.
+**The run's context** is `AgentDeps.call_context`, a plain `dict` the code
+starting the run fills. Each call is handed its own copy, with the tool's name
+under `action`, and `request`, `view` and `format` set to `None` where the run
+put none. The run's entries reach every call as the same objects, so put the
+request the run arrived on there, under `request`:
+
+```python
+deps = AgentDeps(user=request.user)
+deps.call_context["request"] = request
+result = await agent.run(prompt, deps=deps)
+```
+
+A callable declaring `request` is then handed that request, and a permission
+check declaring `call_context` reads it there. The toolset builds no request
+and no view of its own, so a selector or provider declaring `request` or `view`
+receives `None` unless the run puts one here or a
+[`call_seeds`](#per-call-seeds-and-the-runs-context) override returns one. A
+value it would read off a view's captures or a request's query string it takes
+by name instead, as one of the spec's reads. What a call writes to its
+copy does not reach the next call, nor the run's dict, so two calls the model
+makes at once never see each other's `action`.
+
+**Per-call seeds** come from
+[`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds),
+asked once per call with the live `RunContext` and the tool's name, and once
+per conditioned tool when the catalog is listed. Each value is a resolver, as
+for `PoolSeeds.extend`:
+
+```python
+class TenantToolset(SpecToolset):
+    def call_seeds(self, *, ctx, tool_name):
+        tenant = ctx.deps.tenant
+        return {"tenant": lambda: tenant}
+```
+
+A name the mount's `pool_seeds` registers already is refused with
+`ValueError` at the call, and `request` or `view` returned here replace the
+call's own.
+
+## What a permission check sees
+
+Every call is authorized by the spec's `permissions`, the kernel's
+`PermissionCheck`s, inside the kernel's dispatch: `has_permission` before
+anything is called and `has_object_permission` on the resolved row. Each is
+asked with the call's **principal**, the acting identity: `deps.user`, or
+whatever `get_user` returns. The request a run arrived on never contributes an
+identity.
+
+A check reading more of the call than its principal names it, as the kernel's
+`PermissionCheck` documents: a keyword `arguments` is handed the call's
+arguments, as a read-only mapping, a keyword `call_context` is handed the
+[run's context](#per-call-seeds-and-the-runs-context), with the tool's name
+under `action`, and a keyword named after a registered
+[pool seed](#project-pool-seeds) is handed that seed's value.
 
 ### The tool catalog is not permission-filtered
 
@@ -433,7 +449,7 @@ class OpsOnlyToolset(SpecToolset):
 ```
 
 Hiding a tool is a disclosure decision, never an authorization one: the call is
-gated by `permission_classes` whatever this returns.
+gated by the spec's `permissions` whatever this returns.
 
 ### An operation that is unavailable right now is left out
 
@@ -469,10 +485,12 @@ A few things follow from how it is asked:
 - **Conditions run where a dispatch runs**, in a thread under the toolset's
   `thread_sensitive` and `executor`, so one that queries is fine. The connection
   it opens is closed after it, as a dispatch's is.
-- **The request a condition reads is built through `build_context`**, so a
-  condition reading `request` sees the same object when the catalog is listed as
-  at the call, including anything an override adds to it. That listing call
-  carries no arguments, no `action` and an empty query string.
+- **A condition is asked with the seeds its call would register**, so one
+  reading `request` sees the request the run arrived on when the catalog is
+  listed as at the call, `None` for a run that arrived on none, and one reading
+  a name a [`call_seeds`](#per-call-seeds-and-the-runs-context) override
+  returns is asked with the seed returned for its own tool. That listing call
+  carries no arguments, and its context's `action` is the tool's name.
 - **A condition on the row (an ORM expression) is never asked here.** There is
   no row when the catalog is listed, so the call answers it for its own row.
 - **`get_tools` and `get_instructions` each ask once per step.** A shared answer
@@ -481,7 +499,7 @@ A few things follow from how it is asked:
   is retried. A condition that flips between the two reads can leave one step's
   catalog and instructions disagreeing about one tool.
 
-None of this changes the call. `dispatch_spec` enforces every affordance
+None of this changes the call. The kernel's `dispatch` enforces every affordance
 whatever was listed, a call against a listing that went stale is refused as
 [below](#a-refused-affordance-names-its-code), and a model calling a tool that
 was left out gets pydantic-ai's unknown-tool retry, which names the tools that do
@@ -502,7 +520,7 @@ Nothing else the toolset writes is a field. The descriptions of the arguments it
 adds, such as `limit` and `page`, stay fixed, and so do its other retries: a
 `limit` or `page` that is not a positive integer, an `ordering` the tool does not
 take, a service asking for more input, and the opening of a
-[render retry](#a-selection-the-serializer-rejects), whose closing scope
+[render retry](#a-selection-the-presenter-rejects), whose closing scope
 sentence is the one part that is a field.
 
 ```python
@@ -536,12 +554,12 @@ line wherever it would have been said.
 | `pagination` | instructions | some tool returns a page | `{page_size}` |
 | `ordering` | instructions | some tool advertises a sort argument | `{names}` |
 | `handles` | instructions | some tool's output marks a handle | none |
-| `read_shaping` | instructions | some tool declares a `QueryParam` | `{names}` |
+| `read_shaping` | instructions | some tool declares a read-shaping parameter | `{names}` |
 | `read_shaping_on_pages` | instructions, after `read_shaping` | that tool also returns a page | none |
 | `unavailable_heading` | instructions, last, above the tools left out | a condition left a tool out this step | none |
 | `handle_field_description` | a handle field's output schema | the field declares no description of its own | none |
-| `query_param_on_pages` | a `QueryParam`'s description, and the [render retry](#a-selection-the-serializer-rejects) | the tool returns a page | none |
-| `missing_arguments` | the retry for a call missing an argument | a selector parameter or a required `UrlKwarg` is left out | `{names}` |
+| `query_param_on_pages` | a read-shaping parameter's description, and the [render retry](#a-selection-the-presenter-rejects) | the tool returns a page | none |
+| `missing_arguments` | the retry for a call missing an argument | a required read or lookup parameter is left out | `{names}` |
 
 A few rules follow from what each field is:
 
@@ -556,11 +574,11 @@ A few rules follow from what each field is:
   it. To drop a line, use `None`, not `""`, which leaves a blank line.
   `missing_arguments` cannot be `None`, empty or only whitespace: it is the
   retry's whole text.
-- **`missing_arguments` covers the two checks made before the input serializer
-  runs.** A field the input serializer requires is still reported in the
-  serializer's own words, and a parameter a provider may fill and did not in
-  drf-services' (``ceiling: This field is required.``), since only the pool it
-  assembles can say the value never arrived.
+- **`missing_arguments` covers the check made before the spec's Validator
+  runs.** A field the Validator requires is still reported in the Validator's
+  own words, and a parameter a provider may fill and did not in the kernel's
+  (``ceiling: This field is required.``), since only the pool it assembles can
+  say the value never arrived.
 
 **Some lines state facts about behaviour, and an override owns keeping them
 true.** `pagination` and `query_param_on_pages` name the page envelope's keys, and
@@ -592,8 +610,8 @@ By default the toolset **rejects** tool args outside a spec's declared input set
 — a key the model invented — surfacing them as a `ModelRetry` so the model
 self-corrects. A `filter_set`'s filters are declared names, so a key outside them
 and the selector's parameters is refused like any other. A selector taking a bare
-`**kwargs` declares no name, so nothing is refused, and nothing undeclared is
-handed to it either. Pass `unknown_arguments=` to change this:
+`**kwargs` declares no name, so every key sent to it is refused. Pass
+`unknown_arguments=` to change this:
 
 ```python
 from django_service_specs import UnknownArguments
@@ -602,17 +620,18 @@ from django_service_specs import UnknownArguments
 toolset = SpecToolset(specs, unknown_arguments=UnknownArguments.IGNORE)
 ```
 
-`IGNORE` drops a key no parameter declares. Under either policy the key never
-reaches the callable: drf-services hands a callable only what its spec declares.
+`IGNORE` drops a key no parameter declares. The tool's schema says which:
+under `REJECT` it closes the argument set with `additionalProperties: false`, at
+the top and on each row of a [list input](#a-list-as-input), and under `IGNORE`
+it states nothing, since a key outside the set is dropped and the call served.
+Under either policy the key never
+reaches the callable: the kernel hands a callable only what its spec declares.
+One exception is known: a selector taking `**kwargs` beside a `filter_set` also
+receives the FilterSet's values in its catch-all.
 `REJECT` and `IGNORE` are the two the toolset accepts. `PASSTHROUGH` raises
 `ImproperlyConfigured` when the toolset is built, because a tool call is one flat
 object and has no other channel to carry an undeclared name to the callable; to
-hand one over, declare it, as a `reads` entry, a serializer field or a parameter.
-
-A parameter marked `NotClientInput`
-is not the model's under any policy: `REJECT` refuses a value sent for it where
-the input set is closed, and everywhere else drf-services drops the value before
-any callable in the call reads it.
+hand one over, declare it, as a `reads` entry or a Validator field.
 
 ## A list as input
 
@@ -622,64 +641,57 @@ arguments are always a JSON object, so the array travels under the argument the
 spec's `many_argument` names, `items` unless it names another:
 
 ```python
-def create_widgets(*, data, user):
+@dataclass
+class WidgetIn:
+    name: str
+    price: str
+
+
+def create_widgets(*, data: list[WidgetIn], user):
     """Create several widgets in one call."""
-    return [Widget.objects.create(owner=user, **item) for item in data]
+    return [Widget.objects.create(owner=user, name=w.name, price=w.price) for w in data]
 
 
 create_widgets_spec = ServiceSpec(
     service=create_widgets,
-    input_serializer=WidgetInputSerializer,
+    validator=DataclassValidator(WidgetIn),
+    presenter=DataclassPresenter(WidgetOut),
     many=True,
     many_argument="widgets",  # optional; the default is "items"
-    output_selector_spec=SelectorSpec(
-        kind=SelectorKind.RETRIEVE, output_serializer=WidgetSerializer
-    ),
+    permissions=[Unrestricted()],
 )
 ```
 
 The model sends `{"widgets": [{...}, {...}]}` and the service receives the list,
-exactly as it would from a REST view's bare array body. The tool's parameter
-schema says so: an object with that one required property, an array of the item
-schema, carrying the list serializer's `allow_empty`, `min_length` and
-`max_length` as `minItems` / `maxItems`, and `additionalProperties: false`. A
-declared `QueryParam` or `UrlKwarg` is advertised beside it, since the toolset
-takes those out of the arguments before dispatch. The result is the rendered
-list, and the tool's `return_schema` describes it as an array even though the
-`output_selector_spec` is `RETRIEVE`.
+exactly as it would from a bare array body. The tool's parameter schema says so:
+an object with that one required property, an array of the item schema,
+carrying the spec's `many_min_length` and `many_max_length` as `minItems` /
+`maxItems`, and, under the default [`REJECT`](#unexpected-arguments),
+`additionalProperties: false`. A read the spec declares is advertised beside
+it.
 
 What the model is told when a call is wrong:
 
 - **An invalid item** comes back as a `ModelRetry` naming the argument, then the
-  invalid item's index, then the field, on every Django REST framework version
-  this package supports. The model reads `widgets[1].price: This field is
-  required.`, the same rendering every validation error gets, and corrects that
-  one item.
-- **The argument missing, `null` or not a list** comes back under the argument
-  in the words that field would use: `widgets: This field is required.`
-- **Any other argument sent beside the list** comes back as
-  `Unexpected argument(s): 'note'.` under every `unknown_arguments` policy,
-  because the service receives only the list and the argument would have
-  nowhere to go. The policy still decides what happens to an undeclared key
-  inside an item.
-
-A `QueryParam` or `UrlKwarg` in the spec's `reads=` sharing the list's argument
-name is refused with `ImproperlyConfigured` when the spec is registered: it would
-be taken out of the arguments first and carry the list away with it.
+  invalid item's index, then the field, as `widgets[1].price: ...`, the same
+  rendering every validation error gets, so the model corrects that one item.
+- **Any other argument sent beside the list** is held to the toolset's
+  `unknown_arguments`, as any undeclared key is: under `REJECT` it comes back
+  as `note: Unknown argument.`, and under `IGNORE` it is dropped, since the
+  service receives only the list and the argument would have nowhere to go.
 
 A tool that needs arguments **beside** its list cannot be `many=True`. Name the
-list as a field of the input serializer instead, and loop over it:
+list as a field of the Validator's input instead, and loop over it:
 
 ```python
-class BulkWidgetInput(serializers.Serializer):
-    items = WidgetInputSerializer(many=True)
-    dry_run = serializers.BooleanField(default=False)
+@dataclass
+class BulkWidgetIn:
+    items: list[WidgetIn]
+    dry_run: bool = False
 ```
 
 The model sends `{"items": [...], "dry_run": true}`, and an invalid item comes
-back placing its errors at its index, as `items[1].price: ...`. Django REST
-framework keys them by index from 3.18 and lists them below it, with an empty
-entry for each valid item; the model reads the same line either way.
+back placing its errors at its index, as `items[1].price: ...`.
 
 ## Ordering
 
@@ -700,11 +712,14 @@ class OrderFilterSet(django_filters.FilterSet):
         fields = ["status"]
 ```
 
-drf-services reflects that filter into the tool's input schema as its public
-choices (`created`, `-created`, `total`, `-total`) — `OrderingFilter` subclasses
-`ChoiceFilter`, which the schema generator maps to a set of `const` options
-carrying the filter's own labels — so the model is told exactly what it may sort
-by, in the words the FilterSet uses. At call time the value is handed to
+The kernel lists that filter in the tool's input schema as an array of its
+public choices, `{"type": "array", "items": {"type": "string", "enum":
+["created", "-created", "total", "-total"]}}`, as `OrderingFilter` takes a list
+of sort keys, so the model is told exactly what it may sort by, in the words the
+FilterSet uses. The choices' labels are not carried. A single key is sent as a
+one-element list, `["-created"]`; one sent as a bare string is handed back as
+`ordering: Expected an array.` for the model to correct, rather than read as
+one key. At call time the value is handed to
 the FilterSet as filter data: it validates the choice, applies its own
 `param_map`, and a value outside the enum comes back as a `ModelRetry`. The
 toolset contributes nothing and takes nothing away.
@@ -718,14 +733,22 @@ send, under whatever it is called.
 
 ### A list selector with no `filter_set`
 
-A selector that takes its own sort argument works too: declare it on the
-callable and it is reflected into the tool schema like any other parameter, and
-handed to the callable to apply.
+A selector that takes its own sort argument works too: declare it as a read,
+and it is advertised like any other, and handed to the callable to apply.
 
 ```python
-def list_orders(user, ordering: str = "-created_at"):
+def list_orders(*, user, ordering: str):
     """List the acting user's orders."""
     return Order.objects.filter(customer=user).order_by(ordering)
+
+
+list_orders_spec = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=list_orders,
+    reads=Parameters.of(Parameter("ordering", "string", default="-created_at")),
+    presenter=DataclassPresenter(OrderOut),
+    permissions=[Unrestricted()],
+)
 ```
 
 Prefer the `FilterSet` where there is one: it validates the value against a
@@ -747,20 +770,20 @@ while a FilterSet's choices are public names it maps through its own
 `param_map`. Picking public names is the migration's one decision — they are what the model sees, so give them the words a reader would
 use.
 
-## Read-shaping query params
+## Read-shaping parameters
 
 `page` / `limit` are built in for list selectors and `ordering` comes from the
-`filter_set`, but a spec can declare its own request-level params, as
-`reads=[QueryParam(...)]` with
-[`QueryParam`](reference.md#rest_framework_services.types.query_param.QueryParam). Built from
-the [registry](spec-registry.md#what-the-spec-declares-for-an-agent) the spec is
-registered in, the toolset advertises each as a tool arg, then — instead of reaching the spec as an input — seeded
-into `request.query_params` over the off-HTTP path. That is for whatever reads
-`request.query_params` **directly**: django-restql field selection, or a custom
-serializer that branches on the query string.
+`filter_set`, but a spec can declare its own parameters that shape what it
+returns, as `shapes=` on the spec. The toolset advertises each as a tool
+argument, and the kernel hands what the model sent to the spec's presenter
+alone, as the call's `PresentationContext.shapes`: no callable of the spec
+takes it. That is for a presenter that selects fields or switches between a
+summary and a detail rendering. A `null` is read as left out, and a declared
+`default` is applied when the model leaves one out, as the tool's schema
+advertises.
 
 !!! note "Declared on the spec, never on the toolset"
-    A read is the spec's to declare, so every transport and every mount reads
+    A shape is the spec's to declare, so every transport and every mount reads
     the same answer; `SpecToolset` takes no channel declarations of its own,
     and passing `query_params=` or `tool_query_params=` is a
     `TypeError`. For a value the model may not choose, see
@@ -768,68 +791,53 @@ serializer that branches on the query string.
 
 !!! note "You don't need this for `filter_set`"
     A `SelectorSpec.filter_set`'s fields are already generated into the tool's
-    input schema (the `[filter]` extra) and flow through as ordinary `params` —
-    which `dispatch_spec` hands the FilterSet as its `filter_data`. So the model
-    can filter a list selector with no `QueryParam` declaration at all, and the
-    same goes for [ordering](#ordering); `QueryParam` is only for params a
-    serializer reads off `request.query_params`.
+    input schema and flow through as ordinary arguments, which the kernel's
+    `dispatch` hands the FilterSet as its `filter_data`. So the model can
+    filter a list selector with no shape declared at all, and the same goes
+    for [ordering](#ordering).
 
 ```python
 from dataclasses import replace
 
-from django_service_specs import SpecRegistry
-
-from rest_framework_services import QueryParam
+from django_service_specs import Parameter, Parameters, SpecRegistry
 
 from django_spec_agents.spec_tools import SpecToolset
 
-# A param several tools read is one declaration, in each spec's reads.
-RESTQL = QueryParam("query", description="django-restql field selection")
+# A parameter several tools read is one declaration, in each spec's shapes.
+FIELDS = Parameter("fields", "string", help="Comma-separated fields to return.")
 
 registry = SpecRegistry()
 registry.register(
     "list_orders",
-    replace(list_orders_spec, reads=[RESTQL, QueryParam("detail", default="summary")]),
+    replace(
+        list_orders_spec,
+        shapes=Parameters.of(FIELDS, Parameter("detail", "string", default="summary")),
+    ),
 )
 toolset = SpecToolset(registry)
 ```
 
-A declared param is popped before dispatch, so `unknown_arguments` never flags
-it; a declared `default` is seeded when the model omits the arg or sends it as
-`null`, which never reaches the query string itself. (Names can't be
-`page` / `limit` / `ordering` — those are reserved transport keys. `ordering` is
-reserved even when a `filter_set` owns it: a declared channel pops the value at
-call time, so the FilterSet would never see it.)
+A declared shape is one of the call's arguments, so `unknown_arguments` never
+flags it; a declared `default` is applied when the model leaves it out or sends
+it as `null`, unless it accepts `null` as a value. A shape cannot be named
+`page`, `limit` or `ordering`, which the toolset's own pagination and ordering
+arguments take.
 
-A spec's read of a name the tool already advertises as the call's own input, a
-selector parameter or `filter_set` field or a parameter of a service's
-[target lookup](#what-a-tool-asks-the-model-for), declares where that input
-comes from. The tool advertises the input once, and drf-services hands it the
-value and puts it on the query string too, from the registry and from
-`registry.specs()` alike (see
-[the registry page](spec-registry.md#what-the-spec-declares-for-an-agent)). A
-service spec reading a name its input serializer takes as a writable field is
-refused by drf-services when the spec is built. A name a typed `kwargs=`
-provider declares it fills is not offered to the model as the selector's, so a
-read of it stays a parameter of the toolset's: a provider reading
-`request.query_params["status"]` into the selector's `status`, beside
-`QueryParam("status")`, is how to route the value to the selector.
-
-### On a list tool, a param shapes each row
+### On a list tool, a parameter shapes each row
 
 Every list tool returns a page, `{"items": [...], "page": 1, "totalPages": N,
-"hasNext": ...}`, but the serializer that reads a read-shaping param renders one
-row at a time and never sees the envelope. So a selection written against the
-documented shape, `fields=items` or django-restql's `{items{id, name}}`, asks
-each row for an `items` field it does not have. The toolset tells the model this in two places:
+"hasNext": ...}`, but the presenter that reads a shape renders one row at a
+time and never sees the envelope. So a selection written against the documented
+shape, `fields=items`, asks each row for an `items` field it does not have. The
+toolset tells the model this in two places:
 
-- each `QueryParam` on a list tool has "On a paged result it applies to each item
-  in `items`, never to the page envelope (`items`, `page`, `totalPages`,
-  `hasNext`)." appended to its description, or as its description when it
-  declares none; a retrieve tool's param is left as declared;
+- each read-shaping parameter on a list tool has "On a paged result it applies
+  to each item in `items`, never to the page envelope (`items`, `page`,
+  `totalPages`, `hasNext`)." appended to its description, or as its description
+  when it declares none; a retrieve tool's parameter is left as declared;
 - the read-shaping line of the instructions the toolset derives says the same,
   "On a tool that returns a page, they apply to each item in `items`, never to
-  the page itself.", when some list tool declares a `QueryParam`.
+  the page itself.", when some list tool declares a read-shaping parameter.
 
 An `instructions=` override replaces the derived block, and this line with it:
 an override written before this sentence existed does not gain it, so add the
@@ -838,14 +846,14 @@ lines you need with [`conventions=`](#changing-what-the-model-is-told) instead
 keeps this one, and both sentences are fields there (`read_shaping_on_pages` and
 `query_param_on_pages`).
 
-### A selection the serializer rejects
+### A selection the presenter rejects
 
-A read-shaping param is the one argument used **while the result is rendered**
-rather than while the call runs, so it is the one that can fail after the work
-is done. When the output serializer raises a `ValidationError` (or a
-`ServiceValidationError`) while rendering, and the model supplied a value for at
-least one of the tool's read-shaping params, the model gets a retry naming the
-argument:
+A read-shaping parameter is the one argument used **while the result is
+rendered** rather than while the call runs, so it is the one that can fail after
+the work is done. When the presenter raises the kernel's
+`ServiceValidationError` or `InvalidArguments` while rendering, and the model
+supplied a value for at least one of the tool's read-shaping parameters, the
+model gets a retry naming the argument:
 
 ```text
 `fields` was rejected while rendering the result: Unknown field `items`. On a
@@ -853,202 +861,55 @@ paged result it applies to each item in `items`, never to the page envelope
 (`items`, `page`, `totalPages`, `hasNext`).
 ```
 
-What follows the colon is the serializer's own message, verbatim. The toolset
-never reads a param's value, so this works the same for a `fields` your own
-serializer parses, for django-restql's `query`, or for anything else that raises.
-The last sentence is there only on a list tool. With several params supplied,
-all of them are named, since the serializer does not say which one it refused.
-`exception_map=` / `translate_exception` sees the error first, as on the dispatch
-path.
+What follows the colon is the presenter's own message, verbatim. The toolset
+never reads a parameter's value, so this works the same for any grammar a
+presenter parses. The last sentence is there only on a list tool. With several
+parameters supplied, all of them are named, since the presenter does not say
+which one it refused. `exception_map=` / `translate_exception` sees the error
+first, as on the dispatch path.
 
 The same error **stays loud**, and ends the run, when nothing the model
 sent shaped the render: no read-shaping value supplied, an explicit `null`, or a
-value that came from a declared `default`. A retry cannot fix a serializer that
+value that came from a declared `default`. A retry cannot fix a presenter that
 fails on its own or a default that is wrong, and would hide the bug behind the
-retry budget. Only validation errors are converted; an `AttributeError` in a
-serializer is a bug whatever the model sent.
+retry budget. Only those two refusals are converted; an `AttributeError` in a
+presenter is a bug whatever the model sent.
 
 !!! tip "Use strict selection on tools an agent calls"
-    This only works if the serializer says no. Make a name it does not know
-    raise a `ValidationError` (django-restql does by default), and the model
-    corrects itself in one retry.
+    This only works if the presenter says no. Make a name it does not know
+    raise `ServiceValidationError`, and the model corrects itself in one retry.
     A tolerant selection, one that drops fields it cannot find, turns the same
     mistake into a page of empty rows, `"items": [{}, {}]`, which is a successful
     result as far as anything downstream can tell. The toolset cannot tell that
-    apart from a real answer without knowing the param's grammar, so it does not
-    try.
-
-## URL-derived values (route captures)
-
-Over HTTP a nested route (`/projects/{project_pk}/widgets/`) supplies
-`project_pk` from the URL, and a selector reads it from `view.kwargs` — directly,
-or through a `spec.kwargs` provider that scopes by it (a tenant/role lookup). Off
-the HTTP path there is no route, so declare the capture on the spec, as
-`reads=[UrlKwarg(...)]` with
-[`UrlKwarg`](reference.md#rest_framework_services.types.url_kwarg.UrlKwarg). Built from the
-registry, the toolset advertises it as a tool arg, then popped and seeded into `build_offline_context(kwargs=…)`,
-from where drf-services spreads it into the selector / target pools —
-authoritative over the spec `params`, below a `spec.kwargs` provider (mirroring
-HTTP precedence exactly).
-
-!!! note "Declared on the spec, never on the toolset"
-    As with `QueryParam`, `SpecToolset` takes no `url_kwargs=` or
-    `tool_url_kwargs=`; passing either is a `TypeError`. A
-    `UrlKwarg(default=...)` cannot stand in for a value the model must not
-    choose, since it is only a default the model can override; bind the value with
-    [`tool_server_arguments`](spec-registry.md#arguments-the-server-supplies)
-    instead.
-
-```python
-from rest_framework_services import UrlKwarg
-
-project = UrlKwarg("project_pk", type="integer", description="owning project")
-registry.register("list_widgets", replace(list_widgets_spec, reads=[project]))
-toolset = SpecToolset(registry)
-```
-
-Reach for `UrlKwarg` when the value is **request state** rather than an ordinary
-argument to the callable — the axis is where the value has to land, not whether
-it is advertised:
-
-- a scoping `spec.kwargs` provider that reads `view.kwargs` — the case ordinary
-  `params` cannot cover, because the provider reads `view.kwargs`, not `params`;
-- a closed-surface spec whose route capture must be model-suppliable.
-
-Like `QueryParam`, a declared kwarg is popped before dispatch (so
-`unknown_arguments` never flags it) and its `default` is seeded when the model
-omits it. A kwarg with a `default` therefore fills a selector parameter of the
-same name, and the tool does not require it; one without a default reaches the
-selector only when the model sends it, so the selector's own signature still
-decides whether the tool requires it. A name can't be `page` / `limit` / `ordering`, nor one of drf-services'
-pool seeds (`request` / `user` / `data` / `instance` / `serializer` /
-`collection` / `progress` — a caller must not be able to route a value onto
-those) or a name
-registered in [`pool_seeds`](#project-pool-seeds). One spec declaring a name as
-both a `QueryParam` and a `UrlKwarg` is refused by drf-services when the spec is
-built.
-
-A capture the spec genuinely cannot run without takes `required=True`:
-
-```python
-UrlKwarg("project_pk", type="integer", required=True)
-```
-
-The name joins the tool's `required` list, so the model is told up front. Because
-a schema hint is only a hint — models omit required arguments routinely — a call
-that omits it raises `ModelRetry` naming the argument, giving the model a turn to
-supply it rather than failing deeper in. `required` can't be combined with a
-`default` (a default always satisfies the argument, so requiring it would be a
-no-op); that raises at construction.
-
-### A reflected `**extras` key is not a route capture
-
-A selector typed `def list_widgets(user, **extras: Unpack[WidgetExtras])` that
-reads `extras["project_pk"]` already has that key reflected into the tool schema
-by drf-services — no `UrlKwarg` needed **for the selector itself**, which
-receives it through `params`. Marking it `InputRequired` makes the model supply
-it; that is a *schema* statement and changes nothing about where the value lands.
-
-The two declarations answer different questions, and only one of them puts a
-value on the request:
-
-| | reflected `**extras` key (± `InputRequired`) | registered `UrlKwarg` |
-| --- | --- | --- |
-| In the tool schema | yes | yes |
-| Can be required | yes (`InputRequired`) | yes (`required=True`, plus a `ModelRetry` when omitted) |
-| Reaches the selector | yes, via `params` | yes, via the `view.kwargs` spread |
-| Reaches `view.kwargs` | **no** | yes |
-| Ranks above caller-supplied `params` | no — it *is* caller input | yes |
-
-So anything that reads request state rather than its own arguments — a
-`spec.kwargs` provider, `extend_queryset`, a permission class, an
-`output_serializer_context` provider — sees nothing for a reflected-only key. A
-scoping provider doing `view.kwargs.get("project_pk")` returns `None` and
-**mis-scopes every call** instead of failing, which is the failure mode worth
-naming: it is silent.
-
-Declare the `UrlKwarg` read as well when the value is scope, and bind it with
-[`tool_server_arguments`](spec-registry.md#arguments-the-server-supplies) when
-the model must not choose it. The read is a strict superset: the selector still
-receives the value in `**extras`, and the provider finds it on `view.kwargs`:
-
-```python
-from django_service_specs import ServerArguments
-
-# project_pk reflected from WidgetExtras *and* read from the route:
-#   selector's extras -> 7      view.kwargs -> {"project_pk": 7}
-registry.register(
-    "list_widgets",
-    replace(list_widgets_spec, reads=[UrlKwarg("project_pk", type="integer", required=True)]),
-)
-toolset = SpecToolset(
-    registry,
-    tool_server_arguments={"list_widgets": ServerArguments(values={"project_pk": 7})},
-)
-```
-
-Declared and not bound, the name is advertised once, with one `required` entry
-(the `UrlKwarg` wins the merge over a reflected key of the same name), and the
-model supplies it. Bound, it leaves the schema, and whatever the model sends
-under it is dropped before the call.
-
-That split mirrors HTTP, where a route capture arrives in the URL and never in
-the body — which is what makes it unspoofable. Off the HTTP path, `params` are
-whatever the model chose; a `UrlKwarg` value outranks them, but the model chooses
-that value too unless the server binds it. If a provider scopes by it, it has to
-come through the channel that carries that precedence, with the value the
-server supplies.
-
-`UrlKwarg` and `QueryParam` are
-[drf-services' types](https://github.com/Artui/djangorestframework-services/blob/main/rest_framework_services/types/url_kwarg.py),
-imported from `rest_framework_services`: the declaration is the same whichever
-transport carries it, so there is one class of each, and this package does not
-re-export them.
-
-## Absolute URLs (file and hyperlinked fields)
-
-Off the HTTP path there is no ambient request, so there is no origin to build
-absolute URLs from — and DRF's `FileField`, `HyperlinkedIdentityField`, and
-`HyperlinkedRelatedField` call `request.build_absolute_uri()` for every value.
-Name your origin and they resolve:
-
-```python
-toolset = SpecToolset(specs, host="https://app.example.com")
-```
-
-`host` accepts `"example.com"`, `"example.com:8000"`, or a full origin whose
-scheme decides whether links are https. It is toolset-wide, with no per-tool
-variant: an origin is a property of the deployment, not of a tool.
-
-Left unset, those fields produce **relative** URLs (`/media/doc.pdf`) — usable,
-and exactly what they fall back to on their own when no request is in the
-serializer context. Nothing is inferred: only your project knows its public
-origin, and a guess would emit confidently-wrong links that look valid.
+    apart from a real answer without knowing the parameter's grammar, so it does
+    not try.
 
 ## Error handling
 
-The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
+The toolset maps the kernel's failure kinds onto the Pydantic-AI model loop:
 
-| drf-services outcome | What the agent sees |
+| Outcome | What the agent sees |
 | --- | --- |
-| `ServiceValidationError` (bad input) | `ModelRetry` with the field errors, one `field: message` line each — the model self-corrects |
-| A read-shaping value the output serializer rejects while rendering | `ModelRetry` naming the argument — see [A selection the serializer rejects](#a-selection-the-serializer-rejects) |
+| `ServiceValidationError` (bad input), or the kernel's `InvalidArguments` (an argument of the wrong shape, or a Validator's refusal of its value) | `ModelRetry` with the field errors, one `field: message` line each — the model self-corrects. The arguments' shape is checked before the permission check, so a malformed call is handed back before it is authorized |
+| A read-shaping value the presenter rejects while rendering | `ModelRetry` naming the argument — see [A selection the presenter rejects](#a-selection-the-presenter-rejects) |
 | `ActionUnavailable` (an `Affordance` condition not met) | `ToolFailed` with the reason followed by the rule's code — `The books are closed. (code: books_closed)`; see below |
 | `AdditionalInputRequired` (the service wants one more input) | `ModelRetry` with the service's message, ending in the names to supply (``Call this tool again, additionally supplying: `confirmed`.``) — see the warning below |
 | `ServiceError` (business rule) | `ToolFailed` with the rule's own message — a failed result the model reads and reports |
 | Unresolved instance: a read's or a write's instance selector that finds no row, or raises `DoesNotExist` or Django's `Http404` (as `get_object_or_404` does) | `ToolFailed("not found")`, unless the spec sets `allow_none=True`, when the tool returns `None`. A list selector's `Http404`, usually from a parent it looked up, is `ToolFailed("not found")` whatever `allow_none` says; a list that finds no rows returns `[]`, and a `DoesNotExist` escaping a list selector is an error, not a not-found |
 | A dispatch past `dispatch_timeout` | `ToolFailed` — abandoned, with the sentence telling the model to narrow and call again |
 | A rendered result over `max_result_bytes` | `ToolFailed` — refused rather than truncated, since a partial payload looks complete |
-| Unexpected argument (default `REJECT`) | `ModelRetry` naming the unknown key |
-| A required argument left out: a selector parameter with no default, or a service's target lookup such as `pk` | `ModelRetry` naming each such parameter left out; a missing serializer field is reported by the serializer when the call runs — see [What a tool asks the model for](#what-a-tool-asks-the-model-for) |
+| Unexpected argument (default `REJECT`) | `ModelRetry` naming the unknown key, in the kernel's words: `note: Unknown argument.` |
+| A required argument left out: a required read, or a service's target lookup such as `pk` | `ModelRetry` naming each such parameter left out; a missing Validator field is reported by the Validator when the call runs — see [What a tool asks the model for](#what-a-tool-asks-the-model-for) |
 | An invalid item in a `many=True` list | `ModelRetry` with the errors keyed under the list's argument, then the item's index — see [A list as input](#a-list-as-input) |
-| An argument sent beside a `many=True` list | `ModelRetry` naming it, whatever `unknown_arguments` says |
+| An argument sent beside a `many=True` list | As any undeclared key: `ModelRetry` naming it under `REJECT`, dropped under `IGNORE` |
 | Non-integer `page` / `limit` | `ModelRetry` — naming what is accepted |
 | An `ordering` sent to a list tool that advertises no sort at all | `ModelRetry` — saying the tool has none, rather than letting it fall through as an unknown key |
 | A `limit` over `max_page_size`, or a `page` past the last one | Clamped, not refused — the envelope reports the `page` and `totalPages` actually served, so the clamp is visible rather than silent |
-| An `ordering` outside a `filter_set`'s `OrderingFilter` choices | `ModelRetry` — the FilterSet rejects it, which arrives as the `ValidationError` row above |
+| An `OrderingFilter`'s `ordering` sent as one string rather than a list | `ModelRetry` — `ordering: Expected an array.`, as the schema advertises an array |
+| An `ordering` outside a `filter_set`'s `OrderingFilter` choices | `ModelRetry` — the FilterSet rejects it, which arrives as the `InvalidArguments` row above |
 | A FilterSet `param_map` target that isn't a real column | Django's `FieldError` propagates — an author's error the model cannot correct by picking a different sort, and one that can't be checked at construction without a queryset |
-| Denied `permission_classes` (class-level `has_permission` **or** object-level `has_object_permission`) | `PermissionDenied` is raised and aborts the run — see the caveat below |
+| A denied permission check (class-level `has_permission` **or** object-level `has_object_permission`), raised as the kernel's `NotPermitted`, Django's own `PermissionDenied` raised bare by a service, or a deactivated principal (`PrincipalUnavailable`, refused before any check) | The refusal is raised, logged at `WARNING` naming the tool, and aborts the run — see the caveat below |
+| Django REST Framework's `PermissionDenied` or `ValidationError`, raised by a spec | Neither of the above: the exception escapes the call unchanged. A spec library raising them translates them into the kernel's refusals |
 
 !!! warning "A confirmation raised as `AdditionalInputRequired` is not a gate"
     The retry for `AdditionalInputRequired` goes to the model, so the model can
@@ -1086,7 +947,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 
 !!! danger "Your own exception has to *be* a `ServiceError`"
     Every row above is matched by type. A service that raises its own error
-    class gets none of this unless that class derives from drf-services'
+    class gets none of this unless that class derives from the kernel's
     `ServiceError`:
 
     ```python
@@ -1099,7 +960,7 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 
     Deriving from `Exception` is the ordinary thing to reach for, and the
     failure is silent in a way worth spelling out, because it is not confined to
-    the agent. The same exception escapes the DRF view as a **500 for what is
+    the agent. The same exception escapes an HTTP view as a **500 for what is
     plainly a 409**, escapes MCP as a protocol error, and aborts an agent run
     rather than settling the call as failed. Nothing warns — not at
     declaration, not at mount, not at dispatch.
@@ -1111,25 +972,25 @@ The toolset maps drf-services' failure kinds onto the Pydantic-AI model loop:
 
 ### A refused affordance names its code
 
-drf-services raises `ActionUnavailable` when one of a spec's `Affordance`
+The kernel's dispatch raises `ActionUnavailable` when one of a spec's `Affordance`
 conditions is not met, with the affordance's `reason` as the message and its
 `code` as an attribute. `ToolFailed` carries a message and nothing else, and that
 message is also what a transport forwards as the tool result, so the toolset puts
 both into it — the reason first, then the code, labelled:
 
 ```python
-from django_service_specs import Affordance
-from rest_framework_services import ServiceSpec
+from django_service_specs import Affordance, DataclassValidator, ServiceSpec, Unrestricted
 
 
-def post_invoice(data, user):
+def post_invoice(*, data, user):
     """Post an invoice to the current period."""
     ...
 
 
 post_invoice_spec = ServiceSpec(
     service=post_invoice,
-    input_serializer=InvoiceInputSerializer,
+    validator=DataclassValidator(InvoiceIn),
+    permissions=[Unrestricted()],
     affordances=[
         Affordance(
             code="books_closed",

@@ -18,7 +18,7 @@ tool-guard capabilities use.
 
 | | `[specs]` | `[drf-mcp]` |
 | --- | --- | --- |
-| Path | `drf-services` spec → tool, in process | `drf-mcp-server` registry → toolset, in process |
+| Path | `django-service-specs` spec → tool, in process | `drf-mcp-server` registry → toolset, in process |
 | Needs an MCP server | **No** | Yes (but no network hop) |
 | Use when | The agent is the consumer, and you have specs | You already run an MCP server and want the same tools in the agent |
 
@@ -34,8 +34,8 @@ pip install django-spec-agents[specs]
 
 `build_spec_capability(specs, request, exclude_names=…)` returns a
 `SpecCapability` over the specs, bound to `request.user`. Each call runs through
-drf-services' transport-neutral surface and enforces the spec's own
-`permission_classes`.
+the kernel's transport-neutral dispatch and enforces the spec's own
+`permissions`.
 
 Choosing the capability over a bare toolset is deliberate. The tool-set
 conventions (list-tool `page` / `limit` / `ordering`, and the error contract)
@@ -56,14 +56,14 @@ the `[drf-mcp]` route asks for the same arguments and retries the same omission.
 The extra is floored where a parameter a `kwargs=` provider
 declines, and the model left out, is retried the same way rather than reaching
 the selector, and where a selector parameter the toolset takes out of every
-call, a list selector's `page` or `limit` or a name a `QueryParam` also claims,
+call, a list selector's `page` or `limit`,
 makes `build_spec_capability` raise `ImproperlyConfigured` rather than
 advertising an argument whose value never arrives.
 
 ### Declaring specs once
 
 `specs` takes either a `name -> spec` mapping or a **spec registry** —
-drf-services 0.27's `SpecRegistry`, the single declaration site for a project
+the kernel's `SpecRegistry`, the single declaration site for a project
 exposing the same specs over more than one transport:
 
 ```python
@@ -73,8 +73,8 @@ capability = build_spec_capability(registry, request)
 ```
 
 The registry is matched **structurally**, through a `SpecSource` Protocol
-declaring only `specs() -> dict`. This package names no drf-services type and
-depends on `pydantic-ai-slim` alone; drf-services arrives only with the extra.
+declaring only `specs() -> dict`. The package root names no kernel type and
+depends on `pydantic-ai-slim` alone; the kernel arrives only with the extra.
 
 If you are writing a transport, normalise with `resolve_spec_mapping()` before
 you touch the argument. Iterating a registry yields `RegisteredSpec` **records,

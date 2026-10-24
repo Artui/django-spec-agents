@@ -16,11 +16,9 @@ import sys
 from typing import Any
 
 import pytest
+from django_service_specs import Parameter, Parameters, ServiceSpec, Unrestricted
 from pydantic_ai import Agent, ModelRetry
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from rest_framework import serializers
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecToolset
@@ -32,8 +30,8 @@ from django_spec_agents.testing import (
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-# Run in a fresh interpreter: by collection time pytest-django has imported
-# Django REST Framework into this process, so a check made here proves nothing.
+# Run in a fresh interpreter: by collection time this process has imported the
+# kernel, DRF and drf-mcp for the suite, so a check made here proves nothing.
 _IMPORTS_OF_THE_DOUBLES = """
 import sys
 import django_spec_agents
@@ -41,7 +39,8 @@ assert "django_spec_agents.testing" not in sys.modules, "the package root import
 import django_spec_agents.testing
 print(sorted(
     name for name in sys.modules
-    if name.partition(".")[0] in ("rest_framework", "rest_framework_services")
+    if name.partition(".")[0]
+    in ("django_service_specs", "rest_framework", "rest_framework_mcp")
     or name.startswith("django_spec_agents.spec_tools")
 ))
 """
@@ -49,9 +48,9 @@ print(sorted(
 
 def test_the_doubles_import_without_the_specs_extra():
     """No settings module, so the doubles must import on pydantic-ai alone: a
-    module importing ``spec_tools`` would fail here at Django REST Framework's
-    settings, and one importing drf-services lazily would be listed. The
-    package root, imported first, must not have imported them."""
+    module importing ``spec_tools``, the kernel the ``[specs]`` extra installs,
+    or the server the ``[drf-mcp]`` extra installs or the Django REST Framework
+    it brings, eagerly or lazily, would be listed. The package root, imported first, must not have imported them."""
     env = {key: value for key, value in os.environ.items() if key != "DJANGO_SETTINGS_MODULE"}
     completed = subprocess.run(
         [sys.executable, "-c", _IMPORTS_OF_THE_DOUBLES],
@@ -72,7 +71,7 @@ def _toolset(service, name="t", **spec_kwargs):
     return SpecToolset(
         {
             name: ServiceSpec(
-                service=service, permission_classes=[AllowAny], atomic=False, **spec_kwargs
+                service=service, permissions=[Unrestricted()], atomic=False, **spec_kwargs
             )
         }
     )
@@ -109,8 +108,8 @@ async def test_final_text_is_the_run_output():
     assert (await agent.run("go", deps=AgentDeps(user="u"))).output == "all set"
 
 
-class _ModeInputSerializer(serializers.Serializer):
-    mode = serializers.CharField()
+# The one argument the retrying services read.
+_MODE = Parameters.of(Parameter("mode", "string", required=True))
 
 
 async def test_retry_args_default_to_repeating_the_first_arguments():
@@ -126,12 +125,12 @@ async def test_retry_args_default_to_repeating_the_first_arguments():
     """
     calls: list[str] = []
 
-    def always_retries(data, user):
+    def always_retries(mode, user):
         """Always asks for another attempt."""
-        calls.append(data["mode"])
+        calls.append(mode)
         raise ModelRetry("never satisfied")
 
-    toolset = _toolset(always_retries, input_serializer=_ModeInputSerializer)
+    toolset = _toolset(always_retries, reads=_MODE)
     agent = Agent(tool_calling_model("t", {"mode": "bad"}), deps_type=AgentDeps, toolsets=[toolset])
 
     with pytest.raises(UnexpectedModelBehavior):
@@ -206,14 +205,14 @@ async def test_the_streaming_double_retries_in_the_same_order() -> None:
     """
     attempts: list[str] = []
 
-    def picky(data, user):
+    def picky(mode, user):
         """Refuses the first attempt and accepts the second."""
-        attempts.append(data["mode"])
+        attempts.append(mode)
         if len(attempts) == 1:
             raise ModelRetry("try again")
-        return {"mode": data["mode"]}
+        return {"mode": mode}
 
-    toolset = _toolset(picky, input_serializer=_ModeInputSerializer)
+    toolset = _toolset(picky, reads=_MODE)
     agent = Agent(
         streaming_tool_calling_model("t", {"mode": "first"}, retry_args={"mode": "second"}),
         deps_type=AgentDeps,

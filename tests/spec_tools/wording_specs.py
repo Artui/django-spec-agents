@@ -2,24 +2,30 @@
 
 ``test_default_wording.py`` pins what each default says and
 ``test_spec_toolset_conventions.py`` changes it one field at a time. Both need
-the same selectors, serializers and run context, so a line of wording lands on
+the same selectors, presenters and run context, so a line of wording lands on
 the same tool in each.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any
 
 import django_filters
-from django_service_specs import FieldMarking, SelectorKind
+from django_service_specs import (
+    FieldMarking,
+    OutputField,
+    Parameter,
+    Parameters,
+    SelectorKind,
+    SelectorSpec,
+    ServiceValidationError,
+)
 from pydantic_ai.usage import RunUsage
-from rest_framework import serializers
-from rest_framework.exceptions import ValidationError as DRFValidationError
-from rest_framework.permissions import AllowAny
-from rest_framework_services import MARKING, SelectorSpec
 
 from django_spec_agents import AgentDeps
+from tests.spec_tools.kernel_specs import RowPresenter, allow
 from tests.spec_tools.testapp.models import Widget
 
 
@@ -43,28 +49,30 @@ class SortedWidgets(django_filters.FilterSet):
         fields = []
 
 
-class HandledWidget(serializers.ModelSerializer):
+def handled_widget() -> RowPresenter:
     """An ``id`` marked as a handle with no wording of its own, so the fallback answers."""
+    return RowPresenter(
+        OutputField("id", "integer", marking=FieldMarking.handle()),
+        OutputField("name", "string"),
+    )
 
-    class Meta:
-        model = Widget
-        fields = ["id", "name"]
-        extra_kwargs = {"id": {"style": {MARKING: FieldMarking.handle()}}}
+
+def _refuse_any_selection(shapes: Mapping[str, Any]) -> None:
+    if shapes.get("fields"):
+        raise ServiceValidationError("Unknown field `items`.")
 
 
-class Picky(serializers.Serializer):
+def picky() -> RowPresenter:
     """A row that refuses any ``fields`` selection, in its own words."""
-
-    name = serializers.CharField()
-
-    def to_representation(self, instance: Any) -> Any:
-        if self.context["request"].query_params.get("fields"):
-            raise DRFValidationError("Unknown field `items`.")
-        return super().to_representation(instance)
+    return RowPresenter(OutputField("name", "string"), refuse=_refuse_any_selection)
 
 
-def rows(**_: Any) -> list[dict[str, str]]:
-    """Two plain rows, so the render runs without a database."""
+def rows() -> list[dict[str, str]]:
+    """Two plain rows, so the render runs without a database.
+
+    It takes no argument, so a ``fields`` the tool reads is a shape, which
+    reaches the presenter alone.
+    """
     return [{"name": "a"}, {"name": "b"}]
 
 
@@ -78,8 +86,12 @@ def one(*, pk: int) -> Widget:
     return Widget(pk=pk, name="w")
 
 
-def approve(**_: Any) -> dict[str, bool]:
-    """Approve the pending invoices."""
+def approve() -> dict[str, bool]:
+    """Approve the pending invoices.
+
+    Takes no arguments, so a ``fields`` the spec reads is one of its shapes
+    rather than this service's argument.
+    """
     return {"approved": True}
 
 
@@ -89,20 +101,21 @@ def selector_specs() -> dict[str, Any]:
         "list_widgets": SelectorSpec(
             kind=SelectorKind.LIST,
             selector=rows,
-            output_serializer=Picky,
-            permission_classes=[AllowAny],
+            presenter=picky(),
+            permissions=allow(),
         ),
         "sorted_widgets": SelectorSpec(
             kind=SelectorKind.LIST,
             selector=widgets,
-            output_serializer=Picky,
+            presenter=picky(),
             filter_set=SortedWidgets,
-            permission_classes=[AllowAny],
+            permissions=allow(),
         ),
         "get_widget": SelectorSpec(
             kind=SelectorKind.RETRIEVE,
             selector=one,
-            output_serializer=HandledWidget,
-            permission_classes=[AllowAny],
+            reads=Parameters.of(Parameter("pk", "integer", required=True)),
+            presenter=handled_widget(),
+            permissions=allow(),
         ),
     }

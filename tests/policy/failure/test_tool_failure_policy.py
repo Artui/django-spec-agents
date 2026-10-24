@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django_service_specs import NotPermitted, PrincipalUnavailable
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.capabilities import AbstractCapability, CapabilityOrdering
 from pydantic_ai.exceptions import ToolFailed, UnexpectedModelBehavior
@@ -665,6 +666,13 @@ class TestAuthorizationIsNotAToolFailure:
         [
             pytest.param(DRFPermissionDenied("not yours"), None, id="drf-denial"),
             pytest.param(DjangoPermissionDenied("not yours"), None, id="django-denial"),
+            # The kernel's dispatch raises its own refusals, unrelated to either
+            # framework's class, so a spec reached with no DRF in the path must
+            # still end the run rather than read as a failure to route around.
+            pytest.param(NotPermitted("not yours"), None, id="kernel-not-permitted"),
+            pytest.param(
+                PrincipalUnavailable("deactivated"), None, id="kernel-principal-unavailable"
+            ),
             # The set is a project decision.
             pytest.param(
                 LookupError("tenant missing"),
@@ -703,24 +711,60 @@ class TestAuthorizationIsNotAToolFailure:
         assert _tool_returns(result)[0].outcome == "failed"
 
 
+async def _handle(policy: ToolFailurePolicy, error: Exception) -> None:
+    await policy.on_tool_execute_error(
+        None,  # type: ignore[arg-type]
+        call=ToolCallPart(tool_name="t", args={}),
+        tool_def=ToolDefinition(name="t", parameters_json_schema={"type": "object"}),
+        args=None,
+        error=error,
+    )
+
+
 async def test_the_default_set_survives_drf_not_being_installed() -> None:
     """DRF arrives with the optional extras, so the default set is resolved
-    through an import that finds nothing in a slim install. Django's own denial
-    is still exempt there; DRF's is just another exception nobody can raise."""
+    through an import that finds nothing in a slim install, such as a project
+    that uses the kernel directly with no DRF. Django's own denial and the
+    kernel's refusals are still exempt there; DRF's is just another exception
+    nobody can raise."""
     with mock.patch.dict(sys.modules, {"rest_framework.exceptions": None}):
         policy = ToolFailurePolicy()
 
-    async def handle(error: Exception) -> None:
-        await policy.on_tool_execute_error(
-            None,  # type: ignore[arg-type]
-            call=ToolCallPart(tool_name="t", args={}),
-            tool_def=ToolDefinition(name="t", parameters_json_schema={"type": "object"}),
-            args=None,
-            error=error,
-        )
-
     with pytest.raises(DjangoPermissionDenied):
-        await handle(DjangoPermissionDenied("nope"))
+        await _handle(policy, DjangoPermissionDenied("nope"))
+
+    # The kernel's import is its own guard, not a fall-through of DRF's: with an
+    # early return on DRF's ImportError the kernel's refusals would be dropped
+    # exactly here.
+    with pytest.raises(NotPermitted):
+        await _handle(policy, NotPermitted("nope"))
+
+    with pytest.raises(PrincipalUnavailable):
+        await _handle(policy, PrincipalUnavailable("nope"))
 
     with pytest.raises(ToolFailed):
-        await handle(DRFPermissionDenied("nope"))
+        await _handle(policy, DRFPermissionDenied("nope"))
+
+
+async def test_the_default_set_survives_the_kernel_not_being_installed() -> None:
+    """The kernel arrives with the ``[specs]`` and ``[drf-mcp]`` extras, so a DRF
+    project on this package's host-only install, which has no kernel, resolves
+    the set with the kernel's import finding nothing. Django's and DRF's denials
+    stay exempt; the kernel's refusals are just exceptions nobody can raise
+    there."""
+    with mock.patch.dict(sys.modules, {"django_service_specs": None}):
+        policy = ToolFailurePolicy()
+
+    with pytest.raises(DjangoPermissionDenied):
+        await _handle(policy, DjangoPermissionDenied("nope"))
+
+    with pytest.raises(DRFPermissionDenied):
+        await _handle(policy, DRFPermissionDenied("nope"))
+
+    with pytest.raises(ToolFailed):
+        await _handle(policy, NotPermitted("nope"))
+
+    # Neither kernel class inherits from Django's or DRF's denial; if one did,
+    # it would stay exempt here and this would stop raising.
+    with pytest.raises(ToolFailed):
+        await _handle(policy, PrincipalUnavailable("nope"))

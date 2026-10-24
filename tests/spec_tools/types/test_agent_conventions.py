@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import FrozenInstanceError, fields
 
 import pytest
@@ -9,6 +10,10 @@ from django_spec_agents.spec_tools import AgentConventions
 from django_spec_agents.spec_tools.types import agent_conventions
 
 _FIELDS = [field.name for field in fields(AgentConventions)]
+
+# Every spelling the framework goes by, in any case: its own name, its package's
+# import name and distribution, the abbreviation, and the services package.
+_FRAMEWORK = re.compile(r"(?i)\bdrf\b|drf-|rest[ _-]?framework|djangorestframework")
 
 # Each field's own placeholders, written out: the table the docs give a reader.
 _ACCEPTED = {
@@ -23,6 +28,18 @@ _ACCEPTED = {
     "query_param_on_pages": (),
     "missing_arguments": ("names",),
 }
+
+
+@pytest.mark.parametrize("name", _FIELDS)
+def test_no_default_names_the_framework_a_spec_was_written_in(name):
+    """The model is told what a tool does, never which library declared it.
+
+    Which framework a spec was written in is nothing a model can act on, and a
+    default naming one is text every step pays for.
+    """
+    default = getattr(AgentConventions(), name)
+
+    assert not _FRAMEWORK.search(default)
 
 
 def test_every_field_declares_its_placeholders():

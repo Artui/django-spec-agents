@@ -15,17 +15,15 @@ import inspect
 from typing import Any
 
 import pytest
-from django_service_specs import DEFAULT_PAGE_SIZE, Affordance
+from django_service_specs import DEFAULT_PAGE_SIZE, Affordance, Parameter, ServiceSpec
 from pydantic_ai import ModelRetry
-from rest_framework.permissions import AllowAny
-from rest_framework_services import QueryParam, ServiceSpec
 
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
-from tests.spec_tools.test_spec_toolset import reading
+from tests.spec_tools.kernel_specs import allow, shaping
 from tests.spec_tools.wording_specs import approve, run_context, selector_specs
 
 _BASE = (
-    "The following tools call Django REST Framework services and selectors.\n"
+    "The following tools call this application's services and selectors.\n"
     "- A successful call returns the tool's data. A business-rule failure comes back as a "
     "failed call whose content is a sentence explaining why — that is a final answer, not a "
     "reason to retry; read it and report it, do not call the same tool the same way again. "
@@ -86,13 +84,13 @@ def _every_line() -> dict[str, Any]:
             affordances=[
                 Affordance(code="books_closed", reason="The books are closed.", when=lambda: False)
             ],
-            permission_classes=[AllowAny],
+            permissions=allow(),
         ),
     }
 
 
 def _toolset() -> SpecToolset:
-    return SpecToolset(reading(_every_line(), {"list_widgets": [QueryParam("fields")]}))
+    return SpecToolset(shaping(_every_line(), {"list_widgets": [Parameter("fields", "string")]}))
 
 
 async def test_the_default_instructions_block():

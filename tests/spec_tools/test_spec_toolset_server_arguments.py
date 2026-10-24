@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Mapping
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -19,31 +18,77 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import (
     DEFAULT_POOL_SEEDS,
+    OutputField,
+    Parameter,
+    Parameters,
+    PermissionCheck,
     SelectorKind,
+    SelectorSpec,
     ServerArguments,
+    ServiceValidationError,
     SpecRegistry,
 )
 from pydantic_ai import Agent
-from rest_framework.exceptions import ValidationError as DRFValidationError
-from rest_framework_services import QueryParam, SelectorSpec, UrlKwarg
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
 from django_spec_agents.testing import tool_calling_model
+from tests.spec_tools.kernel_specs import RowPresenter, allow
 from tests.spec_tools.test_spec_toolset import (
-    RecordingPermission,
     _call,
-    _dual_declared_spec,
     _input_schema_of,
-    _name_list_spec,
-    _NameSerializer,
     _paged_spec,
     _rows,
-    _StrictRestqlWidget,
+    _SelectingPresenter,
     _tool_return,
     ctx_for,
 )
 from tests.spec_tools.testapp.models import Widget
+
+
+class ArgumentsSeen(PermissionCheck):
+    """Admits every call, and records the arguments it was asked with.
+
+    A check declaring ``arguments`` is handed the call's shape-checked
+    arguments, so what it records is what every reader of the call is handed:
+    a server value the binding put there, and never the model's in its place.
+    """
+
+    seen: dict[str, Any] | None = None
+
+    def has_permission(self, principal: Any, spec: Any, *, arguments: Any = None) -> bool:
+        ArgumentsSeen.seen = dict(arguments or {})
+        return True
+
+
+@pytest.fixture(autouse=True)
+def _forget_the_last_call():
+    ArgumentsSeen.seen = None
+
+
+def _string(name: str, **kwargs: Any) -> Parameter:
+    return Parameter(name, "string", **kwargs)
+
+
+def _names_spec(
+    selector: Any,
+    *reads: Parameter,
+    shapes: tuple[Parameter, ...] = (),
+    presenter: RowPresenter | None = None,
+) -> SelectorSpec:
+    """A list of ``name`` rows, reading ``reads``, guarded by ``ArgumentsSeen``.
+
+    The kernel reflects nothing off a callable, so each argument the selector
+    takes from the model is one of ``reads``.
+    """
+    return SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=selector,
+        reads=Parameters.of(*reads),
+        shapes=Parameters.of(*shapes),
+        presenter=presenter or RowPresenter(OutputField("name", "string")),
+        permissions=[ArgumentsSeen()],
+    )
 
 
 def vendors_in_scope(*, project_pk: str | None = None, draw_request_pk: str | None = None):
@@ -61,14 +106,12 @@ def any_vendors():
     return [{"name": "any"}]
 
 
-def _scoped_spec(selector: Any = vendors_in_scope, **kwargs: Any) -> SelectorSpec:
-    kwargs.setdefault("permission_classes", [RecordingPermission])
-    kwargs.setdefault("reads", (UrlKwarg("project_pk"), UrlKwarg("draw_request_pk")))
-    return _name_list_spec(selector, **kwargs)
+def _scoped_spec(selector: Any = vendors_in_scope, *reads: Parameter) -> SelectorSpec:
+    return _names_spec(selector, *(reads or (_string("project_pk"), _string("draw_request_pk"))))
 
 
 def _required_spec() -> SelectorSpec:
-    return _scoped_spec(vendors_of_project, reads=(UrlKwarg("project_pk", required=True),))
+    return _scoped_spec(vendors_of_project, _string("project_pk", required=True))
 
 
 def _registry(**specs: SelectorSpec) -> SpecRegistry:
@@ -106,7 +149,7 @@ def test_a_name_the_spec_does_not_declare_is_refused_naming_the_tool():
 def test_a_bound_value_its_parameter_refuses_fails_at_construction():
     """A server value failing its own declaration is the server's bug, so it fails
     the mount rather than every call that reaches it."""
-    spec = _scoped_spec(reads=(UrlKwarg("project_pk", type="integer"),))
+    spec = _scoped_spec(vendors_in_scope, Parameter("project_pk", "integer"))
 
     with pytest.raises(ImproperlyConfigured) as raised:
         SpecToolset(
@@ -136,27 +179,35 @@ def scoped_to_tenant(*, tenant: str):
 
 def test_a_name_a_registered_seed_occupies_is_refused():
     """Checked against the toolset's own seeds: the kernel's default set does not
-    hold ``tenant``, so a check that did not hear about them would pass this."""
+    hold ``tenant``, so a check that did not hear about them would pass this.
+
+    ``tenant`` is a reflected read, as a library compiling its declaration off
+    the callable's signature marks one, so the spec declares the name and the
+    seed is what refuses it, not an undeclared name.
+    """
     seeds = DEFAULT_POOL_SEEDS.extend(tenant=lambda: "acme")
 
-    with pytest.raises(ImproperlyConfigured, match=r"tool 'rows': .*pool seed"):
+    with pytest.raises(ImproperlyConfigured, match=r"tool 'rows': .*pool seed") as raised:
         SpecToolset(
-            {"rows": _name_list_spec(scoped_to_tenant)},
+            {"rows": _names_spec(scoped_to_tenant, _string("tenant", reflected=True))},
             pool_seeds=seeds,
             tool_server_arguments={"rows": ServerArguments(values={"tenant": "other"})},
         )
+
+    assert "a reflected read which a registered pool seed fills" in str(raised.value)
+    assert "does not declare" not in str(raised.value)
 
 
 # --- the advertised schema ----------------------------------------------------
 
 
 def test_bound_and_withheld_names_leave_the_schema_and_its_required():
-    """Through the registry, where the reads reach the schema as this toolset's
-    own channels, merged over the selector's parameters: the subtraction has to
-    come after that merge, or a required ``UrlKwarg`` is written back."""
+    """Through the registry, where the reads reach the schema as the compiled
+    spec's parameters, and a list tool's own arguments are added after: the
+    subtraction has to come last, or a required read is written back."""
     registry = _registry(
         vendors=_scoped_spec(
-            reads=(UrlKwarg("project_pk", required=True), UrlKwarg("draw_request_pk"))
+            vendors_in_scope, _string("project_pk", required=True), _string("draw_request_pk")
         )
     )
 
@@ -181,13 +232,18 @@ def entry_on_page(*, page_pk: str, book: str, note: str = ""):
 
 
 def test_a_tool_with_no_channels_loses_the_bound_name_too():
-    """A retrieve tool with no channel of its own takes the schema builder's early
-    return, which has to subtract as the merged branch does."""
+    """A retrieve tool gains no page arguments, so its schema is the spec's own,
+    which has to lose a bound name as a list tool's does."""
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=entry_on_page,
-        output_serializer=_NameSerializer,
-        permission_classes=[RecordingPermission],
+        reads=Parameters.of(
+            _string("page_pk", required=True),
+            _string("book", required=True),
+            _string("note", default=""),
+        ),
+        presenter=RowPresenter(OutputField("name", "string")),
+        permissions=[ArgumentsSeen()],
     )
     toolset = SpecToolset(
         {"entry": spec},
@@ -201,14 +257,23 @@ def test_a_tool_with_no_channels_loses_the_bound_name_too():
 
 
 def fields_free(*, user: Any):
-    """Every vendor, shaped by the query string."""
+    """Every vendor, shaped by the ``fields`` the call sends."""
     return [{"name": "v"}]
 
 
-async def test_a_bound_query_param_is_not_offered_in_the_instructions():
-    """The read-shaping line names every ``QueryParam`` a tool offers; a bound one
-    is not offered, so it is not named."""
-    registry = _registry(vendors=_scoped_spec(fields_free, reads=(QueryParam("fields"),)))
+def _shaped_spec(fields: Parameter, seen: dict[str, Any]) -> SelectorSpec:
+    """``fields_free`` with ``fields`` as its one shape, whose render records the call's shapes."""
+    return _names_spec(
+        fields_free,
+        shapes=(fields,),
+        presenter=RowPresenter(OutputField("name", "string"), refuse=seen.update),
+    )
+
+
+async def test_a_bound_shape_is_not_offered_in_the_instructions():
+    """The read-shaping line names every shape a tool offers; a bound one is not
+    offered, so it is not named."""
+    registry = _registry(vendors=_shaped_spec(_string("fields"), {}))
     unbound = SpecToolset(registry)
     bound = SpecToolset(
         registry, tool_server_arguments={"vendors": ServerArguments(values={"fields": "name"})}
@@ -236,14 +301,15 @@ async def test_a_binding_fills_a_required_read_the_model_never_sends():
     result = await agent.run("go", deps=AgentDeps(user=user))
 
     assert _rows(_tool_return(result).content) == [{"name": "project=7"}]
-    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    assert ArgumentsSeen.seen == {"project_pk": "7"}
 
 
 @pytest.mark.django_db(transaction=True)
 async def test_the_bound_value_outranks_the_one_the_model_sends(caplog):
-    """Applied before the channels are split, so the bound value is the one
-    ``view.kwargs`` carries. Applied after, the model's value is already on the
-    route, which a selector reads over its arguments."""
+    """Applied before the call is dispatched, so the bound value is the argument
+    the selector is handed, and the one a permission check is asked with.
+    Applied after, the model's value would already be the call's argument under
+    that name."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset(
         _registry(vendors=_required_spec()),
@@ -257,7 +323,7 @@ async def test_the_bound_value_outranks_the_one_the_model_sends(caplog):
         result = await agent.run("go", deps=AgentDeps(user=user))
 
     assert _rows(_tool_return(result).content) == [{"name": "project=7"}]
-    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    assert ArgumentsSeen.seen == {"project_pk": "7"}
     (record,) = [r for r in caplog.records if "dropped caller-supplied" in r.getMessage()]
     assert record.levelno == logging.WARNING
     assert "'vendors'" in record.getMessage()
@@ -283,7 +349,7 @@ async def test_a_withheld_name_takes_nothing_the_model_sends(caplog):
         )
 
     assert _rows(result) == [{"name": "project=7 draw=None"}]
-    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    assert ArgumentsSeen.seen == {"project_pk": "7"}
     # Worded for both kinds of name: a withheld one is not a value the server
     # supplies, only one the model may not choose.
     assert (
@@ -306,18 +372,19 @@ async def test_nothing_is_logged_when_the_model_sends_no_server_name(caplog):
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_bound_query_param_reaches_the_query_string():
-    """A bound ``QueryParam`` read takes the existing channel to
-    ``request.query_params``, with the server's value over the model's."""
+async def test_a_bound_shape_reaches_the_render():
+    """A bound shape reaches the presenter on the call's shapes, as a shape the
+    model sends does, with the server's value over the model's."""
     user = await User.objects.acreate(username="u")
+    seen: dict[str, Any] = {}
     toolset = SpecToolset(
-        _registry(vendors=_scoped_spec(fields_free, reads=(QueryParam("fields"),))),
+        _registry(vendors=_shaped_spec(_string("fields"), seen)),
         tool_server_arguments={"vendors": ServerArguments(values={"fields": "name"})},
     )
 
     await _call(toolset, "vendors", user, {"fields": "secret"})
 
-    assert RecordingPermission.seen["query_params"] == {"fields": ["name"]}
+    assert seen == {"fields": "name"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -325,14 +392,15 @@ async def test_a_withheld_read_falls_back_to_its_declared_default():
     """Withholding means the caller does not choose, not null: the read's declared
     default answers, whatever the model sent."""
     user = await User.objects.acreate(username="u")
+    seen: dict[str, Any] = {}
     toolset = SpecToolset(
-        _registry(vendors=_scoped_spec(fields_free, reads=(QueryParam("fields", default="name"),))),
+        _registry(vendors=_shaped_spec(_string("fields", default="name"), seen)),
         tool_server_arguments={"vendors": ServerArguments(withheld=frozenset({"fields"}))},
     )
 
     await _call(toolset, "vendors", user, {"fields": "secret"})
 
-    assert RecordingPermission.seen["query_params"] == {"fields": ["name"]}
+    assert seen == {"fields": "name"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -359,12 +427,12 @@ async def test_a_bound_selection_the_render_rejects_is_the_server_s_error_not_a_
     user = await User.objects.acreate(username="u")
     await Widget.objects.acreate(owner=user, name="a")
     toolset = SpecToolset(
-        _registry(widgets=replace(_paged_spec(_StrictRestqlWidget), reads=(QueryParam("query"),))),
-        tool_server_arguments={"widgets": ServerArguments(values={"query": "{name, bogus}"})},
+        _registry(widgets=_paged_spec(_SelectingPresenter())),
+        tool_server_arguments={"widgets": ServerArguments(values={"fields": "name, bogus"})},
     )
 
-    with pytest.raises(DRFValidationError, match="`bogus` field is not found"):
-        await _call(toolset, "widgets", user, {"query": "{id}"})
+    with pytest.raises(ServiceValidationError, match="`bogus` field is not found"):
+        await _call(toolset, "widgets", user, {})
 
 
 # --- a consumer scoping each run ----------------------------------------------
@@ -407,7 +475,7 @@ async def test_a_run_scoped_to_a_project_binds_it_and_withholds_the_sibling():
     user = await User.objects.acreate(username="u")
     registry = _registry(
         list_document_vendors=_scoped_spec(),
-        list_vendors=_name_list_spec(any_vendors, permission_classes=[RecordingPermission]),
+        list_vendors=_names_spec(any_vendors),
     )
     recipe = _docs_recipe(registry, {"project_pk": "7"})
     toolset = recipe["toolset"]
@@ -424,9 +492,9 @@ async def test_a_run_scoped_to_a_project_binds_it_and_withholds_the_sibling():
     result = await agent.run("enrich", deps=AgentDeps(user=user))
 
     assert _rows(_tool_return(result).content) == [{"name": "project=7 draw=None"}]
-    # Every reader of the call sees the one value: a permission class reading
-    # the route included.
-    assert RecordingPermission.seen["kwargs"] == {"project_pk": "7"}
+    # Every reader of the call sees the one value: a permission check reading
+    # the call's arguments included.
+    assert ArgumentsSeen.seen == {"project_pk": "7"}
     schema = _input_schema_of(toolset, "list_document_vendors")
     assert not {"project_pk", "draw_request_pk"} & set(schema["properties"])
     # A tool reading no scope name has no binding.
@@ -441,7 +509,9 @@ async def test_a_tool_reading_only_scope_names_the_run_does_not_bind_keeps_them(
     nothing bound; without it the name would be withheld, gone from the schema,
     and every call would reach the selector with no draw request."""
     user = await User.objects.acreate(username="u")
-    registry = _registry(list_draw_vendors=_scoped_spec(reads=(UrlKwarg("draw_request_pk"),)))
+    registry = _registry(
+        list_draw_vendors=_scoped_spec(vendors_in_scope, _string("draw_request_pk"))
+    )
     recipe = _docs_recipe(registry, {"project_pk": "7"})
     toolset = recipe["toolset"]
 
@@ -466,8 +536,7 @@ async def test_a_required_scope_name_the_run_does_not_bind_stays_the_model_s():
     user = await User.objects.acreate(username="u")
     registry = _registry(
         list_document_vendors=_scoped_spec(
-            vendors_of_document,
-            reads=(UrlKwarg("project_pk"), UrlKwarg("document_pk", required=True)),
+            vendors_of_document, _string("project_pk"), _string("document_pk", required=True)
         )
     )
     toolset = _docs_recipe(registry, {"project_pk": "7"})["toolset"]
@@ -482,25 +551,33 @@ async def test_a_required_scope_name_the_run_does_not_bind_stays_the_model_s():
     assert schema["required"] == ["document_pk"]
 
 
+def widgets_in_project(*, user: Any, project_pk: int) -> Any:
+    """The acting user's widgets in one project, a price ceiling standing in for it."""
+    return Widget.objects.filter(owner=user, price__lte=project_pk).order_by("pk")
+
+
 @pytest.mark.django_db(transaction=True)
-async def test_a_bound_capture_reaches_the_extras_and_the_route_alike():
-    """The quickstart's scope over a reflected ``**extras`` key: declared as the
-    spec's ``UrlKwarg`` read and bound, the selector receives the server's value
-    in its extras and a scoping provider finds it on ``view.kwargs``, while the
-    model is offered neither. Unbound, the read is advertised once, and required."""
+async def test_a_bound_read_reaches_the_selector_and_a_provider_alike():
+    """The quickstart's scope: a read the spec declares and the server binds is
+    the argument the selector receives, and a ``kwargs=`` provider naming it is
+    handed the same value by name, while the model is offered neither.
+    Unbound, the read is advertised as declared, and required."""
     seen: dict[str, Any] = {}
 
-    def scope_provider(view: Any) -> dict[str, Any]:
-        seen["view_kwargs"] = dict(view.kwargs)
+    def scope_provider(project_pk: int) -> dict[str, Any]:
+        seen["project_pk"] = project_pk
         return {}
 
     user = await User.objects.acreate(username="u")
     await Widget.objects.acreate(name="cheap", price=5, owner=user)
     await Widget.objects.acreate(name="dear", price=15, owner=user)
-    spec = replace(
-        _dual_declared_spec(),
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=widgets_in_project,
+        reads=Parameters.of(Parameter("project_pk", "integer", required=True)),
         kwargs=scope_provider,
-        reads=(UrlKwarg("project_pk", type="integer", required=True),),
+        presenter=RowPresenter(OutputField("name", "string")),
+        permissions=allow(),
     )
     toolset = SpecToolset(
         _registry(list_widgets=spec),
@@ -510,10 +587,8 @@ async def test_a_bound_capture_reaches_the_extras_and_the_route_alike():
     result = await _call(toolset, "list_widgets", user, {"project_pk": 99})
 
     assert [row["name"] for row in _rows(result)] == ["cheap"]
-    assert seen["view_kwargs"] == {"project_pk": 7}
+    assert seen == {"project_pk": 7}
     assert "project_pk" not in _input_schema_of(toolset, "list_widgets").get("properties", {})
-    # Declared and not bound, the name is advertised once, the read's
-    # declaration over the reflected key, and required as the read says.
     unbound = _input_schema_of(SpecToolset(_registry(list_widgets=spec)), "list_widgets")
     assert unbound["properties"]["project_pk"]["type"] == "integer"
     assert unbound["required"] == ["project_pk"]
@@ -540,20 +615,21 @@ async def test_the_capability_forwards_the_bindings():
 
 
 _MOUNT_LEVEL_CHANNELS = [
-    ("query_params", [QueryParam("fields")]),
-    ("tool_query_params", {"vendors": [QueryParam("fields")]}),
-    ("url_kwargs", [UrlKwarg("tenant_pk")]),
-    ("tool_url_kwargs", {"vendors": [UrlKwarg("tenant_pk")]}),
+    ("query_params", [_string("fields")]),
+    ("tool_query_params", {"vendors": [_string("fields")]}),
+    ("url_kwargs", [_string("tenant_pk")]),
+    ("tool_url_kwargs", {"vendors": [_string("tenant_pk")]}),
 ]
 
 
 @pytest.mark.parametrize(("knob", "value"), _MOUNT_LEVEL_CHANNELS)
 @pytest.mark.parametrize("build", [SpecToolset, SpecCapability], ids=["toolset", "capability"])
 def test_a_mount_level_channel_declaration_is_an_unknown_keyword(build, knob, value):
-    """A read is the spec's to declare, in its ``reads``, and a value the model
-    may not choose is ``tool_server_arguments``; no mount declares a channel."""
+    """A read is the spec's to declare, in its ``reads`` or ``shapes``, and a
+    value the model may not choose is ``tool_server_arguments``; no mount
+    declares a channel."""
     with pytest.raises(TypeError, match=rf"unexpected keyword argument '{knob}'"):
-        build({"vendors": _name_list_spec(any_vendors)}, **{knob: value})
+        build({"vendors": _names_spec(any_vendors)}, **{knob: value})
 
 
 @pytest.mark.django_db(transaction=True)
@@ -578,7 +654,7 @@ async def test_a_malformed_value_for_a_bound_name_never_refuses_the_call():
     for a string it was never offered costs no retry, under ``REJECT`` too."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset(
-        {"vendors": _name_list_spec(vendors_of_project, permission_classes=[RecordingPermission])},
+        {"vendors": _names_spec(vendors_of_project, _string("project_pk"))},
         tool_server_arguments={"vendors": ServerArguments(values={"project_pk": "7"})},
     )
 

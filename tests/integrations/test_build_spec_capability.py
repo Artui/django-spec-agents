@@ -6,18 +6,16 @@ from typing import Any
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec, SpecRegistry
+from django_service_specs import ServiceSpec, SpecRegistry, Unrestricted
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
-from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
 from tests.integrations.helpers import (
     LOOKUP_CALLS,
-    open_spec,
     run_context,
     run_omission_then_correction,
 )
+from tests.integrations.kernel_specs import LOOKUP_SPECS, open_spec
 
 
 def _ok(user: Any) -> dict[str, Any]:
@@ -28,13 +26,13 @@ def _ok(user: Any) -> dict[str, Any]:
 def test_an_unguarded_spec_is_refused_rather_than_exposed() -> None:
     """The strict default reaches a consumer straight through this builder.
 
-    ``permission_classes=None`` means inherit over HTTP, but a capability
-    dispatches off HTTP with nothing to inherit from, so a spec correctly guarded
-    behind a viewset would become callable by whatever the model decided to call.
-    Asserted here rather than only upstream because this function is how every
-    consumer builds the capability.
+    A spec declaring no ``permissions`` leaves its gate to whatever serves it,
+    but a capability dispatches off HTTP with no view to supply one, so the spec
+    would become callable by whatever the model decided to call. Asserted here
+    rather than only in ``SpecToolset``'s suite because this function is how
+    every consumer builds the capability.
     """
-    with pytest.raises(ImproperlyConfigured, match="no permission_classes"):
+    with pytest.raises(ImproperlyConfigured, match="with no permissions"):
         build_spec_capability({"ping": ServiceSpec(service=_ok, atomic=False)})
 
 
@@ -78,7 +76,7 @@ async def test_binds_the_acting_user_from_the_run_deps() -> None:
 
     user = SimpleNamespace(name="alice")
     capability = build_spec_capability(
-        {"ping": ServiceSpec(service=ping, atomic=False, permission_classes=[AllowAny])}
+        {"ping": ServiceSpec(service=ping, atomic=False, permissions=[Unrestricted()])}
     )
 
     toolset = capability.get_toolset()
@@ -97,7 +95,7 @@ async def test_one_capability_serves_two_users() -> None:
         return {"ok": True}
 
     capability = build_spec_capability(
-        {"whoami": ServiceSpec(service=whoami, atomic=False, permission_classes=[AllowAny])}
+        {"whoami": ServiceSpec(service=whoami, atomic=False, permissions=[Unrestricted()])}
     )
     toolset = capability.get_toolset()
 
@@ -193,9 +191,8 @@ async def test_a_specs_progress_reports_reach_the_runs_sink() -> None:
     """The other half of what rides ``ctx.deps``.
 
     ``SpecToolset`` reads its reporter off ``ctx.deps.progress`` exactly as it
-    reads the user off ``ctx.deps.user``. With no such field the reports would
-    resolve to drf-services' no-op and a long-running spec would report into
-    nothing, with no warning anywhere.
+    reads the user off ``ctx.deps.user``. With no such field a long-running
+    spec would report into nothing, with no warning anywhere.
     """
     reports: list[tuple[int, int | None, str | None]] = []
 
@@ -212,7 +209,7 @@ async def test_a_specs_progress_reports_reach_the_runs_sink() -> None:
     capability = build_spec_capability(
         {
             "import_rows": ServiceSpec(
-                service=import_rows, atomic=False, permission_classes=[AllowAny]
+                service=import_rows, atomic=False, permissions=[Unrestricted()]
             )
         }
     )
@@ -224,14 +221,14 @@ async def test_a_specs_progress_reports_reach_the_runs_sink() -> None:
 
 
 @pytest.mark.parametrize("name", ["get_row", "rename_row"])
-async def test_a_selector_parameter_without_a_default_is_required(name: str) -> None:
+async def test_a_required_read_is_advertised_as_required(name: str) -> None:
     """What the model reads: ``pk`` is advertised, and required.
 
-    ``SpecToolset`` lists a selector parameter with no default, which it does
-    not fill, in the tool's ``required``, and a single-item service advertises
-    the lookup its target is resolved through. Without either, ``get_row``
-    called ``pk`` optional and ``rename_row`` never mentioned it, so a model
-    had no reason to send the one argument the call cannot run without.
+    ``SpecToolset`` lists a read declared ``required=True`` in the tool's
+    ``required``, and a single-item service advertises the reads of the lookup
+    its target is resolved through as well as its own. Without the second,
+    ``rename_row`` never mentions ``pk``, so a model has no reason to send the
+    one argument the call cannot run without.
     """
     ctx = run_context(AgentDeps(user=AnonymousUser()))
     tools = await build_spec_capability(LOOKUP_SPECS).get_toolset().get_tools(ctx)
@@ -246,10 +243,10 @@ async def test_a_call_missing_a_selector_argument_is_one_retry_then_the_row(
 ) -> None:
     """A call leaving ``pk`` out is a retry naming it, then the row.
 
-    ``SpecToolset`` raises ``ModelRetry`` for the omission itself. Without it the
-    selector raised ``TypeError`` out of the toolset and ended the run over an
-    argument the model could have supplied. Driven through a real run, so the
-    retry is what the model reads.
+    ``SpecToolset`` raises ``ModelRetry`` for the omission itself, for the
+    selector's own read and for the target lookup's alike, rather than letting
+    the call fail over an argument the model could have supplied. Driven
+    through a real run, so the retry is what the model reads.
     """
     retries, returns = await run_omission_then_correction(
         name, omitted, corrected, capabilities=[build_spec_capability(LOOKUP_SPECS)]

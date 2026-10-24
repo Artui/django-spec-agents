@@ -143,21 +143,41 @@ class ToolFailurePolicy(AbstractCapability[Any]):
 
 
 def _denial_types() -> tuple[type[BaseException], ...]:
-    """The default pass-through set: an authorization refusal, both flavours.
+    """The default pass-through set: an authorization refusal, in each flavour.
 
-    Django's own and DRF's are unrelated classes — neither inherits from the
-    other — and a Django project raises both, so covering one is covering half a
-    boundary. DRF is optional here (it arrives with the ``[specs]`` and
-    ``[drf-mcp]`` extras, and drf-services' off-HTTP permission check raises its
-    ``PermissionDenied``), so its class is imported at call time and simply
-    absent from the set in a slim install.
+    Django's own, DRF's and the kernel's are unrelated classes — none inherits
+    from another — and a project raises whichever its stack uses, so covering
+    one is covering a third of a boundary. DRF is optional here (it arrives
+    with the ``[drf-mcp]`` extra, and a DRF permission check behind that
+    bridge raises its ``PermissionDenied``) and so is the kernel (it
+    arrives with ``[specs]`` or ``[drf-mcp]``; its dispatch raises ``NotPermitted`` for a refused
+    principal and ``PrincipalUnavailable`` for one that cannot act), so each
+    class is imported at call time under its own guard and is simply absent from
+    the set when its package is. The guards are independent: a host with the
+    kernel and no DRF, or DRF and no kernel, keeps the other's classes.
+
+    Each member of the tuple compiles to one ``isinstance`` arc, which coverage
+    cannot see dropped; each is held by the test that fails without it.
     """
+    # Held by ``test_a_reraised_failure_aborts_the_run[django-denial]``.
     denials: list[type[BaseException]] = [DjangoPermissionDenied]
     try:
         from rest_framework.exceptions import PermissionDenied
     except ImportError:
-        return tuple(denials)
-    denials.append(PermissionDenied)
+        pass
+    else:
+        # Held by ``test_a_reraised_failure_aborts_the_run[drf-denial]``.
+        denials.append(PermissionDenied)
+    try:
+        from django_service_specs import NotPermitted, PrincipalUnavailable
+    except ImportError:
+        pass
+    else:
+        # ``NotPermitted`` is held by
+        # ``test_a_reraised_failure_aborts_the_run[kernel-not-permitted]`` and
+        # ``PrincipalUnavailable`` by ``[kernel-principal-unavailable]``; both
+        # are also asserted by ``test_the_default_set_survives_drf_not_being_installed``.
+        denials.extend((NotPermitted, PrincipalUnavailable))
     return tuple(denials)
 
 

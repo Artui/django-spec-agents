@@ -54,14 +54,81 @@ That is the whole change. Each entry becomes one tool, named as it is in the
 registry, in registration order.
 
 The registry is django-service-specs', and it accepts any spec that compiles to
-one of the kernel's. The toolset dispatches through drf-services, so every entry
-it is handed must be a `rest_framework_services.ServiceSpec` or `SelectorSpec`.
-A django-service-specs spec raises `TypeError` naming the tool when the toolset
-is built; call one through `django_service_specs.dispatch` instead.
+one of the kernel's, and so does the toolset: a django-service-specs
+`ServiceSpec` or `SelectorSpec`, or any value the kernel's `kernel_spec`
+compiles to one. The toolset reads every spec through `kernel_spec`, so it asks
+the compiled spec what to advertise and how to call it, whichever library
+declared it. A value that compiles to no spec raises `TypeError` naming the
+tool when the toolset is built, in the kernel's words.
 
-Pass the **registry**, not `registry.specs()`. The mapping is what the registry
-holds minus everything else the entry carries, and one of those things — the
-[agent contract](#what-the-spec-declares-for-an-agent) — is read here.
+## A spec declared on the kernel
+
+A django-service-specs spec needs no DRF. Its permissions are the kernel's
+`PermissionCheck`s, and **its arguments are its declared `reads`**: the kernel
+reflects nothing off a native callable's signature, so each argument the model
+may send is a `Parameter`, and the callable takes it by name beside the pool
+seeds (`user` here). A native spec declaring no reads advertises no argument of
+its own, and a call sending one is handed back as `name: Unknown argument.`
+
+```python
+from django_service_specs import (
+    Parameter,
+    Parameters,
+    PermissionCheck,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+)
+
+from django_spec_agents.spec_tools import SpecToolset
+from orders.models import Order
+
+
+class SignedIn(PermissionCheck):
+    def has_permission(self, principal, spec) -> bool:
+        return bool(principal is not None and principal.is_authenticated)
+
+
+def orders_in_status(*, user, status: str) -> list[dict]:
+    """The caller's orders in one status."""
+    return list(Order.objects.filter(owner=user, status=status).values("id", "status"))
+
+
+def set_order_note(*, user, pk: int, note: str) -> dict:
+    """Write the note on one of the caller's orders."""
+    Order.objects.filter(owner=user, pk=pk).update(note=note)
+    return {"id": pk, "note": note}
+
+
+list_orders = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=orders_in_status,
+    reads=Parameters.of(Parameter("status", "string", default="open")),
+    permissions=[SignedIn()],
+)
+note_order = ServiceSpec(
+    service=set_order_note,
+    reads=Parameters.of(
+        Parameter("pk", "integer", required=True),
+        Parameter("note", "string", required=True),
+    ),
+    permissions=[SignedIn()],
+)
+
+toolset = SpecToolset({"list_orders": list_orders, "note_order": note_order})
+```
+
+`list_orders` advertises `status`, defaulting to `open`, beside the `page` and
+`limit` every list tool takes, and returns a page of the dicts its selector
+returns. `note_order` requires `pk` and `note`. A registry takes these specs as
+it takes any other, and the toolset serves them from either.
+
+## A registry or its mapping
+
+`SpecToolset(registry)` and `SpecToolset(registry.specs())` build the same
+tools: the mapping is the flattened `name -> spec` view, and everything the
+toolset reads is on the spec. Pass the registry when you have one, so a
+filtered view of it can feed each toolset.
 
 The same goes for the capability:
 
@@ -119,55 +186,57 @@ them, which is the cost deferring was meant to avoid. `description` names the
 
 A spec declares what a caller with **no HTTP request** has to be told, because
 the URLconf and query string tell an HTTP one for free: `reads=` names the route
-captures and query values it reads, and `field_audiences=` marks output fields
-for an agent. Its registry entry answers both as one
-[`OfflineContract`][rest_framework_services.types.offline_contract.OfflineContract]
-(`entry.agent_contract`).
+captures and query values it reads, and an `OutputField`'s `marking=` says how
+the field is presented to an agent. Both are the spec's: each read is one of its
+parameters, and the markings are part of its output.
 
 ```python
 from dataclasses import replace
 
-from rest_framework_services import QueryParam, UrlKwarg
+from django_service_specs import Parameter, Parameters
 
 registry.register(
     "list_orders",
     replace(
         specs.list_orders,
-        reads=[UrlKwarg(name="tenant_pk"), QueryParam(name="fields")],
+        reads=Parameters.of(Parameter("tenant_pk", "integer", required=True)),
+        shapes=Parameters.of(Parameter("fields", "string")),
     ),
     tags=("read", "public"),
 )
 ```
 
 `replace` is for a spec declared elsewhere; a spec you write declares `reads=`
-in its own constructor. `SpecRegistry.register` takes no contract of its own:
+and `shapes=` in its own constructor. `SpecRegistry.register` takes no contract of its own:
 the spec is the one place it is said.
 
-`SpecToolset` reads the contract off the entry, and so does an MCP server's
-`register_specs`. That is the point of putting it there: an operation needs the
-*identical* description of the absent request whichever agent transport calls
-it, which is why a toolset takes no channel declarations of its own:
+`SpecToolset` reads them off the compiled spec, and an MCP server's
+`register_specs` reads the same spec. That is the point of putting them there:
+an operation needs the *identical* description of the absent request whichever
+agent transport calls it, which is why a toolset takes no channel declarations
+of its own:
 `SpecToolset` has no `query_params=`, `tool_query_params=`, `url_kwargs=` or
 `tool_url_kwargs=`, and passing one is a `TypeError`.
-`field_audiences` is part of the spec's output declaration, so every projection
+A field's marking is part of the spec's output declaration, so every projection
 of the spec carries it, whichever transport or mapping it is reached through.
 
-**Pass the registry, not `registry.specs()`.** The mapping is the flattened
-`name -> spec` view, and the toolset reads channels off the entry, so a toolset
-built from the mapping advertises none of the spec's `reads`. The spec still
-carries them, so a value the model sends under one of those names is admitted
-and routed onto the request as drf-services routes any caller's, but a model is
-not told it may send one.
+**A registry and `registry.specs()` build the same tools.** The tool's schema
+is the compiled spec's, the spec's `reads` are advertised, a read's `default`
+reaches a call that leaves it out or sends `null`, and a value the model sends
+under one of those names is admitted and handed to the spec as the kernel hands
+any caller's. A read declared `required=True` and sent as `null` is handed back
+as `name: This field is required.`, the kernel's check. A read declared `required=True` with a `default` is not refused: the
+default answers a call that leaves it out, as the kernel reads it. A native
+read declared `nullable` keeps a `null` sent under it as the value.
 
-**A read naming an input declares where the input comes from.** A `QueryParam`
-read naming a parameter the spec's selector takes, such as
-`reads=[QueryParam("status")]` on a selector taking `status`, a `filter_set`
-field, or a parameter of a service's target lookup, is not a second argument
-beside it. The tool
-advertises the parameter once, as the selector declares it, and leaves its
-value in the call, where drf-services hands it to the parameter and puts it on
-`request.query_params` both. `SpecToolset(registry)` and
-`SpecToolset(registry.specs())` build it and serve it alike.
+Every read the spec declares is checked against the
+[pool seeds](quickstart.md#project-pool-seeds) when the toolset is built,
+whichever source it came from: a read named after a registered seed, at the top
+level or on a service's target lookup, is refused there, naming the tool. A
+parameter in `shapes=`, which no callable takes, may not be named `page`,
+`limit` or `ordering`, which a list tool takes for itself. A read named
+`ordering` that a callable takes is an argument like any other, advertised and
+left in the call.
 
 ## Arguments the server supplies
 
@@ -194,9 +263,8 @@ toolset = SpecToolset(
 
 - **A bound name** (`values`) carries the server's value on every call. It
   satisfies a `required` parameter, and every reader of the call sees the one
-  value: a bound `UrlKwarg` read is on `view.kwargs`, where a permission class
-  or a `kwargs=` provider finds it, a bound `QueryParam` read on
-  `request.query_params`, and the selector receives it as its parameter.
+  value: a `kwargs=` provider taking its name is handed it, and the selector
+  receives it as its parameter.
 - **A withheld name** is absent from every call, so the read's declared default,
   or the callable's own, answers. Withholding the other names of an either-or
   scope is how a tool taking a project *or* a draw request is held to the
@@ -239,11 +307,9 @@ def scope_bindings(registry, scope):
             continue
         bindings[entry.name] = ServerArguments(
             values=values,
-            # A QueryParam read has no ``required``; a UrlKwarg read may.
+            # A required read stays the model's: withheld, no call could supply it.
             withheld=frozenset(
-                read.name
-                for read in reads
-                if read.name not in values and not getattr(read, "required", False)
+                read.name for read in reads if read.name not in values and not read.required
             ),
         )
     return bindings
@@ -264,19 +330,11 @@ simplification.
 
 ### Moving a channel declaration off the toolset
 
-A toolset that declared a read at the mount declares it on the spec instead,
-and is built from the registry:
-
-```python
-registry.register(
-    "list_orders",
-    replace(specs.list_orders, reads=[UrlKwarg(name="tenant_pk"), QueryParam(name="fields")]),
-)
-SpecToolset(registry.by_tag("read"))
-```
-
-A `UrlKwarg(default=...)` is only a default: the model can override it, and it
-stays advertised. To keep a value the model should not choose, use
+A toolset that declared a read at the mount declares it on the spec instead, as
+`reads=` and `shapes=` (see
+[what the spec declares for an agent](#what-the-spec-declares-for-an-agent)).
+A read's `default` is only a default: the model can override it, and it stays
+advertised. To keep a value the model should not choose, use
 [`tool_server_arguments`](#arguments-the-server-supplies).
 
 ## Names

@@ -1,9 +1,9 @@
 # Reference
 
 `django_spec_agents.spec_tools` exports three symbols: `SpecToolset`,
-`SpecCapability` and `AgentConventions`. A spec declares what it reads with
-drf-services' `QueryParam` and `UrlKwarg`, imported from
-`rest_framework_services` and rendered below for reference. The deps a run
+`SpecCapability` and `AgentConventions`. A django-service-specs spec declares
+what it reads as `Parameter`s in its `reads` and `shapes`, documented with the
+kernel. The deps a run
 passes are the package's one
 [`AgentDeps`](../reference/agent.md#django_spec_agents.AgentDeps), and the
 doubles for driving a toolset through a real run loop are in
@@ -27,15 +27,16 @@ public.
 - **`specs` and `id`**, read-only properties that answer at configuration time,
   with no run: `specs` is every tool the toolset was built with, whatever a
   `get_tools` override offers a given run.
-- **The six seams**, each receiving the live `RunContext`:
-  [`build_context`][django_spec_agents.spec_tools.SpecToolset.build_context] and
+- **The five seams**, each receiving the live `RunContext`:
+  [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds] and
   [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
   cover the front half of a call,
   [`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page],
-  [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output],
-  [`output_extras`][django_spec_agents.spec_tools.SpecToolset.output_extras] and
+  [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output] and
   [`enforce_result_bytes`][django_spec_agents.spec_tools.SpecToolset.enforce_result_bytes]
   the back half.
+- **[`AgentDeps.call_context`][django_spec_agents.AgentDeps.call_context]**, the
+  run's context, of which every call is handed its own copy.
 
 An attribute whose name starts with an underscore is not part of it, and a
 minor release may rename one.
@@ -47,14 +48,6 @@ minor release may rename one.
 ## `AgentConventions`
 
 ::: django_spec_agents.spec_tools.AgentConventions
-
-## `QueryParam`
-
-::: rest_framework_services.types.query_param.QueryParam
-
-## `UrlKwarg`
-
-::: rest_framework_services.types.url_kwarg.UrlKwarg
 
 ## `testing`
 

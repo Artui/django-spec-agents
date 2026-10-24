@@ -190,11 +190,10 @@ async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
 
     ``SpecToolset`` builds its tool definitions from the spec kind — a
     ``ServiceSpec`` mutates, a ``SelectorSpec`` reads — and says so with MCP's
-    ``readOnlyHint``. Moving a spec off the drf-mcp bridge and into the same
-    process is presented as a transport swap, so the gate has to survive it.
+    ``readOnlyHint``. Serving a write in process rather than over the drf-mcp
+    bridge is presented as a transport swap, so the gate has to survive it.
     """
-    from rest_framework.permissions import AllowAny
-    from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
+    from django_service_specs import SelectorKind, SelectorSpec, ServiceSpec, Unrestricted
 
     from django_spec_agents.spec_tools import SpecToolset
 
@@ -209,10 +208,10 @@ async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
     toolset = SpecToolset(
         {
             "create_order": ServiceSpec(
-                service=create_order, atomic=False, permission_classes=[AllowAny]
+                service=create_order, atomic=False, permissions=[Unrestricted()]
             ),
             "list_orders": SelectorSpec(
-                kind=SelectorKind.LIST, selector=list_orders, permission_classes=[AllowAny]
+                kind=SelectorKind.LIST, selector=list_orders, permissions=[Unrestricted()]
             ),
         }
     )

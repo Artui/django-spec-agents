@@ -42,20 +42,14 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          # ``spec_tools``' docstrings link to symbols drf-services and the
-          # kernel document (``OfflineContract``, ``UrlKwarg``, ``ServerArguments``
-          # and their kin). Those links resolve in those projects' inventories,
-          # not ours, so without these the strict build aborts on
-          # cross-reference targets it cannot find -- and a reader following one
-          # would have nowhere to land. Importing the inventories makes them point
-          # at the upstream page they mean.
-          # The kernel's inventory first: the names it owns (``PoolSeeds``,
-          # ``DispatchResult``, ...) are linked as ``django_service_specs.*``
-          # and should land on the kernel's own pages, which drf-services'
-          # inventory also lists but points at its re-export.
+          # ``spec_tools``' docstrings link to symbols the kernel documents
+          # (``PoolSeeds``, ``ServerArguments``, ``DispatchResult`` and
+          # ``DEFAULT_PAGE_SIZE``). Those links resolve in the kernel's inventory, not ours, so
+          # without it the strict build aborts on cross-reference targets it
+          # cannot find -- and a reader following one would have nowhere to
+          # land. Importing the inventory makes them point at the kernel's page.
           inventories:
             - https://artui.github.io/django-service-specs/objects.inv
-            - https://artui.github.io/djangorestframework-services/objects.inv
           options:
             docstring_style: google
             show_root_heading: true
@@ -87,6 +81,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Moving from the old packages: moving.md
   - Agent host:
       - Concepts: concepts.md
       - Tools: tools.md
@@ -104,7 +99,6 @@ nav:
       - spec-tools/index.md
       - Quickstart: spec-tools/quickstart.md
       - Shared spec registry: spec-tools/spec-registry.md
-      - Polymorphic actions: spec-tools/polymorphic-actions.md
       - Hide plumbing from the model: spec-tools/agent-audience.md
       - Running from a worker: spec-tools/background-runs.md
       - Reference: spec-tools/reference.md

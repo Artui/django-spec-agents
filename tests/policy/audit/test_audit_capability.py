@@ -10,6 +10,7 @@ from importlib.metadata import version
 from typing import Any
 
 import pytest
+from django_service_specs import ServiceSpec, Unrestricted
 from pydantic_ai import (
     Agent,
     DeferredToolRequests,
@@ -35,8 +36,6 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_harness import CodeMode
 from pydantic_ai_harness import guardrails as harness_guardrails
-from rest_framework.permissions import AllowAny
-from rest_framework_services import ServiceSpec
 
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
@@ -1843,7 +1842,7 @@ async def test_a_spec_tools_timeout_keeps_its_message() -> None:
         return {}
 
     audit = CapturingAuditLogger()
-    spec = ServiceSpec(service=slow, atomic=False, permission_classes=[AllowAny])
+    spec = ServiceSpec(service=slow, atomic=False, permissions=[Unrestricted()])
     agent = _agent(
         sink=audit,
         model=TestModel(call_tools=["slow"]),

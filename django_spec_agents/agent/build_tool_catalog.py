@@ -68,7 +68,7 @@ def _spec_description(spec: Any) -> str | None:
     """A spec tool's blurb: the docstring of its service / selector callable.
 
     Read through ``getattr`` rather than ``isinstance`` so this never imports the
-    drf-services spec classes; the ``[specs]`` extra stays optional.
+    kernel's spec classes; the ``[specs]`` extra stays optional.
     """
     callable_ = getattr(spec, "service", None) or getattr(spec, "selector", None)
     return inspect.getdoc(callable_) if callable_ is not None else None

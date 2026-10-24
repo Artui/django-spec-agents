@@ -56,7 +56,7 @@ class AgentConventions:
     it true.
 
     Each transport words these for its own reader, which is why they live here and
-    not in drf-services, and why changing them here changes nothing the MCP
+    not in a shared library, and why changing them here changes nothing the MCP
     transport says about the same specs.
 
     Raises:
@@ -67,7 +67,7 @@ class AgentConventions:
     """
 
     base: str | None = (
-        "The following tools call Django REST Framework services and selectors.\n"
+        "The following tools call this application's services and selectors.\n"
         "- A successful call returns the tool's data. A business-rule failure comes back as a "
         "failed call whose content is a sentence explaining why — that is a final answer, not a "
         "reason to retry; read it and report it, do not call the same tool the same way again. "
@@ -85,6 +85,9 @@ class AgentConventions:
     because no spec can answer whether a refusal will carry a ``(code: <name>)``:
     a declared ``Affordance`` produces one, and so does a service raising
     ``ActionUnavailable`` by hand, which nothing declares. No placeholders.
+
+    It names no framework: which library declared a tool is nothing a model can
+    act on, and the line is read on every step.
     """
 
     pagination: str | None = (
@@ -128,9 +131,12 @@ class AgentConventions:
         "- Some tools accept read-shaping parameters ({names}) that adjust the shape "
         "of the returned data without filtering it."
     )
-    """The block's line on read-shaping parameters, when some tool declares a ``QueryParam``.
+    """The block's line on read-shaping parameters, when some tool has one.
 
-    ``{names}`` is every declared name, sorted, each in backticks and joined with
+    A read-shaping parameter is one of the spec's ``shapes``, which no callable
+    of the spec takes and its presenter reads instead; one a selector or
+    provider takes, by name or through ``**kwargs``, is that callable's
+    argument and is not named here. ``{names}`` is every such name, sorted, each in backticks and joined with
     ``", "``. ``None`` drops the line and ``read_shaping_on_pages`` with it, since
     that sentence continues this one.
     """
@@ -140,7 +146,7 @@ class AgentConventions:
         "itself."
     )
     """Appended to ``read_shaping``, after a space, when some tool that returns a page
-    declares a ``QueryParam``.
+    has a read-shaping parameter.
 
     The block-level half of ``query_param_on_pages``. No placeholders.
     """
@@ -165,7 +171,7 @@ class AgentConventions:
     """The description of a handle field in a tool's output schema, when the field's
     own marking declares none.
 
-    drf-services supplies no wording for a handle on purpose: what a reader should
+    The kernel supplies no wording for a handle on purpose: what a reader should
     do with an identifier depends on the reader. No placeholders.
     """
 
@@ -175,13 +181,13 @@ class AgentConventions:
     )
     """What a read-shaping parameter applies to on a tool that returns a page.
 
-    Appended after a space to each ``QueryParam``'s description on such a tool, or
+    Appended after a space to each read-shaping parameter's description on such a tool, or
     its whole description when it declares none, and to the retry a render-time
     rejection on such a tool produces. No placeholders.
 
     The envelope is the likeliest target for a bad selection because it is exactly
     the shape the tool documents returning -- ``{items{id, name}}`` is a natural
-    reading of it -- while the serializer that reads the param only ever sees one
+    reading of it -- while the presenter that reads the param only ever sees one
     row. Saying so at the parameter, where the model is choosing a value, turns
     that mistake into one retry.
     """
@@ -190,8 +196,8 @@ class AgentConventions:
     """The retry for a call that left out an argument it cannot run without.
 
     Covers both checks made before the input serializer runs: a parameter the
-    selector requires, and a ``UrlKwarg`` declared ``required``. A field the input
-    serializer requires is reported by the serializer, in its own words.
+    selector requires, and one of the spec's ``reads`` declared ``required``. A
+    field the input requires is reported by the spec's Validator, in its own words.
     ``{names}`` is every missing name, sorted, each in backticks and joined with
     ``", "``. Never ``None``, empty or only whitespace: it is the retry's whole
     text.

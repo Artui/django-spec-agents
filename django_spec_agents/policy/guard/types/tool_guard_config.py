@@ -15,7 +15,7 @@ class ToolGuardConfig:
     ``require_approval``; ``exempt`` overrides both. A tool counts as destructive
     when it is a registry ``@tool(destructive=True)``, or when its definition
     says so — the drf-mcp bridge's metadata key, an MCP ``readOnlyHint`` of
-    ``False`` (a drf-services ``ServiceSpec`` through ``SpecToolset``, among
+    ``False`` (a ``ServiceSpec`` through ``SpecToolset``, among
     others), or an ``x-destructive`` stamp at the root of its parameter schema.
 
     **Nothing else is gated.** A tool from a source that declares none of those

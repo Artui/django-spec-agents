@@ -6,14 +6,11 @@ from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from django.http import HttpRequest
 from django_service_specs import DEFAULT_POOL_SEEDS, PoolSeeds, ServerArguments, UnknownArguments
 from pydantic_ai.capabilities import AbstractCapability
-from rest_framework_services import DEFAULT_JSON_SCHEMA_REGISTRY, JsonSchemaRegistry
 
 from django_spec_agents.spec_tools.spec_toolset import (
     ExceptionHandler,
-    HttpRequestExtractor,
     ProgressExtractor,
     SpecSource,
     SpecToolset,
@@ -23,7 +20,7 @@ from django_spec_agents.spec_tools.types.agent_conventions import AgentConventio
 
 
 class SpecCapability(AbstractCapability[Any]):
-    """A Pydantic-AI capability exposing drf-services specs as tools.
+    """A Pydantic-AI capability exposing specs as tools.
 
     [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] is a first-class toolset you
     can attach directly (``Agent(toolsets=[SpecToolset(...)])``), and it already
@@ -61,9 +58,10 @@ class SpecCapability(AbstractCapability[Any]):
         specs: As ``SpecToolset``, including a
             ``SpecRegistry``
             or a filtered view of one, so a project declaring its specs once can
-            project several capabilities from them. Every entry must be a
-            drf-services spec: a django-service-specs one raises ``TypeError``
-            when the capability is built, as it does for the toolset.
+            project several capabilities from them. Every entry is a
+            django-service-specs spec or a declaration that compiles to one;
+            one that compiles to no spec raises ``TypeError`` when the
+            capability is built, as it does for the toolset.
         defer_loading: Hide the whole spec toolset and its instructions behind
             Pydantic-AI's native ``load_capability`` tool until the model loads
             it — progressive disclosure for a large spec map.
@@ -86,7 +84,7 @@ class SpecCapability(AbstractCapability[Any]):
         self,
         specs: SpecSource,
         *,
-        id: str = "drf-specs",
+        id: str = "spec-tools",
         defer_loading: bool = False,
         description: str | None = None,
         instructions: str | None = None,
@@ -95,7 +93,6 @@ class SpecCapability(AbstractCapability[Any]):
         get_progress: ProgressExtractor | None = None,
         unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
         tool_server_arguments: Mapping[str, ServerArguments] | None = None,
-        host: str | None = None,
         max_retries: int = 1,
         max_result_bytes: int | None = None,
         tool_max_result_bytes: Mapping[str, int | None] | None = None,
@@ -103,10 +100,7 @@ class SpecCapability(AbstractCapability[Any]):
         dispatch_timeout: float | None = None,
         require_permissions: bool = True,
         descriptions: Mapping[str, str] | None = None,
-        http_request: HttpRequest | None = None,
-        get_http_request: HttpRequestExtractor | None = None,
         exception_map: Mapping[type[BaseException], ExceptionHandler] | None = None,
-        json_schema_registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
         pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
         thread_sensitive: bool = True,
         executor: ThreadPoolExecutor | None = None,
@@ -120,7 +114,6 @@ class SpecCapability(AbstractCapability[Any]):
             get_progress=get_progress,
             unknown_arguments=unknown_arguments,
             tool_server_arguments=tool_server_arguments,
-            host=host,
             max_retries=max_retries,
             max_result_bytes=max_result_bytes,
             tool_max_result_bytes=tool_max_result_bytes,
@@ -128,10 +121,7 @@ class SpecCapability(AbstractCapability[Any]):
             dispatch_timeout=dispatch_timeout,
             require_permissions=require_permissions,
             descriptions=descriptions,
-            http_request=http_request,
-            get_http_request=get_http_request,
             exception_map=exception_map,
-            json_schema_registry=json_schema_registry,
             pool_seeds=pool_seeds,
             thread_sensitive=thread_sensitive,
             executor=executor,

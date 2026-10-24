@@ -3,11 +3,12 @@
 The package is two halves. The host, the root and everything outside
 ``spec_tools``, needs pydantic-ai and Django only, and django-admin-agent ships it
 with no extra. ``spec_tools`` serves specs as agent tools and needs the ``[specs]``
-extra: Django REST Framework, drf-services and the spec kernel. So:
+extra, which installs the spec kernel. So:
 
-- **The root never imports ``spec_tools``**, nor anything only ``[specs]`` installs.
-  A root that did would fail at import on a host-only install, or, where the extra
-  happens to be installed, load DRF into every project that never asked for it.
+- **The root never imports ``spec_tools``**, nor anything only ``[specs]`` or
+  ``[drf-mcp]`` installs. A root that did would fail at import on a host-only
+  install, or, where an extra happens to be installed, load the kernel or DRF
+  into every project that never asked for it.
 - **``spec_tools`` imports nothing from the host but ``AgentDeps``, and never
   ``contrib.store``.** The tool half reads the acting user off the deps it is
   handed, and a project's own deps type works as long as it has a ``user``; a
@@ -43,8 +44,8 @@ HOST_ONLY = "host_only_settings"
 HOST_ONLY_WITH_STORE = "host_only_store_settings"
 
 # What a bare root import must leave unloaded: the tool half, what only the
-# ``[specs]`` extra installs, and the run-loop test doubles, whose module says the
-# root never imports them.
+# ``[specs]`` and ``[drf-mcp]`` extras install, and the run-loop test doubles,
+# whose module says the root never imports them.
 NOT_FROM_THE_ROOT = (
     "django_spec_agents.spec_tools",
     "django_spec_agents.testing",
@@ -204,6 +205,42 @@ def test_spec_tools_imports_nothing_from_the_host_but_agent_deps() -> None:
         entry for entry in imported if entry.split(": ")[1] not in SPEC_TOOLS_MAY_IMPORT
     )
     assert others == []
+
+
+def _imports_under(source: str, *packages: str) -> set[str]:
+    """Each name ``source`` imports from any of ``packages``, as a dotted path."""
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return {name for name in names if any(_is_or_under(name, p) for p in packages)}
+
+
+# ``spec_tools`` reads every spec through the kernel, so it imports nothing from
+# Django REST Framework or drf-services.
+_DRF = ("rest_framework", "rest_framework_services")
+
+
+def _drf_imports() -> set[str]:
+    return {
+        f"{path.relative_to(SPEC_TOOLS).as_posix()}: {name}"
+        for path in _spec_tools_files()
+        for name in _imports_under(path.read_text(), *_DRF)
+    }
+
+
+def test_spec_tools_imports_neither_drf_nor_drf_services() -> None:
+    """Pinned as an empty set, so a new import of either package fails here,
+    naming the module and the name it imports."""
+    assert _drf_imports() == set()
+
+
+def test_the_drf_scan_sees_a_guarded_import() -> None:
+    source = "def f():\n    from rest_framework_services.types import QueryParam\n"
+
+    assert _imports_under(source, *_DRF) == {"rest_framework_services.types.QueryParam"}
 
 
 @pytest.mark.parametrize(

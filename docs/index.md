@@ -10,7 +10,7 @@ import path, `django_spec_agents`:
   AG-UI over SSE, `django-a2a` for agent-to-agent) owns its settings namespace,
   builds an `AgentConfig`, and hands it down.
 - **[`spec_tools`](spec-tools/index.md)**, behind the `[specs]` extra, serves
-  `djangorestframework-services` specs to an agent as tools, in process, with each
+  `django-service-specs` specs to an agent as tools, in process, with each
   spec's own validation, permissions and rendering.
 
 ```bash
@@ -19,7 +19,8 @@ pip install "django-spec-agents[specs]"   # and specs as agent tools
 ```
 
 The host was published as `django-pydantic-agent` and `spec_tools` as
-`djangorestframework-pydantic-ai`. The package root never imports `spec_tools`, so
+`djangorestframework-pydantic-ai`; [moving from them](moving.md) maps each
+old name and seam to its new one. The package root never imports `spec_tools`, so
 the host installs and runs without the extra.
 
 ## Is this the package you want?

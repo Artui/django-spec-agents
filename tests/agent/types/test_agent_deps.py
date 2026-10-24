@@ -67,6 +67,18 @@ def test_carries_a_progress_sink_for_the_run() -> None:
     assert reports == [(1, 2)]
 
 
+def test_carries_a_context_of_its_own_for_the_run() -> None:
+    """``call_context`` is a plain dict, a new one per deps, never one shared default.
+
+    A shared default would carry one run's entries into every other run built
+    without one, which is the leak a per-run record exists to prevent.
+    """
+    first, second = AgentDeps(user=None), AgentDeps(user=None)
+
+    assert getattr(first, "call_context", None) == {}
+    assert getattr(first, "call_context", None) is not getattr(second, "call_context", None)
+
+
 class TestStateHandlerConformance:
     """Pydantic-AI decides whether a run receives ``RunAgentInput.state`` by
     ``isinstance(deps, StateHandler)``. These pin the two things that check

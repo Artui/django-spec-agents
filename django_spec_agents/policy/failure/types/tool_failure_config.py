@@ -38,11 +38,13 @@ class ToolFailureConfig:
     """Exception types that pass through untouched, ending the run as they would
     without the policy.
 
-    ``None`` means the built-in set: an authorization refusal, in both the
-    flavours a Django project raises it — ``django.core.exceptions``' and, when
-    DRF is installed, ``rest_framework.exceptions``'. Pass a tuple to replace
-    that set wholesale, or ``()`` to convert every exception. Replacing means
-    re-listing both ``PermissionDenied`` classes to keep denials exempt.
+    ``None`` means the built-in set: an authorization refusal, in each flavour a
+    project raises it — ``django.core.exceptions``' ``PermissionDenied``;
+    ``rest_framework.exceptions``' when DRF is installed; and
+    ``django_service_specs``' ``NotPermitted`` and ``PrincipalUnavailable`` when
+    the kernel is installed. Pass a tuple to replace that set wholesale, or
+    ``()`` to convert every exception. Replacing means re-listing each of those
+    classes your project can raise to keep denials exempt.
 
     **A spent tool retry budget.** Add ``UnexpectedModelBehavior`` (from
     ``pydantic_ai.exceptions``) to end the run when a tool's own ``ModelRetry``

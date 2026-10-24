@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "django-spec-agents"
 dynamic = ["version"]
-description = "Settings-agnostic Django agent host for Pydantic-AI: config in, built agent out, with djangorestframework-services specs as agent tools."
+description = "Settings-agnostic Django agent host for Pydantic-AI: config in, built agent out, with django-service-specs specs as agent tools."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
     { name = "Artur Veres", email = "artur8118@gmail.com" },
 ]
-keywords = ["django", "pydantic-ai", "agent", "llm", "ai", "toolset", "drf", "rest-framework", "tools"]
+keywords = ["django", "pydantic-ai", "agent", "llm", "ai", "toolset", "specs", "tools"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Web Environment",
@@ -65,47 +65,36 @@ openai = ["pydantic-ai-slim[openai]>=2.16,<3"]
 google = ["pydantic-ai-slim[google]>=2.16,<3"]
 # In-process bridge exposing a drf-mcp-server tool registry as a Pydantic-AI
 # toolset (the agent calls DRF tools without a network hop).
-# 0.53.1 is the server built on the kernel: it asks for drf-services 0.58.0 and
-# django-service-specs 0.10.0, reads a selector's channels from the spec's own
-# ``reads=``, refuses at registration what drf-services refuses on every call,
-# and answers a selector's ``Http404`` as a missing row rather than aborting the
-# run. It moves in lockstep with the ``[specs]`` extra below: the two routes
-# reach the same specs, and a mismatched pair would offer one spec as a tool on
-# one route and an error on the other, or word one refusal two ways.
+# 0.53.1 is the server built on the kernel: it reads a selector's channels from
+# the spec's own ``reads=``, refuses at registration what its spec library
+# refuses on every call, and answers a selector's ``Http404`` as a missing row
+# rather than aborting the run.
 drf-mcp = ["djangorestframework-mcp-server>=0.53.1"]
-# Expose drf-services specs directly as agent tools via ``spec_tools``'
-# SpecCapability, with no MCP server in the path. The requirements are listed
-# in the extra itself, each with what its floor buys. They move in lockstep
-# with the ``[drf-mcp]`` floor above, for the reason given there.
+# Expose django-service-specs specs directly as agent tools via ``spec_tools``'
+# SpecCapability, with no MCP server in the path. A spec is whatever the
+# kernel's ``kernel_spec`` compiles, and every read the toolset makes is the
+# compiled spec's, so the kernel is the extra's one requirement. A filtered
+# selector's ``filter_set`` needs django-filter, which the project declaring
+# the FilterSet installs, or ``django-service-specs[filter]`` does.
 specs = [
-    "djangorestframework>=3.14",
-    # 0.58.0, and a hard floor: drf-services is an adapter over
-    # django-service-specs from here, and the names the kernel owns are
-    # re-exported as the kernel's own objects. The toolset imports those names
-    # from the kernel (below), so its ``isinstance`` checks against
-    # ``ServiceError``, ``ServiceValidationError``, ``AdditionalInputRequired``,
-    # ``ActionUnavailable`` and ``SpecRegistry`` match what drf-services raises
-    # and builds only where the two are one object; below it each refusal would
-    # escape the run as an unrecognised exception and a registry would be read
-    # as a bare mapping.
-    "djangorestframework-services>=0.58.0",
-    # Declared because the toolset imports the kernel-owned names from here
-    # rather than through drf-services' re-exports, which are being retired.
-    # The floor is above drf-services' own because ``tool_server_arguments`` is
-    # built on ``ServerArguments``, ``check_server_arguments`` and
-    # ``apply_server_arguments``, which the kernel first exports in 0.9.0.
+    # The toolset's server arguments are built on ``ServerArguments``,
+    # ``check_server_arguments`` and ``apply_server_arguments``, which the
+    # kernel first exports in 0.9.0.
     # 0.10.0: a selector's ``Http404`` (``get_object_or_404``) is a missing row
     # in the kernel's dispatch, answered as ``not_found`` like a ``DoesNotExist``;
-    # below it the exception escapes and aborts the agent run. The floor moves
-    # with djangorestframework-mcp-server's: the two routes reach one spec, and
-    # with only one raised the same selector is a not-found on one route and an
-    # error on the other.
-    "django-service-specs>=0.10.0",
+    # below it the exception escapes and aborts the agent run.
+    # 0.14.0: the toolset's authorization, dispatch and refusals run through
+    # the kernel's steps, and a permission check reaches the run's context and
+    # the registered seeds by naming them; below it a check reading more of the
+    # call than its arguments has no route, and the run has no context to hand
+    # its stages.
+    # 0.15.0: a registered seed fills a reflected read, a parameter a provider
+    # may fill is required of the assembled pool rather than of the model, and
+    # a Validator field named like a registered seed is validated into ``data``
+    # while the seed keeps its own value; below it each of those is refused
+    # before the spec runs.
+    "django-service-specs>=0.15.0",
 ]
-# A filtered list selector's input schema (``spec.filter_set``) is generated by
-# drf-services, which lazy-loads django-filter. Only needed if your selectors
-# declare a ``filter_set``.
-filter = ["django-filter>=23"]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):
 # CodeMode batching, compaction, step persistence, sub-agents.
 harness = ["pydantic-ai-harness[code-mode]>=0.13"]
@@ -133,22 +122,18 @@ dev = [
     "pytest-asyncio>=0.24",
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
-    # The [drf-mcp] extra's backing package, so its bridge + tests run in dev.
-    # Must move in lockstep with the extra — a dev group pinning the old band
-    # makes the project unsatisfiable against its own extra.
+    # The [drf-mcp] extra's backing package, so its bridge + tests run in dev,
+    # at the extra's floor: ``uv sync --all-groups`` installs no extra. It
+    # brings DRF, which the bridge and its tests are the only users of.
     "djangorestframework-mcp-server>=0.53.1",
-    # The [specs] extra's requirements, so ``spec_tools`` and its tests run in
-    # dev, at the extra's floors: ``uv sync --all-groups`` installs no extra.
-    "djangorestframework>=3.14",
-    "djangorestframework-services>=0.58.0",
-    "django-service-specs>=0.10.0",
+    # The [specs] extra's requirement, so ``spec_tools`` and its tests run in
+    # dev, at the extra's floor.
+    "django-service-specs>=0.15.0",
+    # Types for the DRF the [drf-mcp] bridge imports.
     "djangorestframework-stubs>=3.15",
-    # The [filter] extra's backing package, for the filtered-selector tests.
+    # For the filtered-selector tests: a ``filter_set`` is a django-filter
+    # FilterSet, which the kernel derives the tool's filter arguments from.
     "django-filter>=23",
-    # The real read-shaping serializer, for the tests that prove a selection it
-    # rejects while rendering comes back to the model as a retry. A stand-in
-    # alone would only prove agreement with whatever the stand-in raises.
-    "django-restql>=0.18",
     # The [harness] extra's backing package, so the harness capabilities run in dev.
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the api_key / provider model-building path is exercised
@@ -259,7 +244,7 @@ root = ["./django_spec_agents"]
 # django_spec_agents/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.1.0"
+current_version = "0.2.0"
 allow_dirty = false
 commit = false
 tag = false

@@ -553,30 +553,16 @@ wheels = [
 ]
 
 [[package]]
-name = "django-restql"
-version = "0.18.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "djangorestframework" },
-    { name = "pypeg2" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/b0/c05c16c67e5ddb7d40951c40b234470e040bfc81056d500424cdae30accc/django-restql-0.18.0.tar.gz", hash = "sha256:8e433886d387d80519ebd1bd43fc8bcae22b046704ce3f6f1670d7f036d0cbf8", size = 30048, upload-time = "2025-08-13T12:31:45.89Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/d2/bd65dc52350a544f789e3a9bd3ef4b0dcfe06972d0d3d48b347a29a030eb/django_restql-0.18.0-py3-none-any.whl", hash = "sha256:4975b8ef3e27a4ef15ddf3158b2b5ce31af69e59d1834a2b4eacef728d01e986", size = 20625, upload-time = "2025-08-13T12:31:44.199Z" },
-]
-
-[[package]]
 name = "django-service-specs"
-version = "0.12.0"
+version = "0.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/02/18c1162f260c674ba2172f7b043c9c56bad203f67547c5e7fe0893ad15b8/django_service_specs-0.12.0.tar.gz", hash = "sha256:945d7cdff25f80435c4d257e8d33c14b6ebe64093f2437346cb447291a38d651", size = 899512, upload-time = "2026-10-21T09:36:43.208Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/31/7100a32dfb31ec17ca9101b6d9a40d39f79eba326eb675a79bcf831d3ea3/django_service_specs-0.15.0.tar.gz", hash = "sha256:74906a6445595eb7d17f8debbd019499520005f1dc9bdd58f6df84a1291a7246", size = 970951, upload-time = "2026-10-23T07:10:39.221Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/6b/7398a3307e4e1434be34ffaf0b9636945024c2dcd21a610e0829ba045e5e/django_service_specs-0.12.0-py3-none-any.whl", hash = "sha256:a4474614bfffedd7afd6ddd58053c69c856c4f14d9ea27f6f9874b9712d3aa4a", size = 407461, upload-time = "2026-10-21T09:36:41.541Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/66/0c1c31210bb70271e78b5e6dfbeb483bf8d7efc4eb9cc935447be6a360cc/django_service_specs-0.15.0-py3-none-any.whl", hash = "sha256:a6a98a6e58be2d28d946c6adfaced7a9336111e34b7a31b8370bfb812a2b7649", size = 433581, upload-time = "2026-10-23T07:10:37.291Z" },
 ]
 
 [[package]]
@@ -594,10 +580,6 @@ anthropic = [
 drf-mcp = [
     { name = "djangorestframework-mcp-server" },
 ]
-filter = [
-    { name = "django-filter", version = "26.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "django-filter", version = "26.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-]
 google = [
     { name = "pydantic-ai-slim", extra = ["google"] },
 ]
@@ -609,20 +591,15 @@ openai = [
 ]
 specs = [
     { name = "django-service-specs" },
-    { name = "djangorestframework" },
-    { name = "djangorestframework-services" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "django-filter", version = "26.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "django-filter", version = "26.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "django-restql" },
     { name = "django-service-specs" },
     { name = "django-stubs" },
-    { name = "djangorestframework" },
     { name = "djangorestframework-mcp-server" },
-    { name = "djangorestframework-services" },
     { name = "djangorestframework-stubs" },
     { name = "flake8-tidy-imports" },
     { name = "pre-commit" },
@@ -644,28 +621,22 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "django", specifier = ">=4.2" },
-    { name = "django-filter", marker = "extra == 'filter'", specifier = ">=23" },
-    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.10.0" },
-    { name = "djangorestframework", marker = "extra == 'specs'", specifier = ">=3.14" },
+    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.15.0" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.53.1" },
-    { name = "djangorestframework-services", marker = "extra == 'specs'", specifier = ">=0.58.0" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.13" },
     { name = "pydantic-ai-slim", specifier = ">=2.16,<3" },
     { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2.33,<3" },
     { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2.16,<3" },
     { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2.16,<3" },
 ]
-provides-extras = ["anthropic", "drf-mcp", "filter", "google", "harness", "openai", "specs"]
+provides-extras = ["anthropic", "drf-mcp", "google", "harness", "openai", "specs"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "django-filter", specifier = ">=23" },
-    { name = "django-restql", specifier = ">=0.18" },
-    { name = "django-service-specs", specifier = ">=0.10.0" },
+    { name = "django-service-specs", specifier = ">=0.15.0" },
     { name = "django-stubs", specifier = ">=5.0" },
-    { name = "djangorestframework", specifier = ">=3.14" },
     { name = "djangorestframework-mcp-server", specifier = ">=0.53.1" },
-    { name = "djangorestframework-services", specifier = ">=0.58.0" },
     { name = "djangorestframework-stubs", specifier = ">=3.15" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "pre-commit", specifier = ">=3.8.0" },
@@ -757,7 +728,7 @@ wheels = [
 
 [[package]]
 name = "djangorestframework-services"
-version = "0.58.0"
+version = "0.61.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
@@ -766,9 +737,9 @@ dependencies = [
     { name = "djangorestframework-dataclasses" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/97/66/9faa81873f420e61663213034216d4b6d421ceb229dcfd9afa6a8db6e052/djangorestframework_services-0.58.0.tar.gz", hash = "sha256:a1851967d90cc5291e2d9a4efc9e914bd68c7f523a8c4547c1db710cacbaac47", size = 1071431, upload-time = "2026-10-16T08:01:05.004Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/a1/b1ea8ca8ffa5dbf1faaaea34dfdbf5e538dd1f7ea36a6d7ee4e2d25f329c/djangorestframework_services-0.61.0.tar.gz", hash = "sha256:460896fd8179dab7fe148298def25ff0e4f083bd5f8e63c4916812923676ef64", size = 1144660, upload-time = "2026-10-23T13:12:27.347Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/80/bb36148531ab42a55f6624b1d87ef37e43531c3040ea0e281e32a1d3668a/djangorestframework_services-0.58.0-py3-none-any.whl", hash = "sha256:341b5e9acb27faf94bc00ee66e337bcc63793d13f01a8efdac2d8a3f2627653d", size = 374323, upload-time = "2026-10-16T08:01:02.966Z" },
+    { url = "https://files.pythonhosted.org/packages/32/33/173812b218ebc8f30526bd2dd3e068510441dd05d9bf1c9cd4b557f7994c/djangorestframework_services-0.61.0-py3-none-any.whl", hash = "sha256:51a448173f36319848d47637a3dd323d6223ea3abffdc70145aadc96a9acf695", size = 395943, upload-time = "2026-10-23T13:12:25.514Z" },
 ]
 
 [[package]]
@@ -1874,12 +1845,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/21/a9/5f0c535ba3b08fe09
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d6/54/da572c98c0b77626a91b5d3b89f0231d8bff5125c225420908632f8b342d/pymdown_extensions-11.0.1-py3-none-any.whl", hash = "sha256:db3943a62bab7e03af1364f0c4083e64b91fb097675a4b6cceccfbe9a77e5eb2", size = 269455, upload-time = "2026-07-02T17:59:21.271Z" },
 ]
-
-[[package]]
-name = "pypeg2"
-version = "2.15.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f9/bd/10398e2c2d2070cc8a9c7153abfbd4ddb2895a2c52a32722ab8689e0cc7d/pyPEG2-2.15.2.tar.gz", hash = "sha256:2b2d4f80d8e1a9370b2a91f4a25f4abf7f69b85c8da84cd23ec36451958a1f6d", size = 40334, upload-time = "2015-10-07T19:27:49.747Z" }
 
 [[package]]
 name = "pytest"

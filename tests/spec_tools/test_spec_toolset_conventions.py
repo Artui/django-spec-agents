@@ -9,26 +9,32 @@ nothing else moved.
 from __future__ import annotations
 
 import json
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
-from django_service_specs import DEFAULT_PAGE_SIZE, Affordance, SelectorKind
+from django_service_specs import (
+    DEFAULT_PAGE_SIZE,
+    Affordance,
+    DataclassValidator,
+    Parameter,
+    Parameters,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+)
 from pydantic_ai import Agent, ModelRetry
-from rest_framework.permissions import AllowAny
-from rest_framework_services import QueryParam, SelectorSpec, ServiceSpec, UrlKwarg
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecCapability, SpecToolset
 from django_spec_agents.testing import instruction_capturing_model
-from tests.spec_tools.test_spec_toolset import reading
-from tests.spec_tools.testapp.serializers import WidgetInputSerializer
+from tests.spec_tools.kernel_specs import allow, shaping
 from tests.spec_tools.wording_specs import (
-    HandledWidget,
-    Picky,
     approve,
+    handled_widget,
     one,
+    picky,
     run_context,
     selector_specs,
 )
@@ -48,7 +54,13 @@ _PLACEHOLDERS = {"pagination": ("page_size",), "ordering": ("names",)} | {
 _UNAVAILABLE_ITEM = "\n  - `approve`: The books are closed."
 
 
-def _make(**data: Any) -> dict[str, Any]:
+@dataclass
+class _WidgetInput:
+    name: str
+    price: int
+
+
+def _make(data: _WidgetInput) -> dict[str, Any]:
     """Make a widget."""
     return data
 
@@ -58,7 +70,7 @@ def _conditioned(when: Any, **kwargs: Any) -> ServiceSpec:
         service=approve,
         atomic=False,
         affordances=[Affordance(code="books_closed", reason="The books are closed.", when=when)],
-        permission_classes=[AllowAny],
+        permissions=allow(),
         **kwargs,
     )
 
@@ -70,14 +82,20 @@ def _every_line() -> dict[str, Any]:
         "scoped_widget": SelectorSpec(
             kind=SelectorKind.RETRIEVE,
             selector=one,
-            output_serializer=Picky,
-            permission_classes=[AllowAny],
+            # A read the selector does not take, required of every call: the
+            # kernel's counterpart of a URL kwarg naming the row's parent.
+            reads=Parameters.of(
+                Parameter("pk", "integer", required=True),
+                Parameter("project_pk", "integer", required=True),
+            ),
+            presenter=picky(),
+            permissions=allow(),
         ),
         "make_widget": ServiceSpec(
             service=_make,
-            input_serializer=WidgetInputSerializer,
+            validator=DataclassValidator(_WidgetInput),
             atomic=False,
-            permission_classes=[AllowAny],
+            permissions=allow(),
         ),
         "approve": _conditioned(lambda: False),
     }
@@ -85,13 +103,7 @@ def _every_line() -> dict[str, Any]:
 
 def _toolset(**kwargs: Any) -> SpecToolset:
     return SpecToolset(
-        reading(
-            _every_line(),
-            {
-                "list_widgets": [QueryParam("fields")],
-                "scoped_widget": [UrlKwarg("project_pk", required=True)],
-            },
-        ),
+        shaping(_every_line(), {"list_widgets": [Parameter("fields", "string")]}),
         **kwargs,
     )
 
@@ -248,9 +260,9 @@ async def test_none_drops_the_scope_sentence_from_the_param_and_the_retry():
 
 async def test_a_declared_param_description_keeps_its_place_ahead_of_a_changed_sentence():
     toolset = SpecToolset(
-        reading(
+        shaping(
             {"list_widgets": _every_line()["list_widgets"]},
-            {"list_widgets": [QueryParam("fields", description="Which fields.")]},
+            {"list_widgets": [Parameter("fields", "string", help="Which fields.")]},
         ),
         conventions=AgentConventions(query_param_on_pages="Per row."),
     )
@@ -297,7 +309,7 @@ async def test_a_doubled_brace_reaches_the_model_as_one():
     assert surfaces["missing_retry"] == "Send {`pk`}."
 
 
-async def test_an_input_serializer_still_words_its_own_required_fields():
+async def test_a_validator_still_words_its_own_required_fields():
     """``missing_arguments`` is the check made before the serializer, and only that."""
     surfaces = await _surfaces(conventions=AgentConventions(missing_arguments="Need {names}."))
 
@@ -339,17 +351,12 @@ async def test_an_overridden_line_follows_a_tool_a_condition_leaves_out():
     """
     books = {"open": False}
     toolset = SpecToolset(
-        reading(
+        shaping(
             {
                 "get_widget": _every_line()["scoped_widget"],
-                "approve": _conditioned(
-                    lambda: books["open"],
-                    output_selector_spec=SelectorSpec(
-                        kind=SelectorKind.RETRIEVE, output_serializer=HandledWidget
-                    ),
-                ),
+                "approve": _conditioned(lambda: books["open"], presenter=handled_widget()),
             },
-            {"approve": [QueryParam("fields")]},
+            {"approve": [Parameter("fields", "string")]},
         ),
         conventions=AgentConventions(
             handles="Handles.", read_shaping="Shape with {names}.", unavailable_heading="Closed:"
@@ -383,9 +390,9 @@ async def test_an_agent_takes_no_instructions_from_a_toolset_that_says_nothing(r
     options: dict[str, Any] = {
         "conventions": AgentConventions(**dict.fromkeys([*_BLOCK, "unavailable_heading"])),
     }
-    specs = reading(
+    specs = shaping(
         {name: spec for name, spec in _every_line().items() if name != "approve"},
-        {"list_widgets": [QueryParam("fields")]},
+        {"list_widgets": [Parameter("fields", "string")]},
     )
     toolset = SpecToolset(specs, **options)
     assert await toolset.get_instructions(run_context()) is None
@@ -451,7 +458,7 @@ def test_the_default_conventions_beside_an_instructions_override_are_fine():
         _every_line(), instructions="House rules.", conventions=AgentConventions()
     )
 
-    assert toolset.id == "drf-specs"
+    assert toolset.id == "spec-tools"
 
 
 async def test_a_dropped_heading_drops_the_unavailable_list_after_an_override_too():

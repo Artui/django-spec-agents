@@ -1,8 +1,8 @@
-"""Build a Pydantic-AI capability over drf-services specs, with no MCP hop.
+"""Build a Pydantic-AI capability over django-service-specs specs, with no MCP hop.
 
 Requires the ``django-spec-agents[specs]`` extra, so consumers import
-this module lazily and ``spec_tools``, with the DRF and drf-services it needs,
-stays optional.
+this module lazily and ``spec_tools``, with the kernel it needs, stays
+optional.
 """
 
 from __future__ import annotations
@@ -21,21 +21,20 @@ def build_spec_capability(
 ) -> Any:
     """A ``SpecCapability`` over ``specs``, acting as the run's ``deps.user``.
 
-    Each spec is called in process through drf-services' transport-neutral
-    surface, which enforces its ``permission_classes``. Nothing here closes over
+    Each spec is called in process through the kernel's ``dispatch``, which
+    enforces its ``permissions``. Nothing here closes over
     a request: ``SpecToolset``'s default extractor already reads
     ``ctx.deps.user``, so a run given
     [`AgentDeps`][django_spec_agents.AgentDeps] binds the
     acting user natively and the capability stays request-independent, which is
     what makes an agent built once reusable across runs.
 
-    **Every spec here needs its own ``permission_classes``.** A spec with
-    ``permission_classes=None`` makes ``SpecCapability`` raise
+    **Every spec here needs its own ``permissions``.** A spec with
+    ``permissions=None`` makes ``SpecCapability`` raise
     ``ImproperlyConfigured`` rather than expose an ungated tool: over HTTP
-    ``None`` means inherit — the view's classes, then
-    ``DEFAULT_PERMISSION_CLASSES`` — and off HTTP there is nothing to inherit
-    from, so a spec properly guarded behind a viewset would become callable by
-    whatever the model decides to call.
+    ``None`` may mean inherit, from the view and then the project's defaults,
+    and off HTTP there is nothing to inherit from, so a spec properly guarded
+    behind a view would become callable by whatever the model decides to call.
 
     The ``require_permissions=False`` migration flag is not exposed here; a
     project migrating a large registry constructs ``SpecCapability`` itself and
