@@ -3464,8 +3464,9 @@ server-resolved <code>owner_id</code> makes that harmless, and
 namespace valid in the first place.</p>
 <p><strong>Stored content cannot close the fence it is injected inside.</strong> The harness
 wraps injected memory in <code>&lt;memory&gt;</code> markers and is explicit in its own
-README that this "is not a hard prompt-injection boundary"; without help, a
-note containing the closing tag ends the block early and everything after it
+README that this "is not a hard prompt-injection boundary"; below harness
+0.60, which escapes the tag itself, a note containing the closing tag ends
+the block early and everything after it
 reads as the user's own turn, durably, on every future run. Every write here
 escapes the angle brackets of both tags, so the stored bytes are safe for
 <em>every</em> consumer — the injection, <code>read_memory</code>, <code>search_memory</code> and an

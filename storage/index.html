@@ -2087,7 +2087,7 @@ namespace.</p>
 </tr>
 <tr>
 <td><strong>Fence-tag neutralisation on write</strong></td>
-<td>Injected memory is wrapped in <code>&lt;memory&gt;</code> markers, and upstream says plainly this "is not a hard prompt-injection boundary". A stored note containing the closing tag ends the block early, and everything after it reads as the user's own turn — durably, on every later run. Every write here escapes the angle brackets of both tags.</td>
+<td>Injected memory is wrapped in <code>&lt;memory&gt;</code> markers, and upstream says plainly this "is not a hard prompt-injection boundary". Below pydantic-ai-harness 0.60, which escapes the tag itself, a stored note containing the closing tag ends the block early, and everything after it reads as the user's own turn — durably, on every later run. Every write here escapes the angle brackets of both tags.</td>
 </tr>
 <tr>
 <td><strong>Per-owner ceilings</strong></td>
