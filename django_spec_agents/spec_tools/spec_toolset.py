@@ -488,7 +488,14 @@ class SpecToolset(AbstractToolset[Any]):
             and a binding ``check_server_arguments`` refuses -- an undeclared
             name, a seed or provider's name, a withheld name no call could do
             without, a bound value its parameter refuses -- with
-            ``ImproperlyConfigured`` naming the tool. Static, like the tool
+            ``ImproperlyConfigured`` naming the tool. A seed
+            [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds]
+            returns under a bound or withheld read or parameter is refused the
+            same way, at the call, since the mount's check cannot see it
+            (``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``);
+            a Validator field of that name still takes the bound value, and
+            the service parameter the seed.
+            Static, like the tool
             definitions: build a toolset per scope, as a run scoped to one
             project builds one with that project bound.
         max_retries: Each tool's retry budget: how many times a
@@ -1142,6 +1149,17 @@ class SpecToolset(AbstractToolset[Any]):
         reading a seed it returns is asked with the tool's own
         (``test_a_listing_asks_each_condition_with_its_own_tool_s_seeds``).
 
+        **A read or parameter ``tool_server_arguments`` binds or withholds for
+        the tool is refused too**, with ``ImproperlyConfigured`` naming the tool,
+        as the same seed on the mount's ``pool_seeds`` is when the toolset is
+        built. A configuration error rather than a retry: the model cannot act
+        on it, and the seed would otherwise win over the server's value without
+        a trace
+        (``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``).
+        A bound Validator field of the same name is not a read: it takes the
+        bound value and the service parameter the seed, as on the mount
+        (``test_a_bound_validator_field_and_a_call_seed_of_the_same_name_both_reach_the_call``).
+
         A name the mount's ``pool_seeds`` registers already is refused with
         ``ValueError`` at the call, as ``PoolSeeds.extend`` refuses one
         registered twice
@@ -1305,14 +1323,34 @@ class SpecToolset(AbstractToolset[Any]):
         every route into a call words its retries the same way.
         """
         call_context = _call_context(ctx, label)
+        hook_seeds = self.call_seeds(ctx=ctx, tool_name=label)
+        pool_seeds = _with_call_seeds(self._pool_seeds, call_context, hook_seeds)
+        # **The binding answers to this call's own seeds too.** Construction checks
+        # it against the mount's, so a seed returned per call under a bound or
+        # withheld reflected read would otherwise win silently: the selector would
+        # get the seed's value and the server's be dropped. The mount's seeds plus the
+        # hook's, not ``pool_seeds``, which also holds the ``request`` and ``view``
+        # every call registers and construction never saw, so the call refuses
+        # exactly what the same seeds on the mount would have
+        # (``test_the_call_refuses_what_the_same_seeds_on_the_mount_would_and_no_more``).
+        # Both conjuncts are held by
+        # ``test_the_binding_check_runs_only_for_a_bound_tool_with_a_call_seed``
+        # (a spy, since the check passes on either omission); the refusal itself by
+        # ``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``.
+        # Outside ``translate_exception``'s reach on purpose: a configuration error
+        # is raised, never turned into a retry the model cannot act on.
+        server = kw.get("server_arguments")
+        if server is not None and hook_seeds:
+            with _refusals_name_the_tool(label):
+                check_server_arguments(
+                    spec, server, pool_seeds=self._pool_seeds.extend(**hook_seeds)
+                )
         return _call_spec(
             spec,
             user,
             args,
             label=label,
-            pool_seeds=_with_call_seeds(
-                self._pool_seeds, call_context, self.call_seeds(ctx=ctx, tool_name=label)
-            ),
+            pool_seeds=pool_seeds,
             call_context=call_context,
             translate_exception=lambda exc: self.translate_exception(exc, ctx=ctx),
             shape_page=lambda *a, **kwargs: self.shape_page(*a, ctx=ctx, **kwargs),

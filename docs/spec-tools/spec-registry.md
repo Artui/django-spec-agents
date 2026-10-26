@@ -284,6 +284,15 @@ fills, a withheld name no call could do without, or a bound value its
 parameter refuses. A key naming a tool the toolset does not expose raises
 `ValueError`, as every per-tool mapping does.
 
+The mount's `pool_seeds` are all that check can see. A seed a
+[`call_seeds`](quickstart.md#per-call-seeds-and-the-runs-context) override
+returns under a bound or withheld read or parameter is refused at the call
+instead, by the same check with the call's seeds, with `ImproperlyConfigured`
+naming the tool. It is a configuration error and not a retry, since the seed
+would otherwise win over the server's value without a trace. A bound Validator
+field of the same name is not refused, here or on the mount: the field takes the
+bound value and the service parameter the seed.
+
 The bindings are fixed when the toolset is built, like its tool definitions.
 For a per-run scope, build a toolset per run, from the run's scope. A tool
 counts as scoped by the run only when the run binds one of the scope names it

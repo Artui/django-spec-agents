@@ -422,7 +422,13 @@ class TenantToolset(SpecToolset):
 
 A name the mount's `pool_seeds` registers already is refused with
 `ValueError` at the call, and `request` or `view` returned here replace the
-call's own.
+call's own. A read
+or parameter
+[`tool_server_arguments`](spec-registry.md#arguments-the-server-supplies) binds
+or withholds for the tool is refused at the call too, with
+`ImproperlyConfigured` naming the tool, as the same seed on the mount is when
+the toolset is built; a bound Validator field of that name is not, and takes the
+bound value while the service parameter takes the seed.
 
 ## What a permission check sees
 

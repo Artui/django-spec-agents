@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A seed `call_seeds` returns under a name `tool_server_arguments` binds or
+  withholds for that tool is refused at the call with `ImproperlyConfigured`
+  naming the tool. It used to win silently: the selector was handed the seed's
+  value, the server's bound value was dropped, a withheld read was filled anyway,
+  and nothing was logged. The same seed registered on the mount's `pool_seeds`
+  was already refused when the toolset was built; a per-call seed now answers to
+  the same check. A bound Validator field with a seed of the same name still
+  works as it does on the mount: the field takes the bound value and the service
+  parameter the seed.
+
 ## [0.4.0] — 2026-10-26
 
 Runs on django-service-specs 0.16.0. A project with a read, shape, `many` list
