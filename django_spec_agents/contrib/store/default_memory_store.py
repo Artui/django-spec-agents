@@ -62,8 +62,9 @@ class DefaultMemoryStore:
 
     **Stored content cannot close the fence it is injected inside.** The harness
     wraps injected memory in ``<memory>`` markers and is explicit in its own
-    README that this "is not a hard prompt-injection boundary"; without help, a
-    note containing the closing tag ends the block early and everything after it
+    README that this "is not a hard prompt-injection boundary"; below harness
+    0.60, which escapes the tag itself, a note containing the closing tag ends
+    the block early and everything after it
     reads as the user's own turn, durably, on every future run. Every write here
     escapes the angle brackets of both tags, so the stored bytes are safe for
     *every* consumer — the injection, ``read_memory``, ``search_memory`` and an

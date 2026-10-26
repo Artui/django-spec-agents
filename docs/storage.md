@@ -490,7 +490,7 @@ namespace.
 | | Why |
 | --- | --- |
 | **Owner-partitioned rows** | The harness's stores are single-tenant; the scope lives only in the path, and the path comes from a resolver the host wrote. |
-| **Fence-tag neutralisation on write** | Injected memory is wrapped in `<memory>` markers, and upstream says plainly this "is not a hard prompt-injection boundary". A stored note containing the closing tag ends the block early, and everything after it reads as the user's own turn — durably, on every later run. Every write here escapes the angle brackets of both tags. |
+| **Fence-tag neutralisation on write** | Injected memory is wrapped in `<memory>` markers, and upstream says plainly this "is not a hard prompt-injection boundary". Below pydantic-ai-harness 0.60, which escapes the tag itself, a stored note containing the closing tag ends the block early, and everything after it reads as the user's own turn — durably, on every later run. Every write here escapes the angle brackets of both tags. |
 | **Per-owner ceilings** | `max_memory_size` bounds one file and the injection budget bounds what is *read*; nothing upstream caps how many files a namespace accumulates or how large they grow in total. `max_files` and `max_total_chars` do. |
 | **Anonymous degradation** | The capability's hooks fire mid-run, so refusing by raising would abort it. Writes no-op and reads return empty unless the store is built with `allow_anonymous=True`. |
 | **`purge(owner_id)`** | Erasure, which the protocol cannot express. |

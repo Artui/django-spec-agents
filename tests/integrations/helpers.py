@@ -17,10 +17,8 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
-    ToolReturnPart,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
@@ -28,6 +26,7 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from tests.tool_retries import is_tool_answer, tool_answers, tool_retries
 
 
 def run_context(deps: AgentDeps) -> RunContext[AgentDeps]:
@@ -73,7 +72,7 @@ async def run_omission_then_correction(
     calls = iter([omitted, corrected])
 
     def model_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-        if any(isinstance(part, ToolReturnPart) for part in messages[-1].parts):
+        if any(is_tool_answer(part) for part in messages[-1].parts):
             return ModelResponse(parts=[TextPart("done")])
         return ModelResponse(parts=[ToolCallPart(tool_name=name, args=next(calls))])
 
@@ -85,7 +84,6 @@ async def run_omission_then_correction(
     )
     result = await agent.run("read the row", deps=AgentDeps(user=AnonymousUser()))
 
-    parts = [part for message in result.all_messages() for part in message.parts]
-    retries = [str(part.content) for part in parts if isinstance(part, RetryPromptPart)]
-    returns = [part.content for part in parts if isinstance(part, ToolReturnPart)]
+    retries = [str(part.content) for part in tool_retries(result.all_messages())]
+    returns = [part.content for part in tool_answers(result.all_messages())]
     return retries, returns

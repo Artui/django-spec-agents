@@ -11,7 +11,6 @@ from django.test import RequestFactory, override_settings
 from pydantic_ai import Agent, ModelRetry, ToolFailed
 from pydantic_ai.messages import (
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -34,6 +33,7 @@ from tests.integrations.drf_server_lookup import lookup_server
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
 from tests.integrations.drf_specs_lookup import Row
 from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
+from tests.tool_retries import is_tool_answer, is_tool_retry, tool_answers, tool_retries
 
 # The sentence a refused integer argument carries, which depends on which layer
 # of drf-services answers it, not on anything this package does. drf-mcp
@@ -97,9 +97,9 @@ async def test_agent_run_recovers_from_model_retry() -> None:
     # the run, as a budget of 0 would, with UnexpectedModelBehavior.
     def model_fn(messages: list, info: object) -> ModelResponse:
         last = messages[-1]
-        if any(part.part_kind == "retry-prompt" for part in last.parts):
+        if any(is_tool_retry(part) for part in last.parts):
             return ModelResponse(parts=[ToolCallPart(tool_name="add", args={"a": 5, "b": 3})])
-        if any(part.part_kind == "tool-return" for part in last.parts):
+        if any(is_tool_answer(part) for part in last.parts):
             return ModelResponse(parts=[TextPart("done")])
         return ModelResponse(
             parts=[ToolCallPart(tool_name="add", args={"a": "not_a_number", "b": 3})]
@@ -109,6 +109,10 @@ async def test_agent_run_recovers_from_model_retry() -> None:
     agent = Agent(FunctionModel(model_fn), toolsets=[toolset])
     result = await agent.run("add two numbers")
     assert result.output == "done"
+    # The output alone cannot tell recovery from a run that ended on the failed
+    # call, so the retry and the corrected call's answer are both asserted.
+    assert [part.tool_name for part in tool_retries(result.all_messages())] == ["add"]
+    assert [part.outcome for part in tool_answers(result.all_messages())] == ["success"]
 
 
 async def test_max_retries_default_and_override() -> None:
@@ -689,7 +693,7 @@ async def test_a_selection_refused_while_rendering_is_one_retry_then_the_page() 
     selections = iter(["items", "name"])
 
     def model_fn(messages: list, info: AgentInfo) -> ModelResponse:
-        if any(part.part_kind == "tool-return" for part in messages[-1].parts):
+        if any(is_tool_answer(part) for part in messages[-1].parts):
             return ModelResponse(parts=[TextPart("done")])
         return ModelResponse(
             parts=[ToolCallPart(tool_name="list_rows", args={"fields": next(selections)})]
@@ -698,7 +702,7 @@ async def test_a_selection_refused_while_rendering_is_one_retry_then_the_page() 
     toolset = DRFMCPToolset(_paged_selection_server(), _request())
     result = await Agent(FunctionModel(model_fn), toolsets=[toolset]).run("list the rows")
 
-    retries = [part.content for part in _parts(result, RetryPromptPart)]
+    retries = [part.content for part in tool_retries(result.all_messages())]
     assert len(retries) == 1
     # The argument is named, the serializer is quoted in its own words, and the
     # model is told what the selection applies to on a paged tool. The detail,
@@ -708,7 +712,7 @@ async def test_a_selection_refused_while_rendering_is_one_retry_then_the_page() 
         "`fields` was rejected while rendering the result: Unknown field `items`. "
         + PAGED_QUERY_PARAM_SCOPE
     )
-    page = [part.content for part in _parts(result, ToolReturnPart)]
+    page = [part.content for part in tool_answers(result.all_messages())]
     assert page[0]["items"] == [{"name": "a"}, {"name": "b"}]
 
 
