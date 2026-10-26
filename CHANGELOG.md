@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A required field of a service's Validator, beside its `input_data=` provider,
+  is advertised and not required when that provider fills or may fill it,
+  as a read beside a `kwargs=` provider already was. Beside a provider that
+  returns no `TypedDict` every field is optional in the tool's schema; beside a
+  typed one, the keys whose value admits `UnsetType` are. Dispatch never
+  demanded such a field of the model, so the schema told it to send values the
+  server supplies. A field nobody fills is still handed back to the model,
+  by the kernel before the Validator runs, and a lookup parameter stays
+  required.
 - A seed `call_seeds` returns under a name `tool_server_arguments` binds or
   withholds for that tool is refused at the call with `ImproperlyConfigured`
   naming the tool. It used to win silently: the selector was handed the seed's

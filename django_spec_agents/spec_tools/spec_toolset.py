@@ -2331,6 +2331,22 @@ def _caller_schema(
     refused by the kernel at the assembled pool, which the model is handed
     back
     (``test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed_back``).
+
+    **A service's Validator fields are one more seat, beside its
+    ``input_data=``**, relaxed the same way and in that seat only: all of them
+    beside an untyped provider, the keys a typed one may decline beside a typed
+    one (``test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_required``,
+    ``test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required``).
+    A field a typed provider always fills is not advertised at all, which
+    ``server_owned_keys`` already did
+    (``test_a_field_a_typed_input_data_always_fills_is_not_advertised``), and a
+    declinable key that names no field of the Validator relaxes nothing
+    (``test_a_key_the_input_data_may_decline_relaxes_only_a_field_of_the_validator``).
+    A call leaving out a field nobody fills is handed back by the kernel, which
+    refuses it before the Validator runs, naming the field as it names a read
+    (``test_a_field_nobody_fills_is_handed_back_before_the_validator_runs``), and
+    a read in another seat stays required
+    (``test_a_read_is_still_required_beside_an_input_data_that_may_fill_a_field``).
     """
     compiled = kernel_spec(spec)
     schema = _without(
@@ -2338,7 +2354,7 @@ def _caller_schema(
         kernel_server_owned_keys(compiled, pool_seeds=pool_seeds),
     )
     declinable: set[str] = set()
-    for names, keys in _read_seats(compiled):
+    for names, keys in [*_read_seats(compiled), *_validator_seats(compiled)]:
         declinable |= names if keys is None else names & keys.declinable
     required = [name for name in schema.get("required", []) if name not in declinable]
     if required == schema.get("required", []):
@@ -2359,14 +2375,42 @@ def _read_seats(
     values reach its own seat only, so a provider's keys say nothing about a
     read in another. ``None`` is a provider whose keys cannot be read, which
     may fill any read in its seat; no provider at all fills nothing. A
-    Validator's fields are not a seat here: the Validator answers for them.
-    The target's seat is held by ``test_a_service_call_missing_its_lookup_is_handed_back``.
+    Validator's fields are not reads, and not among these seats: the Validator
+    answers for them, and ``_validator_seats`` is where ``input_data`` reaches
+    them. The target's seat is held by ``test_a_service_call_missing_its_lookup_is_handed_back``.
     """
     seats = [(compiled.reads.names(), provider_keys(compiled.kwargs))]
     target = compiled.target_selector_spec() if isinstance(compiled, KernelServiceSpec) else None
     if target is not None:
         seats.append((target.reads.names(), provider_keys(target.kwargs)))
     return seats
+
+
+def _validator_seats(
+    compiled: KernelServiceSpec | KernelSelectorSpec,
+) -> list[tuple[frozenset[str], ProviderKeys | None]]:
+    """The seat of a service's Validator fields, with what its ``input_data`` says it fills.
+
+    ``input_data`` is merged over the caller's arguments before the Validator
+    runs, so a provider that fills or may fill a field is why dispatch does not
+    demand the field of the caller. Empty for a selector, which has no
+    Validator, and for a spec with none. A ``many`` spec's Validator fields are
+    each row's rather than top-level arguments, so they are no seat in the
+    schema this reads: the list stays required.
+
+    One branch arc, each conjunct held by its own test: a selector spec has no
+    ``validator`` to read (``test_list_selector_renders_owned_widgets``); a
+    service may have none (``test_no_request_arrives_unless_the_run_put_one``);
+    and a ``many`` spec's fields are no top-level seat
+    (``test_a_row_field_is_not_a_top_level_seat_on_a_many_spec``).
+    """
+    if (
+        isinstance(compiled, KernelServiceSpec)
+        and compiled.validator is not None
+        and not compiled.many
+    ):
+        return [(compiled.validator.parameters().names(), provider_keys(compiled.input_data))]
+    return []
 
 
 def _required_arguments(

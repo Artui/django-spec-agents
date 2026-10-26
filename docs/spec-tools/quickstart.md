@@ -296,6 +296,18 @@ list_spec = SelectorSpec(
   handed back ``ceiling: This field is required.`` to send it on its next
   turn, as it is when an untyped provider leaves a parameter unfilled.
   Where the selector can run without the value, give the read a default.
+- **A service's `input_data=` provider relaxes its Validator's fields the
+  same way, and those fields only.** `input_data` is merged over the model's
+  arguments before the Validator runs, so a Validator field beside one that
+  returns no `TypedDict` is advertised and optional, any of them being what it
+  may fill; beside a typed one only the keys whose value admits `UnsetType`
+  are, and the keys it always fills are not advertised at all. A field nobody
+  filled is handed back to the model as a retry naming it, `owner: This field
+  is required.`, which the kernel raises before the Validator runs, so a
+  Validator's own wording for a missing field does not reach the model there. A
+  lookup parameter beside it stays required: a provider's values reach its own
+  seat only. On a `many` service the fields are each
+  row's, so no top-level argument is relaxed and the list stays required.
 - **A name only a
   [`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds)
   override fills is not a read.** An override is code the schema cannot read,
