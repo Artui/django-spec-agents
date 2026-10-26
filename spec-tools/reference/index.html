@@ -2162,7 +2162,14 @@ a name the tool does not expose is refused with <code>ValueError</code>,
 and a binding <code>check_server_arguments</code> refuses -- an undeclared
 name, a seed or provider's name, a withheld name no call could do
 without, a bound value its parameter refuses -- with
-<code>ImproperlyConfigured</code> naming the tool. Static, like the tool
+<code>ImproperlyConfigured</code> naming the tool. A seed
+<a class="autorefs autorefs-internal" title="call_seeds" href="#django_spec_agents.spec_tools.SpecToolset.call_seeds"><code>call_seeds</code></a>
+returns under a bound or withheld read or parameter is refused the
+same way, at the call, since the mount's check cannot see it
+(<code>test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call</code>);
+a Validator field of that name still takes the bound value, and
+the service parameter the seed.
+Static, like the tool
 definitions: build a toolset per scope, as a run scoped to one
 project builds one with that project bound.</p>
               </div>
@@ -2808,6 +2815,16 @@ checked</strong>, so a name a seed fills is never asked of the model
 and once per conditioned tool when the catalog is listed, so a condition
 reading a seed it returns is asked with the tool's own
 (<code>test_a_listing_asks_each_condition_with_its_own_tool_s_seeds</code>).</p>
+<p><strong>A read or parameter <code>tool_server_arguments</code> binds or withholds for
+the tool is refused too</strong>, with <code>ImproperlyConfigured</code> naming the tool,
+as the same seed on the mount's <code>pool_seeds</code> is when the toolset is
+built. A configuration error rather than a retry: the model cannot act
+on it, and the seed would otherwise win over the server's value without
+a trace
+(<code>test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call</code>).
+A bound Validator field of the same name is not a read: it takes the
+bound value and the service parameter the seed, as on the mount
+(<code>test_a_bound_validator_field_and_a_call_seed_of_the_same_name_both_reach_the_call</code>).</p>
 <p>A name the mount's <code>pool_seeds</code> registers already is refused with
 <code>ValueError</code> at the call, as <code>PoolSeeds.extend</code> refuses one
 registered twice

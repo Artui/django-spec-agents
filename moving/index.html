@@ -1733,7 +1733,9 @@ there to make a URL absolute, for example with <code>request.build_absolute_uri<
 override of <code>call_seeds(*, ctx, tool_name)</code>, returning the call's own seeds,
 name to resolver. A <code>view</code> or <code>request</code> it returns replaces the call's own, a
 name the mount's <code>pool_seeds</code> registers too is refused with <code>ValueError</code>, and a
-seed for a read the spec declares is refused with <code>ImproperlyConfigured</code>:</p>
+seed for a read the spec declares, or for a read or parameter
+<code>tool_server_arguments</code> binds or withholds, is refused with
+<code>ImproperlyConfigured</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>

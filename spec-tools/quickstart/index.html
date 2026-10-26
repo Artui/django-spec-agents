@@ -1939,6 +1939,21 @@ compiled spec, the argument set <code>dispatch</code> checks, less the kernel's
   handed back <code>ceiling: This field is required.</code> to send it on its next
   turn, as it is when an untyped provider leaves a parameter unfilled.
   Where the selector can run without the value, give the read a default.</li>
+<li><strong>A service's <code>input_data=</code> provider relaxes its Validator's fields the
+  same way, and those fields only.</strong> <code>input_data</code> is merged over the model's
+  arguments before the Validator runs, so a Validator field beside one that
+  returns no <code>TypedDict</code> is advertised and optional, any of them being what it
+  may fill; beside a typed one only the keys whose value admits <code>UnsetType</code>
+  are, and the keys it always fills are not advertised at all. A field nobody
+  filled is handed back to the model as a retry naming it, <code>owner: This field
+  is required.</code>, which the kernel raises before the Validator runs, so a
+  Validator's own wording for a missing field does not reach the model there. A
+  lookup parameter beside it stays required: a provider's values reach its own
+  seat only. All of this is for a service that is not <code>many</code>. A <code>many</code>
+  service's Validator fields are each row's, so its rows are neither relaxed
+  nor stripped: the schema keeps listing them as the kernel advertises them,
+  the top level relaxes nothing and the list stays required, though a row a
+  provider fills is served without the field.</li>
 <li><strong>A name only a
   <a href="../reference/#django_spec_agents.spec_tools.SpecToolset.call_seeds"><code>call_seeds</code></a>
   override fills is not a read.</strong> An override is code the schema cannot read,
@@ -2044,7 +2059,13 @@ for <code>PoolSeeds.extend</code>:</p>
 </span></code></pre></div>
 <p>A name the mount's <code>pool_seeds</code> registers already is refused with
 <code>ValueError</code> at the call, and <code>request</code> or <code>view</code> returned here replace the
-call's own.</p>
+call's own. A read
+or parameter
+<a href="../spec-registry/#arguments-the-server-supplies"><code>tool_server_arguments</code></a> binds
+or withholds for the tool is refused at the call too, with
+<code>ImproperlyConfigured</code> naming the tool, as the same seed on the mount is when
+the toolset is built; a bound Validator field of that name is not, and takes the
+bound value while the service parameter takes the seed.</p>
 <h2 id="what-a-permission-check-sees">What a permission check sees<a class="headerlink" href="#what-a-permission-check-sees" title="Permanent link">&para;</a></h2>
 <p>Every call is authorized by the spec's <code>permissions</code>, the kernel's
 <code>PermissionCheck</code>s, inside the kernel's dispatch: <code>has_permission</code> before
