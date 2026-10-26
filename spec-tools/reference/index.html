@@ -1922,9 +1922,9 @@ reads them off the compiled spec, so a spec arriving in a <code>SpecRegistry</co
 and the same spec in a bare mapping are served alike. A read no callable
 takes is one of the compiled spec's <code>shapes</code>: it is advertised as a tool
 argument and dispatched as one, and the kernel hands what the caller sent
-to the presenter alone, on <code>PresentationContext.shapes</code>, never to the
-spec's callables, so a field selection is the presenter's to read, with no
-toolset awareness of how it parses one. A read a callable does take,
+to the presenter, on <code>PresentationContext.shapes</code>, and to any callable
+declaring <code>shapes</code>, so a field selection is the presenter's to read, with
+no toolset awareness of how it parses one. A read a callable does take,
 by name or through <code>**kwargs</code>, is that callable's argument: advertised as
 a plain one, and handed its declared default when the model leaves it out.
 A read standing for a URL route capture (<code>parent_pk</code>) is an argument of

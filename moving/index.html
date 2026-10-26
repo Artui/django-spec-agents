@@ -1642,8 +1642,9 @@ djangorestframework-services spec is not a supported source: declare each spec
 the agent serves on the kernel. What that changes for a tool:</p>
 <ul>
 <li><strong>A read is a <code>Parameter</code>.</strong> What the model sends for the callable goes in
-  <code>reads=</code>, and what shapes the output and reaches only the presenter in
-  <code>shapes=</code>. A selector or provider takes a read by its name, as an argument.</li>
+  <code>reads=</code>, and what shapes the output and reaches the presenter in
+  <code>shapes=</code>. A selector or provider takes a read by its name, as an argument,
+  and the call's shape values by declaring <code>shapes</code>.</li>
 <li><strong>Audiences are markings on the output.</strong> What <code>agent_contract</code> declared moves
   onto the spec: its reads to <code>reads=</code> and <code>shapes=</code>, its field audiences to a
   <code>FieldMarking</code> on each field of the presenter's output, as
@@ -1749,9 +1750,10 @@ seed for a read the spec declares is refused with <code>ImproperlyConfigured</co
   <code>many</code>, <code>request</code>, <code>view</code> and <code>extras</code> arguments are gone; an override that
   wants the unprojected payload calls the kernel's <code>present(spec, result)</code>.</li>
 <li><code>output_extras</code> is gone, and with it the <code>page</code>, <code>result</code> and <code>instance</code> keys
-  an output-context provider was handed. The kernel presents a result row by
-  row, so a provider that batched lookups over the rendered page has no page to
-  batch over.</li>
+  an output-context provider was handed. A presenter that batches lookups over
+  the rendered page overrides the kernel's <code>Presenter.presented_rows(values,
+  context)</code> instead, which the toolset calls once per page served, with that
+  page's rows (<a href="../spec-tools/quickstart/#one-read-the-selector-and-the-presenter-both-need">a presenter that needs the whole page</a>).</li>
 <li><code>shape_page(rows, *, ctx, page, limit, max_page_size)</code> returns the kernel's
   <code>OutputPage</code>, from <code>django_service_specs</code>. A subclass of another library's page
   type subclasses that one.</li>
