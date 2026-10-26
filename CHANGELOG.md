@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-26
+
+Runs on django-service-specs 0.16.0. A project with a read, shape, `many` list
+or Validator field named `shapes` must rename it before upgrading, since the
+kernel now reserves that name; the advertised tool schemas are unchanged.
+
 ### Added
 
 - A selector, provider or service can read the call's shape values by declaring
@@ -25,10 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   django-service-specs 0.16.0, which reserves `shapes` as the name of that seed.
   A read, shape or `many` list named `shapes` is now refused when the spec is
   declared, and a Validator field of that name when the toolset is built, so
-  rename it for what it holds. The same floor
-  moves the `return_schema` of a spec declaring `shapes=`, which requires no row
-  field at any depth, to the kernel's `spec_output_schema` instead of a rewrite
-  here; the advertised schema is unchanged.
+  rename it for what it holds. The same floor moves the `return_schema` of a
+  spec declaring `shapes=`, which requires no row field at any depth, to the
+  kernel's `spec_output_schema` instead of a rewrite here; the advertised schema
+  is unchanged.
 
 ## [0.3.0] — 2026-10-26
 
@@ -366,7 +372,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Artui/django-spec-agents/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Artui/django-spec-agents/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Artui/django-spec-agents/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Artui/django-spec-agents/compare/v0.1.0...v0.2.0
