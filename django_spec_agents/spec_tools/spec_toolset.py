@@ -1329,11 +1329,9 @@ class SpecToolset(AbstractToolset[Any]):
         # it against the mount's, so a seed returned per call under a bound or
         # withheld reflected read would otherwise win silently: the selector would
         # get the seed's value and the server's be dropped. The mount's seeds plus the
-        # hook's, not ``pool_seeds``, which also holds the ``request`` and ``view``
-        # every call registers and construction never saw, so the call refuses
-        # exactly what the same seeds on the mount would have
-        # (``test_the_call_refuses_what_the_same_seeds_on_the_mount_would_and_no_more``).
-        # Both conjuncts are held by
+        # hook's, which is all construction could not see: it already checked the
+        # binding against the ``request`` and ``view`` every call registers, so
+        # ``pool_seeds`` here would refuse nothing more. Both conjuncts are held by
         # ``test_the_binding_check_runs_only_for_a_bound_tool_with_a_call_seed``
         # (a spy, since the check passes on either omission); the refusal itself by
         # ``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``.
@@ -1579,12 +1577,19 @@ def _validate_server_arguments(
     ``check_server_arguments`` -- an undeclared name, a name both bound and
     withheld, one a seed or a typed provider occupies, a withheld name no call
     could do without, a bound value its parameter refuses -- with the pool
-    seeds every call is dispatched with, since a registered seed is reserved
-    as the dispatcher's own are
+    seeds every call is dispatched with, ``request`` and ``view`` included,
+    since a registered seed is reserved as the dispatcher's own are
     (``test_a_name_a_registered_seed_occupies_is_refused``). Its refusals are
     prefixed with the tool, like a refusal when a spec compiles.
     """
     bindings = dict(tool_server_arguments or {})
+    # The seeds every call is dispatched with include the ``request`` and ``view``
+    # each call registers from its context, which no mount's seeds can hold. Left
+    # out, a binding on a reflected read of either name would pass here and lose
+    # to the seed on every call, with nothing logged
+    # (``test_a_binding_on_a_name_every_call_registers_is_refused_when_the_toolset_is_built``).
+    # The resolvers are never called: the check reads the names.
+    pool_seeds = pool_seeds.extend(**{name: _no_value for name in _CALL_SEEDS - pool_seeds.names})
     for tool_name, server in bindings.items():
         _refuse_an_unknown_tool("tool_server_arguments", tool_name, specs)
         with _refusals_name_the_tool(tool_name):
@@ -2337,7 +2342,11 @@ def _caller_schema(
     beside an untyped provider, the keys a typed one may decline beside a typed
     one (``test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_required``,
     ``test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required``).
-    A field a typed provider always fills is not advertised at all, which
+    **Not on a ``many`` service**: its Validator fields are each row's, so they
+    are no top-level argument and the rows are neither stripped nor relaxed, though
+    the kernel serves a row the provider fills
+    (``test_a_row_field_is_not_a_top_level_seat_on_a_many_spec``).
+    On any other service, a field a typed provider always fills is not advertised at all, which
     ``server_owned_keys`` already did
     (``test_a_field_a_typed_input_data_always_fills_is_not_advertised``), and a
     declinable key that names no field of the Validator relaxes nothing
@@ -3021,6 +3030,10 @@ Its spelling is public, held by
 
 _CALL_SEEDS = frozenset({"request", "view"})
 """The seeds each call registers itself, from the call's context."""
+
+
+def _no_value() -> None:
+    """A resolver standing in for a seed whose name is all a check reads."""
 
 
 def _call_context(ctx: RunContext[Any], tool_name: str) -> dict[str, Any]:

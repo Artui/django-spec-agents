@@ -788,16 +788,24 @@ async def test_the_binding_check_runs_only_for_a_bound_tool_with_a_call_seed(mon
     assert _rows(bound_result) == [{"name": "BOUND"}]
 
 
-@pytest.mark.django_db(transaction=True)
-async def test_the_call_refuses_what_the_same_seeds_on_the_mount_would_and_no_more():
-    """Construction never saw the ``request`` and ``view`` every call registers, so
-    a binding that accepts a reflected read of that name is not refused at the call
-    because of them: the check runs on the mount's seeds with the hook's laid over
-    them, and not on the pool the call is dispatched with."""
-    user = await User.objects.acreate(username="u")
-    toolset = _SeedsTenant(
-        {"t": _names_spec(tenant_rows, _string("view", reflected=True))},
-        tool_server_arguments={"t": ServerArguments(values={"view": "BOUND"})},
-    )
+@pytest.mark.parametrize("name", ["view", "request"])
+@pytest.mark.parametrize(
+    "bind",
+    [
+        pytest.param(lambda name: ServerArguments(values={name: "BOUND"}), id="bound"),
+        pytest.param(lambda name: ServerArguments(withheld=frozenset({name})), id="withheld"),
+    ],
+)
+def test_a_binding_on_a_name_every_call_registers_is_refused_when_the_toolset_is_built(name, bind):
+    """Each call registers ``request`` and ``view`` from its context, which no
+    mount's ``pool_seeds`` can hold, so the seed would fill a reflected read of
+    that name on every call and the binding be dropped without a word. Refused
+    when the toolset is built, naming the tool, as a mount registering the seed
+    itself would be."""
+    with pytest.raises(ImproperlyConfigured, match=rf"tool 't': .*{name}.*pool seed") as raised:
+        SpecToolset(
+            {"t": _names_spec(tenant_rows, _string(name, reflected=True))},
+            tool_server_arguments={"t": bind(name)},
+        )
 
-    assert _rows(await _call(toolset, "t", user)) == [{"name": "SEED"}]
+    assert "reflected read which a registered pool seed fills" in str(raised.value)

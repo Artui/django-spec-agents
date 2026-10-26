@@ -231,3 +231,5 @@ def test_a_row_field_is_not_a_top_level_seat_on_a_many_spec():
     schema = _input_schema_of(toolset, "t")
 
     assert sorted(schema["required"]) == sorted(["owner", spec.many_argument])
+    # The rows are not relaxed either: the schema still lists the field there.
+    assert schema["properties"][spec.many_argument]["items"]["required"] == ["name", "owner"]

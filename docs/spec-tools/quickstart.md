@@ -306,8 +306,11 @@ list_spec = SelectorSpec(
   is required.`, which the kernel raises before the Validator runs, so a
   Validator's own wording for a missing field does not reach the model there. A
   lookup parameter beside it stays required: a provider's values reach its own
-  seat only. On a `many` service the fields are each
-  row's, so no top-level argument is relaxed and the list stays required.
+  seat only. All of this is for a service that is not `many`. A `many`
+  service's Validator fields are each row's, so its rows are neither relaxed
+  nor stripped: the schema keeps listing them as the kernel advertises them,
+  the top level relaxes nothing and the list stays required, though a row a
+  provider fills is served without the field.
 - **A name only a
   [`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds)
   override fills is not a read.** An override is code the schema cannot read,
