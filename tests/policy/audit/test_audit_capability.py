@@ -25,7 +25,6 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -50,6 +49,7 @@ from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import SpecCapability
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
+from tests.tool_retries import is_tool_retry
 
 # Every scenario below is a real agent run: a real ``Agent``, real capabilities
 # and pydantic-ai's own hook dispatch. Which hook encloses which is the
@@ -1737,7 +1737,7 @@ async def _run_lookup_under_code_mode(
         for message in result.all_messages()
         if isinstance(message, ModelRequest)
         for part in message.parts
-        if isinstance(part, RetryPromptPart) and part.tool_name == "run_code"
+        if is_tool_retry(part) and part.tool_name == "run_code"
     ]
     failures = [e.error for e in audit.events if not e.success and e.tool_name == "lookup"]
     return failures, "\n".join(retries)

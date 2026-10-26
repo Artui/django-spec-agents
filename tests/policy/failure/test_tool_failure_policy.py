@@ -16,10 +16,8 @@ from pydantic_ai.exceptions import ToolFailed, UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
-    ToolReturnPart,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
@@ -39,6 +37,7 @@ from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 from tests.request_helpers import authed_request
+from tests.tool_retries import tool_answers, tool_retries
 
 # pydantic-ai 2.54 moved every ``before`` / ``on_error`` / ``after`` hook inside
 # the ``wrap_tool_execute`` chain, which changes what a wrapper sees.
@@ -71,15 +70,6 @@ def _agent(
     return build_agent(_raising_registry(), config)
 
 
-def _parts(result: Any, part_type: type) -> list[Any]:
-    return [
-        part
-        for message in result.all_messages()
-        for part in message.parts
-        if isinstance(part, part_type)
-    ]
-
-
 def _asks_again(name: str = "boom", *, executions: list[str] | None = None) -> ToolRegistry:
     """A registry whose one tool answers every call with a ``ModelRetry``,
     keeping the targets it was called with in ``executions``."""
@@ -96,7 +86,7 @@ def _asks_again(name: str = "boom", *, executions: list[str] | None = None) -> T
 
 
 def _tool_returns(result: Any) -> list[Any]:
-    return _parts(result, ToolReturnPart)
+    return tool_answers(result.all_messages())
 
 
 # What the model reads for a failure the policy converted with the default config.
@@ -380,7 +370,7 @@ async def test_another_capabilitys_retry_is_not_converted() -> None:
 
     result = await _composed(hook, error=RuntimeError("boom")).run("go", deps=AgentDeps(user=None))
 
-    assert [part.content for part in _parts(result, RetryPromptPart)] == ["try another target"]
+    assert [part.content for part in tool_retries(result.all_messages())] == ["try another target"]
     assert [r.content for r in _tool_returns(result)] == ["ok"]
 
 
