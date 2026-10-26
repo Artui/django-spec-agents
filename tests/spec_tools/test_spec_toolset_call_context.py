@@ -7,7 +7,7 @@ returns, over the mount's ``pool_seeds``.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from types import SimpleNamespace
 from typing import Any
 
@@ -333,3 +333,134 @@ async def test_a_read_the_selector_hands_on_reaches_the_presenter_of_a_page():
 
     assert result["items"] == [{"name": "Atlas"}]
     assert result["hasNext"] is True
+
+
+# --- a callable that sees the whole page, and the shapes of the call --------------
+
+
+class _Recording(RowPresenter):
+    """Records the rows of each ``presented_rows`` call, then presents them as usual."""
+
+    def __init__(self, *fields: OutputField) -> None:
+        super().__init__(*fields)
+        self.pages: list[list[Any]] = []
+
+    def presented_rows(self, values: Sequence[Any], context: PresentationContext | None) -> Any:
+        self.pages.append(list(values))
+        return super().presented_rows(values, context)
+
+
+async def test_a_presenter_is_asked_for_the_rows_of_a_page_once_per_page_served():
+    """The toolset slices a list before it renders, so the kernel's one
+    ``presented_rows`` call per list result is one call per page, holding
+    exactly that page's rows and not the selector's whole answer."""
+    presenter = _Recording(OutputField("name", "string"), OutputField("code", "string"))
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_projects,
+        reads=Parameters.of(Parameter("query", "string", required=True)),
+        presenter=presenter,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"projects": spec})
+    atlas = {"name": "Atlas", "code": "AT"}
+    borealis = {"name": "Borealis", "code": "BO"}
+
+    await _call_query(toolset, {"query": "name", "limit": 1})
+    assert presenter.pages == [[atlas]]
+    await _call_query(toolset, {"query": "name", "limit": 1, "page": 2})
+
+    assert presenter.pages == [[atlas], [borealis]]
+
+
+async def test_a_selector_declaring_shapes_is_handed_the_shape_values_the_agent_sent():
+    """The kernel's reserved ``shapes`` seed reaches a callable through this
+    transport: the selector reads the call's shape values by declaring
+    ``shapes``, and the model is never asked for it."""
+    seen: list[Mapping[str, Any]] = []
+
+    def projects(shapes: Mapping[str, Any]) -> list[dict[str, str]]:
+        """List the projects."""
+        seen.append(shapes)
+        return [{"name": "Atlas"}]
+
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=projects,
+        shapes=Parameters.of(Parameter("fields", "string", help="The fields to return.")),
+        presenter=RowPresenter(OutputField("name", "string")),
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"projects": spec})
+    ctx = ctx_for(User(username="u"))
+    tools = await toolset.get_tools(ctx)
+
+    await toolset.call_tool("projects", {"fields": "name"}, ctx, tools["projects"])
+    await toolset.call_tool("projects", {}, ctx, tools["projects"])
+
+    assert [dict(shapes) for shapes in seen] == [{"fields": "name"}, {}]
+    # A shape the model leaves out, and declares no default for, is absent
+    # rather than ``None``, so a callable reads it with ``get``.
+    # The mapping is read-only: a callable cannot write through it.
+    writable: Any = seen[0]
+    with pytest.raises(TypeError):
+        writable["fields"] = "code"
+    assert set(tools["projects"].tool_def.parameters_json_schema["properties"]) == {
+        "fields",
+        "page",
+        "limit",
+    }
+
+
+async def test_a_service_and_its_provider_declaring_shapes_are_handed_the_shape_values():
+    """The changelog's claim past the selector: a ``kwargs`` provider and the
+    service read the call's shape values the same way."""
+    seen: list[tuple[str, dict[str, Any]]] = []
+
+    def provider(shapes: Mapping[str, Any]) -> dict[str, Any]:
+        seen.append(("provider", dict(shapes)))
+        return {}
+
+    def rename(shapes: Mapping[str, Any]) -> dict[str, str]:
+        """Rename the project."""
+        seen.append(("service", dict(shapes)))
+        return {"name": "Atlas"}
+
+    spec = _service(
+        rename,
+        kwargs=provider,
+        shapes=Parameters.of(Parameter("fields", "string", help="The fields to return.")),
+        presenter=RowPresenter(OutputField("name", "string")),
+    )
+    toolset = SpecToolset({"rename": spec})
+    ctx = ctx_for(User(username="u"))
+    tools = await toolset.get_tools(ctx)
+
+    await toolset.call_tool("rename", {"fields": "name"}, ctx, tools["rename"])
+
+    assert seen == [("provider", {"fields": "name"}), ("service", {"fields": "name"})]
+
+
+async def test_a_selector_declaring_shapes_on_a_spec_with_none_is_handed_an_empty_mapping():
+    """The quickstart's claim that ``shapes`` is empty where the spec declares
+    no shape: the seed is always there to be read."""
+    seen: list[dict[str, Any]] = []
+
+    def projects(shapes: Mapping[str, Any]) -> list[dict[str, str]]:
+        """List the projects."""
+        seen.append(dict(shapes))
+        return [{"name": "Atlas"}]
+
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=projects,
+        presenter=RowPresenter(OutputField("name", "string")),
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"projects": spec})
+    ctx = ctx_for(User(username="u"))
+    tools = await toolset.get_tools(ctx)
+
+    await toolset.call_tool("projects", {}, ctx, tools["projects"])
+
+    assert seen == [{}]

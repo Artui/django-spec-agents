@@ -1,10 +1,11 @@
 """The return schema of a spec declaring ``shapes``, which promises no row field.
 
-A shape reaches the presenter alone, and what it does there is the presenter's:
-a ``fields`` selection leaves keys out, so no key of a row is present under
-every value the model may send. The return schema says so by requiring none,
-at any depth, while the paging envelope and the ``affordances`` answers, which
-the toolset and dispatch write whatever the shapes, stay required.
+What a shape does to a row is the presenter's: a ``fields`` selection leaves
+keys out, so no key of a row is present under every value the model may send.
+The kernel's ``spec_output_schema`` says so by requiring none, at any depth,
+while the paging envelope and the ``affordances`` answers, which are written
+whatever the shapes, stay required. These tests hold that the toolset
+advertises that schema as it stands, with no relaxation of its own.
 """
 
 from __future__ import annotations
@@ -90,8 +91,8 @@ def test_a_shaped_list_requires_no_row_field_at_any_depth_and_keeps_its_envelope
 
 
 def test_a_list_declaring_no_shape_keeps_every_required():
-    """Holds the ``shapes`` guard in ``_return_schema``: dropping it would leave
-    an unshaped spec's rows promising nothing."""
+    """An unshaped spec's rows keep every promise their presenter makes: the
+    kernel relaxes a schema only for a spec declaring ``shapes``."""
     schema = _return_schema(_selector(SelectorKind.LIST))
 
     item = schema["properties"]["items"]["items"]

@@ -153,8 +153,9 @@ djangorestframework-services spec is not a supported source: declare each spec
 the agent serves on the kernel. What that changes for a tool:
 
 - **A read is a `Parameter`.** What the model sends for the callable goes in
-  `reads=`, and what shapes the output and reaches only the presenter in
-  `shapes=`. A selector or provider takes a read by its name, as an argument.
+  `reads=`, and what shapes the output and reaches the presenter in
+  `shapes=`. A selector or provider takes a read by its name, as an argument,
+  and the call's shape values by declaring `shapes`.
 - **Audiences are markings on the output.** What `agent_contract` declared moves
   onto the spec: its reads to `reads=` and `shapes=`, its field audiences to a
   `FieldMarking` on each field of the presenter's output, as
@@ -278,9 +279,10 @@ See [per-call seeds and the run's context](spec-tools/quickstart.md#per-call-see
   `many`, `request`, `view` and `extras` arguments are gone; an override that
   wants the unprojected payload calls the kernel's `present(spec, result)`.
 - `output_extras` is gone, and with it the `page`, `result` and `instance` keys
-  an output-context provider was handed. The kernel presents a result row by
-  row, so a provider that batched lookups over the rendered page has no page to
-  batch over.
+  an output-context provider was handed. A presenter that batches lookups over
+  the rendered page overrides the kernel's `Presenter.presented_rows(values,
+  context)` instead, which the toolset calls once per page served, with that
+  page's rows ([a presenter that needs the whole page](spec-tools/quickstart.md#one-read-the-selector-and-the-presenter-both-need)).
 - `shape_page(rows, *, ctx, page, limit, max_page_size)` returns the kernel's
   `OutputPage`, from `django_service_specs`. A subclass of another library's page
   type subclasses that one.
