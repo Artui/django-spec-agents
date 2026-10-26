@@ -162,3 +162,16 @@ def test_a_shaped_row_keeps_the_affordances_dispatch_adds_required():
     assert item["properties"]["affordances"] == unshaped["properties"]["affordances"]
     assert _required_anywhere(item["properties"]["name"]) == []
     assert _required_anywhere(item["properties"]["owner"]) == []
+
+
+def test_a_shaped_spec_with_no_presenter_still_returns_none():
+    """A shape with nothing to present it declares no return schema, rather
+    than one relaxed out of nothing."""
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_rows,
+        shapes=Parameters.of(_FIELDS),
+        permissions=allow(),
+    )
+
+    assert SpecToolset({"tool": spec})._tool_defs["tool"].return_schema is None

@@ -2133,6 +2133,10 @@ def _return_schema(
         # field undescribed, which is what dropping the line means.
         handle_description=_render(conventions.handle_field_description),
     )
+    # One arc to coverage, a conjunct each: a shaped spec with no presenter has
+    # no schema to relax (test_a_shaped_spec_with_no_presenter_still_returns_none),
+    # and an unshaped one is left as the kernel wrote it
+    # (test_a_list_declaring_no_shape_keeps_every_required).
     if derived is not None and kernel_spec(spec).shapes:
         derived = _unpromised(derived, paginate=paginate, spec=spec)
     if derived is None or fragment is None:
@@ -2182,6 +2186,8 @@ def _unrequired(node: dict[str, Any], *, keep: Callable[[str], bool]) -> dict[st
     if required:
         cut["required"] = required
     if "properties" in node:
+        # The kept arm is taken only for the item's ``affordances``
+        # (test_a_shaped_row_keeps_the_affordances_dispatch_adds_required).
         cut["properties"] = {
             name: value if keep(name) else _unrequired(value, keep=_nothing)
             for name, value in node["properties"].items()

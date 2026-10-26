@@ -244,6 +244,22 @@ async def test_a_listing_asks_each_condition_with_its_own_tool_s_seeds():
     assert sorted(tools) == ["approve"]
 
 
+async def test_a_kwargs_provider_reads_the_transport_off_the_call_s_context():
+    """A provider that scopes differently for an agent's call declares
+    ``call_context`` and finds ``transport`` there, as a selector does."""
+    seen: list[Any] = []
+
+    def scope(call_context: dict[str, Any]) -> dict[str, Any]:
+        seen.append(call_context["transport"])
+        return {}
+
+    toolset = SpecToolset({"projects": _selecting_spec(kwargs=scope)})
+
+    await _call_query(toolset, {"query": "name"})
+
+    assert seen == ["agent"]
+
+
 async def test_a_listing_hands_each_condition_the_transport_a_call_would():
     """A condition is asked with the context its call would carry, ``transport``
     included, so a tool gated on being reached by an agent is listed."""
@@ -289,27 +305,31 @@ def _projects(query: str, call_context: dict[str, Any]) -> list[dict[str, str]]:
     return [{"name": "Atlas", "code": "AT"}, {"name": "Borealis", "code": "BO"}]
 
 
+def _selecting_spec(**kwargs: Any) -> SelectorSpec:
+    return SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_projects,
+        reads=Parameters.of(Parameter("query", "string", required=True)),
+        presenter=_Selecting(OutputField("name", "string"), OutputField("code", "string")),
+        permissions=allow(),
+        **kwargs,
+    )
+
+
+async def _call_query(toolset: SpecToolset, args: dict[str, Any]) -> Any:
+    ctx = ctx_for(User(username="u"))
+    tools = await toolset.get_tools(ctx)
+    return await toolset.call_tool("projects", args, ctx, tools["projects"])
+
+
 async def test_a_read_the_selector_hands_on_reaches_the_presenter_of_a_page():
     """The quickstart's recipe for one read both halves need: the selector takes
     ``query`` as a read and writes it to the call's context, and the presenter
     reads it there, on the page the toolset presents, which is handed the
     dispatch's own context rather than a fresh one."""
-    toolset = SpecToolset(
-        {
-            "projects": SelectorSpec(
-                kind=SelectorKind.LIST,
-                selector=_projects,
-                reads=Parameters.of(Parameter("query", "string", required=True)),
-                presenter=_Selecting(OutputField("name", "string"), OutputField("code", "string")),
-                permissions=allow(),
-            )
-        }
-    )
+    toolset = SpecToolset({"projects": _selecting_spec()})
 
-    tools = await toolset.get_tools(ctx_for(User(username="u")))
-    result = await toolset.call_tool(
-        "projects", {"query": "name", "limit": 1}, ctx_for(User(username="u")), tools["projects"]
-    )
+    result = await _call_query(toolset, {"query": "name", "limit": 1})
 
     assert result["items"] == [{"name": "Atlas"}]
     assert result["hasNext"] is True
