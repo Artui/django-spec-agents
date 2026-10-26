@@ -65,7 +65,9 @@ def _inject(content: str) -> str:
 
 
 def test_the_raw_harness_fence_can_be_closed_from_inside() -> None:
-    """The upstream defect, pinned so the fix below has something to be a fix for.
+    """The upstream defect below pydantic-ai-harness 0.60, pinned so the fix below
+    has something to be a fix for. From 0.60 the harness escapes the tag itself;
+    the store's escaping still covers older harnesses and the read tools.
 
     Upstream's README is candid that the delimited user-role part "is not a hard
     prompt-injection boundary". This is what that means concretely: everything
