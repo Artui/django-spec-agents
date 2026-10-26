@@ -11,7 +11,7 @@ import logging
 import re
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import pytest
 from django.contrib.auth.models import User
@@ -556,17 +556,23 @@ def widgets_in_project(*, user: Any, project_pk: int) -> Any:
     return Widget.objects.filter(owner=user, price__lte=project_pk).order_by("pk")
 
 
+class _NoKeys(TypedDict):
+    """Nothing filled: a provider that only reads."""
+
+
 @pytest.mark.django_db(transaction=True)
 async def test_a_bound_read_reaches_the_selector_and_a_provider_alike():
     """The quickstart's scope: a read the spec declares and the server binds is
     the argument the selector receives, and a ``kwargs=`` provider naming it is
     handed the same value by name, while the model is offered neither.
-    Unbound, the read is advertised as declared, and required."""
+    Unbound, the read is advertised as declared, and required, since the
+    provider's return says it fills nothing; an untyped one may fill any read
+    beside it, which is then not required of the model."""
     seen: dict[str, Any] = {}
 
-    def scope_provider(project_pk: int) -> dict[str, Any]:
+    def scope_provider(project_pk: int) -> _NoKeys:
         seen["project_pk"] = project_pk
-        return {}
+        return _NoKeys()
 
     user = await User.objects.acreate(username="u")
     await Widget.objects.acreate(name="cheap", price=5, owner=user)

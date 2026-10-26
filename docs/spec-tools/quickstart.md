@@ -176,6 +176,13 @@ agent = Agent(model, toolsets=[SpecToolset(specs).include_return_schemas()])
 
 A spec with no presenter gets `None` rather than a guessed shape.
 
+A spec declaring [`shapes=`](#read-shaping-parameters) requires no field of a
+row, at any depth, where the kernel's schema requires each one its presenter
+always renders. A shape reaches the presenter alone, and a `fields` selection
+there leaves keys out, so no key is present under every value the model may
+send. The `affordances` each row carries stays required, since dispatch writes
+it whatever the shapes, as do the four keys of a list tool's page.
+
 A `return_schema` admits `null`, with the root `type` `["object", "null"]`,
 where the spec says dispatch may hand the model `None`, as the kernel's
 `can_present_nothing` answers it for every route that states an output schema:
@@ -231,9 +238,12 @@ compiled spec, the argument set `dispatch` checks, less the kernel's
 - **A read declared `required=True` is required**, and one with a `default` or
   none stays optional.
 - **A `kwargs=` provider without a `TypedDict` return annotation may fill any
-  read**, a plain `dict` or a lambda included, so for its spec no read is
-  required of the model; the kernel checks it on the pool the call assembles
-  instead. So may a provider whose return annotation does not resolve. Only the
+  read**, a plain `dict` or a lambda included, so no read its values reach is
+  required of the model, one declared `required=True` included: the tool
+  advertises each and the kernel checks it on the pool the call assembles
+  instead, handing the model back a read neither of them filled. A provider
+  that only reads, and fills nothing, says so with an empty `TypedDict`, and
+  the reads beside it keep their `required`. So may a provider whose return annotation does not resolve. Only the
   return annotation is read for the keys, so a parameter typed with a name
   imported only under `TYPE_CHECKING` changes nothing, and a `TypedDict` value
   that does not resolve makes only its own key one the provider may decline, so

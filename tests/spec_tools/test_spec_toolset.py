@@ -5313,12 +5313,15 @@ def names_in_band(user, ceiling, floor: int):
 _FLOOR = Parameter("floor", "integer", required=True)
 
 
-def test_a_marked_parameter_stays_required_beside_an_untyped_provider():
-    """A read declared required stays required beside a provider whose keys
-    cannot be read, while the optional one beside it stays optional.
+def test_a_marked_parameter_beside_an_untyped_provider_is_advertised_and_not_required():
+    """A read declared required beside a provider whose keys cannot be read is
+    advertised for the model to send and not required of it, as a key a typed
+    provider may decline is: the provider may be what fills it, so dispatch does
+    not demand it of the caller, and the kernel's ``server_owned_keys`` tells a
+    transport to ask for neither.
 
-    Holds ``_caller_schema`` leaving an untyped seat as declared: dropping
-    every requirement there would leave ``floor`` optional.
+    Holds the untyped seat in ``_caller_schema``: leaving it as declared would
+    keep ``floor`` required, which is what the schema said before.
     """
     toolset = SpecToolset(
         {
@@ -5328,7 +5331,10 @@ def test_a_marked_parameter_stays_required_beside_an_untyped_provider():
         },
     )
 
-    assert _input_schema_of(toolset, "band")["required"] == ["floor"]
+    schema = _input_schema_of(toolset, "band")
+
+    assert schema["properties"]["floor"] == {"type": "integer"}
+    assert "required" not in schema
 
 
 def _untyped_band(view):
@@ -5337,12 +5343,10 @@ def _untyped_band(view):
 
 
 async def test_an_untyped_provider_filling_a_marked_parameter_is_not_refused():
-    """The schema keeps ``floor`` required, as its marker says, but the call is
-    not checked for it: the provider may be what fills it, as it is here, and only
-    the assembled pool can say, which the kernel checks the declaration against.
-
-    Holds the ``may_fill`` subtraction in ``_required_arguments``: refusing
-    what the schema requires would refuse this call for ``floor``.
+    """A call leaving out ``floor`` is served, since the provider may be what
+    fills it, as it is here, and only the assembled pool can say, which the
+    kernel checks the declaration against. The schema does not require it either,
+    so what the call is refused for and what the model was told agree.
     """
     toolset = SpecToolset(
         {"band": _under(names_in_band, _FLOOR, kwargs=_untyped_band, ceiling=_OPEN_CEILING)}
@@ -5351,6 +5355,22 @@ async def test_an_untyped_provider_filling_a_marked_parameter_is_not_refused():
     result = await _call(toolset, "band", User(username="u"))
 
     assert _rows(result) == [{"name": "cheap"}]
+
+
+async def test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed_back():
+    """What makes not requiring ``floor`` safe: when neither the provider nor
+    the model fills it, the kernel refuses the call at the assembled pool, and
+    the model is handed the refusal to send ``floor`` on its next turn, rather
+    than the selector raising ``TypeError`` out of the run.
+    """
+    toolset = SpecToolset(
+        {"band": _under(names_in_band, _FLOOR, kwargs=_ceiling_from_project, ceiling=_OPEN_CEILING)}
+    )
+
+    with pytest.raises(ModelRetry) as raised:
+        await _call(toolset, "band", User(username="u"))
+
+    assert str(raised.value) == "floor: This field is required."
 
 
 def test_a_required_read_its_default_fills_is_not_required_beside_an_untyped_provider():
@@ -6141,6 +6161,38 @@ async def test_a_key_one_seat_may_decline_is_still_required_by_another():
             "approve": ServiceSpec(
                 service=approve_widget,
                 kwargs=_pk_or_decline,
+                instance_selector_spec=by_pk(get_any_widget),
+                permissions=allow(),
+                atomic=False,
+            )
+        }
+    )
+
+    assert _input_schema_of(toolset, "approve")["required"] == ["pk"]
+    with pytest.raises(ModelRetry) as raised:
+        await _call(toolset, "approve", User(username="u"), {})
+    assert str(raised.value) == "Missing required argument(s): `pk`."
+
+
+def _untyped_nothing(view):
+    """A service's own provider, with nothing declared about its keys."""
+    return {}
+
+
+async def test_a_read_an_untyped_provider_may_fill_is_still_required_by_another_seat():
+    """An untyped provider may fill any read in its own seat and none in
+    another, so the service's untyped ``kwargs=`` says nothing about the target
+    lookup reading ``pk``: the schema still requires it and a call leaving it out
+    is handed back.
+
+    Holds the per-seat union in ``_caller_schema``: relaxing every read once any
+    provider is untyped would leave ``pk`` optional.
+    """
+    toolset = SpecToolset(
+        {
+            "approve": ServiceSpec(
+                service=approve_widget,
+                kwargs=_untyped_nothing,
                 instance_selector_spec=by_pk(get_any_widget),
                 permissions=allow(),
                 atomic=False,
