@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page envelope, stay required. A spec declaring no shapes is described as
   before.
 
+## [0.2.1] — 2026-10-26
+
 ### Fixed
 
 - `tool_calling_model` and `streaming_tool_calling_model` in
@@ -334,6 +336,7 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Artui/django-spec-agents/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Artui/django-spec-agents/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Artui/django-spec-agents/compare/v0.0.0...v0.1.0
