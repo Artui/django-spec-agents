@@ -58,6 +58,7 @@ from django_service_specs import (
     Grant,
     InvalidArguments,
     NotPermitted,
+    Output,
     OutputPage,
     Parameter,
     PoolSeeds,
@@ -2104,24 +2105,101 @@ def _return_schema(
     the kernel refuses to fabricate a shape it cannot derive, and a guessed one
     would be a claim the payload never has to honour.
 
+    **A spec declaring ``shapes`` promises no field of a row**, at any depth.
+    A shape reaches the presenter alone, and a ``fields`` or ``query``
+    selection there leaves keys out, so a key is always present only if it is
+    present under every value the model may send, and the kernel cannot say
+    which shapes select fields. So the row's ``required`` keeps only what no
+    presenter field declares, the ``affordances`` dispatch writes onto every
+    row, and the paging envelope the toolset writes keeps its own
+    (``test_a_shaped_list_requires_no_row_field_at_any_depth_and_keeps_its_envelope``,
+    ``test_a_shaped_row_keeps_the_affordances_dispatch_adds_required``). A spec
+    declaring none is described as the kernel describes it
+    (``test_a_list_declaring_no_shape_keeps_every_required``).
+
     **A ``metadata["json_schema"]["output"]`` fragment wins, key by key**, and
     annotates a derived
     schema without conjuring one: a spec with no output keeps ``None``
     (``test_an_output_fragment_never_conjures_a_return_schema``).
     """
     fragment = _schema_fragment(spec, "output")
+    paginate = _is_list_selector(spec)
     derived = spec_output_schema(
         spec,
-        paginate=_is_list_selector(spec),
+        paginate=paginate,
         projection=projection,
         # The fallback for a handle declaring no wording of its own. The
         # kernel supplies none on purpose, and ``None`` here leaves such a
         # field undescribed, which is what dropping the line means.
         handle_description=_render(conventions.handle_field_description),
     )
+    # One arc to coverage, a conjunct each: a shaped spec with no presenter has
+    # no schema to relax (test_a_shaped_spec_with_no_presenter_still_returns_none),
+    # and an unshaped one is left as the kernel wrote it
+    # (test_a_list_declaring_no_shape_keeps_every_required).
+    if derived is not None and kernel_spec(spec).shapes:
+        derived = _unpromised(derived, paginate=paginate, spec=spec)
     if derived is None or fragment is None:
         return derived
     return {**derived, **fragment}
+
+
+def _unpromised(schema: dict[str, Any], *, paginate: bool, spec: Spec) -> dict[str, Any]:
+    """``schema`` with its item requiring no presenter field, at any depth.
+
+    The item is found where ``spec_output_schema`` puts it: inside the paging
+    envelope's ``items`` array on a paged list, the ``items`` of an array, and
+    otherwise the schema itself
+    (``test_every_shaped_item_requires_nothing_wherever_it_sits``). Only the
+    item's own ``required`` keeps a key, so an array is unwrapped before
+    ``keep`` is asked, which is what keeps a listed row's ``affordances``
+    (``test_a_service_presenting_a_shaped_list_keeps_each_row_s_affordances_required``).
+    An array admitting ``"null"`` is only written for a service presenting its
+    own return, which carries no affordances, so the schema itself serves it.
+    """
+    # ``spec_output_schema`` answered, so the spec has an output.
+    declared = frozenset(field.name for field in cast("Output", kernel_spec(spec).output()))
+
+    def undeclared(name: str) -> bool:
+        return name not in declared
+
+    if paginate:
+        envelope = schema["properties"]
+        array = envelope["items"]
+        item = _unrequired(array["items"], keep=undeclared)
+        return {**schema, "properties": {**envelope, "items": {**array, "items": item}}}
+    if schema.get("type") == "array":
+        return {**schema, "items": _unrequired(schema["items"], keep=undeclared)}
+    return _unrequired(schema, keep=undeclared)
+
+
+def _unrequired(node: dict[str, Any], *, keep: Callable[[str], bool]) -> dict[str, Any]:
+    """``node`` and every object and array element under it, requiring only what ``keep`` keeps.
+
+    ``keep`` is asked at the top level alone; below it nothing stays required,
+    since every nested key is a presenter field's. A key kept is left whole, as
+    the ``affordances`` answers' own schema is.
+    """
+    cut = {key: value for key, value in node.items() if key != "required"}
+    required = [name for name in node.get("required", []) if keep(name)]
+    if required:
+        cut["required"] = required
+    if "properties" in node:
+        # The kept arm is taken only for the item's ``affordances``
+        # (test_a_shaped_row_keeps_the_affordances_dispatch_adds_required).
+        cut["properties"] = {
+            name: value if keep(name) else _unrequired(value, keep=_nothing)
+            for name, value in node["properties"].items()
+        }
+    if isinstance(node.get("items"), dict):
+        cut["items"] = _unrequired(node["items"], keep=_nothing)
+    return cut
+
+
+def _nothing(name: str) -> bool:
+    """Keep no name: below the item every key is a presenter field's."""
+    del name
+    return False
 
 
 def _spec_description(spec: Spec) -> str | None:
@@ -2269,10 +2347,18 @@ def _caller_schema(
     its own seat only
     (``test_a_key_one_seat_may_decline_is_still_required_by_another``); relaxing
     the last one leaves no ``required`` at all
-    (``test_a_schema_whose_every_read_may_be_declined_requires_nothing``). A read
-    beside a provider whose keys cannot be read stays as the compiled spec
-    declares it, required or not
-    (``test_a_marked_parameter_stays_required_beside_an_untyped_provider``).
+    (``test_a_schema_whose_every_read_may_be_declined_requires_nothing``). **So
+    is every read beside a provider whose keys cannot be read**, which may fill
+    any of them: the kernel's ``server_owned_keys`` names none of its keys, and
+    dispatch demands none of them of the caller, so a read the declaration
+    marks required is advertised and not required there
+    (``test_a_marked_parameter_beside_an_untyped_provider_is_advertised_and_not_required``),
+    in that seat only
+    (``test_a_read_an_untyped_provider_may_fill_is_still_required_by_another_seat``).
+    A call leaving such a read out that the provider does not fill either is
+    refused by the kernel at the assembled pool, which the model is handed
+    back
+    (``test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed_back``).
     """
     compiled = kernel_spec(spec)
     schema = _without(
@@ -2281,8 +2367,7 @@ def _caller_schema(
     )
     declinable: set[str] = set()
     for names, keys in _read_seats(compiled):
-        if keys is not None:
-            declinable |= names & keys.declinable
+        declinable |= names if keys is None else names & keys.declinable
     required = [name for name in schema.get("required", []) if name not in declinable]
     if required == schema.get("required", []):
         return schema
@@ -2323,22 +2408,16 @@ def _required_arguments(
     is refused for and what the model was told cannot drift apart. Only the
     reads: a service's Validator fields, and the list a ``many`` service takes,
     are checked by dispatch, which answers a missing one itself
-    (``test_a_validator_still_words_its_own_required_fields``).
-
-    **Less every read a provider whose keys cannot be read may fill**: the
-    schema keeps such a read required where a marker says so, and dispatch
-    does not demand it of the caller, since only the assembled pool can say
-    whether it arrived
+    (``test_a_validator_still_words_its_own_required_fields``). A read a
+    provider may fill, declinable or beside an untyped one, is not required
+    there, so it is not refused here either
     (``test_an_untyped_provider_filling_a_marked_parameter_is_not_refused``).
     """
     reads: set[str] = set()
-    may_fill: set[str] = set()
-    for names, keys in _read_seats(kernel_spec(spec)):
+    for names, _keys in _read_seats(kernel_spec(spec)):
         reads |= names
-        if keys is None:
-            may_fill |= names
     required = _caller_schema(spec, pool_seeds=pool_seeds).get("required", [])
-    return tuple(name for name in required if name in reads and name not in may_fill)
+    return tuple(name for name in required if name in reads)
 
 
 def _is_list_selector(spec: Spec) -> bool:
@@ -2914,6 +2993,15 @@ def _pop_pagination(
 _STANDARD_CONTEXT_KEYS = ("request", "view", "format")
 """The entries every call's context carries, ``None`` where the run put none."""
 
+_TRANSPORT = "agent"
+"""What every call's context carries under ``transport``: the call came from an agent's tool call.
+
+A literal rather than an exported constant, so a spec's callable compares it
+without importing this package, as one written for several transports does.
+Its spelling is public, held by
+``test_the_three_standard_entries_are_none_where_the_run_put_none``.
+"""
+
 _CALL_SEEDS = frozenset({"request", "view"})
 """The seeds each call registers itself, from the call's context."""
 
@@ -2933,10 +3021,20 @@ def _call_context(ctx: RunContext[Any], tool_name: str) -> dict[str, Any]:
     ``request``, ``view`` and ``format`` are present on every call, ``None``
     where the run put none, so a callable reading one finds the key
     (``test_the_three_standard_entries_are_none_where_the_run_put_none``).
+
+    **``transport`` is ``"agent"`` on every call**, the run's own entry of
+    that name replaced as ``action`` is
+    (``test_every_call_says_it_came_through_an_agent_whatever_the_run_put_there``).
+    A run carrying the request it arrived on leaves a callable reading
+    ``request`` unable to tell an agent's call from one over HTTP, and the
+    toolset is what serves the call, so the run cannot make it read as another
+    transport. The listing's conditions are asked with the same context
+    (``test_a_listing_hands_each_condition_the_transport_a_call_would``).
     """
     context: dict[str, Any] = {
         **(getattr(getattr(ctx, "deps", None), "call_context", None) or {}),
         "action": tool_name,
+        "transport": _TRANSPORT,
     }
     for key in _STANDARD_CONTEXT_KEYS:
         context.setdefault(key, None)

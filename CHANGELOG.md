@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Every call's context carries `transport`, set to `"agent"`, beside `action`.
+  A provider, a selector, a permission check or a presenter declaring
+  `call_context` reads it to tell a call an agent made from one over HTTP,
+  which the request alone no longer says once the run carries the request it
+  arrived on. A run's own `transport` entry is replaced, as its `action` is,
+  and an affordance condition asked while the tools are listed sees the same
+  value.
+- The quickstart shows how one read reaches both the selector and the
+  presenter, as django-restql's `query` drives eager loading and field
+  selection: the selector takes it and writes it to the call's context, which
+  the presenter is handed on each row of the page.
+
+### Changed
+
+- A tool's `parameters_json_schema` no longer lists in `required` a read that a
+  `kwargs=` provider of the same seat may fill without saying which keys it
+  fills: one with no return annotation, one annotated a plain `dict` (or
+  `dict[str, Any]`), a lambda, or one whose annotation does not resolve. Such a
+  read is still advertised. The call was already served without it, since the
+  kernel's `server_owned_keys` asks a transport to demand neither such a read
+  nor a key a provider may decline, so the schema promised the model a
+  requirement the call never held it to. A call leaving the read out when the
+  provider does not fill it either is handed back to the model, naming the
+  read, as before; that now costs a retry round where the schema used to
+  prevent it. To keep the reads required, annotate the provider's return: a
+  `TypedDict` naming the keys it fills, or, for one that only reads and fills
+  nothing, an empty `TypedDict` declared at module level.
+- A spec declaring `shapes=` no longer lists a row's fields in `required` in the
+  tool's `return_schema`, at any depth. A shape reaches the presenter alone, and
+  one that selects fields leaves keys out, so the model was promised fields a
+  selection drops. The `affordances` key each row carries, and a list tool's
+  page envelope, stay required. A spec declaring no shapes is described as
+  before.
+
 ## [0.2.1] — 2026-10-26
 
 ### Fixed
