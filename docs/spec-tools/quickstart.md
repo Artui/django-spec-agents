@@ -378,8 +378,11 @@ the toolset builds.
 
 **The run's context** is `AgentDeps.call_context`, a plain `dict` the code
 starting the run fills. Each call is handed its own copy, with the tool's name
-under `action`, and `request`, `view` and `format` set to `None` where the run
-put none. The run's entries reach every call as the same objects, so put the
+under `action`, `"agent"` under `transport`, and `request`, `view` and `format`
+set to `None` where the run put none. `action` and `transport` replace any
+entry of the same name the run put there, so a callable reading
+`call_context["transport"] == "agent"` knows an agent's tool call made it even
+when the run carries the HTTP request it arrived on. The run's entries reach every call as the same objects, so put the
 request the run arrived on there, under `request`:
 
 ```python
@@ -832,6 +835,29 @@ flags it; a declared `default` is applied when the model leaves it out or sends
 it as `null`, unless it accepts `null` as a value. A shape cannot be named
 `page`, `limit` or `ordering`, which the toolset's own pagination and ordering
 arguments take.
+
+### One read the selector and the presenter both need
+
+A shape reaches the presenter alone and a read reaches the callable alone, and
+the kernel refuses one name declared as both. An argument that drives the
+selector's eager loading and the presenter's field selection, as django-restql's
+`query` does, is declared once as a read: the selector takes it by name and
+writes it to the call's context, which the presenter is handed on every row of
+the page the toolset presents.
+
+```python
+def list_projects(query: str, call_context: dict) -> QuerySet[Project]:
+    call_context["query"] = query
+    return Project.objects.prefetch_related(*relations_named_in(query))
+
+
+class ProjectPresenter(Presenter):
+    def presented(self, value, context):
+        return select_fields(self.present(value), context.call_context["query"])
+```
+
+A read is not a shape, so such a spec's `return_schema` still lists each field
+its presenter always renders as required, which a selection may leave out.
 
 ### On a list tool, a parameter shapes each row
 

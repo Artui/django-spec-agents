@@ -14,12 +14,22 @@ from typing import Any
 import pytest
 from django.contrib.auth.models import User
 from django.test import RequestFactory
-from django_service_specs import DEFAULT_POOL_SEEDS, Affordance, ServiceSpec
+from django_service_specs import (
+    DEFAULT_POOL_SEEDS,
+    Affordance,
+    OutputField,
+    Parameter,
+    Parameters,
+    PresentationContext,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+)
 from pydantic_ai import RunContext
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecToolset
-from tests.spec_tools.kernel_specs import allow
+from tests.spec_tools.kernel_specs import RowPresenter, allow
 from tests.spec_tools.test_spec_toolset import ctx_for
 
 
@@ -86,7 +96,31 @@ async def test_the_three_standard_entries_are_none_where_the_run_put_none():
 
     await _call_each(toolset, ctx_for(user), "do_it")
 
-    assert seen == [{"request": None, "view": None, "format": None, "action": "do_it"}]
+    assert seen == [
+        {"request": None, "view": None, "format": None, "action": "do_it", "transport": "agent"}
+    ]
+
+
+async def test_every_call_says_it_came_through_an_agent_whatever_the_run_put_there():
+    """``transport`` is ``"agent"`` on every call, the run's own entry of that
+    name replaced as its ``action`` is, so a provider, a selector or a presenter
+    reading ``call_context`` can tell an agent's call from one over HTTP when the
+    run carries the request it arrived on."""
+    seen: list[Any] = []
+
+    def record(call_context: dict[str, Any]) -> dict[str, bool]:
+        """Record the transport the call carries."""
+        seen.append(call_context["transport"])
+        return {"ok": True}
+
+    deps = AgentDeps(user=User(username="u"))
+    deps.call_context = {"request": RequestFactory().get("/"), "transport": "http"}
+    toolset = SpecToolset({"do_it": _service(record)})
+
+    await _call_each(toolset, ctx_for(deps.user, deps=deps), "do_it")
+
+    assert seen == ["agent"]
+    assert deps.call_context["transport"] == "http"
 
 
 async def test_a_deps_type_without_the_field_gets_a_context_per_call():
@@ -210,6 +244,18 @@ async def test_a_listing_asks_each_condition_with_its_own_tool_s_seeds():
     assert sorted(tools) == ["approve"]
 
 
+async def test_a_listing_hands_each_condition_the_transport_a_call_would():
+    """A condition is asked with the context its call would carry, ``transport``
+    included, so a tool gated on being reached by an agent is listed."""
+    toolset = SpecToolset(
+        {"approve": _conditioned(lambda call_context: call_context["transport"] == "agent")}
+    )
+
+    tools = await toolset.get_tools(ctx_for(User(username="u")))
+
+    assert sorted(tools) == ["approve"]
+
+
 async def test_a_listing_hands_each_condition_its_own_tool_s_name_as_the_action():
     """A condition naming ``call_context`` reads the operation it is asked about."""
     toolset = SpecToolset(
@@ -222,3 +268,48 @@ async def test_a_listing_hands_each_condition_its_own_tool_s_name_as_the_action(
     tools = await toolset.get_tools(ctx_for(User(username="u")))
 
     assert sorted(tools) == ["approve"]
+
+
+# --- one read the selector takes and the presenter sees --------------------------
+
+
+class _Selecting(RowPresenter):
+    """Renders the fields the call's ``query`` names, read off the call's context."""
+
+    def presented(self, value: Any, context: PresentationContext | None) -> Any:
+        assert context is not None
+        assert context.call_context["transport"] == "agent"
+        wanted = context.call_context["query"].split(",")
+        return {name: rendered for name, rendered in self.present(value).items() if name in wanted}
+
+
+def _projects(query: str, call_context: dict[str, Any]) -> list[dict[str, str]]:
+    """List the projects, eager-loading what ``query`` asks for."""
+    call_context["query"] = query
+    return [{"name": "Atlas", "code": "AT"}, {"name": "Borealis", "code": "BO"}]
+
+
+async def test_a_read_the_selector_hands_on_reaches_the_presenter_of_a_page():
+    """The quickstart's recipe for one read both halves need: the selector takes
+    ``query`` as a read and writes it to the call's context, and the presenter
+    reads it there, on the page the toolset presents, which is handed the
+    dispatch's own context rather than a fresh one."""
+    toolset = SpecToolset(
+        {
+            "projects": SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_projects,
+                reads=Parameters.of(Parameter("query", "string", required=True)),
+                presenter=_Selecting(OutputField("name", "string"), OutputField("code", "string")),
+                permissions=allow(),
+            )
+        }
+    )
+
+    tools = await toolset.get_tools(ctx_for(User(username="u")))
+    result = await toolset.call_tool(
+        "projects", {"query": "name", "limit": 1}, ctx_for(User(username="u")), tools["projects"]
+    )
+
+    assert result["items"] == [{"name": "Atlas"}]
+    assert result["hasNext"] is True

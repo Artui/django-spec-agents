@@ -232,6 +232,11 @@ sees:
   unless the run puts one in `call_context` or a `call_seeds` override returns
   one. A value it used to read off `view.kwargs` or `request.query_params` it
   now takes by name, as a read.
+- **A callable that told the transport by `isinstance(view, OfflineServiceView)`**
+  declares `call_context` and reads `call_context["transport"]`, which is
+  `"agent"` on every call the toolset makes. The request the run arrived on may
+  be in `call_context` too, so its presence says nothing about how the call
+  came.
 
 The request a run arrived on goes in the run's context, where the toolset's
 `http_request=` and `get_http_request=` used to name it. A presenter can read it

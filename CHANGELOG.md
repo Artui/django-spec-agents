@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Every call's context carries `transport`, set to `"agent"`, beside `action`.
+  A provider, a selector, a permission check or a presenter declaring
+  `call_context` reads it to tell a call an agent made from one over HTTP,
+  which the request alone no longer says once the run carries the request it
+  arrived on. A run's own `transport` entry is replaced, as its `action` is,
+  and an affordance condition asked while the tools are listed sees the same
+  value.
+- The quickstart shows how one read reaches both the selector and the
+  presenter, as django-restql's `query` drives eager loading and field
+  selection: the selector takes it and writes it to the call's context, which
+  the presenter is handed on each row of the page.
+
 ### Fixed
 
 - `tool_calling_model` and `streaming_tool_calling_model` in

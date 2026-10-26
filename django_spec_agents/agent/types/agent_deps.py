@@ -86,8 +86,9 @@ class AgentDeps:
 
     ``SpecToolset`` reads this field by name and hands each dispatch a **copy**
     of it as the kernel's ``call_context``, with the tool's name under
-    ``action``, and ``request``, ``view`` and ``format`` set to ``None`` where
-    the run put none. So:
+    ``action``, ``"agent"`` under ``transport``, both replacing an entry the
+    run put there, and ``request``, ``view`` and ``format`` set to ``None``
+    where the run put none. So:
 
     - the run's entries reach every call of the run as the same objects -- the
       request a run arrived on, under ``request``, is the one a serializer, a

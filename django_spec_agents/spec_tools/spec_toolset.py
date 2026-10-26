@@ -2988,6 +2988,15 @@ def _pop_pagination(
 _STANDARD_CONTEXT_KEYS = ("request", "view", "format")
 """The entries every call's context carries, ``None`` where the run put none."""
 
+_TRANSPORT = "agent"
+"""What every call's context carries under ``transport``: the call came from an agent's tool call.
+
+A literal rather than an exported constant, so a spec's callable compares it
+without importing this package, as one written for several transports does.
+Its spelling is public, held by
+``test_the_three_standard_entries_are_none_where_the_run_put_none``.
+"""
+
 _CALL_SEEDS = frozenset({"request", "view"})
 """The seeds each call registers itself, from the call's context."""
 
@@ -3007,10 +3016,20 @@ def _call_context(ctx: RunContext[Any], tool_name: str) -> dict[str, Any]:
     ``request``, ``view`` and ``format`` are present on every call, ``None``
     where the run put none, so a callable reading one finds the key
     (``test_the_three_standard_entries_are_none_where_the_run_put_none``).
+
+    **``transport`` is ``"agent"`` on every call**, the run's own entry of
+    that name replaced as ``action`` is
+    (``test_every_call_says_it_came_through_an_agent_whatever_the_run_put_there``).
+    A run carrying the request it arrived on leaves a callable reading
+    ``request`` unable to tell an agent's call from one over HTTP, and the
+    toolset is what serves the call, so the run cannot make it read as another
+    transport. The listing's conditions are asked with the same context
+    (``test_a_listing_hands_each_condition_the_transport_a_call_would``).
     """
     context: dict[str, Any] = {
         **(getattr(getattr(ctx, "deps", None), "call_context", None) or {}),
         "action": tool_name,
+        "transport": _TRANSPORT,
     }
     for key in _STANDARD_CONTEXT_KEYS:
         context.setdefault(key, None)
