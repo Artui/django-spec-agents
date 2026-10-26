@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-26
+
+Runs on django-service-specs 0.16.0, as 0.4.0 does. A toolset binding a
+reflected read named `request` or `view` through `tool_server_arguments` now
+fails when it is built, where before the binding was dropped on every call.
+
 ### Fixed
 
 - A required field of a service's Validator, beside its `input_data=` provider,
@@ -399,7 +405,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Artui/django-spec-agents/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Artui/django-spec-agents/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Artui/django-spec-agents/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Artui/django-spec-agents/compare/v0.2.0...v0.2.1
