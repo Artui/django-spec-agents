@@ -58,7 +58,6 @@ from django_service_specs import (
     Grant,
     InvalidArguments,
     NotPermitted,
-    Output,
     OutputPage,
     Parameter,
     PoolSeeds,
@@ -392,9 +391,9 @@ class SpecToolset(AbstractToolset[Any]):
     and the same spec in a bare mapping are served alike. A read no callable
     takes is one of the compiled spec's ``shapes``: it is advertised as a tool
     argument and dispatched as one, and the kernel hands what the caller sent
-    to the presenter alone, on ``PresentationContext.shapes``, never to the
-    spec's callables, so a field selection is the presenter's to read, with no
-    toolset awareness of how it parses one. A read a callable does take,
+    to the presenter, on ``PresentationContext.shapes``, and to any callable
+    declaring ``shapes``, so a field selection is the presenter's to read, with
+    no toolset awareness of how it parses one. A read a callable does take,
     by name or through ``**kwargs``, is that callable's argument: advertised as
     a plain one, and handed its declared default when the model leaves it out.
     A read standing for a URL route capture (``parent_pk``) is an argument of
@@ -2105,13 +2104,12 @@ def _return_schema(
     the kernel refuses to fabricate a shape it cannot derive, and a guessed one
     would be a claim the payload never has to honour.
 
-    **A spec declaring ``shapes`` promises no field of a row**, at any depth.
-    A shape reaches the presenter alone, and a ``fields`` or ``query``
-    selection there leaves keys out, so a key is always present only if it is
-    present under every value the model may send, and the kernel cannot say
-    which shapes select fields. So the row's ``required`` keeps only what no
-    presenter field declares, the ``affordances`` dispatch writes onto every
-    row, and the paging envelope the toolset writes keeps its own
+    **A spec declaring ``shapes`` promises no field of a row**, at any depth,
+    and that is the kernel's answer rather than this toolset's: a shape reaches
+    the presenter, and a ``fields`` or ``query`` selection there leaves keys
+    out, so a key is always present only if it is present under every value the
+    model may send. The row keeps the ``affordances`` dispatch writes onto it,
+    and the paging envelope keeps its own ``required``
     (``test_a_shaped_list_requires_no_row_field_at_any_depth_and_keeps_its_envelope``,
     ``test_a_shaped_row_keeps_the_affordances_dispatch_adds_required``). A spec
     declaring none is described as the kernel describes it
@@ -2133,73 +2131,9 @@ def _return_schema(
         # field undescribed, which is what dropping the line means.
         handle_description=_render(conventions.handle_field_description),
     )
-    # One arc to coverage, a conjunct each: a shaped spec with no presenter has
-    # no schema to relax (test_a_shaped_spec_with_no_presenter_still_returns_none),
-    # and an unshaped one is left as the kernel wrote it
-    # (test_a_list_declaring_no_shape_keeps_every_required).
-    if derived is not None and kernel_spec(spec).shapes:
-        derived = _unpromised(derived, paginate=paginate, spec=spec)
     if derived is None or fragment is None:
         return derived
     return {**derived, **fragment}
-
-
-def _unpromised(schema: dict[str, Any], *, paginate: bool, spec: Spec) -> dict[str, Any]:
-    """``schema`` with its item requiring no presenter field, at any depth.
-
-    The item is found where ``spec_output_schema`` puts it: inside the paging
-    envelope's ``items`` array on a paged list, the ``items`` of an array, and
-    otherwise the schema itself
-    (``test_every_shaped_item_requires_nothing_wherever_it_sits``). Only the
-    item's own ``required`` keeps a key, so an array is unwrapped before
-    ``keep`` is asked, which is what keeps a listed row's ``affordances``
-    (``test_a_service_presenting_a_shaped_list_keeps_each_row_s_affordances_required``).
-    An array admitting ``"null"`` is only written for a service presenting its
-    own return, which carries no affordances, so the schema itself serves it.
-    """
-    # ``spec_output_schema`` answered, so the spec has an output.
-    declared = frozenset(field.name for field in cast("Output", kernel_spec(spec).output()))
-
-    def undeclared(name: str) -> bool:
-        return name not in declared
-
-    if paginate:
-        envelope = schema["properties"]
-        array = envelope["items"]
-        item = _unrequired(array["items"], keep=undeclared)
-        return {**schema, "properties": {**envelope, "items": {**array, "items": item}}}
-    if schema.get("type") == "array":
-        return {**schema, "items": _unrequired(schema["items"], keep=undeclared)}
-    return _unrequired(schema, keep=undeclared)
-
-
-def _unrequired(node: dict[str, Any], *, keep: Callable[[str], bool]) -> dict[str, Any]:
-    """``node`` and every object and array element under it, requiring only what ``keep`` keeps.
-
-    ``keep`` is asked at the top level alone; below it nothing stays required,
-    since every nested key is a presenter field's. A key kept is left whole, as
-    the ``affordances`` answers' own schema is.
-    """
-    cut = {key: value for key, value in node.items() if key != "required"}
-    required = [name for name in node.get("required", []) if keep(name)]
-    if required:
-        cut["required"] = required
-    if "properties" in node:
-        # The kept arm is taken only for the item's ``affordances``
-        # (test_a_shaped_row_keeps_the_affordances_dispatch_adds_required).
-        cut["properties"] = {
-            name: value if keep(name) else _unrequired(value, keep=_nothing)
-            for name, value in node["properties"].items()
-        }
-    if isinstance(node.get("items"), dict):
-        cut["items"] = _unrequired(node["items"], keep=_nothing)
-    return cut
-
-
-def _nothing(name: str) -> bool:
-    """Keep no name: below the item every key is a presenter field's."""
-    del name
-    return False
 
 
 def _spec_description(spec: Spec) -> str | None:
@@ -2554,7 +2488,8 @@ def _call_spec(
         raise _missing_arguments(missing, conventions)
     # Only the pagination arguments leave the call. A read, a shape among
     # them, is an argument like any other, and the kernel hands what the
-    # caller sent for the spec's declared ``shapes`` to the presenter alone.
+    # caller sent for the spec's declared ``shapes`` to the presenter and to
+    # any callable declaring ``shapes``.
     page_args = _pop_pagination(spec, args, pool_seeds=pool_seeds)
     try:
         # Inside the ``try``, as every refusal the call can meet is: compiling

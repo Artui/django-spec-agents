@@ -71,7 +71,7 @@ def rows() -> list[dict[str, str]]:
     """Two plain rows, so the render runs without a database.
 
     It takes no argument, so a ``fields`` the tool reads is a shape, which
-    reaches the presenter alone.
+    reaches the presenter.
     """
     return [{"name": "a"}, {"name": "b"}]
 

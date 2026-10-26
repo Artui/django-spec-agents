@@ -178,10 +178,12 @@ A spec with no presenter gets `None` rather than a guessed shape.
 
 A spec declaring [`shapes=`](#read-shaping-parameters) requires no field of a
 row, at any depth, where the kernel's schema requires each one its presenter
-always renders. A shape reaches the presenter alone, and a `fields` selection
-there leaves keys out, so no key is present under every value the model may
-send. The `affordances` each row carries stays required, since dispatch writes
-it whatever the shapes, as do the four keys of a list tool's page.
+always renders. The relaxation is the kernel's own `spec_output_schema`, which
+the toolset advertises as it is. A shape drives the presenter, and a `fields`
+selection there leaves keys out, so no key is present under every value the
+model may send. The `affordances` each row carries stays required, since
+dispatch writes it whatever the shapes, as do the four keys of a list tool's
+page.
 
 A `return_schema` admits `null`, with the root `type` `["object", "null"]`,
 where the spec says dispatch may hand the model `None`, as the kernel's
@@ -792,9 +794,9 @@ use.
 `page` / `limit` are built in for list selectors and `ordering` comes from the
 `filter_set`, but a spec can declare its own parameters that shape what it
 returns, as `shapes=` on the spec. The toolset advertises each as a tool
-argument, and the kernel hands what the model sent to the spec's presenter
-alone, as the call's `PresentationContext.shapes`: no callable of the spec
-takes it. That is for a presenter that selects fields or switches between a
+argument, and the kernel hands what the model sent to the spec's presenter,
+as the call's `PresentationContext.shapes`, and to a callable that declares
+`shapes`. That is for a presenter that selects fields or switches between a
 summary and a detail rendering. A `null` is read as left out, and a declared
 `default` is applied when the model leaves one out, as the tool's schema
 advertises.
@@ -842,12 +844,27 @@ arguments take.
 
 ### One read the selector and the presenter both need
 
-A shape reaches the presenter alone and a read reaches the callable alone, and
-the kernel refuses one name declared as both. An argument that drives the
-selector's eager loading and the presenter's field selection, as django-restql's
-`query` does, is declared once as a read: the selector takes it by name and
-writes it to the call's context, which the presenter is handed on every row of
-the page the toolset presents.
+A shape reaches the presenter and a read reaches the callable, and the kernel
+refuses one name declared as both. An argument that drives the selector's eager
+loading and the presenter's field selection, as django-restql's `query` does,
+can be declared once as a shape, and any callable then reads the call's shape
+values by declaring `shapes`, which the kernel hands it as a read-only mapping
+(empty on a spec declaring none). The name is the kernel's, reserved when the
+spec is declared: a read, shape, `many` list or Validator field named `shapes`
+is refused there, so name it for what it holds.
+
+```python
+def list_projects(shapes: Mapping[str, Any]) -> QuerySet[Project]:
+    return Project.objects.prefetch_related(*relations_named_in(shapes.get("query", "")))
+```
+
+A shape the model leaves out, with no `default` declared, is absent from the
+mapping, so read an optional one with `get`.
+
+A value that must be a read, because the argument also fills a parameter of the
+selector's own, is declared once as a read instead: the selector takes it by
+name and writes it to the call's context, which the presenter is handed on
+every row of the page the toolset presents.
 
 ```python
 def list_projects(query: str, call_context: dict) -> QuerySet[Project]:
@@ -861,7 +878,13 @@ class ProjectPresenter(Presenter):
 ```
 
 A read is not a shape, so such a spec's `return_schema` still lists each field
-its presenter always renders as required, which a selection may leave out.
+its presenter always renders as required, which a selection may leave out. A
+shape the selector reads through `shapes` keeps the relaxed schema.
+
+A presenter that needs the whole page, to batch a lookup over its rows,
+overrides the kernel's `Presenter.presented_rows(values, context)`. The toolset
+slices a list before it renders, so it is called once per page served, with
+exactly that page's rows.
 
 ### On a list tool, a parameter shapes each row
 

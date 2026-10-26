@@ -93,7 +93,12 @@ specs = [
     # a Validator field named like a registered seed is validated into ``data``
     # while the seed keeps its own value; below it each of those is refused
     # before the spec runs.
-    "django-service-specs>=0.15.0",
+    # 0.16.0: a spec declaring ``shapes`` is advertised with no row field
+    # required, which the toolset used to rewrite itself, and a callable
+    # declaring ``shapes`` is handed the call's shape values. Below it the
+    # toolset's schema would promise fields a shape may drop, and a read,
+    # shape or Validator field named ``shapes`` is not yet refused.
+    "django-service-specs>=0.16.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):
 # CodeMode batching, compaction, step persistence, sub-agents.
@@ -128,7 +133,7 @@ dev = [
     "djangorestframework-mcp-server>=0.53.1",
     # The [specs] extra's requirement, so ``spec_tools`` and its tests run in
     # dev, at the extra's floor.
-    "django-service-specs>=0.15.0",
+    "django-service-specs>=0.16.0",
     # Types for the DRF the [drf-mcp] bridge imports.
     "djangorestframework-stubs>=3.15",
     # For the filtered-selector tests: a ``filter_set`` is a django-filter

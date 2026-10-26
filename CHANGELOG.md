@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A selector, provider or service can read the call's shape values by declaring
+  `shapes`, which the kernel hands it as a read-only mapping (empty on a spec
+  declaring none). A value both halves need, as django-restql's `query` is for
+  eager loading and field selection, can now be one shape rather than a read
+  relayed through `call_context`; the relay remains for a value that is a read.
+- A presenter overriding the kernel's `Presenter.presented_rows(values,
+  context)` sees a whole page at once, for a lookup batched over its rows. The
+  toolset slices a list before it renders, so it is called once per page served,
+  with exactly that page's rows.
+
+### Changed
+
+- **Breaking, passed through from the kernel:** the `[specs]` floor is
+  django-service-specs 0.16.0, which reserves `shapes` as the name of that seed.
+  A read, shape, `many` list or Validator field named `shapes` is now refused
+  when the spec is declared, so rename it for what it holds. The same floor
+  moves the `return_schema` of a spec declaring `shapes=`, which requires no row
+  field at any depth, to the kernel's `spec_output_schema` instead of a rewrite
+  here; the advertised schema is unchanged.
+
 ## [0.3.0] — 2026-10-26
 
 A tool's advertised schemas now say what dispatch holds a call to, which
