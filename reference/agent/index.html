@@ -2409,8 +2409,9 @@ from its <code>deps_factory</code> and emits the events itself.</p>
         <p>The run's context: one plain <code>dict</code> of values every tool call may read.</p>
 <p><code>SpecToolset</code> reads this field by name and hands each dispatch a <strong>copy</strong>
 of it as the kernel's <code>call_context</code>, with the tool's name under
-<code>action</code>, and <code>request</code>, <code>view</code> and <code>format</code> set to <code>None</code> where
-the run put none. So:</p>
+<code>action</code>, <code>"agent"</code> under <code>transport</code>, both replacing an entry the
+run put there, and <code>request</code>, <code>view</code> and <code>format</code> set to <code>None</code>
+where the run put none. So:</p>
 <ul>
 <li>the run's entries reach every call of the run as the same objects -- the
   request a run arrived on, under <code>request</code>, is the one a serializer, a

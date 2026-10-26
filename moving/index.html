@@ -1711,6 +1711,11 @@ sees:</p>
   unless the run puts one in <code>call_context</code> or a <code>call_seeds</code> override returns
   one. A value it used to read off <code>view.kwargs</code> or <code>request.query_params</code> it
   now takes by name, as a read.</li>
+<li><strong>A callable that told the transport by <code>isinstance(view, OfflineServiceView)</code></strong>
+  declares <code>call_context</code> and reads <code>call_context["transport"]</code>, which is
+  <code>"agent"</code> on every call the toolset makes. The request the run arrived on may
+  be in <code>call_context</code> too, so its presence says nothing about how the call
+  came.</li>
 </ul>
 <p>The request a run arrived on goes in the run's context, where the toolset's
 <code>http_request=</code> and <code>get_http_request=</code> used to name it. A presenter can read it

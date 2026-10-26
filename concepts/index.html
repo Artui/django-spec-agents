@@ -1292,8 +1292,9 @@ closing over the request. The difference matters beyond tidiness:</p>
 <li><strong>The request a run arrived on travels as data.</strong> <code>deps.call_context</code> is a
   plain <code>dict</code> of values every tool call may read; a transport puts the request
   there under <code>request</code>, and each spec tool call is handed its own copy with the
-  tool's name under <code>action</code>, so a callable or a permission check reads the
-  request without the agent ever holding it (see
+  tool's name under <code>action</code> and <code>"agent"</code> under <code>transport</code>, so a callable or
+  a permission check reads the request without the agent ever holding it, and
+  can tell it was an agent that called (see
   <a href="../spec-tools/quickstart/#per-call-seeds-and-the-runs-context">per-call seeds and the run's context</a>).</li>
 <li><strong>AG-UI state has somewhere to land.</strong> <code>AgentDeps</code> satisfies pydantic-ai's
   <code>StateHandler</code> protocol, so a run's <code>RunAgentInput.state</code> is validated into
