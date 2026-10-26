@@ -258,7 +258,9 @@ An override of `build_context` that varied the context per run becomes an
 override of `call_seeds(*, ctx, tool_name)`, returning the call's own seeds,
 name to resolver. A `view` or `request` it returns replaces the call's own, a
 name the mount's `pool_seeds` registers too is refused with `ValueError`, and a
-seed for a read the spec declares is refused with `ImproperlyConfigured`:
+seed for a read the spec declares, or for a read or parameter
+`tool_server_arguments` binds or withholds, is refused with
+`ImproperlyConfigured`:
 
 ```python
 from django_spec_agents.spec_tools import SpecToolset

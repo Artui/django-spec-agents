@@ -296,6 +296,21 @@ list_spec = SelectorSpec(
   handed back ``ceiling: This field is required.`` to send it on its next
   turn, as it is when an untyped provider leaves a parameter unfilled.
   Where the selector can run without the value, give the read a default.
+- **A service's `input_data=` provider relaxes its Validator's fields the
+  same way, and those fields only.** `input_data` is merged over the model's
+  arguments before the Validator runs, so a Validator field beside one that
+  returns no `TypedDict` is advertised and optional, any of them being what it
+  may fill; beside a typed one only the keys whose value admits `UnsetType`
+  are, and the keys it always fills are not advertised at all. A field nobody
+  filled is handed back to the model as a retry naming it, `owner: This field
+  is required.`, which the kernel raises before the Validator runs, so a
+  Validator's own wording for a missing field does not reach the model there. A
+  lookup parameter beside it stays required: a provider's values reach its own
+  seat only. All of this is for a service that is not `many`. A `many`
+  service's Validator fields are each row's, so its rows are neither relaxed
+  nor stripped: the schema keeps listing them as the kernel advertises them,
+  the top level relaxes nothing and the list stays required, though a row a
+  provider fills is served without the field.
 - **A name only a
   [`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds)
   override fills is not a read.** An override is code the schema cannot read,
@@ -422,7 +437,13 @@ class TenantToolset(SpecToolset):
 
 A name the mount's `pool_seeds` registers already is refused with
 `ValueError` at the call, and `request` or `view` returned here replace the
-call's own.
+call's own. A read
+or parameter
+[`tool_server_arguments`](spec-registry.md#arguments-the-server-supplies) binds
+or withholds for the tool is refused at the call too, with
+`ImproperlyConfigured` naming the tool, as the same seed on the mount is when
+the toolset is built; a bound Validator field of that name is not, and takes the
+bound value while the service parameter takes the seed.
 
 ## What a permission check sees
 

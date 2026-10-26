@@ -488,7 +488,14 @@ class SpecToolset(AbstractToolset[Any]):
             and a binding ``check_server_arguments`` refuses -- an undeclared
             name, a seed or provider's name, a withheld name no call could do
             without, a bound value its parameter refuses -- with
-            ``ImproperlyConfigured`` naming the tool. Static, like the tool
+            ``ImproperlyConfigured`` naming the tool. A seed
+            [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds]
+            returns under a bound or withheld read or parameter is refused the
+            same way, at the call, since the mount's check cannot see it
+            (``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``);
+            a Validator field of that name still takes the bound value, and
+            the service parameter the seed.
+            Static, like the tool
             definitions: build a toolset per scope, as a run scoped to one
             project builds one with that project bound.
         max_retries: Each tool's retry budget: how many times a
@@ -1142,6 +1149,17 @@ class SpecToolset(AbstractToolset[Any]):
         reading a seed it returns is asked with the tool's own
         (``test_a_listing_asks_each_condition_with_its_own_tool_s_seeds``).
 
+        **A read or parameter ``tool_server_arguments`` binds or withholds for
+        the tool is refused too**, with ``ImproperlyConfigured`` naming the tool,
+        as the same seed on the mount's ``pool_seeds`` is when the toolset is
+        built. A configuration error rather than a retry: the model cannot act
+        on it, and the seed would otherwise win over the server's value without
+        a trace
+        (``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``).
+        A bound Validator field of the same name is not a read: it takes the
+        bound value and the service parameter the seed, as on the mount
+        (``test_a_bound_validator_field_and_a_call_seed_of_the_same_name_both_reach_the_call``).
+
         A name the mount's ``pool_seeds`` registers already is refused with
         ``ValueError`` at the call, as ``PoolSeeds.extend`` refuses one
         registered twice
@@ -1305,14 +1323,32 @@ class SpecToolset(AbstractToolset[Any]):
         every route into a call words its retries the same way.
         """
         call_context = _call_context(ctx, label)
+        hook_seeds = self.call_seeds(ctx=ctx, tool_name=label)
+        pool_seeds = _with_call_seeds(self._pool_seeds, call_context, hook_seeds)
+        # **The binding answers to this call's own seeds too.** Construction checks
+        # it against the mount's, so a seed returned per call under a bound or
+        # withheld reflected read would otherwise win silently: the selector would
+        # get the seed's value and the server's be dropped. The mount's seeds plus the
+        # hook's, which is all construction could not see: it already checked the
+        # binding against the ``request`` and ``view`` every call registers, so
+        # ``pool_seeds`` here would refuse nothing more. Both conjuncts are held by
+        # ``test_the_binding_check_runs_only_for_a_bound_tool_with_a_call_seed``
+        # (a spy, since the check passes on either omission); the refusal itself by
+        # ``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``.
+        # Outside ``translate_exception``'s reach on purpose: a configuration error
+        # is raised, never turned into a retry the model cannot act on.
+        server = kw.get("server_arguments")
+        if server is not None and hook_seeds:
+            with _refusals_name_the_tool(label):
+                check_server_arguments(
+                    spec, server, pool_seeds=self._pool_seeds.extend(**hook_seeds)
+                )
         return _call_spec(
             spec,
             user,
             args,
             label=label,
-            pool_seeds=_with_call_seeds(
-                self._pool_seeds, call_context, self.call_seeds(ctx=ctx, tool_name=label)
-            ),
+            pool_seeds=pool_seeds,
             call_context=call_context,
             translate_exception=lambda exc: self.translate_exception(exc, ctx=ctx),
             shape_page=lambda *a, **kwargs: self.shape_page(*a, ctx=ctx, **kwargs),
@@ -1541,12 +1577,19 @@ def _validate_server_arguments(
     ``check_server_arguments`` -- an undeclared name, a name both bound and
     withheld, one a seed or a typed provider occupies, a withheld name no call
     could do without, a bound value its parameter refuses -- with the pool
-    seeds every call is dispatched with, since a registered seed is reserved
-    as the dispatcher's own are
+    seeds every call is dispatched with, ``request`` and ``view`` included,
+    since a registered seed is reserved as the dispatcher's own are
     (``test_a_name_a_registered_seed_occupies_is_refused``). Its refusals are
     prefixed with the tool, like a refusal when a spec compiles.
     """
     bindings = dict(tool_server_arguments or {})
+    # The seeds every call is dispatched with include the ``request`` and ``view``
+    # each call registers from its context, which no mount's seeds can hold. Left
+    # out, a binding on a reflected read of either name would pass here and lose
+    # to the seed on every call, with nothing logged
+    # (``test_a_binding_on_a_name_every_call_registers_is_refused_when_the_toolset_is_built``).
+    # The resolvers are never called: the check reads the names.
+    pool_seeds = pool_seeds.extend(**{name: _no_value for name in _CALL_SEEDS - pool_seeds.names})
     for tool_name, server in bindings.items():
         _refuse_an_unknown_tool("tool_server_arguments", tool_name, specs)
         with _refusals_name_the_tool(tool_name):
@@ -2293,6 +2336,26 @@ def _caller_schema(
     refused by the kernel at the assembled pool, which the model is handed
     back
     (``test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed_back``).
+
+    **A service's Validator fields are one more seat, beside its
+    ``input_data=``**, relaxed the same way and in that seat only: all of them
+    beside an untyped provider, the keys a typed one may decline beside a typed
+    one (``test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_required``,
+    ``test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required``).
+    **Not on a ``many`` service**: its Validator fields are each row's, so they
+    are no top-level argument and the rows are neither stripped nor relaxed, though
+    the kernel serves a row the provider fills
+    (``test_a_row_field_is_not_a_top_level_seat_on_a_many_spec``).
+    On any other service, a field a typed provider always fills is not advertised at all, which
+    ``server_owned_keys`` already did
+    (``test_a_field_a_typed_input_data_always_fills_is_not_advertised``), and a
+    declinable key that names no field of the Validator relaxes nothing
+    (``test_a_key_the_input_data_may_decline_relaxes_only_a_field_of_the_validator``).
+    A call leaving out a field nobody fills is handed back by the kernel, which
+    refuses it before the Validator runs, naming the field as it names a read
+    (``test_a_field_nobody_fills_is_handed_back_before_the_validator_runs``), and
+    a read in another seat stays required
+    (``test_a_read_is_still_required_beside_an_input_data_that_may_fill_a_field``).
     """
     compiled = kernel_spec(spec)
     schema = _without(
@@ -2300,7 +2363,7 @@ def _caller_schema(
         kernel_server_owned_keys(compiled, pool_seeds=pool_seeds),
     )
     declinable: set[str] = set()
-    for names, keys in _read_seats(compiled):
+    for names, keys in [*_read_seats(compiled), *_validator_seats(compiled)]:
         declinable |= names if keys is None else names & keys.declinable
     required = [name for name in schema.get("required", []) if name not in declinable]
     if required == schema.get("required", []):
@@ -2321,14 +2384,42 @@ def _read_seats(
     values reach its own seat only, so a provider's keys say nothing about a
     read in another. ``None`` is a provider whose keys cannot be read, which
     may fill any read in its seat; no provider at all fills nothing. A
-    Validator's fields are not a seat here: the Validator answers for them.
-    The target's seat is held by ``test_a_service_call_missing_its_lookup_is_handed_back``.
+    Validator's fields are not reads, and not among these seats: the Validator
+    answers for them, and ``_validator_seats`` is where ``input_data`` reaches
+    them. The target's seat is held by ``test_a_service_call_missing_its_lookup_is_handed_back``.
     """
     seats = [(compiled.reads.names(), provider_keys(compiled.kwargs))]
     target = compiled.target_selector_spec() if isinstance(compiled, KernelServiceSpec) else None
     if target is not None:
         seats.append((target.reads.names(), provider_keys(target.kwargs)))
     return seats
+
+
+def _validator_seats(
+    compiled: KernelServiceSpec | KernelSelectorSpec,
+) -> list[tuple[frozenset[str], ProviderKeys | None]]:
+    """The seat of a service's Validator fields, with what its ``input_data`` says it fills.
+
+    ``input_data`` is merged over the caller's arguments before the Validator
+    runs, so a provider that fills or may fill a field is why dispatch does not
+    demand the field of the caller. Empty for a selector, which has no
+    Validator, and for a spec with none. A ``many`` spec's Validator fields are
+    each row's rather than top-level arguments, so they are no seat in the
+    schema this reads: the list stays required.
+
+    One branch arc, each conjunct held by its own test: a selector spec has no
+    ``validator`` to read (``test_list_selector_renders_owned_widgets``); a
+    service may have none (``test_no_request_arrives_unless_the_run_put_one``);
+    and a ``many`` spec's fields are no top-level seat
+    (``test_a_row_field_is_not_a_top_level_seat_on_a_many_spec``).
+    """
+    if (
+        isinstance(compiled, KernelServiceSpec)
+        and compiled.validator is not None
+        and not compiled.many
+    ):
+        return [(compiled.validator.parameters().names(), provider_keys(compiled.input_data))]
+    return []
 
 
 def _required_arguments(
@@ -2939,6 +3030,10 @@ Its spelling is public, held by
 
 _CALL_SEEDS = frozenset({"request", "view"})
 """The seeds each call registers itself, from the call's context."""
+
+
+def _no_value() -> None:
+    """A resolver standing in for a seed whose name is all a check reads."""
 
 
 def _call_context(ctx: RunContext[Any], tool_name: str) -> dict[str, Any]:

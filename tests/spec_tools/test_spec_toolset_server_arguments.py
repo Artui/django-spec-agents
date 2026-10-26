@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict
 
+import django_service_specs
 import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
@@ -25,10 +27,11 @@ from django_service_specs import (
     SelectorKind,
     SelectorSpec,
     ServerArguments,
+    ServiceSpec,
     ServiceValidationError,
     SpecRegistry,
 )
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecCapability, SpecToolset
@@ -667,3 +670,142 @@ async def test_a_malformed_value_for_a_bound_name_never_refuses_the_call():
     result = await _call(toolset, "vendors", user, {"project_pk": 12345})
 
     assert _rows(result) == [{"name": "project=7"}]
+
+
+# --- a per-call seed under a bound or withheld name ---------------------------
+
+
+class _SeedsTenant(SpecToolset):
+    """A toolset whose ``call_seeds`` returns ``tenant``, as a run-scoped hook does."""
+
+    def call_seeds(
+        self, *, ctx: RunContext[Any], tool_name: str
+    ) -> Mapping[str, Callable[..., Any]]:
+        return {"tenant": lambda: "SEED"}
+
+
+_SELECTOR_RAN: list[str | None] = []
+
+
+def tenant_rows(*, tenant: str | None = None):
+    """Records the ``tenant`` it was handed, so a test can tell it never ran."""
+    _SELECTOR_RAN.append(tenant)
+    return [{"name": str(tenant)}]
+
+
+@pytest.fixture(autouse=True)
+def _forget_the_selector_runs():
+    _SELECTOR_RAN.clear()
+
+
+def _tenant_selector() -> SelectorSpec:
+    return _names_spec(tenant_rows, _string("tenant", reflected=True))
+
+
+@dataclass
+class _Move:
+    tenant: str = "DEFAULT"
+
+
+def move_to_tenant(data: _Move, tenant: str) -> dict[str, str]:
+    """Reports which value reached the Validator field and which the service parameter."""
+    return {"validator_field": data.tenant, "service_parameter": tenant}
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "server",
+    [
+        pytest.param(ServerArguments(values={"tenant": "BOUND"}), id="bound"),
+        pytest.param(ServerArguments(withheld=frozenset({"tenant"})), id="withheld"),
+    ],
+)
+async def test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call(server):
+    """The same seed on the mount's ``pool_seeds`` is refused when the toolset is
+    built; one returned per call is refused when the call is made, by the same
+    kernel check, naming the tool. It is a configuration error and not a retry,
+    and the selector never runs with the seed's value in place of the server's."""
+    user = await User.objects.acreate(username="u")
+    toolset = _SeedsTenant({"t": _tenant_selector()}, tool_server_arguments={"t": server})
+
+    with pytest.raises(ImproperlyConfigured, match=r"tool 't': .*tenant.*pool seed") as raised:
+        await _call(toolset, "t", user)
+
+    assert "reflected read which a registered pool seed fills" in str(raised.value)
+    assert _SELECTOR_RAN == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_bound_validator_field_and_a_call_seed_of_the_same_name_both_reach_the_call():
+    """The mount route accepts this: the Validator field is the bound value and the
+    service parameter the seed. The call agrees with construction here, so it must
+    not refuse what the same seed registered on the mount runs."""
+    user = await User.objects.acreate(username="u")
+    spec = ServiceSpec(
+        service=move_to_tenant,
+        validator=django_service_specs.DataclassValidator(_Move),
+        atomic=False,
+        permissions=allow(),
+    )
+    seeded = DEFAULT_POOL_SEEDS.extend(tenant=lambda: "SEED")
+    server = ServerArguments(values={"tenant": "BOUND"})
+
+    on_the_mount = SpecToolset({"t": spec}, pool_seeds=seeded, tool_server_arguments={"t": server})
+    per_call = _SeedsTenant({"t": spec}, tool_server_arguments={"t": server})
+
+    expected = {"validator_field": "BOUND", "service_parameter": "SEED"}
+    assert await _call(on_the_mount, "t", user) == expected
+    assert await _call(per_call, "t", user) == expected
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_the_binding_check_runs_only_for_a_bound_tool_with_a_call_seed(monkeypatch):
+    """Holds each conjunct of the guard in ``SpecToolset._call_spec``.
+
+    Dropping ``server is not None`` fails the first arm (a seed, no binding), and
+    dropping the call-seeds test fails the second (a binding, an empty hook): the
+    check passes on both, so only a spy on it sees the call. Patched after the
+    toolsets are built, since construction runs the same check.
+    """
+    from django_spec_agents.spec_tools import spec_toolset
+
+    user = await User.objects.acreate(username="u")
+    unbound_seeded = _SeedsTenant({"t": _tenant_selector()})
+    bound_unseeded = SpecToolset(
+        {"t": _tenant_selector()},
+        tool_server_arguments={"t": ServerArguments(values={"tenant": "BOUND"})},
+    )
+    checked: list[object] = []
+    monkeypatch.setattr(
+        spec_toolset, "check_server_arguments", lambda *a, **kw: checked.append((a, kw))
+    )
+
+    unbound_result = await _call(unbound_seeded, "t", user)
+    bound_result = await _call(bound_unseeded, "t", user)
+
+    assert checked == []
+    assert _rows(unbound_result) == [{"name": "SEED"}]
+    assert _rows(bound_result) == [{"name": "BOUND"}]
+
+
+@pytest.mark.parametrize("name", ["view", "request"])
+@pytest.mark.parametrize(
+    "bind",
+    [
+        pytest.param(lambda name: ServerArguments(values={name: "BOUND"}), id="bound"),
+        pytest.param(lambda name: ServerArguments(withheld=frozenset({name})), id="withheld"),
+    ],
+)
+def test_a_binding_on_a_name_every_call_registers_is_refused_when_the_toolset_is_built(name, bind):
+    """Each call registers ``request`` and ``view`` from its context, which no
+    mount's ``pool_seeds`` can hold, so the seed would fill a reflected read of
+    that name on every call and the binding be dropped without a word. Refused
+    when the toolset is built, naming the tool, as a mount registering the seed
+    itself would be."""
+    with pytest.raises(ImproperlyConfigured, match=rf"tool 't': .*{name}.*pool seed") as raised:
+        SpecToolset(
+            {"t": _names_spec(tenant_rows, _string(name, reflected=True))},
+            tool_server_arguments={"t": bind(name)},
+        )
+
+    assert "reflected read which a registered pool seed fills" in str(raised.value)
