@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking, passed through from the kernel:** the `[specs]` floor is
   django-service-specs 0.16.0, which reserves `shapes` as the name of that seed.
-  A read, shape, `many` list or Validator field named `shapes` is now refused
-  when the spec is declared, so rename it for what it holds. The same floor
+  A read, shape or `many` list named `shapes` is now refused when the spec is
+  declared, and a Validator field of that name when the toolset is built, so
+  rename it for what it holds. The same floor
   moves the `return_schema` of a spec declaring `shapes=`, which requires no row
   field at any depth, to the kernel's `spec_output_schema` instead of a rewrite
   here; the advertised schema is unchanged.

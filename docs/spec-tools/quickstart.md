@@ -849,9 +849,10 @@ refuses one name declared as both. An argument that drives the selector's eager
 loading and the presenter's field selection, as django-restql's `query` does,
 can be declared once as a shape, and any callable then reads the call's shape
 values by declaring `shapes`, which the kernel hands it as a read-only mapping
-(empty on a spec declaring none). The name is the kernel's, reserved when the
-spec is declared: a read, shape, `many` list or Validator field named `shapes`
-is refused there, so name it for what it holds.
+(empty on a spec declaring none). The name is the kernel's: a read, shape or
+`many` list named `shapes` is refused when the spec is declared, and a
+Validator field of that name when the toolset is built, so name it for what it
+holds.
 
 ```python
 def list_projects(shapes: Mapping[str, Any]) -> QuerySet[Project]:

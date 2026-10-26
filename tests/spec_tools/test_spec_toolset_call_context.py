@@ -412,6 +412,35 @@ async def test_a_selector_declaring_shapes_is_handed_the_shape_values_the_agent_
     }
 
 
+async def test_a_service_and_its_provider_declaring_shapes_are_handed_the_shape_values():
+    """The changelog's claim past the selector: a ``kwargs`` provider and the
+    service read the call's shape values the same way."""
+    seen: list[tuple[str, dict[str, Any]]] = []
+
+    def provider(shapes: Mapping[str, Any]) -> dict[str, Any]:
+        seen.append(("provider", dict(shapes)))
+        return {}
+
+    def rename(shapes: Mapping[str, Any]) -> dict[str, str]:
+        """Rename the project."""
+        seen.append(("service", dict(shapes)))
+        return {"name": "Atlas"}
+
+    spec = _service(
+        rename,
+        kwargs=provider,
+        shapes=Parameters.of(Parameter("fields", "string", help="The fields to return.")),
+        presenter=RowPresenter(OutputField("name", "string")),
+    )
+    toolset = SpecToolset({"rename": spec})
+    ctx = ctx_for(User(username="u"))
+    tools = await toolset.get_tools(ctx)
+
+    await toolset.call_tool("rename", {"fields": "name"}, ctx, tools["rename"])
+
+    assert seen == [("provider", {"fields": "name"}), ("service", {"fields": "name"})]
+
+
 async def test_a_selector_declaring_shapes_on_a_spec_with_none_is_handed_an_empty_mapping():
     """The quickstart's claim that ``shapes`` is empty where the spec declares
     no shape: the seed is always there to be read."""
