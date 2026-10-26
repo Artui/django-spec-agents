@@ -21,6 +21,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selection: the selector takes it and writes it to the call's context, which
   the presenter is handed on each row of the page.
 
+### Changed
+
+- A tool's `parameters_json_schema` no longer lists in `required` a read that a
+  `kwargs=` provider of the same seat may fill without saying which keys it
+  fills: one with no return annotation, one annotated a plain `dict` (or
+  `dict[str, Any]`), a lambda, or one whose annotation does not resolve. Such a
+  read is still advertised. The call was already served without it, since the
+  kernel's `server_owned_keys` asks a transport to demand neither such a read
+  nor a key a provider may decline, so the schema promised the model a
+  requirement the call never held it to. A call leaving the read out when the
+  provider does not fill it either is handed back to the model, naming the
+  read, as before; that now costs a retry round where the schema used to
+  prevent it. To keep the reads required, annotate the provider's return: a
+  `TypedDict` naming the keys it fills, or, for one that only reads and fills
+  nothing, an empty `TypedDict` declared at module level.
+- A spec declaring `shapes=` no longer lists a row's fields in `required` in the
+  tool's `return_schema`, at any depth. A shape reaches the presenter alone, and
+  one that selects fields leaves keys out, so the model was promised fields a
+  selection drops. The `affordances` key each row carries, and a list tool's
+  page envelope, stay required. A spec declaring no shapes is described as
+  before.
+
 ### Fixed
 
 - `tool_calling_model` and `streaming_tool_calling_model` in
@@ -30,23 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `outcome="retried"` rather than as a `RetryPromptPart`, and the doubles read
   that as an answer and ended the run on the failed attempt. Both shapes are
   read now.
-- A read declared `required=True` beside a `kwargs=` provider whose keys cannot
-  be read, one returning a plain `dict`, a lambda, or an annotation that does not
-  resolve, is advertised and no longer listed in the tool's `required`. The
-  provider may fill it, and the call was already served without it, so the
-  schema promised the model a requirement the call never held it to. The
-  kernel's `server_owned_keys` says a transport should ask the caller for
-  neither such a read nor a key a provider may decline. A call that leaves the
-  read out when the provider does not fill it either is handed back to the
-  model as before, naming the read. A provider that only reads, and fills
-  nothing, keeps the reads beside it required by returning an empty
-  `TypedDict`.
-- A spec declaring `shapes=` no longer lists a row's fields as `required` in the
-  tool's `return_schema`, at any depth. A shape reaches the presenter alone, and
-  one that selects fields leaves keys out, so the model was promised fields a
-  selection drops. The `affordances` key each row carries, and a list tool's
-  page envelope, stay required. A spec declaring no shapes is described as
-  before.
 
 ## [0.2.0] — 2026-10-23
 

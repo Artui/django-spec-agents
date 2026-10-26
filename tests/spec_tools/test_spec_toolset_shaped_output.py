@@ -164,6 +164,35 @@ def test_a_shaped_row_keeps_the_affordances_dispatch_adds_required():
     assert _required_anywhere(item["properties"]["owner"]) == []
 
 
+def test_a_service_presenting_a_shaped_list_keeps_each_row_s_affordances_required():
+    """A service whose output is a listed selector returns an array, and the
+    row inside it, not the array, is where ``affordances`` stays required."""
+    cancel = ServiceSpec(
+        service=lambda **_: None,
+        atomic=False,
+        affordances=[Affordance(code="closed", reason="Closed.", when=lambda **_: False)],
+    )
+    listing = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_rows,
+        presenter=_presenter(),
+        affordances={"cancel": cancel},
+    )
+    spec = ServiceSpec(
+        service=lambda **_: None,
+        atomic=False,
+        output_selector_spec=listing,
+        shapes=Parameters.of(_FIELDS),
+        permissions=allow(),
+    )
+
+    schema = _return_schema(spec)
+
+    assert schema["type"] == "array"
+    assert schema["items"]["required"] == ["affordances"]
+    assert _required_anywhere(schema["items"]["properties"]["name"]) == []
+
+
 def test_a_shaped_spec_with_no_presenter_still_returns_none():
     """A shape with nothing to present it declares no return schema, rather
     than one relaxed out of nothing."""

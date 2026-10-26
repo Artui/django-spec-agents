@@ -2148,9 +2148,14 @@ def _unpromised(schema: dict[str, Any], *, paginate: bool, spec: Spec) -> dict[s
     """``schema`` with its item requiring no presenter field, at any depth.
 
     The item is found where ``spec_output_schema`` puts it: inside the paging
-    envelope's ``items`` array on a paged list, the ``items`` of an array, a
-    ``"null"`` beside it or not, and otherwise the schema itself
-    (``test_every_shaped_item_requires_nothing_wherever_it_sits``).
+    envelope's ``items`` array on a paged list, the ``items`` of an array, and
+    otherwise the schema itself
+    (``test_every_shaped_item_requires_nothing_wherever_it_sits``). Only the
+    item's own ``required`` keeps a key, so an array is unwrapped before
+    ``keep`` is asked, which is what keeps a listed row's ``affordances``
+    (``test_a_service_presenting_a_shaped_list_keeps_each_row_s_affordances_required``).
+    An array admitting ``"null"`` is only written for a service presenting its
+    own return, which carries no affordances, so the schema itself serves it.
     """
     # ``spec_output_schema`` answered, so the spec has an output.
     declared = frozenset(field.name for field in cast("Output", kernel_spec(spec).output()))
@@ -2163,15 +2168,9 @@ def _unpromised(schema: dict[str, Any], *, paginate: bool, spec: Spec) -> dict[s
         array = envelope["items"]
         item = _unrequired(array["items"], keep=undeclared)
         return {**schema, "properties": {**envelope, "items": {**array, "items": item}}}
-    if "array" in _types(schema):
+    if schema.get("type") == "array":
         return {**schema, "items": _unrequired(schema["items"], keep=undeclared)}
     return _unrequired(schema, keep=undeclared)
-
-
-def _types(node: dict[str, Any]) -> tuple[Any, ...]:
-    """The JSON types ``node`` states, one or a list of them."""
-    stated = node.get("type")
-    return tuple(stated) if isinstance(stated, list) else (stated,)
 
 
 def _unrequired(node: dict[str, Any], *, keep: Callable[[str], bool]) -> dict[str, Any]:

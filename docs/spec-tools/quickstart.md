@@ -241,11 +241,14 @@ compiled spec, the argument set `dispatch` checks, less the kernel's
   read**, a plain `dict` or a lambda included, so no read its values reach is
   required of the model, one declared `required=True` included: the tool
   advertises each and the kernel checks it on the pool the call assembles
-  instead, handing the model back a read neither of them filled. A provider
-  that only reads, and fills nothing, says so with an empty `TypedDict`, and
-  the reads beside it keep their `required`. So may a provider whose return annotation does not resolve. Only the
-  return annotation is read for the keys, so a parameter typed with a name
-  imported only under `TYPE_CHECKING` changes nothing, and a `TypedDict` value
+  instead, handing the model back a read neither of them filled. So may a
+  provider whose return annotation does not resolve, or that has none. A
+  provider that only reads, and fills nothing, says so by returning an empty
+  `TypedDict` declared at module level, and the reads beside it keep their
+  `required`; under `from __future__ import annotations` one declared inside a
+  function does not resolve. Only the return annotation is read for the keys,
+  so a parameter typed with a name imported only under `TYPE_CHECKING` changes
+  nothing, and a `TypedDict` value
   that does not resolve makes only its own key one the provider may decline, so
   that key stays advertised and the others are still filled. Annotate the
   provider to have the rest required:
@@ -382,8 +385,9 @@ under `action`, `"agent"` under `transport`, and `request`, `view` and `format`
 set to `None` where the run put none. `action` and `transport` replace any
 entry of the same name the run put there, so a callable reading
 `call_context["transport"] == "agent"` knows an agent's tool call made it even
-when the run carries the HTTP request it arrived on. The run's entries reach every call as the same objects, so put the
-request the run arrived on there, under `request`:
+when the run carries the HTTP request it arrived on. The run's entries reach
+every call as the same objects, so put the request the run arrived on there,
+under `request`:
 
 ```python
 deps = AgentDeps(user=request.user)
