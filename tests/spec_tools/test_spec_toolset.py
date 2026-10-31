@@ -74,7 +74,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
-from typing_extensions import NotRequired, TypedDict, Unpack
+from typing_extensions import TypedDict, Unpack
 
 from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import AgentConventions, SpecToolset, spec_toolset
@@ -5456,23 +5456,6 @@ def _scope_or_decline(view) -> _ScopeOrDecline:
     return _ScopeOrDecline(ceiling=UNSET, currency="EUR")
 
 
-# ``_ScopeOrDecline`` with the declinable key wrapped in ``NotRequired``, which
-# puts ``UnsetType`` one level further down wherever ``get_type_hints`` leaves
-# the wrapper in place: on Python 3.10, whose ``typing`` predates
-# ``NotRequired`` and so does not strip ``typing_extensions``' one. From 3.11
-# the wrapper is stripped and the key reads as ``int | UnsetType`` again. The
-# functional syntax because this module's postponed annotations hide
-# ``NotRequired`` from the ``TypedDict`` machinery, as ``_Scope`` notes.
-_WrappedScopeOrDecline = TypedDict(  # noqa: UP013
-    "_WrappedScopeOrDecline",
-    {"ceiling": NotRequired[int | UnsetType], "currency": str},
-)
-
-
-def _wrapped_scope_or_decline(view) -> _WrappedScopeOrDecline:
-    return {"ceiling": UNSET, "currency": "EUR"}
-
-
 class _ScopeWithAnUnresolvableKey(TypedDict):
     ceiling: _NotDeclaredAnywhere  # noqa: F821
 
@@ -5547,7 +5530,6 @@ def test_a_schema_whose_every_read_may_be_declined_requires_nothing():
         (lambda view: {"ceiling": 10}, ["ceiling", "currency", "owner", "region"], []),
         (_unresolvable_ceiling, ["ceiling", "currency", "owner", "region"], []),
         (_scope_or_decline, ["ceiling", "owner", "region"], ["owner", "region"]),
-        (_wrapped_scope_or_decline, ["ceiling", "owner", "region"], ["owner", "region"]),
         (
             _scope_with_an_unresolvable_key,
             ["ceiling", "currency", "owner", "region"],
@@ -5563,7 +5545,6 @@ def test_a_schema_whose_every_read_may_be_declined_requires_nothing():
         "unannotated",
         "unresolvable",
         "declinable-key",
-        "wrapped-declinable-key",
         "unresolvable-key",
         "unresolvable-parameter",
     ],
@@ -5583,8 +5564,7 @@ def test_a_providers_return_annotation_decides_what_the_model_is_asked_for(
     A key annotated to admit ``UNSET`` may be declined, which leaves the caller's
     value through, so it stays advertised and is not required, while the same
     provider's other keys are still not asked for, ``currency: str | None``
-    included: a union is not a decline. A ``NotRequired`` around the key, which
-    Python 3.10's ``typing`` leaves in place, changes nothing.
+    included: a union is not a decline.
 
     One annotation that does not resolve costs only what it names. A key whose
     own annotation does not resolve might be one the provider declines, so

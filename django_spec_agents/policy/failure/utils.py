@@ -27,12 +27,11 @@ class PolicyToolFailed(ToolFailed):
     message, as it sees any ``ToolFailed``.
 
     **What differs is its name, and two things see it.** A trace records the
-    subclass as the exception type: from pydantic-ai 2.54 the instrumentation
-    capability is outermost on ``wrap_tool_execute``, so a failed tool span's
+    subclass as the exception type: the instrumentation capability is
+    outermost on ``wrap_tool_execute``, so a failed tool span's
     ``exception.type`` reads
     ``django_spec_agents.policy.failure.utils.PolicyToolFailed`` where it
-    would otherwise read ``pydantic_ai.exceptions.ToolFailed`` (before 2.54 it
-    names the tool's own exception, which that wrapper saw first). And it never
+    would otherwise read ``pydantic_ai.exceptions.ToolFailed``. And it never
     compares equal to a plain ``ToolFailed`` with the same message, in either
     direction: ``ToolFailed.__eq__`` requires the other side to be an instance
     of its own class, and Python tries the subclass's reflected comparison

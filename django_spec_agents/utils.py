@@ -6,6 +6,10 @@ from collections.abc import Awaitable, Callable
 from inspect import isawaitable
 from typing import Any
 
+# asgiref's ``iscoroutinefunction`` rather than ``inspect``'s, which does not see a
+# hook marked with ``markcoroutinefunction`` before Python 3.12. With 3.11 as the
+# floor ty takes asgiref's re-export of ``asyncio``'s for this one and flags it
+# as deprecated, so the two calls below carry an ignore for that and nothing else.
 from asgiref.sync import async_to_sync, iscoroutinefunction, sync_to_async
 from django.http import HttpRequest, JsonResponse
 
@@ -30,7 +34,7 @@ async def acall_get_user(hook: GetUser, request: HttpRequest) -> Any:
     returns a coroutine anyway is awaited rather than leaked onto
     ``request.user``.
     """
-    if iscoroutinefunction(hook):
+    if iscoroutinefunction(hook):  # ty: ignore[deprecated]
         return await hook(request)
     result = await sync_to_async(hook, thread_sensitive=True)(request)
     return await result if isawaitable(result) else result
@@ -42,7 +46,7 @@ def call_get_user(hook: GetUser, request: HttpRequest) -> Any:
     A sync view already runs in a worker thread under ASGI, so a sync ORM hook
     needs no hop here; only an async hook is bridged.
     """
-    if iscoroutinefunction(hook):
+    if iscoroutinefunction(hook):  # ty: ignore[deprecated]
         return async_to_sync(hook)(request)
     result = hook(request)
     if isawaitable(result):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -57,7 +57,7 @@ class DjangoSessionConversationStore:
         store[conversation.thread_id] = {
             "messages": list(conversation.messages),
             "owner_id": conversation.owner_id,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
         request.session[_SESSION_KEY] = store
         request.session.modified = True

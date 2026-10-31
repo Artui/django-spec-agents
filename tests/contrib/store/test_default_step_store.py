@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from django.test import override_settings
@@ -29,7 +29,7 @@ from tests.request_helpers import anonymous_request, authed_request
 # the async view tests use it).
 pytestmark = pytest.mark.django_db(transaction=True)
 
-_T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _store(pk: str = "7") -> DefaultStepStore:

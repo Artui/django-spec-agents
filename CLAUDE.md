@@ -175,7 +175,7 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 6. **`__init__.py` is the only re-export point.** Each `__init__.py` lists the public surface
    in `__all__`. Internal modules import from leaf paths, never from the package's `__init__`.
 7. **Always `from __future__ import annotations`** at the top of any file with type
-   annotations. Python 3.10+, so no PEP 695 `type` statements.
+   annotations. Python 3.11+, so no PEP 695 `type` statements.
 8. **Absolute imports only.** Imports are ordered stdlib → third-party → first-party
    (`django_spec_agents`). Within each block, alphabetical.
 9. **NEVER use relative imports.** `from . import x`, `from .foo import bar`, any dotted-
@@ -247,9 +247,9 @@ Change a rule here and change the config with it, or they drift apart again.
 
 | Component | Floor | Tested |
 | --- | --- | --- |
-| Python | 3.10 | 3.10, 3.11, 3.12, 3.13, 3.14 |
+| Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
-| Pydantic-AI | 2.16 (`ToolFailurePolicy` imports `ToolFailed`, which first exists there); 2.33 with `[anthropic]` (older releases hand the 1.x SDK an `httpx` client it rejects) | latest in matrix |
+| Pydantic-AI | 2.58, the family's shared floor (2.55 requires Python 3.11); the extras share it | latest in matrix |
 | `[specs]` | django-service-specs, at the floor `pyproject.toml` declares and says the reason for | latest in matrix; the floor in the `lowest declared versions` job |
 
 ## Branching

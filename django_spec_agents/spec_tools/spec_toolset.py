@@ -1828,7 +1828,7 @@ async def _with_deadline(
         return await awaitable
     try:
         return await asyncio.wait_for(awaitable, timeout=seconds)
-    except (TimeoutError, asyncio.TimeoutError) as exc:
+    except TimeoutError as exc:
         # The operator hears about it too: a tool that intermittently answers
         # "took too long" and logs nothing is indistinguishable from a bug.
         logger.warning("Tool %r exceeded its %.1fs dispatch timeout", label, seconds, extra=extra)

@@ -32,7 +32,7 @@ pip install django-spec-agents            # the agent host
 pip install "django-spec-agents[specs]"   # and specs as agent tools
 ```
 
-Python 3.10 or later and Django 4.2 or later. `[specs]` adds
+Python 3.11 or later and Django 4.2 or later. `[specs]` adds
 `django-service-specs`. The other extras: `[drf-mcp]` bridges a
 `djangorestframework-mcp-server` registry as a toolset, `[harness]` adds the
 `pydantic-ai-harness` capabilities, and `[anthropic]`, `[openai]` and `[google]`

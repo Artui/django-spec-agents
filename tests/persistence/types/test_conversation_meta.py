@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 
@@ -15,7 +15,7 @@ def test_defaults() -> None:
 
 
 def test_all_fields() -> None:
-    when = datetime(2026, 6, 24, tzinfo=timezone.utc)
+    when = datetime(2026, 6, 24, tzinfo=UTC)
     meta = ConversationMeta(
         thread_id="t1", title="Hi", updated_at=when, preview="how are you", owner_id="7"
     )

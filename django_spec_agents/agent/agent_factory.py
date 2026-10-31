@@ -63,7 +63,7 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
         # arguments after their rewrites, and a call they veto never reaches
         # audit's own ``before_tool_execute``.
         # ``test_the_arguments_are_the_ones_the_tool_received[innermost]``
-        # fails without it from pydantic-ai 2.54.
+        # fails without it.
         capabilities.append(
             AuditCapability(config.audit_logger, ip_address=config.audit_ip_address),
         )
