@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Requires Python 3.11 and pydantic-ai 2.58, as the rest of the family now does.
+
+### Changed
+
+- **Python 3.10 is dropped.** `requires-python` is `>=3.11`, the 3.10 classifier
+  and its CI jobs are gone, and the lint target is Python 3.11.
+- **`pydantic-ai-slim` is floored at 2.58**, in the core install and in the
+  `[anthropic]`, `[openai]` and `[google]` extras, where the extras were at 2.16
+  and 2.33. pydantic-ai 2.58.0 fixes GHSA-5pfm-2g3g-gh85, an advisory in its
+  AG-UI adapter. This package does not serve that adapter (django-ag-ui does),
+  so the floor does not by itself fix anything here: it lets the lock leave
+  pydantic-ai 2.54.0, the last release that supports Python 3.10, and keeps the
+  Python line in step with it. The lock now resolves pydantic-ai 2.61.0.
+- Code, comments and tests that carried Python 3.10 or pydantic-ai releases
+  before 2.55 are removed: the `asyncio.TimeoutError` alias in the dispatch
+  timeout handler, a `NotRequired` test row that only differed on 3.10, and the
+  audit tests' and documentation's account of how hooks ran before pydantic-ai
+  2.54. Behaviour is unchanged.
+
 ## [0.4.1] — 2026-10-26
 
 Runs on django-service-specs 0.16.0, as 0.4.0 does. A toolset binding a

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import sys
 from collections.abc import Callable
-from importlib.metadata import version
 from typing import Any
 from unittest import mock
 
@@ -38,12 +37,6 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 from tests.request_helpers import authed_request
 from tests.tool_retries import tool_answers, tool_retries
-
-# pydantic-ai 2.54 moved every ``before`` / ``on_error`` / ``after`` hook inside
-# the ``wrap_tool_execute`` chain, which changes what a wrapper sees.
-_HOOKS_INSIDE_THE_WRAPPER = tuple(
-    int(part) for part in version("pydantic-ai-slim").split(".")[:2]
-) >= (2, 54)
 
 
 def _raising_registry() -> ToolRegistry:
@@ -299,15 +292,12 @@ class _Wrapper(AbstractCapability[Any]):
             raise
 
 
-async def test_a_wrapper_sees_the_policys_subclass_only_from_2_54() -> None:
+async def test_a_wrapper_sees_the_policys_subclass() -> None:
     """Which exception a failed tool span names.
 
-    pydantic-ai's instrumentation records a failed tool from a wrapper. From
-    2.54 every wrapper encloses every error hook, so the exception reaching one
-    is the policy's ``PolicyToolFailed``. Before 2.54 the error hooks run after
-    the wrappers have returned, so a wrapper sees the tool's own exception and
-    the policy's type never reaches it: the assertion is split there because
-    the two orders genuinely differ, not to skip one.
+    pydantic-ai's instrumentation records a failed tool from a wrapper. Every
+    wrapper encloses every error hook, so the exception reaching one is the
+    policy's ``PolicyToolFailed``.
     """
     wrapper = _Wrapper()
     error = RuntimeError("credentials=hunter2")
@@ -315,11 +305,8 @@ async def test_a_wrapper_sees_the_policys_subclass_only_from_2_54() -> None:
     await _composed(wrapper, error=error).run("go", deps=AgentDeps(user=None))
 
     [seen] = wrapper.seen
-    if _HOOKS_INSIDE_THE_WRAPPER:
-        assert type(seen) is PolicyToolFailed
-        assert seen.__cause__ is error
-    else:
-        assert seen is error
+    assert type(seen) is PolicyToolFailed
+    assert seen.__cause__ is error
 
 
 @pytest.mark.django_db(transaction=True)

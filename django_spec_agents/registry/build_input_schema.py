@@ -37,10 +37,8 @@ def build_input_schema(
     acting user — so advertising it would ask the model to invent a value for
     something it cannot supply.
     """
-    # `eval_str=True` resolves string annotations while preserving them verbatim.
-    # Unlike `typing.get_type_hints` it does NOT apply the implicit-`Optional`
-    # wrapping Python 3.10 adds to a parameter defaulting to `None`, so the
-    # derived schema is identical across Python versions.
+    # `eval_str=True` resolves string annotations while preserving them verbatim,
+    # where `typing.get_type_hints` rewrites them (it strips `Annotated`).
     sig = inspect.signature(fn, eval_str=True)
     context_parameter = run_context_parameter(sig)
     properties: dict[str, Any] = {}

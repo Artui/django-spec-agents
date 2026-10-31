@@ -8,10 +8,10 @@ would test the old code and pass. Neither is a dependency of anything this packa
 installs, so the lock should name neither, as a package or as any package's
 dependency.
 
-The lock is read as text rather than as TOML: ``tomllib`` arrives in Python 3.11
-and the floor is 3.10. Every place a lock names a distribution, a ``[[package]]``
-entry, a dependency, an optional or dev dependency and the ``requires-dist``
-metadata alike, spells it ``name = "<name>"``, so one pattern reads them all.
+The lock is read as text rather than as TOML. Every place a lock names a
+distribution, a ``[[package]]`` entry, a dependency, an optional or dev dependency
+and the ``requires-dist`` metadata alike, spells it ``name = "<name>"``, so one
+pattern reads them all.
 """
 
 from __future__ import annotations

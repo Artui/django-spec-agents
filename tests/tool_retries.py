@@ -3,9 +3,9 @@
 pydantic-ai below 2.60 records a tool's ``ModelRetry``, arguments that failed
 validation, or a call to a tool that does not exist as a ``retry-prompt`` part.
 From 2.60 that part is deprecated and no longer emitted: the retry is the call's
-own ``ToolReturnPart``, marked ``outcome="retried"``. The lock holds 2.54 on
-Python 3.10, which 2.55 and later do not support, and the floor job holds 2.33,
-so the suite meets both shapes and every test reading a retry reads it here.
+own ``ToolReturnPart``, marked ``outcome="retried"``. The lock holds a release
+from 2.60 and the floor job holds 2.58, so the suite meets both shapes and every
+test reading a retry reads it here.
 
 Matched on ``part_kind`` rather than by importing ``RetryPromptPart``, which
 pydantic-ai 3 removes.
