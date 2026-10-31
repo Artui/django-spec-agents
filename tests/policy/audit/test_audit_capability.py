@@ -329,8 +329,8 @@ class _RewriteResult(AbstractCapability[Any]):
 class _SlowHooks(AbstractCapability[Any]):
     """A wrapper, a ``before`` and an ``after``, each far slower than the tool.
 
-    The wrapper and the hooks all run before the tool, so they show that audit
-    starts the clock at the last of them.
+    Each delays the tool or follows it, and audit starts the clock at its own
+    ``before_tool_execute``, the last before the tool.
     """
 
     async def wrap_tool_execute(
@@ -1249,8 +1249,8 @@ async def test_the_arguments_are_the_ones_the_tool_received(rewrite: type[_Rewri
 
 
 async def test_the_arguments_include_a_wrappers_rewrite() -> None:
-    """A wrapper rewrites the arguments after every ``before`` hook has run, so
-    audit's ``before_tool_execute`` alone would miss it."""
+    """A wrapper composed ahead of audit rewrites the arguments before any
+    ``before`` hook runs, and the record carries the rewrite."""
     received: list[int] = []
 
     def lookup(n: int) -> str:

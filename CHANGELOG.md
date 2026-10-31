@@ -18,8 +18,8 @@ Requires Python 3.11 and pydantic-ai 2.58, as the rest of the family now does.
 - **`pydantic-ai-slim` is floored at 2.58**, in the core install and in the
   `[anthropic]`, `[openai]` and `[google]` extras, where the extras were at 2.16
   and 2.33. pydantic-ai 2.58.0 fixes GHSA-5pfm-2g3g-gh85, an advisory in its
-  AG-UI adapter. This package does not serve that adapter (django-ag-ui does),
-  so the floor does not by itself fix anything here: it lets the lock leave
+  UI adapters (AG-UI and Vercel AI). This package imports neither (django-ag-ui
+  serves AG-UI), so the floor does not by itself fix anything here: it lets the lock leave
   pydantic-ai 2.54.0, the last release that supports Python 3.10, and keeps the
   Python line in step with it. The lock now resolves pydantic-ai 2.61.0.
 - Code, comments and tests that carried Python 3.10 or pydantic-ai releases

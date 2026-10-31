@@ -11,7 +11,8 @@ dependency.
 The lock is read as text rather than as TOML. Every place a lock names a
 distribution, a ``[[package]]`` entry, a dependency, an optional or dev dependency
 and the ``requires-dist`` metadata alike, spells it ``name = "<name>"``, so one
-pattern reads them all.
+pattern reads them all. Parsed, each of those is a different table to walk, and a
+place uv adds later would pass unseen; the pattern needs no list of places.
 """
 
 from __future__ import annotations
