@@ -17,7 +17,7 @@ agent = build_agent(registry, AgentConfig(model=..., audit_logger=LoggingAuditLo
 
 It hooks pydantic-ai's tool execution itself, which is the point: it times and
 records **every tool the agent runs**, not just the ones in the registry —
-drf-mcp and spec-toolset bridges, attachment tools, everything. A per-tool
+MCP and spec-toolset bridges, attachment tools, everything. A per-tool
 wrapper would miss the composed toolsets.
 
 `NullAuditLogger` is the no-op default; `build_agent` skips composition entirely
@@ -68,8 +68,8 @@ On an ordinary call two exceptions never reach any capability's error hook,
 and are recorded as they propagate. A `ToolFailed` that **a tool raises
 itself** is converted by pydantic-ai into a `ToolFailedError` carrying the same
 message, so `raise ToolFailed("model copy") from e` is recorded as
-`ToolFailedError: model copy`, and the policy is never handed it. The drf-mcp
-bridge's refusals arrive the same way. A `ModelRetry` is recorded as
+`ToolFailedError: model copy`, and the policy is never handed it. The MCP
+bridges' refusals arrive the same way. A `ModelRetry` is recorded as
 `ToolRetryError: <message>`, and the retried call gets a record of its own.
 From a code-mode sandbox, whose nested tool manager converts neither, both are
 recorded as raised: `ToolFailed: model copy` and `ModelRetry: <message>`.
@@ -166,13 +166,13 @@ one hook covers every tool regardless of origin:
 - **Registry tools** — `@tool(destructive=True)`. The flag lives on the spec and
   never reaches pydantic-ai as a bare callable, so the guard reads it from the
   registry directly at construction.
-- **drf-mcp bridged tools** — the bridge maps each tool's `readOnlyHint`
+- **MCP bridged tools** — both bridges map each tool's `readOnlyHint`
   annotation onto `DESTRUCTIVE_METADATA_KEY`, which the guard reads from
   pydantic-ai's tool metadata.
 - **MCP tool annotations** — `metadata["annotations"]["readOnlyHint"] is False`,
   which is how a toolset speaking MCP's own vocabulary says it mutates. A
   `ServiceSpec` exposed through `SpecToolset` is the case that
-  matters: without this the *same* spec would be gated over the drf-mcp bridge and
+  matters: without this the *same* spec would be gated over an MCP bridge and
   ungated attached in process, so a transport swap would remove the gate silently.
 - **The `x-destructive` schema stamp** at the root of `parameters_json_schema`,
   which is what `build_input_schema` writes. A project deriving a schema with
@@ -340,7 +340,7 @@ Two caveats:
 - **`reraise` replaces the default set, it does not extend it.** The default is
   `django.core.exceptions.PermissionDenied`; `rest_framework.exceptions.PermissionDenied`
   when DRF is installed; and `NotPermitted` and `PrincipalUnavailable` from
-  `django_service_specs` when the kernel is installed (the `[specs]` or `[drf-mcp]` extra)
+  `django_service_specs` when the kernel is installed (the `[specs]`, `[mcp]` or `[drf-mcp]` extra)
   ([a denial is not a tool failure](#a-denial-is-not-a-tool-failure)). A tuple
   that leaves them out converts denials again, so re-list each one your project
   can raise.
@@ -360,7 +360,7 @@ one of them inherits from another:
   `[drf-mcp]` extra brings it); a DRF permission check behind that bridge
   raises it.
 - `django_service_specs.NotPermitted`, when the kernel is installed (the
-  `[specs]` or `[drf-mcp]` extra); the kernel's dispatch raises it when a permission check
+  `[specs]`, `[mcp]` or `[drf-mcp]` extra); the kernel's dispatch raises it when a permission check
   refuses the principal.
 - `django_service_specs.PrincipalUnavailable`, with it; the kernel raises it for
   a principal that cannot act at all, such as a deactivated account.

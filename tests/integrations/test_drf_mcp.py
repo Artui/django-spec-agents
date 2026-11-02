@@ -27,13 +27,19 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
-from django_spec_agents.integrations.drf_mcp import DRFMCPToolset, _retry_message
+from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
 from tests.integrations.drf_server import BOOKS, REFUSED_SPEC, server
 from tests.integrations.drf_server_lookup import lookup_server
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
 from tests.integrations.drf_specs_lookup import Row
 from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
 from tests.tool_retries import is_tool_answer, is_tool_retry, tool_answers, tool_retries
+
+# Every ``DRFMCPToolset`` built here warns that the bridge is deprecated; the
+# warning is asserted once, by ``test_constructing_the_bridge_warns``.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:DRFMCPToolset and the \\[drf-mcp\\] extra are deprecated:DeprecationWarning"
+)
 
 # The sentence a refused integer argument carries, which depends on which layer
 # of drf-services answers it, not on anything this package does. drf-mcp
@@ -59,6 +65,19 @@ def _request() -> HttpRequest:
     request = RequestFactory().post("/agent/")
     request.user = AnonymousUser()  # type: ignore[attr-defined]
     return request
+
+
+def test_constructing_the_bridge_warns() -> None:
+    # Pointed at its replacement, and attributed to the caller's line.
+    with pytest.warns(DeprecationWarning) as caught:
+        DRFMCPToolset(server, _request())
+    (warning,) = caught
+    assert str(warning.message) == (
+        "DRFMCPToolset and the [drf-mcp] extra are deprecated and are removed in the next "
+        "minor: use MCPToolset from django_spec_agents.integrations.mcp, with the [mcp] "
+        "extra, which bridges a django-spec-mcp server."
+    )
+    assert warning.filename == __file__
 
 
 async def test_toolset_exposes_drf_tools_with_schemas() -> None:
@@ -551,96 +570,31 @@ async def test_excluded_names_are_skipped_registry_wins() -> None:
     assert "denied" in tools
 
 
-def test_retry_message_without_detail_is_the_bare_message() -> None:
-    assert _retry_message("nope", None) == "nope"
-
-
-def test_a_detail_the_message_already_names_is_dropped() -> None:
-    # drf-mcp's missing-argument line names the argument its detail is keyed
-    # by, and that detail's only reason is "required", which the line says.
-    assert (
-        _retry_message("Missing required argument(s): `pk`.", {"pk": ["This field is required."]})
-        == "Missing required argument(s): `pk`."
-    )
-
-
-def test_a_name_counts_only_as_a_whole_token() -> None:
-    """Holds the lookarounds: a name is matched as a token, never a substring.
-
-    ``a`` sits inside ``arguments``, so a substring match would drop the only
-    place the generic message's reason is written. A key ending in a non-word
-    character still matches, which ``\\b`` would refuse.
-    """
-    detail = {"a": ["A valid integer is required."]}
-    assert _retry_message("Invalid arguments", detail) == (
-        'Invalid arguments: {"a": ["A valid integer is required."]}'
-    )
-    assert _retry_message("Missing required argument(s): `a`.", detail) == (
-        "Missing required argument(s): `a`."
-    )
-    assert (
-        _retry_message("Missing required argument(s): `tags[]`.", {"tags[]": ["Required."]})
-        == "Missing required argument(s): `tags[]`."
-    )
-
-
-@pytest.mark.parametrize(
-    "detail",
-    [
-        pytest.param({"items": {"name": ["This field is required."]}}, id="dict"),
-        pytest.param({"items": [{}, {"name": ["This field is required."]}]}, id="list"),
-    ],
-)
-def test_a_nested_key_is_a_name_the_message_must_carry(detail: Any) -> None:
-    # Every key counts, at any depth: naming ``items`` says nothing about which
-    # of its fields was refused.
-    assert _retry_message("Invalid `items`.", detail) == (f"Invalid `items`.: {json.dumps(detail)}")
-    assert _retry_message("Invalid `name` in `items`.", detail) == "Invalid `name` in `items`."
-
-
-def test_a_detail_the_message_names_only_in_part_is_kept_whole() -> None:
-    # Every name, not any: the field the message leaves out is still in the
-    # detail, and the detail is never cut down to it.
-    detail = {"pk": ["This field is required."], "name": ["This field is required."]}
-    assert _retry_message("Missing required argument(s): `pk`.", detail) == (
-        f"Missing required argument(s): `pk`.: {json.dumps(detail)}"
-    )
-    assert (
-        _retry_message("Missing required argument(s): `name`, `pk`.", detail)
-        == "Missing required argument(s): `name`, `pk`."
-    )
-
-
 _UNEXPECTED = "Unexpected argument(s): 'notify_owner'."
 
 
-@pytest.mark.parametrize(
-    "detail",
-    [
-        pytest.param({"non_field_errors": [_UNEXPECTED]}, id="non-field-key"),
-        pytest.param([_UNEXPECTED], id="bare-list"),
-        pytest.param(_UNEXPECTED, id="bare-string"),
-    ],
-)
-def test_a_reason_under_no_field_counts_as_its_own_words(detail: Any) -> None:
-    """Holds the non-field branch: DRF's non-field key is structure, not a name.
-
-    Its strings sit under no field, so they are what the message has to quote,
-    as a bare list or string's are; the key itself never counts as said.
-    """
-    assert _retry_message(_UNEXPECTED, detail) == _UNEXPECTED
-    assert _retry_message("Invalid arguments", detail) == (
-        f"Invalid arguments: {json.dumps(detail)}"
-    )
-
-
 @override_settings(REST_FRAMEWORK={"NON_FIELD_ERRORS_KEY": "__all__"})
-def test_the_non_field_key_is_read_from_drf_settings() -> None:
+async def test_the_non_field_key_is_read_from_drf_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # A project renaming DRF's non-field key moves which key is structure: the
     # renamed key's strings must be quoted, and the default name is a field.
-    assert _retry_message(_UNEXPECTED, {"__all__": [_UNEXPECTED]}) == _UNEXPECTED
+    # Driven through ``call_tool``, which is where the bridge reads the key.
+    toolset = DRFMCPToolset(server, _request())
+    _serve_error(
+        monkeypatch,
+        {"type": "validation_error", "message": _UNEXPECTED, "detail": {"__all__": [_UNEXPECTED]}},
+    )
+    with pytest.raises(ModelRetry) as renamed:
+        await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
+    assert str(renamed.value) == _UNEXPECTED
     detail = {"non_field_errors": [_UNEXPECTED]}
-    assert _retry_message(_UNEXPECTED, detail) == f"{_UNEXPECTED}: {json.dumps(detail)}"
+    _serve_error(
+        monkeypatch, {"type": "validation_error", "message": _UNEXPECTED, "detail": detail}
+    )
+    with pytest.raises(ModelRetry) as default:
+        await toolset.call_tool("add", {"a": 1, "b": 2}, None, None)
+    assert str(default.value) == f"{_UNEXPECTED}: {json.dumps(detail)}"
 
 
 class _SelectableRow(serializers.Serializer):

@@ -3,8 +3,8 @@ revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
     "python_full_version < '3.12' or (python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten')",
 ]
 
@@ -496,15 +496,15 @@ wheels = [
 
 [[package]]
 name = "django-service-specs"
-version = "0.16.0"
+version = "0.23.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/94/0f/fdb1cf89d490fac3826c1ccd360e9ffc5df8a46f908e7fac4f7449b857ff/django_service_specs-0.16.0.tar.gz", hash = "sha256:aeea277a1979f085d6e19bf7eeaf13f17976a555e161ce42784a618e910b0989", size = 988460, upload-time = "2026-10-26T14:54:41.536Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/42/f0/a381dcfc31a187c5c828b4352d9a4ca6ceaba9850e0d8f53832a7145c1cc/django_service_specs-0.23.0.tar.gz", hash = "sha256:66ae717fb11544f3e682cf4acfaede870e9cdb5c8cce90a12aba991a78184e29", size = 1158203, upload-time = "2026-11-02T15:05:51.407Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/42/a04b9f26b4417bcc4bbf1b92cbee148b78ce91d433f149b0cc996fe818f9/django_service_specs-0.16.0-py3-none-any.whl", hash = "sha256:1fe592ab5e6e4c3372f41c235d32a70dbb0555b85b49bcc5102f20bdfe25f84b", size = 438425, upload-time = "2026-10-26T14:54:39.766Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/55/9394ae7e94906b4d748a00ebf47771a652f5d7ec6fbad7a144e3126e860d/django_service_specs-0.23.0-py3-none-any.whl", hash = "sha256:47444d917333f75bb8d2d7bf2cbe6e6c44ce43acd888490faad1b840d79b4d73", size = 509812, upload-time = "2026-11-02T15:05:49.728Z" },
 ]
 
 [[package]]
@@ -528,6 +528,9 @@ google = [
 harness = [
     { name = "pydantic-ai-harness", extra = ["code-mode"] },
 ]
+mcp = [
+    { name = "django-spec-mcp" },
+]
 openai = [
     { name = "pydantic-ai-slim", extra = ["openai"] },
 ]
@@ -539,6 +542,7 @@ specs = [
 dev = [
     { name = "django-filter" },
     { name = "django-service-specs" },
+    { name = "django-spec-mcp" },
     { name = "django-stubs" },
     { name = "djangorestframework-mcp-server" },
     { name = "djangorestframework-stubs" },
@@ -563,6 +567,7 @@ docs = [
 requires-dist = [
     { name = "django", specifier = ">=4.2" },
     { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.16.0" },
+    { name = "django-spec-mcp", marker = "extra == 'mcp'", specifier = ">=0.2.0" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.53.1" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.13" },
     { name = "pydantic-ai-slim", specifier = ">=2.58,<3" },
@@ -570,12 +575,13 @@ requires-dist = [
     { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2.58,<3" },
     { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2.58,<3" },
 ]
-provides-extras = ["anthropic", "drf-mcp", "google", "harness", "openai", "specs"]
+provides-extras = ["anthropic", "drf-mcp", "google", "harness", "mcp", "openai", "specs"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "django-filter", specifier = ">=23" },
     { name = "django-service-specs", specifier = ">=0.16.0" },
+    { name = "django-spec-mcp", specifier = ">=0.2.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "djangorestframework-mcp-server", specifier = ">=0.53.1" },
     { name = "djangorestframework-stubs", specifier = ">=3.15" },
@@ -594,6 +600,19 @@ docs = [
     { name = "mkdocs", specifier = ">=1.6" },
     { name = "mkdocs-material", specifier = ">=9.5" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25" },
+]
+
+[[package]]
+name = "django-spec-mcp"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "django-service-specs" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/4c/527a96f0fc0d74f7321e9d222b64a99e39e082592a3c6de9adbc70e89fa7/django_spec_mcp-0.2.0.tar.gz", hash = "sha256:7c1c119a0ecd6acb7330e43fedf915d45c59f0a39979e4982f6f152fb949da96", size = 921470, upload-time = "2026-11-02T16:06:58.848Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/6c/ced4cb2b36ab06116f25c99620353267079e4a0b0ea2ff5c8ad114dca3f0/django_spec_mcp-0.2.0-py3-none-any.whl", hash = "sha256:5ed53034bcadc1a602fa4193570fc772a56e2a1b704e23d9dccc0a6da35f09f2", size = 393995, upload-time = "2026-11-02T16:06:57.099Z" },
 ]
 
 [[package]]

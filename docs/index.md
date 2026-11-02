@@ -51,8 +51,9 @@ If you want an agent in a browser, start with
   `django_spec_agents.contrib.store`, whose label is `django_spec_agents_store`.
 - **[Policy](policy.md)**: an audit trail over every tool call, a server-side
   approval gate for destructive tools, and the failure policy.
-- **[Integrations](integrations.md)**: the `[specs]` and `[drf-mcp]` bridges
-  that compose specs or a `drf-mcp-server` registry into an agent the host builds.
+- **[Integrations](integrations.md)**: the `[specs]` and `[mcp]` bridges
+  that compose specs or a `django-spec-mcp` registry into an agent the host builds,
+  and the deprecated `[drf-mcp]`.
 
 ## Specs as tools
 

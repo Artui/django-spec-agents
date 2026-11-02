@@ -29,6 +29,7 @@ NOT_AT_THE_ROOT = [
     ("django_spec_agents.persistence.utils", ["owner_id_for", "resolve_owner_id"]),
     ("django_spec_agents.integrations.build_spec_capability", ["build_spec_capability"]),
     ("django_spec_agents.integrations.drf_mcp", ["DRFMCPToolset"]),
+    ("django_spec_agents.integrations.mcp", ["MCPToolset"]),
     ("django_spec_agents.integrations.resolve_spec_mapping", ["resolve_spec_mapping"]),
     ("django_spec_agents.integrations.types.spec_source", ["SpecSource"]),
 ]

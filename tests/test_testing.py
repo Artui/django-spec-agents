@@ -51,7 +51,7 @@ import django_spec_agents.testing
 print(sorted(
     name for name in sys.modules
     if name.partition(".")[0]
-    in ("django_service_specs", "rest_framework", "rest_framework_mcp")
+    in ("django_service_specs", "django_spec_mcp", "rest_framework", "rest_framework_mcp")
     or name.startswith("django_spec_agents.spec_tools")
 ))
 """
@@ -60,8 +60,8 @@ print(sorted(
 def test_the_doubles_import_without_the_specs_extra():
     """No settings module, so the doubles must import on pydantic-ai alone: a
     module importing ``spec_tools``, the kernel the ``[specs]`` extra installs,
-    or the server the ``[drf-mcp]`` extra installs or the Django REST Framework
-    it brings, eagerly or lazily, would be listed. The package root, imported first, must not have imported them."""
+    the server the ``[mcp]`` extra installs, or the server the ``[drf-mcp]``
+    extra installs or the Django REST Framework it brings, eagerly or lazily, would be listed. The package root, imported first, must not have imported them."""
     env = {key: value for key, value in os.environ.items() if key != "DJANGO_SETTINGS_MODULE"}
     completed = subprocess.run(
         [sys.executable, "-c", _IMPORTS_OF_THE_DOUBLES],

@@ -40,8 +40,9 @@ without the network hop, and without standing up an MCP server.
 
 ## How it compares
 
-If you already run an MCP server, `django-ag-ui`'s `DRFMCPToolset` exposes its
-tools to Pydantic-AI through the in-process MCP surface. `SpecToolset` is for the
+If you already run a django-spec-mcp server, `MCPToolset` from this package's
+`[mcp]` extra exposes its tools to Pydantic-AI through the in-process MCP
+surface. `SpecToolset` is for the
 case where you want the specs as tools **without** any MCP layer: the `[specs]`
 extra installs it on `django-service-specs` and `pydantic-ai-slim` alone, and
 the toolset imports nothing from Django REST Framework.
