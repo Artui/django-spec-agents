@@ -1,9 +1,9 @@
 # Integrations
 
-Optional bridges exposing an existing DRF surface as agent tools. Both are
-lazily imported and live under `django_spec_agents.integrations` rather than
-being re-exported at the package root, so the base install pulls neither
-dependency. See [Integrations](../integrations.md) for which to choose.
+Optional bridges exposing declared specs as agent tools. Each is lazily
+imported and lives under `django_spec_agents.integrations` rather than being
+re-exported at the package root, so the base install pulls none of their
+dependencies. See [Integrations](../integrations.md) for which to choose.
 
 ## Spec tools (`[specs]`)
 
@@ -19,7 +19,15 @@ dependency. See [Integrations](../integrations.md) for which to choose.
 
 ::: django_spec_agents.integrations.types.spec_source.SpecSource
 
-## MCP tools (`[drf-mcp]`)
+## MCP tools (`[mcp]`)
+
+### `MCPToolset`
+
+::: django_spec_agents.integrations.mcp.MCPToolset
+
+## Deprecated MCP tools (`[drf-mcp]`)
+
+Removed in the next minor; use `MCPToolset` and `[mcp]`.
 
 ### `DRFMCPToolset`
 

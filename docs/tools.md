@@ -64,7 +64,7 @@ metadata rather than the schema, because metadata is the channel a *bridge*
 controls where the schema belongs to the tool's author. It is read
 **server-side** at `prepare_tools` time by the [tool guard](policy.md), which
 needs destructiveness for tools whose flag doesn't come from the `@tool`
-registry at all — a bridged drf-mcp tool, whose `readOnlyHint` annotation the
+registry at all — a bridged MCP tool, whose `readOnlyHint` annotation the
 bridge maps onto this key.
 
 A registry tool's own `destructive=True` never travels either channel: it stays
@@ -81,13 +81,15 @@ what `build_tool_catalog` is for: a list of `{"name", "summary", "description"?}
 entries a frontend fetches to label tool-call cards.
 
 `summary` is always present, resolved through a fallback chain — for registry
-tools, `@tool(summary=…)` then a prettified name; for drf-mcp tools,
-`display_name` then `title` then a prettified name.
+tools, `@tool(summary=…)` then a prettified name; for the tools of the server
+passed as `mcp_server=`, `display_name` then `title` then a prettified name.
+`drf_mcp_server=`, the keyword's old name, is deprecated and removed in the next
+minor; it warns `DeprecationWarning`, and passing both raises `TypeError`.
 
 ```python
 from django_spec_agents import build_tool_catalog
 
-catalog = build_tool_catalog(registry, drf_mcp_server=server, service_specs=specs)
+catalog = build_tool_catalog(registry, mcp_server=server, service_specs=specs)
 ```
 
 ### What the catalog does not cover

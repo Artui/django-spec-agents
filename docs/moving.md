@@ -18,7 +18,9 @@ anyone serving specs as tools.
 pip install django-spec-agents
 ```
 
-`anthropic`, `openai`, `google`, `drf-mcp` and `harness` keep their names. The
+`anthropic`, `openai`, `google`, `drf-mcp` and `harness` keep their names.
+`drf-mcp` has since been deprecated in favour of `[mcp]`, which bridges a
+django-spec-mcp server. The
 `[spec-tools]` extra, which pulled `djangorestframework-pydantic-ai`, becomes
 `django-spec-agents[specs]`.
 

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The `[mcp]` extra and `MCPToolset`**, in
+  `django_spec_agents.integrations.mcp`: the in-process bridge over a
+  django-spec-mcp server (`django-spec-mcp>=0.2.0`), serving the server's
+  kernel-spec tools to an agent without a network hop. It behaves as the drf-mcp
+  bridge does: the server's own `tools/list` schemas, per-step availability with
+  the reason for each tool left out, `ModelRetry` for refused arguments, an
+  unknown name, `input_required` and a `shapes` value the presenter refuses,
+  `ToolFailed` with a refusal's `(code: ...)`, and `RuntimeError` for a protocol
+  fault, such as a permission refusing the user (`-32006`). One answer differs:
+  a service asking for an input its spec does not declare in `reads=` is a
+  `RuntimeError` (`-32603`), which django-spec-mcp refuses where drf-mcp
+  degraded it to `input_required`.
+  A selector's `AdditionalInputRequired` also differs from `[specs]`: it arrives
+  as a service error, so `ToolFailed` here and `ModelRetry` there.
+  Its toolset `id` is `"mcp"`. The bridge and the extra import no Django REST
+  Framework.
+- **`build_tool_catalog(mcp_server=)`**, the server whose tools the catalog
+  lists, taking a django-spec-mcp server or a drf-mcp one. Passing it with
+  `drf_mcp_server=` raises `TypeError`.
+
+### Deprecated
+
+- **The `[drf-mcp]` extra and `DRFMCPToolset`**: constructing the toolset warns
+  `DeprecationWarning`, naming `MCPToolset` and `[mcp]`. Its behaviour is
+  unchanged. Both are removed in the next minor.
+- **`build_tool_catalog(drf_mcp_server=)`**, which warns `DeprecationWarning`
+  and lists the server's tools as `mcp_server=` does. Removed in the next minor.
+
+### Changed
+
+- **The lock resolves django-service-specs 0.23.0**, the release
+  django-spec-mcp 0.2.0 requires, where it pinned 0.16.0. The `[specs]` floor
+  is unchanged.
+
 ## [0.5.0] — 2026-10-31
 
 Requires Python 3.11 and pydantic-ai 2.58, as the rest of the family now does.

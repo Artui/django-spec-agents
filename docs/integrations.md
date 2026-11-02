@@ -1,11 +1,12 @@
 # Integrations
 
-Three optional extras, all lazily imported — the base install stays slim and
+Three optional extras, and one deprecated, all lazily imported — the base install stays slim and
 none of these dependencies is pulled unless configured.
 
-Two of them are **bridges**: `[specs]` and `[drf-mcp]` expose an existing
-DRF surface as agent tools, so you don't re-declare your API as `@tool`
-functions. Both make the agent act as the **logged-in user** — the request is
+Two of them are **bridges**: `[specs]` and `[mcp]` expose specs you have
+already declared as agent tools, so you don't re-declare your API as `@tool`
+functions. The deprecated `[drf-mcp]` is the second bridge over a drf-mcp
+server. Both make the agent act as the **logged-in user** — the request is
 carried into every call, so your existing permission checks apply exactly as they
 would over HTTP.
 
@@ -16,15 +17,15 @@ tool-guard capabilities use.
 
 ## Which bridge?
 
-| | `[specs]` | `[drf-mcp]` |
+| | `[specs]` | `[mcp]` |
 | --- | --- | --- |
-| Path | `django-service-specs` spec → tool, in process | `drf-mcp-server` registry → toolset, in process |
+| Path | `django-service-specs` spec → tool, in process | `django-spec-mcp` registry → toolset, in process |
 | Needs an MCP server | **No** | Yes (but no network hop) |
 | Use when | The agent is the consumer, and you have specs | You already run an MCP server and want the same tools in the agent |
 
 If you have `ServiceSpec` / `SelectorSpec` objects and no MCP server, take
 `[specs]`. If you already run an MCP server for external clients, take
-`[drf-mcp]` and get the identical tool surface without standing up a second one.
+`[mcp]` and get the identical tool surface without standing up a second one.
 
 ## `[specs]` — specs as tools
 
@@ -52,7 +53,7 @@ tool changing one row names the `pk` that picks it. A call that leaves such an
 argument out is a `ModelRetry` naming it, ``Missing required argument(s): `pk`.``,
 so the model supplies it on the next turn rather than the run ending on the
 selector's `TypeError`. The `[specs]` route does both, and
-the `[drf-mcp]` route asks for the same arguments and retries the same omission.
+the `[mcp]` route asks for the same arguments and retries the same omission.
 The extra is floored where a parameter a `kwargs=` provider
 declines, and the model left out, is retried the same way rather than reaching
 the selector, and where a selector parameter the toolset takes out of every
@@ -89,46 +90,52 @@ specs = resolve_spec_mapping(source)  # mapping or registry -> mapping
 seen.update(specs)  # names, as intended
 ```
 
-## `[drf-mcp]` — an MCP registry as a toolset
+## `[mcp]` — an MCP registry as a toolset
 
 ```bash
-pip install django-spec-agents[drf-mcp]
+pip install django-spec-agents[mcp]
 ```
 
-`DRFMCPToolset` bridges a `drf-mcp-server` registry through drf-mcp's public
-in-process surface (`list_tools` / `acall_tool`), so its validation and
-permission checks apply as they would over HTTP — without the network hop and
-without reaching into handler internals.
+`MCPToolset` bridges a [django-spec-mcp](https://github.com/Artui/django-spec-mcp)
+server's registry through its public in-process surface (`list_tools` /
+`acall_tool`), so the kernel's argument validation and the spec's permissions
+apply as they would over HTTP — without the network hop and without reaching
+into handler internals. The extra installs django-spec-mcp, which brings the
+kernel; it brings no Django REST Framework, and the bridge imports none.
 
-Tool schemas come from drf-mcp's own `tools/list` rather than being re-derived
-locally, so the bridge advertises the **same** merged `inputSchema` the HTTP
-transport would — including a selector tool's filter / ordering / pagination
-arguments and its `additionalProperties` policy, not just the input serializer's
-fields.
+```python
+from django_spec_agents.integrations.mcp import MCPToolset
 
-That schema asks for what a call needs. A selector parameter with no default,
-which the server does not fill, is listed in `required`, so `get_row(*, pk)`
-requires `pk` rather than calling it optional. A service tool also advertises
-the target lookup its row is resolved through, its `collection_selector_spec`
-when it declares one and its `instance_selector_spec` otherwise, so a tool
-changing one row names the `pk` that picks it. A `many=True` service reads no
-target and advertises no lookup. `[specs]`
-builds its schemas the same way, so one
-spec asks a model for the same arguments by either route. The extra is floored
-where drf-mcp refuses at registration a selector parameter it takes out of every
-call, as `[specs]` refuses it when the toolset is built, so one spec is
-served by both routes or refused by both.
+toolset = MCPToolset(server, request, exclude_names=frozenset(registry_names))
+```
+
+Import it where the agent is built, never at a module a host import reaches:
+django-spec-mcp needs a ready app registry to import.
+
+Tool schemas come from the server's own `tools/list` rather than being
+re-derived locally, so the bridge advertises the **same** `inputSchema` the
+HTTP transport would — including a paged list tool's pagination arguments and
+the `additionalProperties` policy.
+
+That schema asks for what a call needs. A read the spec declares
+`required=True` is listed in `required`, and a service tool also advertises the
+target lookup its row is resolved through, so a tool changing one row names the
+`pk` that picks it. `[specs]` builds its schemas the same way, so one spec asks
+a model for the same arguments by either route. A paginated list selector
+reading `page` is refused at registration, as `[specs]` refuses it
+when the toolset is built, so one spec is served by both routes or refused by
+both.
 
 ### A tool that cannot run now
 
 A service's `affordances` can say when the operation is possible at all: a
 condition written as a callable reads only the user and the request, never the
-call's arguments, so while it is unmet every call is refused. drf-mcp leaves
-such a tool out of `tools/list`, and whether one is unmet can change mid-run.
-So the bridge lists definitions **once** per request, every tool the user may
-see included, and on **every step**:
+call's arguments, so while it is unmet every call is refused. django-spec-mcp
+leaves such a tool out of `tools/list`, and whether one is unmet can change
+mid-run. So the bridge lists definitions **once** per request, every tool the
+user may see included, and on **every step**:
 
-- offers only the tools drf-mcp would list right now, asking it through
+- offers only the tools the server would list right now, asking it through
   `MCPServer.aunavailable_tools`, so a tool that becomes
   available mid-run is offered from the next step without listing again;
 - names each tool it left out in the toolset's instructions, with the reason
@@ -154,56 +161,81 @@ model gets to recover:
 
 - a fault in the request the model produced → `ModelRetry`, so the model retries
   with the field errors fixed, or with a real name (the retry lists the tools
-  this toolset advertises), instead of the run dying. drf-mcp answers arguments
-  it refuses with a tool-level `validation_error` result, and an unknown tool
-  name on JSON-RPC `-32602`; the bridge retries both. The retry is drf-mcp's
-  message, then its field detail as JSON, unless the message already names
-  every field in the detail, nested ones included, in which case the detail is
-  left off rather than read twice. A detail is sent whole or not at all, so
-  `Invalid arguments: {"a": ["A valid integer is required."]}` keeps it, since
-  that message names nothing. Refused arguments include one a selector
-  requires that the call left out, which the model reads as
+  this toolset advertises), instead of the run dying. django-spec-mcp answers
+  arguments it refuses with a tool-level `validation_error` result, and an
+  unknown tool name on JSON-RPC `-32602`; the bridge retries both. The retry is
+  the server's message, then its field detail as JSON, unless the message
+  already names every field in the detail, nested ones included, in which case
+  the detail is left off rather than read twice. A detail is sent whole or not
+  at all, so `Invalid arguments: {"a": ["Expected an integer."]}` keeps it,
+  since that message names nothing. A reason under no field, which the server
+  writes under the kernel's `NON_FIELD_ERRORS` key (a bare `DispatchError`, say),
+  is kept unless the message quotes it. Refused arguments include a required
+  read the call left out, which the model reads as
   ``Missing required argument(s): `pk`.``, word for word what `[specs]`
-  raises for the same call. They also include a read-shaping `QueryParam` value (a
-  `fields` selection, say) the output serializer refuses while rendering, which
-  drf-mcp answers as a `validation_error` naming the argument and quoting
-  the serializer's reason; on a paged tool the likeliest one is a selection
-  written against the page envelope rather than one item;
-- a tool-level `input_required` result (a service asking for more input, which
-  an in-process caller cannot be asked for mid-call) → `ModelRetry` naming the
-  arguments to add on the next call;
+  raises for the same call. They also include a `shapes` value (a `fields`
+  selection, say) the spec's presenter refuses while rendering, which the
+  server answers as a `validation_error` naming the argument and quoting the
+  presenter's reason; on a paged tool the likeliest one is a selection written
+  against the page envelope rather than one item;
+- a tool-level `input_required` result → `ModelRetry` naming the arguments to
+  add on the next call. In process the server has no client to ask, so a
+  service's `AdditionalInputRequired` for inputs its spec declares arrives this
+  way;
 - every other tool-level failure (`service_error`, `not_found`, a timeout, an
   oversized result) → `ToolFailed`, so the model reads the sentence and adapts,
   no retry budget is spent, and the call is recorded `outcome="failed"` for
   anything streaming the run;
-- genuine protocol faults (auth, rate limits, an internal error) → a hard
-  `RuntimeError` that aborts the run: nothing the model can rewrite its way out
-  of.
+- genuine protocol faults → a hard `RuntimeError` that aborts the run: nothing
+  the model can rewrite its way out of. These are auth, a permission refusing
+  the user (`-32006`), rate limits, and an internal error (`-32603`). The last
+  is also the answer to a service asking, through `AdditionalInputRequired`,
+  for an input its spec does not declare in `reads=`: no answer could reach the
+  service, so declare every input a service may ask for.
 
 A refusal keeps what names it. `ToolFailed` carries a single string, so when
-drf-mcp serves an affordance refusal's `code`, or the chain step
-that failed, it rides as a suffix on the sentence:
+the server serves an affordance refusal's `code`, it rides as a suffix on the
+sentence:
 
 ```text
 The books are closed. (code: books_closed)
-The books are closed. (code: books_closed, step: void)
 ```
 
-The first line is word for word what `[specs]` produces for the same
-refusal raised in process, so a spec reads the same to the model whichever way
-it is exposed, and the code matches the one a row's `affordances` answer
-advertised. The suffix is written for the model and for a person reading the
-tool call; a program that needs the code reads it from drf-mcp's result, or on
-the `[specs]` route off the exception through `translate_exception`, rather
-than parsing it out of the sentence.
+That is word for word what `[specs]` produces for the same refusal raised in
+process, so a spec reads the same to the model whichever way it is exposed,
+and the code matches the one a row's `affordances` answer advertised. The
+suffix is written for the model and for a person reading the tool call; a
+program that needs the code reads it from the server's result, or on the
+`[specs]` route off the exception through `translate_exception`, rather than
+parsing it out of the sentence.
 
 Bridged tools also carry destructiveness into the [tool guard](policy.md): the
-bridge maps each tool's `readOnlyHint` annotation onto `DESTRUCTIVE_METADATA_KEY`.
+bridge maps each tool's `readOnlyHint` annotation onto `DESTRUCTIVE_METADATA_KEY`,
+so a service tool is destructive and a selector tool is not.
 
-A spec's own confirmation (`AdditionalInputRequired`) is the `input_required`
+A service's own confirmation (`AdditionalInputRequired`) is the `input_required`
 retry above, which the model can answer itself, on this route and on
-`[specs]` alike. It is not an approval gate: see
+`[specs]` alike. A selector's request does not agree: django-spec-mcp builds no
+input round for a selector, so it arrives as a service error, and so as
+`ToolFailed` here, where `[specs]` raises `ModelRetry`. It is not an approval gate: see
 [what is gated, and what is not](policy.md#what-is-gated-and-what-is-not).
+
+## `[drf-mcp]` — deprecated
+
+```bash
+pip install django-spec-agents[drf-mcp]
+```
+
+`DRFMCPToolset`, in `django_spec_agents.integrations.drf_mcp`, is the same
+bridge over a `drf-mcp-server` registry, and behaves as above with drf-mcp's
+names: its arguments are refused by the input serializer, a `QueryParam` the
+output serializer refuses is the rendering retry, DRF's `NON_FIELD_ERRORS_KEY`
+setting is the non-field key, and a chain tool's refusal also names the step
+that failed, `(code: books_closed, step: void)`. It is deprecated, with the
+extra: constructing one warns `DeprecationWarning`, and both are removed in the
+next minor. Move to `[mcp]` and `MCPToolset`, serving the same operations as
+kernel specs from a django-spec-mcp server. `build_tool_catalog`'s
+`drf_mcp_server=` is deprecated with them: pass the server as `mcp_server=`.
 
 ## `[harness]` — upstream capabilities
 
@@ -318,7 +350,7 @@ package — if it is a pydantic-ai capability, `capabilities=[...]` takes it.
 ## Name collisions
 
 Both bridges take `exclude_names`, and precedence is fixed: the `@tool` registry
-wins, then drf-mcp, then spec tools. A duplicate that slipped through would make
+wins, then the MCP server's, then spec tools. A duplicate that slipped through would make
 pydantic-ai raise `UserError` at run time, so the excluded set is threaded
 through composition instead.
 

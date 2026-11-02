@@ -5,8 +5,8 @@ The package is two halves. The host, the root and everything outside
 with no extra. ``spec_tools`` serves specs as agent tools and needs the ``[specs]``
 extra, which installs the spec kernel. So:
 
-- **The root never imports ``spec_tools``**, nor anything only ``[specs]`` or
-  ``[drf-mcp]`` installs. A root that did would fail at import on a host-only
+- **The root never imports ``spec_tools``**, nor anything only ``[specs]``,
+  ``[mcp]`` or ``[drf-mcp]`` installs. A root that did would fail at import on a host-only
   install, or, where an extra happens to be installed, load the kernel or DRF
   into every project that never asked for it.
 - **``spec_tools`` imports nothing from the host but ``AgentDeps``, and never
@@ -44,14 +44,15 @@ HOST_ONLY = "host_only_settings"
 HOST_ONLY_WITH_STORE = "host_only_store_settings"
 
 # What a bare root import must leave unloaded: the tool half, what only the
-# ``[specs]`` and ``[drf-mcp]`` extras install, and the run-loop test doubles,
-# whose module says the root never imports them.
+# ``[specs]``, ``[mcp]`` and ``[drf-mcp]`` extras install, and the run-loop test
+# doubles, whose module says the root never imports them.
 NOT_FROM_THE_ROOT = (
     "django_spec_agents.spec_tools",
     "django_spec_agents.testing",
     "rest_framework",
     "rest_framework_services",
     "django_service_specs",
+    "django_spec_mcp",
 )
 
 # The one host name ``spec_tools`` may import, at its leaf path or the root's.
@@ -152,6 +153,24 @@ def test_importing_spec_tools_loads_nothing_of_the_store() -> None:
     assert sorted(m for m in modules if _is_or_under(m, STORE)) == []
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("django_spec_mcp") is None,
+    reason="the [mcp] bridge needs the [mcp] extra; the import scan below holds the rule without it",
+)
+def test_importing_the_mcp_bridge_loads_no_drf() -> None:
+    # Under settings that list no ``rest_framework``, the ``[mcp]`` bridge and
+    # the server it bridges import without Django REST Framework, drf-services
+    # or drf-mcp. A prefix rather than ``_is_or_under``: ``rest_framework_mcp``
+    # and ``rest_framework_services`` are packages of their own.
+    modules = _modules_after(
+        HOST_ONLY,
+        "import django\ndjango.setup()\nfrom django_spec_agents.integrations.mcp import MCPToolset",
+    )
+
+    assert {"django_spec_agents.integrations.mcp", "django_spec_mcp"} <= modules
+    assert sorted(m for m in modules if m.startswith("rest_framework")) == []
+
+
 def _package_imports(source: str) -> list[str]:
     """Each name of this package ``source`` imports, anywhere in it, as a dotted path.
 
@@ -235,6 +254,38 @@ def test_spec_tools_imports_neither_drf_nor_drf_services() -> None:
     """Pinned as an empty set, so a new import of either package fails here,
     naming the module and the name it imports."""
     assert _drf_imports() == set()
+
+
+def test_spec_tools_imports_nothing_of_django_spec_mcp() -> None:
+    """``spec_tools`` serves specs in process; an MCP server is the other route."""
+    imported = {
+        f"{path.relative_to(SPEC_TOOLS).as_posix()}: {name}"
+        for path in _spec_tools_files()
+        for name in _imports_under(path.read_text(), "django_spec_mcp")
+    }
+    assert imported == set()
+
+
+# The ``[mcp]`` bridge and the helpers both bridges share import nothing of DRF,
+# drf-services or drf-mcp, eagerly or in a function body, so the bridge runs on
+# an install with ``[mcp]`` and no DRF. The fresh-interpreter test above sees
+# only what importing the bridge loads; this scan sees every import it writes.
+_MCP_BRIDGE_FILES = (
+    "django_spec_agents/integrations/mcp.py",
+    "django_spec_agents/integrations/utils.py",
+)
+
+
+def test_the_mcp_bridge_imports_nothing_of_drf() -> None:
+    imported = {
+        f"{relative}: {name}"
+        for relative in _MCP_BRIDGE_FILES
+        for name in _imports_under((ROOT / relative).read_text(), *_DRF, "rest_framework_mcp")
+    }
+    assert imported == set()
+    # The helpers import neither server: each bridge passes them what differs.
+    utils = (ROOT / _MCP_BRIDGE_FILES[1]).read_text()
+    assert _imports_under(utils, "django_spec_mcp") == set()
 
 
 def test_the_drf_scan_sees_a_guarded_import() -> None:

@@ -19,7 +19,8 @@ needs Django and `pydantic-ai-slim` only. It provides:
   `confirm=` / `summary=` metadata and typed JSON-Schema derivation
   (`x-destructive` / `x-category` / `x-confirm` / `x-summary` — plain annotations
   any protocol can carry).
-- Toolset / capability composition, including the optional `[drf-mcp]` bridge and
+- Toolset / capability composition, including the optional `[mcp]` bridge (and
+  the deprecated `[drf-mcp]` one) and
   `build_spec_capability`, which reaches `spec_tools` when `[specs]` is installed.
 - The `AuditLogger` protocol (`Null` / `Logging`), `ToolGuard`, `ToolFailurePolicy`
   and the `get_user(request)` user-resolution hook.
@@ -33,7 +34,8 @@ needs Django and `pydantic-ai-slim` only. It provides:
 as agent tools in process: `SpecToolset`, and `SpecCapability` over it. It reads
 every spec through the kernel's `kernel_spec` and imports nothing from Django REST
 Framework or any other spec library, so the extra installs the kernel alone. DRF
-and drf-mcp's own spec library arrive only with the `[drf-mcp]` bridge.
+and drf-mcp's own spec library arrive only with the deprecated `[drf-mcp]`
+bridge; the `[mcp]` bridge brings django-spec-mcp, which needs neither.
 
 The host was published as `django-pydantic-agent` and `spec_tools` as
 `djangorestframework-pydantic-ai`.
@@ -46,7 +48,7 @@ The host was published as `django-pydantic-agent` and `spec_tools` as
 | `registry/` | `ToolRegistry`, `@tool`, schema derivation |
 | `policy/` | `audit/`, `guard/` and `failure/`: the capabilities composed around every tool call |
 | `persistence/` | the store protocols, the session, model, scoped and null stores, and the memory namespaces |
-| `integrations/` | the `[drf-mcp]` bridge, `build_spec_capability` and `resolve_spec_mapping` |
+| `integrations/` | the `[mcp]` bridge (`mcp.py`), the deprecated `[drf-mcp]` one (`drf_mcp.py`), the wording both share (`utils.py`), `build_spec_capability` and `resolve_spec_mapping` |
 | `contrib/store/` | the opt-in store app: models, the one migration, reference stores, management commands |
 | `types/` | the package-wide enums and constants, one per file |
 | `spec_tools/` | the tool half, with its own `types/` |
@@ -59,14 +61,21 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
 
 ## The boundary between the halves
 
-- **The root never imports `spec_tools`**, nor anything only `[specs]` or
-  `[drf-mcp]` installs (`django_service_specs`, `rest_framework`,
-  `rest_framework_services`), nor `testing`. A host-only install, which is what
+- **The root never imports `spec_tools`**, nor anything only `[specs]`,
+  `[mcp]` or `[drf-mcp]` installs (`django_service_specs`, `django_spec_mcp`,
+  `rest_framework`, `rest_framework_services`), nor `testing`. A host-only install, which is what
   django-admin-agent ships, would fail at import otherwise. The host reaches `spec_tools` in one place,
   `integrations/build_spec_capability.py`, through a function-local import under
   rule 4's optional-dependency exception. `integrations/__init__.py` stays empty:
   django-ag-ui patches the function as an attribute of that submodule, which a
   re-export would shadow, so the patch would stop taking effect.
+- **The `[mcp]` bridge imports nothing of DRF, drf-services or drf-mcp**, and
+  `integrations/utils.py`, the wording both bridges share, imports neither
+  server: each bridge passes it its own non-field key. django-spec-mcp needs a
+  ready app registry to import, so `integrations/mcp.py` stays off every host
+  import path. The old bridge, `drf_mcp.py`, is a module of its own rather than
+  an alias, since an alias would check drf-mcp's errors against
+  django-spec-mcp's `JsonRpcError` and miss them.
 - **`spec_tools` imports nothing from the host but `AgentDeps`, and never
   `contrib.store`.** It reads the acting user structurally, as `ctx.deps.user`, so
   a project's own deps type works as long as it has a `user`.
@@ -130,7 +139,7 @@ peer" is core.**
 | --- | --- |
 | `AgentConfig`, model / settings / retries / provider resolution, agent-factory escape hatch | **core** |
 | `ToolRegistry` + `@tool` + typed-schema derivation | **core** |
-| External toolsets / capabilities; the `[drf-mcp]` bridge and `[specs]` composition | **core** (optional extras) |
+| External toolsets / capabilities; the `[mcp]` and `[drf-mcp]` bridges and `[specs]` composition | **core** (optional extras) |
 | `get_user(request)` + the `AuditLogger` protocol | **core** |
 | `ConversationStore` / `AttachmentStore` protocols, the `read_attachment` tool, `contrib.store` models and stores (incl. `DefaultStepStore`, satisfying harness's protocol) | **core** (storage contracts are transport-neutral) |
 | An HTTP view, an SSE/streaming encoder, a wire adapter, `.urls` | **a transport** |
@@ -217,7 +226,9 @@ are fine — module-level **mutable** state is not.
 - `tests/conftest_settings.py` is the Django settings module pytest uses (set via
   `DJANGO_SETTINGS_MODULE` in `pyproject.toml`): the store app, the spec test app
   whose models the `spec_tools` suites' kernel specs serve, and `rest_framework`,
-  for the `[drf-mcp]` bridge's tests alone, so one run covers both halves.
+  for the deprecated `[drf-mcp]` bridge's tests alone, so one run covers both
+  halves. The `[mcp]` bridge's tests (`tests/integrations/test_mcp.py`, over
+  `mcp_server.py`) import no DRF, and need no `SPEC_MCP` setting.
 - Async tests: `async def test_...` with pytest-asyncio (`asyncio_mode = "auto"`).
 - A store that writes through `sync_to_async` needs
   `@pytest.mark.django_db(transaction=True)` — its ORM calls run on a different
@@ -251,6 +262,7 @@ Change a rule here and change the config with it, or they drift apart again.
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
 | Pydantic-AI | 2.58, the family's shared floor (2.55 requires Python 3.11); the extras share it | latest in matrix |
 | `[specs]` | django-service-specs, at the floor `pyproject.toml` declares and says the reason for | latest in matrix; the floor in the `lowest declared versions` job |
+| `[mcp]` | django-spec-mcp 0.2.0, the surface the bridge calls; it brings the kernel at the floor it requires | latest in matrix; the floor in the `lowest declared versions` job |
 
 ## Branching
 

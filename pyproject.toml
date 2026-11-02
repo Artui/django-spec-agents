@@ -55,8 +55,15 @@ dependencies = [
 anthropic = ["pydantic-ai-slim[anthropic]>=2.58,<3"]
 openai = ["pydantic-ai-slim[openai]>=2.58,<3"]
 google = ["pydantic-ai-slim[google]>=2.58,<3"]
-# In-process bridge exposing a drf-mcp-server tool registry as a Pydantic-AI
-# toolset (the agent calls DRF tools without a network hop).
+# In-process bridge exposing a django-spec-mcp tool registry as a Pydantic-AI
+# toolset, ``MCPToolset``: the agent calls the server's kernel-spec tools
+# without a network hop. 0.2.0 is the surface the bridge calls: ``MCPServer``,
+# ``JsonRpcError`` and ``JsonRpcErrorCode`` from the root, ``list_tools`` with
+# ``include_unavailable``, ``aunavailable_tools`` and ``acall_tool``. It brings
+# the kernel at the floor it requires, so no kernel line is needed here.
+mcp = ["django-spec-mcp>=0.2.0"]
+# Deprecated: the bridge over a drf-mcp-server registry, ``DRFMCPToolset``.
+# Use ``[mcp]`` and ``MCPToolset``; this extra is removed in the next minor.
 # 0.53.1 is the server built on the kernel: it reads a selector's channels from
 # the spec's own ``reads=``, refuses at registration what its spec library
 # refuses on every call, and answers a selector's ``Http404`` as a missing row
@@ -119,7 +126,10 @@ dev = [
     "pytest-asyncio>=0.24",
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=5.0",
-    # The [drf-mcp] extra's backing package, so its bridge + tests run in dev,
+    # The [mcp] extra's backing package, so its bridge + tests run in dev, at
+    # the extra's floor.
+    "django-spec-mcp>=0.2.0",
+    # The deprecated [drf-mcp] extra's backing package, so its bridge + tests run in dev,
     # at the extra's floor: ``uv sync --all-groups`` installs no extra. It
     # brings DRF, which the bridge and its tests are the only users of.
     "djangorestframework-mcp-server>=0.53.1",
@@ -149,11 +159,12 @@ DJANGO_SETTINGS_MODULE = "tests.conftest_settings"
 asyncio_mode = "auto"
 addopts = "--cov=django_spec_agents --cov-report=term-missing --cov-fail-under=100"
 testpaths = ["tests"]
-# drf-mcp 0.20+ warns when a tool is registered with no description. Two bridge
-# fixtures register one deliberately, to cover the no-description path, so the
-# warning is expected rather than a signal. Matched on the message: naming the
-# category by dotted path makes pytest import drf-mcp at config time, before
-# DJANGO_SETTINGS_MODULE is applied.
+# drf-mcp 0.20+ and django-spec-mcp warn, in the same words, when a tool is
+# registered with no description. Bridge fixtures register one deliberately, to
+# cover the no-description path, so the warning is expected rather than a
+# signal. Matched on the message: naming the category by dotted path makes
+# pytest import either server at config time, before DJANGO_SETTINGS_MODULE is
+# applied.
 #
 # django-restql's parser dependency, pypeg2, writes regexes with invalid escape
 # sequences, which the compiler reports the first time it byte-compiles the
