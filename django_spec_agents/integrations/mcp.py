@@ -67,7 +67,8 @@ class MCPToolset(AbstractToolset[Any]):
       could reach the service.
 
     Running in process, the server has no client to ask, so a service's
-    ``AdditionalInputRequired`` always arrives degraded, as ``input_required``.
+    ``AdditionalInputRequired`` for inputs its spec declares arrives degraded,
+    as ``input_required``.
 
     The mapping is the one ``spec_tools`` applies to the same
     exceptions raised in process, and a refusal reads identically through both:

@@ -114,8 +114,8 @@ django-spec-mcp needs a ready app registry to import.
 
 Tool schemas come from the server's own `tools/list` rather than being
 re-derived locally, so the bridge advertises the **same** `inputSchema` the
-HTTP transport would — including a selector tool's filter / ordering /
-pagination arguments and its `additionalProperties` policy.
+HTTP transport would — including a paged list tool's pagination arguments and
+the `additionalProperties` policy.
 
 That schema asks for what a call needs. A read the spec declares
 `required=True` is listed in `required`, and a service tool also advertises the
@@ -180,7 +180,8 @@ model gets to recover:
   against the page envelope rather than one item;
 - a tool-level `input_required` result → `ModelRetry` naming the arguments to
   add on the next call. In process the server has no client to ask, so a
-  service's `AdditionalInputRequired` always arrives this way;
+  service's `AdditionalInputRequired` for inputs its spec declares arrives this
+  way;
 - every other tool-level failure (`service_error`, `not_found`, a timeout, an
   oversized result) → `ToolFailed`, so the model reads the sentence and adapts,
   no retry budget is spent, and the call is recorded `outcome="failed"` for

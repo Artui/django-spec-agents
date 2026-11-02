@@ -77,6 +77,18 @@ async def test_toolset_exposes_the_servers_tools_with_schemas() -> None:
     assert tool_def.kind == "function"
 
 
+async def test_a_list_tools_schema_is_the_servers_verbatim() -> None:
+    # The pagination arguments a paged list tool takes are the server's, not
+    # re-derived here, so the model is asked for what the HTTP transport asks.
+    listed = paged_server.list_tools(None, user=AnonymousUser(), include_unavailable=True)
+    assert not isinstance(listed, JsonRpcError)
+    (tool,) = listed["tools"]
+    tools = await MCPToolset(paged_server, _request()).get_tools(None)  # type: ignore[arg-type]
+    schema = tools["list_rows"].tool_def.parameters_json_schema
+    assert schema == tool["inputSchema"]
+    assert {"page", "fields"} <= set(schema["properties"])
+
+
 async def test_a_service_is_destructive_and_a_selector_is_not() -> None:
     # django-spec-mcp marks a selector ``readOnlyHint: true`` and a service
     # ``false``; the bridge carries the latter as the key ``ToolGuard`` reads.
@@ -661,5 +673,5 @@ async def test_both_routes_refuse_a_list_selector_reading_page() -> None:
         MCPServer(name="refused").register_tool(
             spec, name="recent_rows", description="List rows.", paginate=True
         )
-    with pytest.raises(ImproperlyConfigured, match="page"):
+    with pytest.raises(ImproperlyConfigured, match=r"\['page'\], but `page` and `limit` are"):
         build_spec_capability({"recent_rows": spec})
