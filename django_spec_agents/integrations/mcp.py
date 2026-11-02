@@ -70,8 +70,11 @@ class MCPToolset(AbstractToolset[Any]):
     ``AdditionalInputRequired`` for inputs its spec declares arrives degraded,
     as ``input_required``.
 
-    The mapping is the one ``spec_tools`` applies to the same
-    exceptions raised in process, and a refusal reads identically through both:
+    The mapping is the one ``spec_tools`` applies to the same exceptions raised
+    in process, except for a selector's ``AdditionalInputRequired``:
+    django-spec-mcp builds no input round for a selector, so it arrives as a
+    service error and raises ``ToolFailed``, where ``spec_tools`` raises
+    ``ModelRetry``. A refusal reads identically through both:
     ``The books are closed. (code: books_closed)``.
 
     Args:

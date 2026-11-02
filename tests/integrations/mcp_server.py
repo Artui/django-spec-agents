@@ -63,6 +63,11 @@ def ask_for_a_reason() -> dict[str, Any]:
     )
 
 
+def ask_which_row() -> dict[str, Any]:
+    """Ask which row to read, from a selector."""
+    raise AdditionalInputRequired("Say which row.", schema={"reason": {"type": "string"}})
+
+
 def refuse_to_dispatch() -> dict[str, Any]:
     """Raise a bare dispatch error."""
     raise DispatchError("The call could not be dispatched.")
@@ -96,6 +101,15 @@ REFUSED_SPEC = ServiceSpec(
     affordances=[
         Affordance(code="books_closed", reason="The books are closed.", when=lambda: BOOKS["open"])
     ],
+)
+
+# A selector asking for input, which django-spec-mcp never asks a client for: it
+# answers a service error. Shared with the spec-tools route to compare the two.
+SELECTOR_ASKS_SPEC = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    selector=ask_which_row,
+    reads=Parameters.of(Parameter("reason", "string")),
+    permissions=_OPEN,
 )
 
 server = MCPServer(name="test")
@@ -144,6 +158,9 @@ server.register_tool(
     ServiceSpec(service=refuse_to_dispatch, permissions=_OPEN, atomic=False),
     name="undispatchable",
     description="Raise a bare dispatch error.",
+)
+server.register_tool(
+    SELECTOR_ASKS_SPEC, name="selector_asks", description="Ask which row, from a selector."
 )
 server.register_tool(
     SelectorSpec(
@@ -210,4 +227,15 @@ paged_server.register_tool(
     name="list_rows",
     description="List rows.",
     paginate=True,
+)
+
+# A tool advertised without an ``outputSchema``, which the bridge must pass on as
+# absent rather than as a schema of ``None``.
+bare_server = MCPServer(name="bare")
+bare_server.register_tool(
+    ServiceSpec(service=close_the_books, permissions=_OPEN, atomic=False),
+    name="close_the_books",
+    description="Close the books.",
+    include_output_schema=False,
+    include_structured_content=False,
 )

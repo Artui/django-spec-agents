@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a service asking for an input its spec does not declare in `reads=` is a
   `RuntimeError` (`-32603`), which django-spec-mcp refuses where drf-mcp
   degraded it to `input_required`.
+  A selector's `AdditionalInputRequired` also differs from `[specs]`: it arrives
+  as a service error, so `ToolFailed` here and `ModelRetry` there.
   Its toolset `id` is `"mcp"`. The bridge and the extra import no Django REST
   Framework.
 - **`build_tool_catalog(mcp_server=)`**, the server whose tools the catalog

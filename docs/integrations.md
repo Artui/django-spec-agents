@@ -213,9 +213,11 @@ Bridged tools also carry destructiveness into the [tool guard](policy.md): the
 bridge maps each tool's `readOnlyHint` annotation onto `DESTRUCTIVE_METADATA_KEY`,
 so a service tool is destructive and a selector tool is not.
 
-A spec's own confirmation (`AdditionalInputRequired`) is the `input_required`
+A service's own confirmation (`AdditionalInputRequired`) is the `input_required`
 retry above, which the model can answer itself, on this route and on
-`[specs]` alike. It is not an approval gate: see
+`[specs]` alike. A selector's request does not agree: django-spec-mcp builds no
+input round for a selector, so it arrives as a service error, and so as
+`ToolFailed` here, where `[specs]` raises `ModelRetry`. It is not an approval gate: see
 [what is gated, and what is not](policy.md#what-is-gated-and-what-is-not).
 
 ## `[drf-mcp]` — deprecated

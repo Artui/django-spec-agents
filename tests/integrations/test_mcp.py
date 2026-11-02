@@ -35,7 +35,15 @@ from django_spec_agents.integrations.mcp import MCPToolset
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
 from tests.integrations.kernel_specs import LOOKUP_SPECS
-from tests.integrations.mcp_server import BOOKS, REFUSED_SPEC, lookup_server, paged_server, server
+from tests.integrations.mcp_server import (
+    BOOKS,
+    REFUSED_SPEC,
+    SELECTOR_ASKS_SPEC,
+    bare_server,
+    lookup_server,
+    paged_server,
+    server,
+)
 from tests.tool_retries import is_tool_answer, is_tool_retry, tool_answers, tool_retries
 
 
@@ -87,6 +95,15 @@ async def test_a_list_tools_schema_is_the_servers_verbatim() -> None:
     schema = tools["list_rows"].tool_def.parameters_json_schema
     assert schema == tool["inputSchema"]
     assert {"page", "fields"} <= set(schema["properties"])
+    # The output schema is carried too, so a code-mode stub is typed.
+    assert tool["outputSchema"]
+    tool_def = tools["list_rows"].tool_def
+    assert tool_def.return_schema == tool["outputSchema"]
+    assert tool_def.include_return_schema is True
+    # A tool the server lists without one says so, rather than carrying ``None`` as a schema.
+    bare = await MCPToolset(bare_server, _request()).get_tools(None)  # type: ignore[arg-type]
+    assert bare["close_the_books"].tool_def.return_schema is None
+    assert bare["close_the_books"].tool_def.include_return_schema is False
 
 
 async def test_a_service_is_destructive_and_a_selector_is_not() -> None:
@@ -401,6 +418,29 @@ async def test_input_required_result_raises_model_retry() -> None:
         await MCPToolset(server, _request()).call_tool("needs_input", {}, None, None)
     assert excinfo.value.message == (
         "Say why the books are being closed. Call this tool again, additionally supplying: `reason`."
+    )
+
+
+async def test_a_selectors_request_for_input_diverges_between_the_routes() -> None:
+    """A selector's ``AdditionalInputRequired`` is a retry in process and a failure bridged.
+
+    This documents a divergence rather than a goal. django-spec-mcp builds no
+    input round for a selector (``tool_refusal_scene`` sets ``input_round`` to
+    ``None``), so it answers the request as a ``service_error`` result and the
+    bridge raises ``ToolFailed``; ``spec_tools`` maps the same exception, raised
+    in process, to ``ModelRetry``. A service's request agrees on both routes
+    (``test_input_required_result_raises_model_retry``).
+    """
+    capability = build_spec_capability({"selector_asks": SELECTOR_ASKS_SPEC})
+    ctx = run_context(AgentDeps(user=AnonymousUser()))
+    with pytest.raises(ModelRetry):
+        await capability.get_toolset().call_tool("selector_asks", {}, ctx, None)
+    with pytest.raises(ToolFailed) as bridged:
+        await MCPToolset(server, _request()).call_tool("selector_asks", {}, None, None)
+    assert bridged.value.message == "Say which row."
+    assert (
+        _error_of(await server.acall_tool("selector_asks", {}, user=AnonymousUser()))["type"]
+        == "service_error"
     )
 
 
