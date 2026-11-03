@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `_N = int` behind `ids: list[Annotated["_N", ...]]` gave `items: {}` under the
   hand-built strategy and raised `NameError` at registration under
   `SchemaStrategy.PYDANTIC`; it now resolves under both.
+- **The hand-built schema leaves out an infinite or NaN bound or example.**
+  `Field(le=float("inf"))` gave `"maximum": Infinity` and `ge=nan` or
+  `examples=[nan]` gave `NaN`, which JSON does not have: `json.dumps(...,
+  allow_nan=False)` and strict parsers refuse the schema. Such a bound is now
+  left out, as a `Decimal` one is, and so are examples holding such a float.
 
 ## [0.6.0] — 2026-11-03
 

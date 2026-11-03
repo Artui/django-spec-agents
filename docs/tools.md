@@ -154,9 +154,10 @@ resolved in the globals the top level is evaluated in: the module of the functio
 `inspect.signature` reads, through a decorator's `__wrapped__`, a
 `functools.partial`'s `func` or a callable instance's `__call__`. One that does
 not resolve is an empty fragment, as an unknown type is. Every value carried serialises to
-JSON: a bound that is not an `int` or `float` (a `Decimal`, a `date`) is left
-out, and `examples` are rendered as pydantic renders them (a `Decimal` as its
-string), or left out when they do not serialise.
+JSON: a bound that is not an `int` or `float` (a `Decimal`, a `date`), or is
+infinite or NaN, is left out, and `examples` are rendered as pydantic renders
+them (a `Decimal` as its string), or left out when they do not serialise or
+hold an infinite or NaN float.
 
 ### Choosing a strategy
 
@@ -236,7 +237,8 @@ silently missing an argument). A default that is not JSON-serialisable is left
 out of its schema, with pydantic's warning.
 
 Pick the hand-built strategy for a schema that stays as it is across pydantic
-releases and does not fail a registration on a type it cannot map; pick pydantic's when a client should
-see what the agent's own validation sees, nested models and enums included.
+releases and does not fail a registration on a type it cannot map; pick
+pydantic's when a client should see what the agent's own validation sees,
+nested models and enums included.
 
 See the [registry reference](reference/registry.md) for the full signatures.

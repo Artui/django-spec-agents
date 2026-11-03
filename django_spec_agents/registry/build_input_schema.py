@@ -3,6 +3,8 @@ from __future__ import annotations
 import contextlib
 import functools
 import inspect
+import json
+import math
 import re
 import types
 import typing
@@ -261,15 +263,25 @@ def _metadata_schema(metadata: Iterable[Any], base_type: str | None) -> dict[str
             if item.examples is not None:
                 # JSON mode, as pydantic renders examples: a ``Decimal`` becomes
                 # its string, and examples that do not serialise are left out.
-                with contextlib.suppress(PydanticSerializationError):
-                    schema["examples"] = to_jsonable_python(item.examples)
+                # A non-finite float survives JSON mode, but JSON has no
+                # spelling for it, so ``allow_nan=False`` leaves those out too.
+                with contextlib.suppress(PydanticSerializationError, ValueError):
+                    examples = to_jsonable_python(item.examples)
+                    json.dumps(examples, allow_nan=False)
+                    schema["examples"] = examples
             schema.update(_metadata_schema(item.metadata, base_type))
             continue
         for attribute, key in _BOUND_KEYS:
             value = getattr(item, attribute, None)
             # JSON Schema bounds are numbers; a ``Decimal`` or ``date`` bound
-            # would not serialise, and has no keyword of its own here.
-            if isinstance(value, (int, float)):
+            # would not serialise, and has no keyword of its own here, and JSON
+            # has no infinity or NaN. Only a float can be non-finite, and
+            # ``isfinite`` overflows on an ``int`` past float range
+            # (`test_a_non_finite_bound_or_example_is_left_out` fails without
+            # ``isfinite`` or the ``int`` branch first,
+            # `test_every_value_carried_serialises_to_json` without the
+            # ``float`` check).
+            if isinstance(value, int) or (isinstance(value, float) and math.isfinite(value)):
                 schema[key] = value
         pattern = getattr(item, "pattern", None)
         if isinstance(pattern, re.Pattern):

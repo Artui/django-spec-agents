@@ -247,6 +247,33 @@ def test_every_value_carried_serialises_to_json() -> None:
     assert props["opaque"] == {"type": "integer"}
 
 
+def test_a_non_finite_bound_or_example_is_left_out() -> None:
+    # ``json.dumps`` writes ``Infinity`` and ``NaN`` by default, which JSON does
+    # not have; ``allow_nan=False`` and strict parsers refuse them. The values
+    # are spelled out because the annotations evaluate in module globals.
+    def fn(
+        upper: Annotated[float, Field(le=float("inf"), gt=0)],
+        lower: Annotated[float, Field(ge=-float("inf"), lt=float("nan"))],
+        stepped: Annotated[float, annotated_types.MultipleOf(float("nan"))],
+        sample: Annotated[float, Field(examples=[1.5, float("nan")])],
+        nested: Annotated[dict[str, Any], Field(examples=[{"x": [float("inf")]}])],
+        fine: Annotated[float, Field(examples=[1.5])],
+        # An ``int`` past float range is finite, and JSON holds it.
+        huge: Annotated[int, Field(le=10**400)],
+    ) -> None:
+        del upper, lower, stepped, sample, nested, fine, huge
+
+    props = build_input_schema(fn)["properties"]
+    json.dumps(props, allow_nan=False)
+    assert props["upper"] == {"type": "number", "exclusiveMinimum": 0}
+    assert props["lower"] == {"type": "number"}
+    assert props["stepped"] == {"type": "number"}
+    assert props["sample"] == {"type": "number"}
+    assert props["nested"] == {"type": "object"}
+    assert props["fine"] == {"type": "number", "examples": [1.5]}
+    assert props["huge"] == {"type": "integer", "maximum": 10**400}
+
+
 def test_an_unresolvable_top_level_annotation_raises() -> None:
     # Under ``from __future__ import annotations`` every annotation is a string,
     # and `inspect.signature` evaluates the top level; only a nested reference
