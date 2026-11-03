@@ -365,7 +365,9 @@ An authorization refusal passes through untouched and ends the run, exactly as
 it would with the policy off. Four classes are in the default set, because no
 one of them inherits from another:
 
-- `django.core.exceptions.PermissionDenied`, always.
+- `django.core.exceptions.PermissionDenied`, always. Both
+  [MCP bridges](integrations.md) raise it for a permission refusing the user
+  (JSON-RPC `-32006`).
 - `rest_framework.exceptions.PermissionDenied`, when DRF is installed (the
   `[drf-mcp]` extra brings it); a DRF permission check behind that bridge
   raises it.

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework_mcp import ChainStep
 from rest_framework_mcp.server.mcp_server import MCPServer
 from rest_framework_services.exceptions.additional_input_required import AdditionalInputRequired
@@ -35,6 +35,13 @@ def deny_by_policy(*, data: AddInput) -> dict[str, Any]:
 
 def close_the_books() -> dict[str, Any]:
     return {"status": "closed"}
+
+
+class _Refuse(BasePermission):
+    """Nobody may run the spec, so drf-mcp answers JSON-RPC ``-32006``."""
+
+    def has_permission(self, request: Any, view: Any) -> bool:
+        return False
 
 
 def ask_for_a_reason() -> dict[str, Any]:
@@ -84,6 +91,12 @@ server.register_service_tool(
         service=deny_by_policy,
         input_serializer=AddInput,
         atomic=False,
+    ),
+)
+server.register_service_tool(
+    name="forbidden",
+    spec=ServiceSpec(
+        permission_classes=[_Refuse], service=add_numbers, input_serializer=AddInput, atomic=False
     ),
 )
 server.register_service_tool(name="refused", spec=REFUSED_SPEC)

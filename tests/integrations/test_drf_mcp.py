@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpRequest
 from django.test import RequestFactory, override_settings
 from pydantic_ai import Agent, ModelRetry, ToolFailed
@@ -25,9 +25,12 @@ from rest_framework_mcp.schema import PAGED_QUERY_PARAM_SCOPE
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 from tests.integrations.drf_server import BOOKS, REFUSED_SPEC, hinted_server, server
 from tests.integrations.drf_server_lookup import lookup_server
@@ -293,19 +296,95 @@ async def test_a_bad_name_retry_says_nothing_extra_when_the_cache_is_cold() -> N
     assert "Available tools" not in str(caught.value)
 
 
-async def test_a_fault_the_model_cannot_rewrite_still_ends_the_run(
+async def test_a_refusing_permission_is_forbidden_on_the_wire() -> None:
+    # The code the tests below rest on, read off the real server.
+    result = await server.acall_tool("forbidden", {"a": 1, "b": 2}, user=AnonymousUser())
+    assert isinstance(result, JsonRpcError)
+    assert result.code == JsonRpcErrorCode.FORBIDDEN
+
+
+async def test_a_refusing_permission_raises_permission_denied() -> None:
+    """Django's ``PermissionDenied``, as the ``[mcp]`` bridge raises it: the one
+    denial ``ToolFailurePolicy`` passes through whatever extras are installed."""
+    toolset = DRFMCPToolset(server, _request())
+    with pytest.raises(PermissionDenied) as caught:
+        await toolset.call_tool("forbidden", {"a": 1, "b": 2}, None, None)
+    assert str(caught.value) == "drf-mcp tool 'forbidden' failed: Insufficient permission"
+
+
+async def test_a_permission_refusal_payload_raises_permission_denied(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Auth, rate limits and internal faults are not retryable — nothing the
-    model writes changes them, so the run stops rather than burning its budget."""
-
+    # Payload-level twin of the test above: on Python 3.11 the C tracer can
+    # drop the bridge frame across the server's executor hop.
     async def denied(*_a: object, **_k: object) -> JsonRpcError:
         return JsonRpcError(JsonRpcErrorCode.FORBIDDEN, "Insufficient permission")
 
     toolset = DRFMCPToolset(server, _request())
     monkeypatch.setattr(server, "acall_tool", denied)
-    with pytest.raises(RuntimeError, match="drf-mcp tool 'add'"):
+    with pytest.raises(PermissionDenied, match="^drf-mcp tool 'add' failed: Insufficient perm"):
         await toolset.call_tool("add", {}, None, None)
+
+
+async def test_a_fault_the_model_cannot_rewrite_raises_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auth, rate limits and internal faults are not retryable: nothing the
+    model writes changes them."""
+
+    async def broken(*_a: object, **_k: object) -> JsonRpcError:
+        return JsonRpcError(JsonRpcErrorCode.INTERNAL_ERROR, "Internal error")
+
+    toolset = DRFMCPToolset(server, _request())
+    monkeypatch.setattr(server, "acall_tool", broken)
+    with pytest.raises(RuntimeError, match="^drf-mcp tool 'add' failed: Internal error$"):
+        await toolset.call_tool("add", {}, None, None)
+
+
+def _calling_once(name: str, args: dict[str, Any]) -> FunctionModel:
+    """Calls ``name`` once, then answers once the call has settled."""
+
+    def model_fn(messages: list[Any], info: AgentInfo) -> ModelResponse:
+        if any(is_tool_answer(part) for part in messages[-1].parts):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(parts=[ToolCallPart(tool_name=name, args=args)])
+
+    return FunctionModel(model_fn)
+
+
+async def test_a_refusing_permission_ends_an_agent_run() -> None:
+    # Through ``build_agent``, so ``ToolFailurePolicy`` is in the chain, as it
+    # is behind every transport: a refusal it converted would leave the run
+    # alive and the model free to try the next id.
+    agent = build_agent(
+        ToolRegistry(),
+        AgentConfig(
+            model=_calling_once("forbidden", {"a": 1, "b": 2}),
+            toolsets=[DRFMCPToolset(server, _request())],
+        ),
+    )
+    with pytest.raises(PermissionDenied, match="Insufficient permission"):
+        await agent.run("add", deps=AgentDeps(user=None))
+
+
+async def test_another_protocol_fault_is_a_failed_call_under_the_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The other side of the line: a ``RuntimeError`` is not a denial, so the
+    # policy converts it and the run finishes with the call failed.
+    async def broken(*_a: object, **_k: object) -> JsonRpcError:
+        return JsonRpcError(JsonRpcErrorCode.INTERNAL_ERROR, "Internal error")
+
+    toolset = DRFMCPToolset(server, _request())
+    await toolset.get_tools(None)  # type: ignore[arg-type]
+    monkeypatch.setattr(server, "acall_tool", broken)
+    agent = build_agent(
+        ToolRegistry(),
+        AgentConfig(model=_calling_once("add", {"a": 1, "b": 2}), toolsets=[toolset]),
+    )
+    result = await agent.run("add", deps=AgentDeps(user=None))
+    assert result.output == "done"
+    assert [part.outcome for part in tool_answers(result.all_messages())] == ["failed"]
 
 
 async def test_malformed_arguments_raise_model_retry_with_detail() -> None:

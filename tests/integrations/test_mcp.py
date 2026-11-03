@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpRequest
 from django.test import RequestFactory
 from django_service_specs import (
@@ -29,9 +29,12 @@ from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolRetu
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
+from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from django_spec_agents.integrations.mcp import MCPToolset
+from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
 from tests.integrations.kernel_specs import LOOKUP_SPECS
@@ -286,13 +289,55 @@ async def test_a_bad_name_retry_says_nothing_extra_when_the_cache_is_cold() -> N
     assert "Available tools" not in str(caught.value)
 
 
-async def test_a_refusing_permission_ends_the_run() -> None:
+async def test_a_refusing_permission_raises_permission_denied() -> None:
     # django-spec-mcp answers a permission check that refuses the principal with
-    # JSON-RPC ``-32006``. Nothing the model writes changes that, so the run
-    # stops rather than burning its budget.
-    with pytest.raises(RuntimeError) as caught:
+    # JSON-RPC ``-32006``. Django's ``PermissionDenied`` is the class a
+    # ``[specs]`` tool re-raises for a service refusing bare, and the one denial
+    # ``ToolFailurePolicy`` passes through whatever extras are installed.
+    with pytest.raises(PermissionDenied) as caught:
         await MCPToolset(server, _request()).call_tool("forbidden", {"a": 1, "b": 2}, None, None)
     assert str(caught.value) == "MCP tool 'forbidden' failed: Insufficient permission"
+
+
+def _calling_once(name: str, args: dict[str, Any]) -> FunctionModel:
+    """Calls ``name`` once, then answers once the call has settled."""
+
+    def model_fn(messages: list[Any], info: AgentInfo) -> ModelResponse:
+        if any(is_tool_answer(part) for part in messages[-1].parts):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(parts=[ToolCallPart(tool_name=name, args=args)])
+
+    return FunctionModel(model_fn)
+
+
+async def test_a_refusing_permission_ends_an_agent_run() -> None:
+    # Through ``build_agent``, so ``ToolFailurePolicy`` is in the chain, as it
+    # is behind every transport: a refusal it converted would leave the run
+    # alive and the model free to try the next id.
+    agent = build_agent(
+        ToolRegistry(),
+        AgentConfig(
+            model=_calling_once("forbidden", {"a": 1, "b": 2}),
+            toolsets=[MCPToolset(server, _request())],
+        ),
+    )
+    with pytest.raises(PermissionDenied, match="Insufficient permission"):
+        await agent.run("add", deps=AgentDeps(user=None))
+
+
+async def test_another_protocol_fault_is_a_failed_call_under_the_policy() -> None:
+    # The other side of the line: a ``RuntimeError`` is not a denial, so the
+    # policy converts it and the run finishes with the call failed.
+    agent = build_agent(
+        ToolRegistry(),
+        AgentConfig(
+            model=_calling_once("undeclared_input", {}),
+            toolsets=[MCPToolset(server, _request())],
+        ),
+    )
+    result = await agent.run("close the books", deps=AgentDeps(user=None))
+    assert result.output == "done"
+    assert [part.outcome for part in tool_answers(result.all_messages())] == ["failed"]
 
 
 async def test_a_refusing_permission_is_forbidden_on_the_wire() -> None:
@@ -302,10 +347,10 @@ async def test_a_refusing_permission_is_forbidden_on_the_wire() -> None:
     assert result.code == JsonRpcErrorCode.FORBIDDEN
 
 
-async def test_a_read_the_spec_does_not_declare_ends_the_run() -> None:
+async def test_a_read_the_spec_does_not_declare_raises_runtime_error() -> None:
     # A service asking for input its spec does not take could never be answered:
     # django-spec-mcp refuses with JSON-RPC ``-32603`` rather than asking, and
-    # the bridge raises it, as it raises every protocol fault.
+    # the bridge raises it, as it raises every protocol fault but a refusal.
     with pytest.raises(RuntimeError, match="^MCP tool 'undeclared_input' failed: .*'reason'"):
         await MCPToolset(server, _request()).call_tool("undeclared_input", {}, None, None)
 
@@ -330,13 +375,27 @@ async def test_invalid_params_error_raises_model_retry(monkeypatch: pytest.Monke
         await MCPToolset(server, _request()).call_tool("add", {"a": 1, "b": 2}, None, None)
 
 
-async def test_a_protocol_fault_payload_ends_the_run(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_permission_refusal_payload_raises_permission_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Payload-level twin of the permission test above, for the same tracer reason.
     async def denied(*_a: object, **_k: object) -> JsonRpcError:
         return JsonRpcError(JsonRpcErrorCode.FORBIDDEN, "Insufficient permission")
 
     monkeypatch.setattr(server, "acall_tool", denied)
-    with pytest.raises(RuntimeError, match="^MCP tool 'add' failed: Insufficient permission$"):
+    with pytest.raises(PermissionDenied, match="^MCP tool 'add' failed: Insufficient permission$"):
+        await MCPToolset(server, _request()).call_tool("add", {}, None, None)
+
+
+async def test_a_protocol_fault_payload_raises_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Payload-level twin of the undeclared-read test above, for the same reason.
+    async def broken(*_a: object, **_k: object) -> JsonRpcError:
+        return JsonRpcError(JsonRpcErrorCode.INTERNAL_ERROR, "Internal error")
+
+    monkeypatch.setattr(server, "acall_tool", broken)
+    with pytest.raises(RuntimeError, match="^MCP tool 'add' failed: Internal error$"):
         await MCPToolset(server, _request()).call_tool("add", {}, None, None)
 
 

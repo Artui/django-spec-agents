@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A permission refusal through either MCP bridge ends the run.** `MCPToolset`
+  and the deprecated `DRFMCPToolset` raise Django's `PermissionDenied` for
+  JSON-RPC `-32006`, where they raised `RuntimeError`. `ToolFailurePolicy`
+  passes a `PermissionDenied` through by default, but it converted the
+  `RuntimeError` into a failed call. The run then went on, and the model could
+  keep trying ids. A refusal now ends the run, as a refusal from a built-in tool
+  already did. Every other protocol fault still raises `RuntimeError`. A
+  transport test that expected a refused call to be marked failed while the run
+  finished now sees the run end.
+
 ## [0.6.1] — 2026-11-03
 
 Fixes to the tool schemas and to `SpecToolset`'s build-time checks. Nothing
