@@ -210,8 +210,12 @@ program that needs the code reads it from the server's result, or on the
 parsing it out of the sentence.
 
 Bridged tools also carry destructiveness into the [tool guard](policy.md): the
-bridge maps each tool's `readOnlyHint` annotation onto `DESTRUCTIVE_METADATA_KEY`,
-so a service tool is destructive and a selector tool is not.
+bridge maps each tool's annotations onto `DESTRUCTIVE_METADATA_KEY` the way MCP
+reads them, where `destructiveHint` defaults to true and means something only on
+a tool that is not read-only. A tool is marked unless `readOnlyHint` is true or
+`destructiveHint` is false, so a service tool is destructive, a selector tool is
+not, and a mutation registered with `annotations={"destructiveHint": False}` is
+not either. A tool listed with no `annotations` says nothing and is not marked.
 
 A service's own confirmation (`AdditionalInputRequired`) is the `input_required`
 retry above, which the model can answer itself, on this route and on

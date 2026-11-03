@@ -14,7 +14,8 @@ class ToolGuardConfig:
     When enabled, a tool is gated if it is destructive or its name is in
     ``require_approval``; ``exempt`` overrides both. A tool counts as destructive
     when it is a registry ``@tool(destructive=True)``, or when its definition
-    says so — the drf-mcp bridge's metadata key, an MCP ``readOnlyHint`` of
+    says so — a bridge's metadata key (set unless the MCP tool is read-only or
+    declares ``destructiveHint`` false), an MCP ``readOnlyHint`` of
     ``False`` (a ``ServiceSpec`` through ``SpecToolset``, among
     others), or an ``x-destructive`` stamp at the root of its parameter schema.
 

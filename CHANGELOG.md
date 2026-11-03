@@ -33,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The `[drf-mcp]` extra and `DRFMCPToolset`**: constructing the toolset warns
   `DeprecationWarning`, naming `MCPToolset` and `[mcp]`. Its behaviour is
-  unchanged. Both are removed in the next minor.
+  unchanged, bar the destructive-hint rule under Changed. Both are removed in
+  the next minor.
 - **`build_tool_catalog(drf_mcp_server=)`**, which warns `DeprecationWarning`
   and lists the server's tools as `mcp_server=` does. Removed in the next minor.
 
@@ -42,6 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The lock resolves django-service-specs 0.23.0**, the release
   django-spec-mcp 0.2.0 requires, where it pinned 0.16.0. The `[specs]` floor
   is unchanged.
+- **A bridged tool registered `annotations={"destructiveHint": False}` is no
+  longer gated.** Both bridges, `MCPToolset` and the deprecated `DRFMCPToolset`,
+  marked a tool destructive on `readOnlyHint: False` alone, so `ToolGuard` kept
+  gating a mutation its project had declared non-destructive; only a read-only
+  override exempted it. A tool is now marked unless its `readOnlyHint` is true or
+  its `destructiveHint` is false, which is how MCP reads the pair and how
+  django-spec-mcp documents the override. A tool listed with no `annotations` is
+  still not marked. A project that relied on the gate for such a mutation
+  names it in `require_approval`.
 
 ## [0.5.0] — 2026-10-31
 

@@ -32,9 +32,13 @@ class ToolGuard(AbstractCapability[Any]):
     - **Registry** ``@tool(destructive=True)``, collected at construction: the
       flag lives on the spec and never reaches pydantic-ai, which sees a bare
       callable, so the capability reads it directly.
-    - **drf-mcp bridged tools**, through the
+    - **Bridged MCP tools**, through the
       [`DESTRUCTIVE_METADATA_KEY`][django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY] the
-      bridge stamps into ``ToolDefinition.metadata``.
+      bridge stamps into ``ToolDefinition.metadata``. Both bridges mark a tool
+      unless its ``readOnlyHint`` is true or its ``destructiveHint`` is false, as
+      MCP reads the pair, so a mutation registered with
+      ``annotations={"destructiveHint": False}`` is not gated. A tool listed
+      with no ``annotations`` is not marked.
     - **MCP tool annotations** — ``metadata["annotations"]["readOnlyHint"] is
       False``. A toolset that speaks MCP's own vocabulary rather than this
       package's key declares a mutation this way, ``SpecToolset`` over a

@@ -166,9 +166,11 @@ one hook covers every tool regardless of origin:
 - **Registry tools** — `@tool(destructive=True)`. The flag lives on the spec and
   never reaches pydantic-ai as a bare callable, so the guard reads it from the
   registry directly at construction.
-- **MCP bridged tools** — both bridges map each tool's `readOnlyHint`
-  annotation onto `DESTRUCTIVE_METADATA_KEY`, which the guard reads from
-  pydantic-ai's tool metadata.
+- **MCP bridged tools** — both bridges map each tool's annotations onto
+  `DESTRUCTIVE_METADATA_KEY`, which the guard reads from pydantic-ai's tool
+  metadata. A tool is marked unless its `readOnlyHint` is true or its
+  `destructiveHint` is false, as MCP reads the pair; a tool listed with no
+  `annotations` is not marked.
 - **MCP tool annotations** — `metadata["annotations"]["readOnlyHint"] is False`,
   which is how a toolset speaking MCP's own vocabulary says it mutates. A
   `ServiceSpec` exposed through `SpecToolset` is the case that
@@ -217,9 +219,10 @@ server does not perform is worse than no promise at all:
       model can supply that itself on the next turn. On a page that confirmation
       is a prompt for a person; on the agent route it is a retry, not a security
       boundary. An operation that needs a human decision belongs in
-      `require_approval`. A tool declaring `readOnlyHint: False` is gated by
+      `require_approval`. A bridged mutation is gated by
       default while the guard is enabled, but only until its name is in `exempt`
-      or a registration overrides the annotation.
+      or a registration overrides the annotation with `readOnlyHint: True` or
+      `destructiveHint: False`.
 
 ## What a raising tool costs
 

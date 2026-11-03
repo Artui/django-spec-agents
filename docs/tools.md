@@ -64,8 +64,8 @@ metadata rather than the schema, because metadata is the channel a *bridge*
 controls where the schema belongs to the tool's author. It is read
 **server-side** at `prepare_tools` time by the [tool guard](policy.md), which
 needs destructiveness for tools whose flag doesn't come from the `@tool`
-registry at all — a bridged MCP tool, whose `readOnlyHint` annotation the
-bridge maps onto this key.
+registry at all — a bridged MCP tool, whose `readOnlyHint` and `destructiveHint`
+annotations the bridge maps onto this key.
 
 A registry tool's own `destructive=True` never travels either channel: it stays
 on the spec, and the guard reads it from the registry directly. What reaches the
