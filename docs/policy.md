@@ -181,10 +181,11 @@ one hook covers every tool regardless of origin:
   that helper and attaching the tool through `toolsets=` gets the gate from it.
 - **`require_approval`** — an explicit opt-in for anything the rest miss.
 
-A hint has to *say* the tool mutates. A missing `readOnlyHint`, an absent stamp,
-or metadata of some other shape entirely leaves the tool alone — silence is not
-a claim, and `require_approval` is the answer for a tool whose source declares
-nothing.
+A hint has to *say* the tool mutates. Outside a bridge, which reads a tool that
+lists any annotation by MCP's defaults, a missing `readOnlyHint`, an absent
+stamp, or metadata of some other shape entirely leaves the tool alone — silence
+is not a claim, and `require_approval` is the answer for a tool whose source
+declares nothing.
 
 `DESTRUCTIVE_METADATA_KEY` still rides tool *metadata* rather than only the
 schema, because metadata is the channel a bridge controls and the schema is the

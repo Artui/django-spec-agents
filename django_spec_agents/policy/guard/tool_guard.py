@@ -53,10 +53,11 @@ class ToolGuard(AbstractCapability[Any]):
     - **Project overrides**: ``require_approval`` force-gates a name, ``exempt``
       un-gates one, and ``exempt`` wins.
 
-    A hint has to *say* the tool mutates. A missing ``readOnlyHint``, an absent
-    stamp or metadata of another shape entirely leaves the tool alone — silence
-    is not a claim, and ``require_approval`` is the answer for a tool whose
-    source declares nothing.
+    A hint has to *say* the tool mutates. Outside a bridge, which reads a tool
+    that lists any annotation by MCP's defaults, a missing ``readOnlyHint``, an
+    absent stamp or metadata of another shape entirely leaves the tool alone —
+    silence is not a claim, and ``require_approval`` is the answer for a tool
+    whose source declares nothing.
 
     Only ``kind="function"`` tools are flipped — an ``external`` tool is already
     gated client-side, and an ``output`` tool is not executed.
@@ -106,10 +107,9 @@ def _declares_a_mutation(tool_def: ToolDefinition) -> bool:
     metadata = tool_def.metadata or {}
     if metadata.get(DESTRUCTIVE_METADATA_KEY):
         return True
-    # MCP's own name for the same fact. Keyed on ``readOnlyHint`` rather than
-    # ``destructiveHint`` for the reason the drf-mcp bridge is: the latter is
-    # omitted on read-only tools, so only the former distinguishes "reads" from
-    # "said nothing". ``Mapping`` guard because metadata is free-form.
+    # MCP's own name for the same fact, as ``SpecToolset`` writes it: a
+    # ``readOnlyHint`` and nothing else, so only an explicit ``False`` says the
+    # tool mutates. ``Mapping`` guard because metadata is free-form.
     annotations = metadata.get("annotations")
     if isinstance(annotations, Mapping) and annotations.get("readOnlyHint") is False:
         return True

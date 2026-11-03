@@ -4,8 +4,8 @@ The same signal as ``x-destructive``, but on metadata rather than the schema,
 because metadata is the channel a *bridge* controls where the schema belongs to
 the tool's author: ``ToolGuard`` reads it at ``prepare_tools`` time for tools
 whose destructiveness the ``@tool`` registry does not know, such as a bridged
-MCP tool whose ``readOnlyHint`` and ``destructiveHint`` the bridge maps onto this key. It lives in process
-only and is never stored, so its value follows the package's name.
+MCP tool whose ``readOnlyHint`` and ``destructiveHint`` the bridge maps onto this
+key. It lives in process only and is never stored, so its value follows the package's name.
 """
 
 from __future__ import annotations
