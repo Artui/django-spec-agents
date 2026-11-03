@@ -4,7 +4,7 @@ import datetime
 import functools
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from decimal import Decimal
 from typing import Annotated, Any, Union
 
@@ -25,6 +25,19 @@ class _Custom:
 # Module-level, so a string reference to it resolves in a tool's globals and
 # nowhere else.
 _Count = int
+
+_OPAQUE = object()
+
+
+class _CountTool:
+    """A callable instance: `inspect.signature` reads ``type(self).__call__``."""
+
+    def __call__(self, ids: list[Annotated["_Count", "t"]]) -> None:  # noqa: UP037
+        del ids
+
+
+def _count_ids(ids: list[Annotated["_Count", "t"]], limit: int) -> None:  # noqa: UP037
+    del ids, limit
 
 
 def test_primitive_parameters() -> None:
@@ -236,6 +249,73 @@ def test_every_value_carried_serialises_to_json() -> None:
     assert props["opaque"] == {"type": "integer"}
 
 
+def test_a_non_finite_bound_or_example_is_left_out() -> None:
+    # ``json.dumps`` writes ``Infinity`` and ``NaN`` by default, which JSON does
+    # not have; ``allow_nan=False`` and strict parsers refuse them. The values
+    # are spelled out because the annotations evaluate in module globals.
+    def fn(
+        upper: Annotated[float, Field(le=float("inf"), gt=0)],
+        lower: Annotated[float, Field(ge=-float("inf"), lt=float("nan"))],
+        stepped: Annotated[float, annotated_types.MultipleOf(float("nan"))],
+        sample: Annotated[float, Field(examples=[1.5, float("nan")])],
+        nested: Annotated[dict[str, Any], Field(examples=[{"x": [float("inf")]}])],
+        fine: Annotated[float, Field(examples=[1.5])],
+        # An ``int`` past float range is finite, and JSON holds it.
+        huge: Annotated[int, Field(le=10**400)],
+    ) -> None:
+        del upper, lower, stepped, sample, nested, fine, huge
+
+    props = build_input_schema(fn)["properties"]
+    json.dumps(props, allow_nan=False)
+    assert props["upper"] == {"type": "number", "exclusiveMinimum": 0}
+    assert props["lower"] == {"type": "number"}
+    assert props["stepped"] == {"type": "number"}
+    assert props["sample"] == {"type": "number"}
+    assert props["nested"] == {"type": "object"}
+    assert props["fine"] == {"type": "number", "examples": [1.5]}
+    assert props["huge"] == {"type": "integer", "maximum": 10**400}
+
+
+def test_a_field_given_as_the_default_reads_as_one_inside_annotated() -> None:
+    def fn(
+        n: int = Field(ge=1, description="How many."),
+        m: int = Field(5, le=9),
+        k: Annotated[int, Field(description="K", ge=5)] = Field(3, ge=0),
+        tags: list[str] = Field(default_factory=list),  # noqa: B008
+        note: str | None = Field(None, title="Note"),
+    ) -> None:
+        del n, m, k, tags, note
+
+    schema = build_input_schema(fn)
+    props = schema["properties"]
+    # ``ToolRegistry.call`` binds the arguments as given, so an omitted ``n``
+    # would reach the tool as the ``FieldInfo`` itself: it is required.
+    assert schema["required"] == ["n"]
+    assert props["n"] == {"type": "integer", "minimum": 1, "description": "How many."}
+    assert props["m"] == {"type": "integer", "maximum": 9, "default": 5}
+    # The default's metadata comes after the annotation's, so it wins, as in pydantic.
+    assert props["k"] == {"type": "integer", "description": "K", "minimum": 0, "default": 3}
+    # A factory is not a default the schema can show, but it makes ``tags`` optional.
+    assert props["tags"] == {"type": "array", "items": {"type": "string"}}
+    assert props["note"] == {"type": "string", "nullable": True, "title": "Note", "default": None}
+
+
+def test_a_field_default_that_is_not_json_is_left_out() -> None:
+    def fn(
+        when: datetime.date = Field(datetime.date(2020, 1, 1)),  # noqa: B008
+        opaque: Any = Field(_OPAQUE),  # noqa: B008
+        ratio: float = Field(float("nan")),
+    ) -> None:
+        del when, opaque, ratio
+
+    props = build_input_schema(fn)["properties"]
+    json.dumps(props, allow_nan=False)
+    # JSON mode, as pydantic renders a default.
+    assert props["when"] == {"default": "2020-01-01"}
+    assert props["opaque"] == {}
+    assert props["ratio"] == {"type": "number"}
+
+
 def test_an_unresolvable_top_level_annotation_raises() -> None:
     # Under ``from __future__ import annotations`` every annotation is a string,
     # and `inspect.signature` evaluates the top level; only a nested reference
@@ -277,6 +357,66 @@ def test_a_reference_resolves_in_the_wrapped_function_s_globals() -> None:
 
     props = build_input_schema(wrapper)["properties"]
     assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def _wrapped_in_a_namespace_of_its_own(source: str) -> Callable[..., Any]:
+    # ``inner`` is defined where ``_Hidden`` is, which this module does not
+    # hold, and ``wrapper`` reads as ``inner`` only through ``__wrapped__``.
+    namespace: dict[str, Any] = {"_Hidden": int}
+    exec(source, namespace)
+    inner = namespace["inner"]
+
+    @functools.wraps(inner)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+
+    return wrapper
+
+
+def test_a_reference_resolves_in_a_partial_over_a_wrapped_function() -> None:
+    wrapper = _wrapped_in_a_namespace_of_its_own(
+        "def inner(ids: \"list['_Hidden']\", limit: int = 0) -> None: ..."
+    )
+
+    props = build_input_schema(functools.partial(wrapper, limit=1))["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_a_reference_resolves_in_a_wrapped_call_method() -> None:
+    class Tool:
+        __call__ = _wrapped_in_a_namespace_of_its_own(
+            "def inner(self, ids: \"list['_Hidden']\") -> None: ..."
+        )
+
+    props = build_input_schema(Tool())["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+@pytest.mark.parametrize(
+    "fn",
+    [_CountTool(), functools.partial(_count_ids, limit=1)],
+    ids=["callable instance", "partial"],
+)
+def test_a_reference_resolves_where_the_signature_does(fn: Any) -> None:
+    # Neither object has ``__globals__`` of its own: a nested reference resolves
+    # in the globals of the function `inspect.signature` reads, ``__call__`` or
+    # the partial's ``func``, as the top level does.
+    props = build_input_schema(fn)["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_a_reference_resolves_in_a_bound_method_s_globals() -> None:
+    class Tools:
+        def count(self, ids: list[Annotated["_Count", "t"]]) -> None:  # noqa: UP037
+            del ids
+
+    props = build_input_schema(Tools().count)["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_a_callable_with_no_globals_of_its_own_still_registers() -> None:
+    # A builtin has no ``__globals__`` anywhere, and nothing to resolve in one.
+    assert build_input_schema(divmod)["properties"] == {"x": {}, "y": {}}
 
 
 def test_an_unresolvable_nested_reference_falls_back_to_an_empty_fragment() -> None:

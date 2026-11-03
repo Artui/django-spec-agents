@@ -582,7 +582,8 @@ class SpecToolset(AbstractToolset[Any]):
         ImproperlyConfigured: ``unknown_arguments`` is neither ``REJECT`` nor
             ``IGNORE``, a spec declares no permissions and
             ``require_permissions`` is set, a spec reads a registered pool seed's
-            name, a selector takes a parameter that a list tool's ``page`` /
+            name, a ``many`` spec's list is named after a registered pool seed or
+            ``request`` / ``view``, a selector takes a parameter that a list tool's ``page`` /
             ``limit`` takes out of the call before it runs (a spec's own
             read of an input's name is not one: it is where the input comes
             from, and is served as the input), a shape takes the
@@ -683,6 +684,7 @@ class SpecToolset(AbstractToolset[Any]):
         # seeds, neither of which the spec knows when it is built.
         for name, spec in self._specs.items():
             _validate_declared_reads(name, spec, seeds=pool_seeds)
+            _validate_many_argument(name, spec, seeds=pool_seeds)
         _validate_inputs_pagination_takes(self._specs)
         # Agent markings are pure in the presenter's output declaration, like
         # the schemas below, so they are resolved once rather than walking the
@@ -1789,6 +1791,29 @@ def _validate_declared_reads(tool_name: str, spec: Spec, *, seeds: PoolSeeds) ->
             f"transport keys {sorted(seeds.reserved | _RESERVED_PARAM_NAMES)}: a pool seed "
             "fills each such name on every call, and the toolset takes page, limit and "
             "ordering for itself. Rename them."
+        )
+
+
+def _validate_many_argument(tool_name: str, spec: Spec, *, seeds: PoolSeeds) -> None:
+    """Refuse a ``many`` spec whose list is named after a seed the mount fills.
+
+    The kernel refuses a ``many_argument`` named after one of dispatch's own
+    seeds when the spec is built, but a seed this mount registers, or one each
+    call registers from its context (``request``, ``view``), it can only meet
+    in a pool: the list then meets a seed in one pool and **every call is
+    refused**, sent or not. The kernel's caller schema keeps offering the list
+    as required, since the list is never the server's to fill, so the tool
+    would build, be advertised and serve nothing. Refused here, it fails the
+    mount naming its tool (``test_a_many_list_named_after_a_seed_is_refused_at_build``).
+    """
+    compiled = kernel_spec(spec)
+    if not isinstance(compiled, KernelServiceSpec) or not compiled.many:
+        return
+    if compiled.many_argument in seeds.reserved | _CALL_SEEDS:
+        raise ImproperlyConfigured(
+            f"SpecToolset tool {tool_name!r}: the list argument {compiled.many_argument!r} "
+            "is also a pool seed's name, which fills it on every call, so no call could "
+            "send the list. Rename the spec's many_argument or the seed."
         )
 
 

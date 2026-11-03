@@ -232,7 +232,9 @@ read declared `nullable` keeps a `null` sent under it as the value.
 Every read the spec declares is checked against the
 [pool seeds](quickstart.md#project-pool-seeds) when the toolset is built,
 whichever source it came from: a read named after a registered seed, at the top
-level or on a service's target lookup, is refused there, naming the tool. A
+level or on a service's target lookup, is refused there, naming the tool, and
+so is a `many` spec whose list (`many_argument`) is named after a registered
+seed or after `request` or `view`, which each call registers. A
 parameter in `shapes=`, which no callable takes, may not be named `page`,
 `limit` or `ordering`, which a list tool takes for itself. A read named
 `ordering` that a callable takes is an argument like any other, advertised and

@@ -46,6 +46,10 @@ dependencies = [
     # django-ag-ui serves. Raise it whenever a new default reaches for a newer
     # upstream symbol.
     "pydantic-ai-slim>=2.58,<3",
+    # The schema derivation imports pydantic and pydantic_core itself, so it is
+    # declared rather than left to arrive through pydantic-ai-slim. The floor is
+    # the one pydantic-ai-slim 2.58 requires; nothing here needs a newer one.
+    "pydantic>=2.12",
 ]
 
 [project.optional-dependencies]
@@ -148,8 +152,10 @@ dev = [
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the api_key / provider model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
-    # Floored with the extras above.
-    "pydantic-ai-slim[anthropic,openai,google]>=2.58",
+    # Floored with the extras above. ``mcp`` brings the FastMCP client behind
+    # pydantic-ai's ``MCPToolset``, which the end-to-end ToolGuard test drives a
+    # django-spec-mcp server through.
+    "pydantic-ai-slim[anthropic,openai,google,mcp]>=2.58",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -256,7 +262,7 @@ root = ["./django_spec_agents"]
 # django_spec_agents/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.6.0"
+current_version = "0.6.1"
 allow_dirty = false
 commit = false
 tag = false

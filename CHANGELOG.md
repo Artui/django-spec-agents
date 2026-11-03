@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-11-03
+
+Fixes to the tool schemas and to `SpecToolset`'s build-time checks. Nothing
+public is added or removed; one parameter shape can become required, below.
+
+### Fixed
+
+- **`pydantic` is declared, at `>=2.12`.** The schema derivation imports
+  `pydantic` and `pydantic_core` itself, which arrived only through
+  `pydantic-ai-slim`. The floor is the one `pydantic-ai-slim` 2.58 requires, so
+  no install resolves differently.
+- **`SpecToolset` refuses a `many` spec whose list is named after a pool seed.**
+  A mount registering a seed named like the spec's `many_argument` (`items`
+  unless the spec names another), or a spec naming its list `request` or `view`,
+  was built and advertised the list as a required argument, then failed every
+  call with `ImproperlyConfigured`. The toolset now raises that at construction,
+  naming the tool and the list. Nothing that worked is refused.
+- **A string reference nested in a tool's annotation resolves for a
+  `functools.partial` and a callable instance**, as it already did for a plain
+  or decorated function. `build_input_schema` read globals from the object it
+  was given, which for either has none, while `inspect.signature` evaluates the
+  top level in the partial's `func` or in `type(fn).__call__`. A module-level
+  `_N = int` behind `ids: list[Annotated["_N", ...]]` gave `items: {}` under the
+  hand-built strategy and raised `NameError` at registration under
+  `SchemaStrategy.PYDANTIC`; it now resolves under both.
+- **The hand-built schema leaves out an infinite or NaN bound or example.**
+  `Field(le=float("inf"))` gave `"maximum": Infinity` and `ge=nan` or
+  `examples=[nan]` gave `NaN`, which JSON does not have: `json.dumps(...,
+  allow_nan=False)` and strict parsers refuse the schema. Such a bound is now
+  left out, as a `Decimal` one is, and so are examples holding such a float.
+- **The hand-built schema reads a `Field` given as a parameter's default**,
+  `n: int = Field(ge=1, description=...)`, as it reads one inside `Annotated`:
+  its description, title, examples and bounds are carried, and its default is
+  shown. **A parameter can become required:** one whose `Field` has no default
+  is now listed in `required`, as `SchemaStrategy.PYDANTIC` lists it, where it
+  was optional with only its type. `ToolRegistry.call` binds the arguments as
+  given, so an omitted one reached the tool as the `FieldInfo` itself.
+- **`SchemaStrategy.PYDANTIC` keys a property by its parameter's name, not by
+  a `Field` alias.** `s: Annotated[str, Field(alias="other")]` was advertised as
+  `other`, which `ToolRegistry.call` refused with `TypeError`, since it binds
+  the arguments by name. The schema is now `model_json_schema(by_alias=False)`,
+  agreeing with the call and with the hand-built strategy; a nested model's
+  aliased fields are keyed by name as well.
+- **`ToolRegistry.call` and `acall` give an omitted `Field` parameter its
+  default.** With `m: int = Field(5, le=9)` and `m` left out, the tool received
+  the `FieldInfo` object, while the hand-built schema advertises `default: 5`, so
+  a model trusting the schema omitted `m` and the tool broke. The call now binds
+  the field's default, calling a `default_factory` once per call. A `Field` with
+  no default is required in the schema, so omitting it raises `TypeError` naming
+  the tool and the parameter, rather than passing the `FieldInfo`.
+
 ## [0.6.0] — 2026-11-03
 
 Runs on django-service-specs 0.23.0 and adds the in-process django-spec-mcp
@@ -531,7 +582,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/Artui/django-spec-agents/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Artui/django-spec-agents/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Artui/django-spec-agents/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/Artui/django-spec-agents/compare/v0.4.0...v0.4.1
