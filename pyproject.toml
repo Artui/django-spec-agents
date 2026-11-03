@@ -152,8 +152,10 @@ dev = [
     "pydantic-ai-harness[code-mode]>=0.13",
     # Provider libs so the api_key / provider model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
-    # Floored with the extras above.
-    "pydantic-ai-slim[anthropic,openai,google]>=2.58",
+    # Floored with the extras above. ``mcp`` brings the FastMCP client behind
+    # pydantic-ai's ``MCPToolset``, which the end-to-end ToolGuard test drives a
+    # django-spec-mcp server through.
+    "pydantic-ai-slim[anthropic,openai,google,mcp]>=2.58",
 ]
 docs = [
     "mkdocs>=1.6",
