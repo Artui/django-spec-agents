@@ -2360,6 +2360,11 @@ it. Each item is read by what <code>input_data=</code> fills, since it is merged
 row: a field it is annotated to fill is not in the item schema, and one it may
 fill, or any field beside a provider whose return names no <code>TypedDict</code>, is
 offered and not required.</p>
+<p>The list's name may not be a <a href="#project-pool-seeds">pool seed</a>'s: a seed fills
+its name on every call, so no call could send the list. A <code>many</code> spec whose
+<code>many_argument</code> is a seed the mount registers, or <code>request</code> or <code>view</code>, which
+each call registers, is refused with <code>ImproperlyConfigured</code> naming the tool when
+the toolset is built.</p>
 <p>What the model is told when a call is wrong:</p>
 <ul>
 <li><strong>An invalid item</strong> comes back as a <code>ModelRetry</code> naming the argument, then the

@@ -2506,16 +2506,18 @@ so a tool listing does not re-introspect on every request.</p>
 reads <code>Annotated[T, ...]</code> as <code>T</code> plus what its metadata maps to: a
 <code>Field</code>'s <code>description</code>, <code>title</code> and <code>examples</code>, and the bounds of a
 <code>Field</code> or of <code>annotated_types</code> metadata. A string or forward reference
-nested in an annotation is resolved against <code>fn</code>'s module globals.
-Anything richer, or a nested reference that does not resolve, falls back to
-an empty fragment, imposing no type constraint but staying wire-valid; so
+nested in an annotation is resolved in the globals the top level is
+evaluated in. Anything richer, or a nested reference that does not resolve,
+falls back to an empty fragment, imposing no type constraint but staying
+wire-valid; so
 does a bound that is not an <code>int</code> or <code>float</code> (a <code>Decimal</code>, a
 <code>date</code>), and <code>examples</code> that do not serialise to JSON. An annotation
 that does not evaluate at the top level raises <code>NameError</code> under either
 strategy, from <code>inspect.signature</code>.</p>
 <p><code>SchemaStrategy.PYDANTIC</code> builds a pydantic model over the same
 parameters and returns its JSON Schema, so it covers whatever pydantic
-does, and raises where pydantic does: on a type it cannot schematise, an
+does, keyed by parameter name rather than a <code>Field</code> alias, and raises
+where pydantic does: on a type it cannot schematise, an
 unresolvable reference (<code>NameError</code>), or a parameter pydantic would not
 hold as a field (<code>TypeError</code>).</p>
 <p><code>destructive</code> / <code>category</code> / <code>confirm</code> / <code>summary</code> are stamped at the

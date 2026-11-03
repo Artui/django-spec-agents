@@ -1437,14 +1437,26 @@ wire-valid.</p>
 </tbody>
 </table>
 <p>A <code>title</code> appears only when the <code>Field</code> passes one. Other <code>Field</code> arguments
-(<code>alias</code>, <code>json_schema_extra</code>, <code>deprecated</code>, a default) are not carried, nor is
-any other metadata, such as a plain string. A string or forward reference
+(<code>alias</code>, <code>json_schema_extra</code>, <code>deprecated</code>) are not carried, nor is any other
+metadata, such as a plain string.</p>
+<p>A <code>Field</code> given as the parameter's default, <code>n: int = Field(ge=1)</code>, reads as one
+inside <code>Annotated</code> does, after the annotation's own metadata, so its keys win. A
+<code>Field</code> with no default makes the parameter required, as pydantic does, and
+<code>ToolRegistry.call</code> refuses a call that omits it with <code>TypeError</code>. A <code>Field</code>
+with a default shows it as <code>default</code>, in JSON mode (left out when it does not
+serialise), and a <code>default_factory</code> makes the parameter optional with no
+<code>default</code> shown. An omitted one reaches the tool as that default, or as a fresh
+value from the factory, never as the <code>FieldInfo</code> itself. A plain
+default, <code>n: int = 1</code>, makes the parameter optional and is not shown. A string or forward reference
 nested in an annotation, <code>Annotated["int", Field(ge=1)]</code> or <code>list["int"]</code>, is
-resolved against the function's module globals; one that does not resolve is
-an empty fragment, as an unknown type is. Every value carried serialises to
-JSON: a bound that is not an <code>int</code> or <code>float</code> (a <code>Decimal</code>, a <code>date</code>) is left
-out, and <code>examples</code> are rendered as pydantic renders them (a <code>Decimal</code> as its
-string), or left out when they do not serialise.</p>
+resolved in the globals the top level is evaluated in: the module of the function
+<code>inspect.signature</code> reads, through a decorator's <code>__wrapped__</code>, a
+<code>functools.partial</code>'s <code>func</code> or a callable instance's <code>__call__</code>. One that does
+not resolve is an empty fragment, as an unknown type is. Every value carried serialises to
+JSON: a bound that is not an <code>int</code> or <code>float</code> (a <code>Decimal</code>, a <code>date</code>), or is
+infinite or NaN, is left out, and <code>examples</code> are rendered as pydantic renders
+them (a <code>Decimal</code> as its string), or left out when they do not serialise or
+hold an infinite or NaN float.</p>
 <h3 id="choosing-a-strategy">Choosing a strategy<a class="headerlink" href="#choosing-a-strategy" title="Permanent link">&para;</a></h3>
 <p><code>schema_strategy=</code> picks the derivation, on <code>build_input_schema</code> for one call
 and on <code>ToolRegistry(schema_strategy=...)</code> for every binding the registry
@@ -1456,6 +1468,11 @@ derives. It takes a <code>SchemaStrategy</code>:</p>
   its <code>model_json_schema()</code>. It carries whatever pydantic does, models and enums
   included.</li>
 </ul>
+<p>Under either, a property is keyed by its parameter's name, never by a <code>Field</code>
+alias (<code>alias=</code> or <code>validation_alias=</code>), because <code>ToolRegistry.call</code> binds the
+arguments by name: <code>s: Annotated[str, Field(alias="other")]</code> is advertised as
+<code>s</code>, and a payload keyed <code>other</code> is refused. The pydantic strategy passes
+<code>by_alias=False</code>, so a nested model's fields are keyed by name too.</p>
 <p>The <code>x-*</code> keys are stamped at the root under either. The strategy shapes the
 schema <code>build_input_schema</code> returns and <code>ToolBinding.input_schema</code>; the schema the
 agent offers the model for an <code>@tool</code> tool is pydantic-ai's own under both.</p>
@@ -1466,7 +1483,7 @@ agent offers the model for an <code>@tool</code> tool is pydantic-ai's own under
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Order</span><span class="p">]:</span> <span class="o">...</span>
 </span></code></pre></div>
 <p>the hand-built strategy gives a flat schema with no titles, <code>nullable</code> for
-<code>X | None</code>, and no defaults:</p>
+<code>X | None</code>, and no defaults but a <code>Field</code>'s:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -1511,8 +1528,11 @@ field, a leading underscore or <code>model_config</code> (<code>TypeError</code>
 silently missing an argument). A default that is not JSON-serialisable is left
 out of its schema, with pydantic's warning.</p>
 <p>Pick the hand-built strategy for a schema that stays as it is across pydantic
-releases and does not fail a registration on a type it cannot map; pick pydantic's when a client should
-see what the agent's own validation sees, nested models and enums included.</p>
+releases and does not fail a registration on a type it cannot map; pick
+pydantic's when a client should see what the agent's own validation sees,
+nested models and enums included, bar one difference: a field is keyed by its
+parameter's name, not by a <code>Field</code> alias, where the agent's validation reads the
+alias.</p>
 <p>See the <a href="../reference/registry/">registry reference</a> for the full signatures.</p>
 
 
