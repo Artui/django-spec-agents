@@ -1711,10 +1711,13 @@ the kernel are both installed. Leave out the ones your project cannot raise.</p>
 it would with the policy off. Four classes are in the default set, because no
 one of them inherits from another:</p>
 <ul>
-<li><code>django.core.exceptions.PermissionDenied</code>, always.</li>
+<li><code>django.core.exceptions.PermissionDenied</code>, always. Both
+  <a href="../integrations/">MCP bridges</a> raise it for a permission refusing the user
+  (JSON-RPC <code>-32006</code>).</li>
 <li><code>rest_framework.exceptions.PermissionDenied</code>, when DRF is installed (the
-  <code>[drf-mcp]</code> extra brings it); a DRF permission check behind that bridge
-  raises it.</li>
+  <code>[drf-mcp]</code> extra brings it), for a tool that raises it. A DRF permission
+  check behind the drf-mcp bridge does not arrive as this class: drf-mcp
+  answers it with <code>-32006</code>, which the bridge raises as Django's.</li>
 <li><code>django_service_specs.NotPermitted</code>, when the kernel is installed (the
   <code>[specs]</code>, <code>[mcp]</code> or <code>[drf-mcp]</code> extra); the kernel's dispatch raises it when a permission check
   refuses the principal.</li>
