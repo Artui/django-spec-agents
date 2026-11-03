@@ -478,9 +478,12 @@ because it observes the tool from all four hooks. Its `before_tool_execute` capt
 tool's result. Its wrapper is the only one that writes the record, once per
 execution, as it exits, preferring what the hooks captured over what it saw
 itself. The wrapper encloses every hook, and the captures are what keep the
-record the tool's. Each call's captures belong to
+record the tool's. The arguments and the start come from `before_tool_execute`
+alone: the wrapper takes neither, because a call that never reached that hook
+never ran the tool and is not recorded. Each call's captures belong to
 that call, so parallel calls in one run and concurrent runs of one agent never
-read each other's. Reruns that a capability sorted after audit makes
+read each other's, nor does a tool that runs another agent composed with the
+same capability. Reruns that a capability sorted after audit makes
 concurrently, inside one call, are one call to audit, and share its captures.
 
 Full signatures in the [policy reference](reference/policy.md).

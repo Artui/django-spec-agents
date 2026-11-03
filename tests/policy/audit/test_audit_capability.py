@@ -1315,8 +1315,8 @@ async def test_a_rerun_refused_ahead_of_audit_is_not_recorded() -> None:
     then runs the tool.
 
     The rerun enters audit's wrapper again, and the refusal reaches it before
-    audit's ``before_tool_execute`` has run for that entry. Only the reset on
-    the way out of the first entry keeps the second from carrying over the
+    audit's ``before_tool_execute`` has run for that entry. Only the fresh,
+    unreached execution each entry starts keeps the second from taking the
     first's "reached" and recording a call that never ran. The records follow
     the tool.
     """
@@ -1539,9 +1539,9 @@ async def test_a_nested_call_refused_ahead_of_audit_is_not_recorded() -> None:
 
     The refusal reaches the inner call's audit wrapper, which starts
     in a context still holding the outer call's execution, before audit's
-    ``before_tool_execute`` has run for the inner call. Only the identity
-    check keeps the inner call from taking the outer one's "reached" and
-    recording a call that never ran.
+    ``before_tool_execute`` has run for the inner call. Only the fresh,
+    unreached execution the wrapper starts keeps the inner call from taking
+    the outer one's "reached" and recording a call that never ran.
     """
     audit_log = CapturingAuditLogger()
     audit = AuditCapability(audit_log)
