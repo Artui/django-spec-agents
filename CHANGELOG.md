@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-11-03
+
+Fixes to the tool schemas and to `SpecToolset`'s build-time checks. Nothing
+public is added or removed; one parameter shape can become required, below.
+
 ### Fixed
 
+- **`pydantic` is declared, at `>=2.12`.** The schema derivation imports
+  `pydantic` and `pydantic_core` itself, which arrived only through
+  `pydantic-ai-slim`. The floor is the one `pydantic-ai-slim` 2.58 requires, so
+  no install resolves differently.
 - **`SpecToolset` refuses a `many` spec whose list is named after a pool seed.**
   A mount registering a seed named like the spec's `many_argument` (`items`
   unless the spec names another), or a spec naming its list `request` or `view`,
@@ -566,7 +575,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/Artui/django-spec-agents/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Artui/django-spec-agents/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Artui/django-spec-agents/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/Artui/django-spec-agents/compare/v0.4.0...v0.4.1
