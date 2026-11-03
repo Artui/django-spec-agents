@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A string reference nested in a tool's annotation resolves for a
+  `functools.partial` and a callable instance**, as it already did for a plain
+  or decorated function. `build_input_schema` read globals from the object it
+  was given, which for either has none, while `inspect.signature` evaluates the
+  top level in the partial's `func` or in `type(fn).__call__`. A module-level
+  `_N = int` behind `ids: list[Annotated["_N", ...]]` gave `items: {}` under the
+  hand-built strategy and raised `NameError` at registration under
+  `SchemaStrategy.PYDANTIC`; it now resolves under both.
+
 ## [0.6.0] — 2026-11-03
 
 Runs on django-service-specs 0.23.0 and adds the in-process django-spec-mcp

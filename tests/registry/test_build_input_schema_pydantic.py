@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from enum import Enum
 from typing import Annotated, Any
 
@@ -15,6 +16,10 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 
 _OPAQUE = object()
 
+# Module-level, so a string reference to it resolves in a tool's globals and
+# nowhere else.
+_Count = int
+
 
 class _Opaque:
     """A class pydantic has no schema for."""
@@ -23,6 +28,17 @@ class _Opaque:
 class _Colour(str, Enum):
     RED = "red"
     BLUE = "blue"
+
+
+class _CountTool:
+    """A callable instance: `inspect.signature` reads ``type(self).__call__``."""
+
+    def __call__(self, ids: list[Annotated["_Count", "t"]]) -> None:  # noqa: UP037
+        del ids
+
+
+def _count_ids(ids: list[Annotated["_Count", "t"]], limit: int) -> None:  # noqa: UP037
+    del ids, limit
 
 
 def _find(
@@ -101,6 +117,24 @@ def test_the_pydantic_strategy_resolves_nested_string_references() -> None:
     props = build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)["properties"]
     assert props["n"] == {"minimum": 1, "title": "N", "type": "integer"}
     assert props["tags"] == {"items": {"type": "integer"}, "title": "Tags", "type": "array"}
+
+
+@pytest.mark.parametrize(
+    ("fn", "title"),
+    [(_CountTool(), "_CountTool"), (functools.partial(_count_ids, limit=1), "partial")],
+    ids=["callable instance", "partial"],
+)
+def test_the_pydantic_strategy_resolves_references_where_the_signature_does(
+    fn: Any, title: str
+) -> None:
+    # Neither object has a ``__name__``, so the model is named after its type.
+    schema = build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)
+    assert schema["title"] == title
+    assert schema["properties"]["ids"] == {
+        "items": {"type": "integer"},
+        "title": "Ids",
+        "type": "array",
+    }
 
 
 def test_the_pydantic_strategy_raises_on_an_unresolvable_reference() -> None:

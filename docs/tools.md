@@ -150,8 +150,10 @@ A `title` appears only when the `Field` passes one. Other `Field` arguments
 (`alias`, `json_schema_extra`, `deprecated`, a default) are not carried, nor is
 any other metadata, such as a plain string. A string or forward reference
 nested in an annotation, `Annotated["int", Field(ge=1)]` or `list["int"]`, is
-resolved against the function's module globals; one that does not resolve is
-an empty fragment, as an unknown type is. Every value carried serialises to
+resolved in the globals the top level is evaluated in: the module of the function
+`inspect.signature` reads, through a decorator's `__wrapped__`, a
+`functools.partial`'s `func` or a callable instance's `__call__`. One that does
+not resolve is an empty fragment, as an unknown type is. Every value carried serialises to
 JSON: a bound that is not an `int` or `float` (a `Decimal`, a `date`) is left
 out, and `examples` are rendered as pydantic renders them (a `Decimal` as its
 string), or left out when they do not serialise.

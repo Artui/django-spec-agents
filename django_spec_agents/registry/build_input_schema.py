@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import inspect
 import re
 import types
@@ -55,9 +56,10 @@ def build_input_schema(
     reads ``Annotated[T, ...]`` as ``T`` plus what its metadata maps to: a
     ``Field``'s ``description``, ``title`` and ``examples``, and the bounds of a
     ``Field`` or of ``annotated_types`` metadata. A string or forward reference
-    nested in an annotation is resolved against ``fn``'s module globals.
-    Anything richer, or a nested reference that does not resolve, falls back to
-    an empty fragment, imposing no type constraint but staying wire-valid; so
+    nested in an annotation is resolved in the globals the top level is
+    evaluated in. Anything richer, or a nested reference that does not resolve,
+    falls back to an empty fragment, imposing no type constraint but staying
+    wire-valid; so
     does a bound that is not an ``int`` or ``float`` (a ``Decimal``, a
     ``date``), and ``examples`` that do not serialise to JSON. An annotation
     that does not evaluate at the top level raises ``NameError`` under either
@@ -88,9 +90,7 @@ def build_input_schema(
     # `_hint_to_schema` unwraps `Annotated`, resolves a nested reference and reads
     # a bare ``None`` itself.
     sig = inspect.signature(fn, eval_str=True)
-    # The namespace `eval_str` evaluates in, so a nested reference resolves as a
-    # top-level one does.
-    globalns = getattr(inspect.unwrap(fn), "__globals__", {})
+    globalns = _signature_globals(fn)
     context_parameter = run_context_parameter(sig)
     arguments = [
         param
@@ -117,6 +117,25 @@ def build_input_schema(
     if required:
         schema["required"] = required
     return schema
+
+
+def _signature_globals(fn: Callable[..., Any]) -> dict[str, Any]:
+    """The namespace `eval_str` evaluates ``fn``'s annotations in.
+
+    So a nested reference resolves as a top-level one does. `inspect.signature`
+    reads a partial through its ``func`` and a callable instance through
+    ``type(fn).__call__``, neither of which has ``__globals__`` of its own; a
+    builtin has none anywhere, and nothing to resolve in one. A bound method
+    reads its function's, which is why it is not sent to ``__call__``
+    (`test_a_reference_resolves_in_a_bound_method_s_globals` fails without
+    the ``ismethod`` check).
+    """
+    target = inspect.unwrap(fn)
+    if isinstance(target, functools.partial):
+        target = inspect.unwrap(target.func)
+    if not (inspect.isfunction(target) or inspect.ismethod(target)):
+        target = inspect.unwrap(type(target).__call__)
+    return getattr(target, "__globals__", {})
 
 
 def _hint(param: inspect.Parameter) -> Any:

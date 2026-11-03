@@ -27,6 +27,17 @@ class _Custom:
 _Count = int
 
 
+class _CountTool:
+    """A callable instance: `inspect.signature` reads ``type(self).__call__``."""
+
+    def __call__(self, ids: list[Annotated["_Count", "t"]]) -> None:  # noqa: UP037
+        del ids
+
+
+def _count_ids(ids: list[Annotated["_Count", "t"]], limit: int) -> None:  # noqa: UP037
+    del ids, limit
+
+
 def test_primitive_parameters() -> None:
     def fn(
         s: str,
@@ -277,6 +288,33 @@ def test_a_reference_resolves_in_the_wrapped_function_s_globals() -> None:
 
     props = build_input_schema(wrapper)["properties"]
     assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+@pytest.mark.parametrize(
+    "fn",
+    [_CountTool(), functools.partial(_count_ids, limit=1)],
+    ids=["callable instance", "partial"],
+)
+def test_a_reference_resolves_where_the_signature_does(fn: Any) -> None:
+    # Neither object has ``__globals__`` of its own: a nested reference resolves
+    # in the globals of the function `inspect.signature` reads, ``__call__`` or
+    # the partial's ``func``, as the top level does.
+    props = build_input_schema(fn)["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_a_reference_resolves_in_a_bound_method_s_globals() -> None:
+    class Tools:
+        def count(self, ids: list[Annotated["_Count", "t"]]) -> None:  # noqa: UP037
+            del ids
+
+    props = build_input_schema(Tools().count)["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_a_callable_with_no_globals_of_its_own_still_registers() -> None:
+    # A builtin has no ``__globals__`` anywhere, and nothing to resolve in one.
+    assert build_input_schema(divmod)["properties"] == {"x": {}, "y": {}}
 
 
 def test_an_unresolvable_nested_reference_falls_back_to_an_empty_fragment() -> None:
