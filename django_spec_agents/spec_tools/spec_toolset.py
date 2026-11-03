@@ -2,7 +2,7 @@
 
 A thin adapter that turns a ``name -> spec`` mapping into agent tools, executing
 each call through the kernel's ``dispatch`` and describing each tool's arguments
-with the kernel's ``spec_input_schema``. A spec is a django-service-specs
+with the kernel's ``spec_caller_input_schema``. A spec is a django-service-specs
 ``ServiceSpec`` or ``SelectorSpec``, or any declaration that compiles to one;
 every read goes through ``kernel_spec``, so the toolset asks the compiled spec
 and nothing else. No MCP
@@ -63,7 +63,6 @@ from django_service_specs import (
     PoolSeeds,
     PrincipalUnavailable,
     ProgressReporter,
-    ProviderKeys,
     SelectorKind,
     ServerArguments,
     ServiceError,
@@ -79,8 +78,7 @@ from django_service_specs import (
     operation_affordances,
     paginate_output,
     present_for_audience,
-    provider_keys,
-    spec_input_schema,
+    spec_caller_input_schema,
     spec_output_schema,
     unmet_operation_affordance,
 )
@@ -247,7 +245,7 @@ _RESERVED_PARAM_NAMES = frozenset({"page", "limit", "ordering"})
 _TOOL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 # A no-op: the advertised parameter schemas are advisory (the kernel's
-# ``spec_input_schema``, not a Pydantic model) and the real validation is the
+# ``spec_caller_input_schema``, not a Pydantic model) and the real validation is the
 # kernel's shape check and the spec's own Validator at dispatch time.
 _TOOL_ARGS_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
 
@@ -335,8 +333,8 @@ class SpecToolset(AbstractToolset[Any]):
         agent = Agent(model, deps_type=AgentDeps, toolsets=[toolset])
 
     Each key becomes one tool: the description is the spec's selector/service
-    docstring, the parameter schema is the kernel's ``spec_input_schema`` (with a
-    list selector's ``page`` / ``limit`` args merged in), the ``return_schema``
+    docstring, the parameter schema is the kernel's ``spec_caller_input_schema``
+    (with a list selector's ``page`` / ``limit`` args merged in), the ``return_schema``
     comes from the same spec's projected output path, and the ``readOnlyHint``
     annotation is derived from the spec kind (selectors read, services mutate).
 
@@ -2299,127 +2297,44 @@ def _caller_schema(
 ) -> dict[str, Any]:
     """What ``spec`` itself asks of the model, before this toolset's own arguments.
 
-    The kernel's ``spec_input_schema`` of the compiled spec, the argument set
-    its ``dispatch`` checks: a selector's reads and shapes, or a service's
-    target lookup's reads, its own, its shapes and its Validator's fields. Read
-    under the toolset's own ``unknown_arguments``, because the schema closes the
-    argument set, ``"additionalProperties": false``, exactly where dispatch
-    does: under ``REJECT`` and not under ``IGNORE``
+    The kernel's ``spec_caller_input_schema`` of the compiled spec: its
+    ``spec_input_schema``, a selector's reads and shapes or a service's target
+    lookup's reads, its own, its shapes and its Validator's fields, less what
+    the server answers, so ``required`` means the caller and requires exactly
+    what dispatch refuses the caller for leaving out. Read under the toolset's
+    own ``unknown_arguments``, because the schema closes the argument set,
+    ``"additionalProperties": false``, exactly where dispatch does: under
+    ``REJECT`` and not under ``IGNORE``
     (``test_the_schema_closes_the_argument_set_only_where_the_call_does``).
 
-    **Less ``server_owned_keys`` for this toolset's seeds**: every name dispatch
-    fills from the server whatever the caller sends -- the dispatcher's own
-    seeds, every registered one, and each key a ``kwargs=`` or ``input_data=``
-    provider is annotated to fill. A registered seed's name a service's
-    Validator declares as a top-level field is not among them, since that field
-    is the caller's to send. Advertised, such a name would be an argument the
-    call drops or ``REJECT`` refuses
-    (``test_a_registered_seed_outranks_a_model_argument_of_the_same_name``).
+    **Withheld**: every name ``server_owned_keys`` lists for this toolset's
+    seeds, which dispatch fills from the server whatever the caller sends
+    (``test_a_registered_seed_outranks_a_model_argument_of_the_same_name``,
+    ``test_a_field_a_typed_input_data_always_fills_is_not_advertised``).
 
-    **A read a provider may decline is advertised and not required**: the
-    kernel lists it as declared, ``required`` meaning the call needs the value
-    from someone, and dispatch does not demand it of the caller, since the
-    provider may fill it
-    (``test_a_key_the_provider_may_decline_stays_the_models_to_send``), and in
-    its own seat only
-    (``test_a_key_one_seat_may_decline_is_still_required_by_another``); relaxing
-    the last one leaves no ``required`` at all
-    (``test_a_schema_whose_every_read_may_be_declined_requires_nothing``). **So
-    is every read beside a provider whose keys cannot be read**, which may fill
-    any of them: the kernel's ``server_owned_keys`` names none of its keys, and
-    dispatch demands none of them of the caller, so a read the declaration
-    marks required is advertised and not required there
-    (``test_a_marked_parameter_beside_an_untyped_provider_is_advertised_and_not_required``),
-    in that seat only
-    (``test_a_read_an_untyped_provider_may_fill_is_still_required_by_another_seat``).
-    A call leaving such a read out that the provider does not fill either is
-    refused by the kernel at the assembled pool, which the model is handed
-    back
-    (``test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed_back``).
+    **Advertised and not required**: a parameter a provider may fill, in the
+    seat its values reach only. A read a typed ``kwargs=`` may decline
+    (``test_a_key_the_provider_may_decline_stays_the_models_to_send``,
+    ``test_a_key_one_seat_may_decline_is_still_required_by_another``), every
+    read beside an untyped one
+    (``test_a_marked_parameter_beside_an_untyped_provider_is_advertised_and_not_required``,
+    ``test_a_read_an_untyped_provider_may_fill_is_still_required_by_another_seat``),
+    and a Validator field ``input_data=`` may fill
+    (``test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_required``,
+    ``test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required``,
+    ``test_a_read_is_still_required_beside_an_input_data_that_may_fill_a_field``).
+    A call leaving out such a parameter that no provider fills either is
+    refused by the kernel at the assembled pool, which the model is handed back
+    (``test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed_back``,
+    ``test_a_field_nobody_fills_is_handed_back_before_the_validator_runs``).
 
-    **A service's Validator fields are one more seat, beside its
-    ``input_data=``**, relaxed the same way and in that seat only: all of them
-    beside an untyped provider, the keys a typed one may decline beside a typed
-    one (``test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_required``,
-    ``test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required``).
-    **Not on a ``many`` service**: its Validator fields are each row's, so they
-    are no top-level argument and the rows are neither stripped nor relaxed, though
-    the kernel serves a row the provider fills
+    **A ``many`` spec's rows are read the same way**, by what ``input_data``
+    reaches there, and the top level keeps the list and the reads required
     (``test_a_row_field_is_not_a_top_level_seat_on_a_many_spec``).
-    On any other service, a field a typed provider always fills is not advertised at all, which
-    ``server_owned_keys`` already did
-    (``test_a_field_a_typed_input_data_always_fills_is_not_advertised``), and a
-    declinable key that names no field of the Validator relaxes nothing
-    (``test_a_key_the_input_data_may_decline_relaxes_only_a_field_of_the_validator``).
-    A call leaving out a field nobody fills is handed back by the kernel, which
-    refuses it before the Validator runs, naming the field as it names a read
-    (``test_a_field_nobody_fills_is_handed_back_before_the_validator_runs``), and
-    a read in another seat stays required
-    (``test_a_read_is_still_required_beside_an_input_data_that_may_fill_a_field``).
     """
-    compiled = kernel_spec(spec)
-    schema = _without(
-        spec_input_schema(compiled, unknown_arguments=unknown_arguments),
-        kernel_server_owned_keys(compiled, pool_seeds=pool_seeds),
+    return spec_caller_input_schema(
+        kernel_spec(spec), pool_seeds=pool_seeds, unknown_arguments=unknown_arguments
     )
-    declinable: set[str] = set()
-    for names, keys in [*_read_seats(compiled), *_validator_seats(compiled)]:
-        declinable |= names if keys is None else names & keys.declinable
-    required = [name for name in schema.get("required", []) if name not in declinable]
-    if required == schema.get("required", []):
-        return schema
-    relaxed = {key: value for key, value in schema.items() if key != "required"}
-    if required:
-        relaxed["required"] = required
-    return relaxed
-
-
-def _read_seats(
-    compiled: KernelServiceSpec | KernelSelectorSpec,
-) -> list[tuple[frozenset[str], ProviderKeys | None]]:
-    """Each seat of reads in ``compiled`` with what its provider says it fills.
-
-    A selector's ``reads`` beside its ``kwargs=``; a service's own beside its
-    ``kwargs=``, and its target lookup's beside the lookup's. Each provider's
-    values reach its own seat only, so a provider's keys say nothing about a
-    read in another. ``None`` is a provider whose keys cannot be read, which
-    may fill any read in its seat; no provider at all fills nothing. A
-    Validator's fields are not reads, and not among these seats: the Validator
-    answers for them, and ``_validator_seats`` is where ``input_data`` reaches
-    them. The target's seat is held by ``test_a_service_call_missing_its_lookup_is_handed_back``.
-    """
-    seats = [(compiled.reads.names(), provider_keys(compiled.kwargs))]
-    target = compiled.target_selector_spec() if isinstance(compiled, KernelServiceSpec) else None
-    if target is not None:
-        seats.append((target.reads.names(), provider_keys(target.kwargs)))
-    return seats
-
-
-def _validator_seats(
-    compiled: KernelServiceSpec | KernelSelectorSpec,
-) -> list[tuple[frozenset[str], ProviderKeys | None]]:
-    """The seat of a service's Validator fields, with what its ``input_data`` says it fills.
-
-    ``input_data`` is merged over the caller's arguments before the Validator
-    runs, so a provider that fills or may fill a field is why dispatch does not
-    demand the field of the caller. Empty for a selector, which has no
-    Validator, and for a spec with none. A ``many`` spec's Validator fields are
-    each row's rather than top-level arguments, so they are no seat in the
-    schema this reads: the list stays required.
-
-    One branch arc, each conjunct held by its own test: a selector spec has no
-    ``validator`` to read (``test_list_selector_renders_owned_widgets``); a
-    service may have none (``test_no_request_arrives_unless_the_run_put_one``);
-    and a ``many`` spec's fields are no top-level seat
-    (``test_a_row_field_is_not_a_top_level_seat_on_a_many_spec``).
-    """
-    if (
-        isinstance(compiled, KernelServiceSpec)
-        and compiled.validator is not None
-        and not compiled.many
-    ):
-        return [(compiled.validator.parameters().names(), provider_keys(compiled.input_data))]
-    return []
 
 
 def _required_arguments(
@@ -2438,9 +2353,11 @@ def _required_arguments(
     there, so it is not refused here either
     (``test_an_untyped_provider_filling_a_marked_parameter_is_not_refused``).
     """
-    reads: set[str] = set()
-    for names, _keys in _read_seats(kernel_spec(spec)):
-        reads |= names
+    compiled = kernel_spec(spec)
+    reads = compiled.reads.names()
+    target = compiled.target_selector_spec() if isinstance(compiled, KernelServiceSpec) else None
+    if target is not None:
+        reads |= target.reads.names()
     required = _caller_schema(spec, pool_seeds=pool_seeds).get("required", [])
     return tuple(name for name in required if name in reads)
 

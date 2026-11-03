@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The lock resolves django-service-specs 0.23.0**, the release
   django-spec-mcp 0.2.0 requires, where it pinned 0.16.0. The `[specs]` floor
   is unchanged.
+- **The `[specs]` floor is django-service-specs 0.23.0**, and `SpecToolset`
+  advertises the kernel's `spec_caller_input_schema` in place of its own reading
+  of `spec_input_schema`. Off a `many` spec the schema is unchanged. On a `many`
+  spec each row is now read by what `input_data=` fills, as dispatch reads it: a
+  row field it is annotated to fill leaves the row's `properties`, and one it may
+  fill, or any field beside an untyped provider, is offered and not required.
+  The rows used to require every field as declared.
 
 ## [0.5.0] — 2026-10-31
 

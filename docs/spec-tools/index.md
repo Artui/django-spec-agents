@@ -25,8 +25,10 @@ declared it:
   or provider declaring `request` or `view` is handed `None`, while a
   permission check reads the principal and, where it declares `arguments`,
   the call's arguments;
-- **`spec_input_schema`**, the kernel's, derives each tool's parameter schema
-  from the compiled spec, the argument set `dispatch` checks, and
+- **`spec_caller_input_schema`**, the kernel's, derives each tool's parameter
+  schema from the compiled spec: the argument set `dispatch` checks, less what
+  the server fills, requiring what `dispatch` refuses the caller for leaving
+  out; and
   **`spec_output_schema`** its `return_schema`, projected for the audience;
 - **`paginate_output`**, the kernel's, slices a list selector into the page the
   tool returns, the same shaper the MCP transport uses;

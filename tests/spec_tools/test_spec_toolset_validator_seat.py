@@ -113,9 +113,9 @@ def _service(input_data: Any, **kwargs: Any) -> ServiceSpec:
 def test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_required():
     """The provider may be what fills any Validator field, so the schema asks the
     model for none of them, as it asks for no read an untyped ``kwargs=`` may
-    fill. Holds the untyped seat in ``_caller_schema``: leaving the fields as
-    declared would keep ``name`` and ``owner`` required, which is what it said
-    before.
+    fill. Holds the untyped seat in the kernel's ``spec_caller_input_schema``:
+    leaving the fields as declared would keep ``name`` and ``owner`` required,
+    which is what it said before.
     """
     toolset = SpecToolset({"t": _service(_fills_owner)})
 
@@ -127,7 +127,7 @@ def test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_req
 
 def test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required():
     """Only the key the provider may decline is relaxed: ``name`` is nobody's but
-    the caller's. Holds ``names & keys.declinable`` for the Validator seat."""
+    the caller's: the Validator seat relaxes the declinable keys alone."""
     toolset = SpecToolset({"t": _service(_fills_owner_when_it_can)})
 
     schema = _input_schema_of(toolset, "t")
@@ -193,7 +193,7 @@ def test_a_read_is_still_required_beside_an_input_data_that_may_fill_a_field():
 def test_a_key_the_input_data_may_decline_relaxes_only_a_field_of_the_validator():
     """``input_data`` reaches the Validator's fields only, so a key it may decline
     that names a read in the target lookup's seat says nothing about that read.
-    Holds the ``names &`` for the Validator seat: relaxing every declinable key
+    Holds the Validator seat to its own names: relaxing every declinable key
     would leave ``pk`` optional."""
     toolset = SpecToolset(
         {"t": _service(_declines_pk, instance_selector_spec=by_pk(get_any_widget))}
@@ -216,7 +216,9 @@ async def test_a_call_missing_a_read_beside_an_input_data_is_still_handed_back()
 def test_a_row_field_is_not_a_top_level_seat_on_a_many_spec():
     """A ``many`` spec's Validator fields are each row's, so ``input_data`` relaxes
     them inside every row and no top-level argument: a read sharing a row field's
-    name stays required, and so does the list. Holds ``not compiled.many``."""
+    name stays required, and so does the list. ``input_data`` runs once per call
+    and is merged over every row, so beside an untyped one a row requires
+    nothing, as dispatch demands nothing of it."""
     spec = ServiceSpec(
         service=make_rows,
         validator=_Recording(Row),
@@ -231,5 +233,47 @@ def test_a_row_field_is_not_a_top_level_seat_on_a_many_spec():
     schema = _input_schema_of(toolset, "t")
 
     assert sorted(schema["required"]) == sorted(["owner", spec.many_argument])
-    # The rows are not relaxed either: the schema still lists the field there.
-    assert schema["properties"][spec.many_argument]["items"]["required"] == ["name", "owner"]
+    rows = schema["properties"][spec.many_argument]["items"]
+    assert sorted(rows["properties"]) == ["name", "owner"]
+    assert "required" not in rows
+
+
+def test_a_row_field_a_typed_input_data_always_fills_is_not_offered_in_any_row():
+    """``input_data`` is merged over every row, and dispatch drops the caller's
+    value for a field it is annotated to fill, so no row offers that field. The
+    top level, the list, stays required."""
+    spec = ServiceSpec(
+        service=make_rows,
+        validator=_Recording(Row),
+        input_data=_always_fills_owner,
+        many=True,
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    schema = _input_schema_of(toolset, "t")
+
+    assert schema["required"] == [spec.many_argument]
+    rows = schema["properties"][spec.many_argument]["items"]
+    assert sorted(rows["properties"]) == ["name"]
+    assert rows["required"] == ["name"]
+
+
+def test_a_row_field_a_typed_input_data_may_decline_is_offered_and_not_required():
+    """A field ``input_data`` may decline stays the caller's to send in each row,
+    and is not demanded of it: ``name`` is still the row's own."""
+    spec = ServiceSpec(
+        service=make_rows,
+        validator=_Recording(Row),
+        input_data=_fills_owner_when_it_can,
+        many=True,
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    rows = _input_schema_of(toolset, "t")["properties"][spec.many_argument]["items"]
+
+    assert sorted(rows["properties"]) == ["name", "owner"]
+    assert rows["required"] == ["name"]
