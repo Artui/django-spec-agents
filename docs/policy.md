@@ -171,21 +171,27 @@ one hook covers every tool regardless of origin:
   metadata. A tool is marked unless its `readOnlyHint` is true or its
   `destructiveHint` is false, as MCP reads the pair; a tool listed with no
   `annotations` is not marked.
-- **MCP tool annotations** — `metadata["annotations"]["readOnlyHint"] is False`,
-  which is how a toolset speaking MCP's own vocabulary says it mutates. A
-  `ServiceSpec` exposed through `SpecToolset` is the case that
-  matters: without this the *same* spec would be gated over an MCP bridge and
-  ungated attached in process, so a transport swap would remove the gate silently.
+- **MCP tool annotations** — `metadata["annotations"]`, read by the bridges' own
+  rule: annotations that say anything mark the tool destructive unless
+  `readOnlyHint` is true or `destructiveHint` is false. A field that is `None` is
+  unsaid, so the full dump a remote MCP client stores (every field present,
+  the ones the server never sent `None`) reads as the plain dict does, and
+  annotations that say nothing at all, `{}` or all `None`, mark nothing. It is how
+  a toolset speaking MCP's own vocabulary says it mutates: a `ServiceSpec`
+  exposed through `SpecToolset` writes `readOnlyHint: False`, and a remote
+  server's tools arrive with its annotations. Without this the *same* spec would
+  be gated over an MCP bridge and ungated attached in process, so a transport
+  swap would remove the gate silently.
 - **The `x-destructive` schema stamp** at the root of `parameters_json_schema`,
   which is what `build_input_schema` writes. A project deriving a schema with
   that helper and attaching the tool through `toolsets=` gets the gate from it.
 - **`require_approval`** — an explicit opt-in for anything the rest miss.
 
-A hint has to *say* the tool mutates. Outside a bridge, which reads a tool that
-lists any annotation by MCP's defaults, a missing `readOnlyHint`, an absent
-stamp, or metadata of some other shape entirely leaves the tool alone — silence
-is not a claim, and `require_approval` is the answer for a tool whose source
-declares nothing.
+A hint has to *say* something. Annotations that say nothing, an absent stamp, or
+metadata of some other shape entirely leave the tool alone — silence is not a
+claim, and `require_approval` is the answer for a tool whose source declares
+nothing. Annotations that say anything are read by MCP's defaults, as the
+bridges read them.
 
 `DESTRUCTIVE_METADATA_KEY` still rides tool *metadata* rather than only the
 schema, because metadata is the channel a bridge controls and the schema is the

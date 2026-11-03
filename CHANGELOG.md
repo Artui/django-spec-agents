@@ -52,6 +52,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   override. A tool listed with no `annotations` is still not marked. A project
   that relied on the gate for such a mutation names it in `require_approval`.
   The new `MCPToolset` follows the same rule.
+- **`ToolGuard` reads a tool's MCP annotations as the bridges do.** A tool
+  whose metadata carries `annotations`, as `SpecToolset` writes them and as a
+  remote MCP client stores a server's, was gated on `readOnlyHint: False` alone.
+  A remote tool registered `annotations={"destructiveHint": False}` was gated
+  where the in-process bridges leave it alone, and one carrying only
+  `destructiveHint: True` was not gated where they mark it. The guard now gates a
+  tool whose annotations say anything unless `readOnlyHint` is true or
+  `destructiveHint` is false, a `None` field counting as unsaid; annotations
+  that say nothing, `{}` or every field `None` (a server that sent none), still
+  gate nothing. A project that relied on the gate for a remote
+  `destructiveHint: False` mutation names it in `require_approval`.
 
 ## [0.5.0] — 2026-10-31
 

@@ -39,12 +39,15 @@ class ToolGuard(AbstractCapability[Any]):
       MCP reads the pair, so a mutation registered with
       ``annotations={"destructiveHint": False}`` is not gated. A tool listed
       with no ``annotations`` is not marked.
-    - **MCP tool annotations** — ``metadata["annotations"]["readOnlyHint"] is
-      False``. A toolset that speaks MCP's own vocabulary rather than this
-      package's key declares a mutation this way, ``SpecToolset`` over a
-      ``ServiceSpec`` among them. Reading it gates a spec
-      attached in process the way the bridge's key gates the same spec over
-      drf-mcp, so a transport swap cannot silently remove the gate.
+    - **MCP tool annotations** — ``metadata["annotations"]``, read by the bridges'
+      rule: annotations that say something mark the tool unless ``readOnlyHint``
+      is true or ``destructiveHint`` is false, and a field that is ``None`` is
+      unsaid, as are annotations with nothing said. A toolset that speaks MCP's
+      own vocabulary rather than this package's key declares a mutation this
+      way, ``SpecToolset`` over a ``ServiceSpec`` and a remote MCP server among
+      them. Reading it gates a spec attached in process the way the bridge's key
+      gates the same spec over drf-mcp, so a transport swap cannot silently
+      remove the gate.
     - **The ``x-destructive`` schema stamp** at the root of
       ``parameters_json_schema``, which is what
       [`build_input_schema`][django_spec_agents.build_input_schema] writes,
@@ -53,11 +56,11 @@ class ToolGuard(AbstractCapability[Any]):
     - **Project overrides**: ``require_approval`` force-gates a name, ``exempt``
       un-gates one, and ``exempt`` wins.
 
-    A hint has to *say* the tool mutates. Outside a bridge, which reads a tool
-    that lists any annotation by MCP's defaults, a missing ``readOnlyHint``, an
-    absent stamp or metadata of another shape entirely leaves the tool alone —
-    silence is not a claim, and ``require_approval`` is the answer for a tool
-    whose source declares nothing.
+    A hint has to *say* something. Annotations that say nothing, an absent stamp
+    or metadata of another shape entirely leave the tool alone — silence is not
+    a claim, and ``require_approval`` is the answer for a tool whose source
+    declares nothing. Annotations that say anything are read by MCP's defaults,
+    as the bridges read them.
 
     Only ``kind="function"`` tools are flipped — an ``external`` tool is already
     gated client-side, and an ``output`` tool is not executed.
@@ -107,13 +110,32 @@ def _declares_a_mutation(tool_def: ToolDefinition) -> bool:
     metadata = tool_def.metadata or {}
     if metadata.get(DESTRUCTIVE_METADATA_KEY):
         return True
-    # MCP's own name for the same fact, as ``SpecToolset`` writes it: a
-    # ``readOnlyHint`` and nothing else, so only an explicit ``False`` says the
-    # tool mutates. ``Mapping`` guard because metadata is free-form.
+    # MCP's own name for the same fact: ``SpecToolset`` writes a ``readOnlyHint``
+    # and nothing else, and a remote client (pydantic-ai's ``MCPServer``) dumps
+    # the server's whole ``ToolAnnotations`` with the fields it never sent as
+    # ``None``. ``Mapping`` guard because metadata is free-form.
     annotations = metadata.get("annotations")
-    if isinstance(annotations, Mapping) and annotations.get("readOnlyHint") is False:
+    if isinstance(annotations, Mapping) and _annotations_declare_a_mutation(annotations):
         return True
     return bool((tool_def.parameters_json_schema or {}).get(X_DESTRUCTIVE_KEY))
+
+
+def _annotations_declare_a_mutation(annotations: Mapping[str, Any]) -> bool:
+    """Whether MCP annotations mark a tool destructive, as both bridges read them.
+
+    MCP defaults ``readOnlyHint`` to false and, on a tool that is not read-only,
+    ``destructiveHint`` to true, so annotations that say anything at all mark a
+    tool unless ``readOnlyHint`` is true or ``destructiveHint`` is false. A
+    ``None`` is a field the server never sent, so it is unsaid, and annotations
+    with nothing said (``{}``, or every field ``None``) are no claim: otherwise
+    every remote tool, whose full dump has no field set, would be gated.
+    """
+    if all(value is None for value in annotations.values()):
+        return False
+    return (
+        annotations.get("readOnlyHint") is not True
+        and annotations.get("destructiveHint") is not False
+    )
 
 
 __all__ = ["ToolGuard"]
