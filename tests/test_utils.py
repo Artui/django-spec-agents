@@ -145,6 +145,24 @@ async def test_acall_get_user_awaits_a_native_async_hook() -> None:
     assert await acall_get_user(hook, RequestFactory().get("/")) is sentinel
 
 
+async def test_acall_get_user_awaits_a_plain_hook_that_returns_a_coroutine() -> None:
+    """An unmarked ``def`` hook handing back a coroutine is awaited, not leaked.
+
+    Nothing marks it, so it takes the ``sync_to_async`` branch and the coroutine
+    comes back from the thread; the awaitable fallback is what resolves it to the
+    user rather than returning it for ``request.user``.
+    """
+    user = object()
+
+    async def lookup() -> object:
+        return user
+
+    def hook(request: HttpRequest) -> Any:
+        return lookup()
+
+    assert await acall_get_user(hook, RequestFactory().get("/")) is user
+
+
 # Two hooks that asgiref calls coroutine functions and ``inspect`` does not on
 # Python 3.11, where ``inspect.iscoroutinefunction`` ignores the marker:
 # ``sync_to_async(hook)`` and a plain function that ``markcoroutinefunction``

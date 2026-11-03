@@ -8,10 +8,11 @@ from typing import Any
 
 # asgiref's ``iscoroutinefunction`` rather than ``inspect``'s: asgiref also honours
 # the marker ``markcoroutinefunction`` and ``sync_to_async`` set, which ``inspect``
-# reads only from Python 3.12, so on 3.11 a marked hook or a ``sync_to_async``
-# wrapper would be wrapped in a second thread hop. ty takes asgiref's re-export of
-# ``asyncio``'s function for this one and flags it as deprecated whatever Python it
-# targets, so the two calls below carry an ignore for that and nothing else.
+# reads only from Python 3.12, so on 3.11 ``acall_get_user`` would put a marked
+# hook or a ``sync_to_async`` wrapper through a second thread hop. ty takes
+# asgiref's re-export of ``asyncio``'s function for this one and flags it as
+# deprecated whatever Python it targets, so the two calls below carry an ignore
+# for that and nothing else.
 from asgiref.sync import async_to_sync, iscoroutinefunction, sync_to_async
 from django.http import HttpRequest, JsonResponse
 
