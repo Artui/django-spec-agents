@@ -566,7 +566,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "django", specifier = ">=4.2" },
-    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.16.0" },
+    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.23.0" },
     { name = "django-spec-mcp", marker = "extra == 'mcp'", specifier = ">=0.2.0" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.53.1" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.13" },
@@ -580,7 +580,7 @@ provides-extras = ["anthropic", "drf-mcp", "google", "harness", "mcp", "openai",
 [package.metadata.requires-dev]
 dev = [
     { name = "django-filter", specifier = ">=23" },
-    { name = "django-service-specs", specifier = ">=0.16.0" },
+    { name = "django-service-specs", specifier = ">=0.23.0" },
     { name = "django-spec-mcp", specifier = ">=0.2.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "djangorestframework-mcp-server", specifier = ">=0.53.1" },

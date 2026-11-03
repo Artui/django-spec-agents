@@ -5320,8 +5320,9 @@ def test_a_marked_parameter_beside_an_untyped_provider_is_advertised_and_not_req
     not demand it of the caller, and the kernel's ``server_owned_keys`` tells a
     transport to ask for neither.
 
-    Holds the untyped seat in ``_caller_schema``: leaving it as declared would
-    keep ``floor`` required, which is what the schema said before.
+    Holds the untyped seat in the kernel's ``spec_caller_input_schema``, which
+    ``_caller_schema`` advertises: leaving it as declared would keep ``floor``
+    required, which is what the schema said before.
     """
     toolset = SpecToolset(
         {
@@ -5499,8 +5500,8 @@ def ceiling_name(user, ceiling):
 def test_a_schema_whose_every_read_may_be_declined_requires_nothing():
     """Relaxing the one required read a provider may decline leaves no
     ``required`` at all, as the kernel writes none for a spec requiring
-    nothing, rather than an empty list. Holds the ``if required`` in
-    ``_caller_schema``."""
+    nothing, rather than an empty list, as the kernel's
+    ``spec_caller_input_schema`` does."""
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=ceiling_name,
@@ -5761,9 +5762,9 @@ async def test_a_key_the_provider_may_decline_stays_the_models_to_send(args, row
 
     Counted as filled, it would be dropped from the schema, so a model never
     told about ``ceiling`` would leave it out and a decline would reach the
-    selector as ``TypeError``. Holds the declinable keys in ``_caller_schema``:
-    left required as declared, the ``filled`` call would be refused for
-    ``ceiling``.
+    selector as ``TypeError``. Holds the declinable keys in the kernel's
+    ``spec_caller_input_schema``: left required as declared, the ``filled``
+    call would be refused for ``ceiling``.
     """
     toolset = SpecToolset(
         reading(
@@ -5977,7 +5978,7 @@ def reprice(collection, data):
 
 
 def test_a_collection_lookup_is_advertised_as_an_instance_lookup_is():
-    """Holds the target-lookup seat in ``_read_seats``, a collection lookup's included."""
+    """Holds the target lookup's reads in ``_required_arguments``, a collection lookup's included."""
     spec = ServiceSpec(
         service=reprice,
         validator=widget_input(),
@@ -6022,7 +6023,7 @@ def test_a_collection_lookup_is_advertised_as_an_instance_lookup_is():
 def test_a_lookup_dispatch_never_calls_cannot_reach_the_toolset(lookups, refusal):
     """The kernel refuses a target lookup dispatch would never call when the
     spec is built: an instance lookup beside a collection one, and any lookup
-    beside ``many=True``. ``_read_seats`` relies on it, and so has no
+    beside ``many=True``. ``_required_arguments`` relies on it, and so has no
     precedence between the two lookups and no ``many`` arm: neither spec reaches
     a toolset to be asked about.
     """
@@ -6133,8 +6134,9 @@ async def test_a_key_one_seat_may_decline_is_still_required_by_another():
     reading the same name: the lookup cannot run without ``pk`` from the caller,
     so the schema requires it and a call leaving it out is handed back.
 
-    Holds the ``names &`` in ``_caller_schema``: relaxing every key a provider
-    may decline, whatever its seat, would leave ``pk`` optional.
+    Holds the seats in the kernel's ``spec_caller_input_schema``: relaxing
+    every key a provider may decline, whatever its seat, would leave ``pk``
+    optional.
     """
     toolset = SpecToolset(
         {
@@ -6165,8 +6167,8 @@ async def test_a_read_an_untyped_provider_may_fill_is_still_required_by_another_
     lookup reading ``pk``: the schema still requires it and a call leaving it out
     is handed back.
 
-    Holds the per-seat union in ``_caller_schema``: relaxing every read once any
-    provider is untyped would leave ``pk`` optional.
+    Holds the seats in the kernel's ``spec_caller_input_schema``: relaxing
+    every read once any provider is untyped would leave ``pk`` optional.
     """
     toolset = SpecToolset(
         {
