@@ -186,12 +186,17 @@ model gets to recover:
   oversized result) → `ToolFailed`, so the model reads the sentence and adapts,
   no retry budget is spent, and the call is recorded `outcome="failed"` for
   anything streaming the run;
-- genuine protocol faults → a hard `RuntimeError` that aborts the run: nothing
-  the model can rewrite its way out of. These are auth, a permission refusing
-  the user (`-32006`), rate limits, and an internal error (`-32603`). The last
-  is also the answer to a service asking, through `AdditionalInputRequired`,
-  for an input its spec does not declare in `reads=`: no answer could reach the
-  service, so declare every input a service may ask for.
+- a permission refusing the user (`-32006`) → Django's `PermissionDenied`,
+  which the [tool-failure policy](policy.md#a-denial-is-not-a-tool-failure)
+  passes through by default, so the run ends. Converted, a refusal would leave
+  the model free to try the next id;
+- every other protocol fault → `RuntimeError`: nothing the model can rewrite
+  its way out of. These are auth, rate limits, and an internal error
+  (`-32603`). The last is also the answer to a service asking, through
+  `AdditionalInputRequired`, for an input its spec does not declare in
+  `reads=`: no answer could reach the service, so declare every input a service
+  may ask for. The tool-failure policy converts a `RuntimeError` into a failed
+  call, so the run goes on.
 
 A refusal keeps what names it. `ToolFailed` carries a single string, so when
 the server serves an affordance refusal's `code`, it rides as a suffix on the

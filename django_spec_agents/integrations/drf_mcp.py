@@ -13,6 +13,7 @@ import warnings
 from typing import Any
 
 from asgiref.sync import sync_to_async
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest
 from pydantic_ai import ModelRetry, ToolFailed
 from pydantic_ai.tools import ToolDefinition
@@ -56,7 +57,7 @@ class DRFMCPToolset(AbstractToolset[Any]):
     guess or deny the operation exists. A server declaring no such condition
     answers that without leaving the event loop.
 
-    Failures split three ways, along MCP's protocol-vs-tool boundary:
+    Failures split four ways, along MCP's protocol-vs-tool boundary:
 
     - JSON-RPC ``-32602`` and tool-level ``validation_error`` and
       ``input_required`` results raise ``pydantic_ai.ModelRetry``, so the model
@@ -65,8 +66,12 @@ class DRFMCPToolset(AbstractToolset[Any]):
     - every other tool-level failure (``service_error``, ``not_found``, a
       timeout, an oversized result) raises ``pydantic_ai.ToolFailed``, so the
       model reads the sentence and the call is recorded ``outcome="failed"``;
-    - protocol faults (auth, rate limits, an internal error) raise
-      ``RuntimeError`` and abort the run.
+    - a permission refusing the user (``-32006``) raises Django's
+      ``PermissionDenied``, which ``ToolFailurePolicy`` passes through by
+      default, so the run ends;
+    - every other protocol fault (auth, rate limits, an internal error) raises
+      ``RuntimeError``, which ``ToolFailurePolicy`` converts to a failed call,
+      so the run goes on.
 
     The mapping is the one ``spec_tools`` applies to the same
     exceptions raised in process, and a refusal reads identically through both:
@@ -262,6 +267,13 @@ class DRFMCPToolset(AbstractToolset[Any]):
                         available=self._advertised_names(name),
                     )
                 )
+            if result.code == JsonRpcErrorCode.FORBIDDEN:
+                # `-32006` is a permission check refusing the acting user.
+                # Django's class, which ``ToolFailurePolicy`` passes through
+                # by default, so the run ends: converted, it would leave the
+                # model free to try the next id, and a refusal reading
+                # differently from a missing row is an existence oracle.
+                raise PermissionDenied(f"drf-mcp tool {name!r} failed: {result.message}")
             # Everything else — auth, rate limits, an internal fault — is not
             # something the model can rewrite its way out of.
             raise RuntimeError(f"drf-mcp tool {name!r} failed: {result.message}")

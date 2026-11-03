@@ -148,8 +148,10 @@ def _denial_types() -> tuple[type[BaseException], ...]:
     Django's own, DRF's and the kernel's are unrelated classes — none inherits
     from another — and a project raises whichever its stack uses, so covering
     one is covering a third of a boundary. DRF is optional here (it arrives
-    with the ``[drf-mcp]`` extra, and a DRF permission check behind that
-    bridge raises its ``PermissionDenied``) and so is the kernel (it
+    with the ``[drf-mcp]`` extra; a tool calling DRF code may raise its
+    ``PermissionDenied``, while a DRF permission check behind that bridge
+    reaches the run as Django's, which the bridge raises for drf-mcp's
+    ``-32006``) and so is the kernel (it
     arrives with ``[specs]`` or ``[drf-mcp]``; its dispatch raises ``NotPermitted`` for a refused
     principal and ``PrincipalUnavailable`` for one that cannot act), so each
     class is imported at call time under its own guard and is simply absent from
