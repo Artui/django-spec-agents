@@ -151,7 +151,10 @@ A `title` appears only when the `Field` passes one. Other `Field` arguments
 any other metadata, such as a plain string. A string or forward reference
 nested in an annotation, `Annotated["int", Field(ge=1)]` or `list["int"]`, is
 resolved against the function's module globals; one that does not resolve is
-an empty fragment, as an unknown type is.
+an empty fragment, as an unknown type is. Every value carried serialises to
+JSON: a bound that is not an `int` or `float` (a `Decimal`, a `date`) is left
+out, and `examples` are rendered as pydantic renders them (a `Decimal` as its
+string), or left out when they do not serialise.
 
 ### Choosing a strategy
 
@@ -217,8 +220,12 @@ reached by `$ref`:
 }
 ```
 
-**Where they differ in failing.** The hand-built strategy never raises on a
-type: what it cannot map is an empty fragment. The pydantic strategy raises at
+**Where they differ in failing.** Under both, an annotation that does not
+evaluate at the top level, `x: Missing` (in a module with `from __future__
+import annotations`, any unresolvable name), raises `NameError` from
+`inspect.signature`, so at registration for a `ToolRegistry`. Past that, the
+hand-built strategy does not raise on a type: what it cannot map, or a nested
+reference that does not resolve, is an empty fragment. The pydantic strategy raises at
 derivation, so at registration for a `ToolRegistry`, where pydantic does: a type
 it cannot build a schema for (`PydanticSchemaGenerationError`), a reference that
 does not resolve (`NameError`), and a parameter pydantic would not keep as a
@@ -227,7 +234,7 @@ silently missing an argument). A default that is not JSON-serialisable is left
 out of its schema, with pydantic's warning.
 
 Pick the hand-built strategy for a schema that stays as it is across pydantic
-releases and never fails a registration; pick pydantic's when a client should
+releases and does not fail a registration on a type it cannot map; pick pydantic's when a client should
 see what the agent's own validation sees, nested models and enums included.
 
 See the [registry reference](reference/registry.md) for the full signatures.

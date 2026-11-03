@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import inspect
 import re
 import types
@@ -9,6 +10,7 @@ from typing import Any
 
 from pydantic import ConfigDict, create_model
 from pydantic.fields import FieldInfo
+from pydantic_core import PydanticSerializationError, to_jsonable_python
 
 from django_spec_agents.registry.utils import run_context_parameter
 from django_spec_agents.types.schema_strategy import SchemaStrategy
@@ -54,8 +56,12 @@ def build_input_schema(
     ``Field``'s ``description``, ``title`` and ``examples``, and the bounds of a
     ``Field`` or of ``annotated_types`` metadata. A string or forward reference
     nested in an annotation is resolved against ``fn``'s module globals.
-    Anything richer, or a reference that does not resolve, falls back to an
-    empty fragment, imposing no type constraint but staying wire-valid.
+    Anything richer, or a nested reference that does not resolve, falls back to
+    an empty fragment, imposing no type constraint but staying wire-valid; so
+    does a bound that is not an ``int`` or ``float`` (a ``Decimal``, a
+    ``date``), and ``examples`` that do not serialise to JSON. An annotation
+    that does not evaluate at the top level raises ``NameError`` under either
+    strategy, from `inspect.signature`.
 
     ``SchemaStrategy.PYDANTIC`` builds a pydantic model over the same
     parameters and returns its JSON Schema, so it covers whatever pydantic
@@ -221,22 +227,30 @@ def _metadata_schema(metadata: Iterable[Any], base_type: str | None) -> dict[str
 
     A ``FieldInfo`` gives its ``title`` (only when one was passed: pydantic's
     derived titles are the pydantic strategy's), ``description`` and
-    ``examples``, and its bounds through ``metadata``, which holds the same
+    ``examples`` (in JSON mode, left out when they do not serialise), and its
+    bounds through ``metadata``, which holds the same
     ``annotated_types`` objects a bare ``Annotated[int, Ge(1)]`` does. Anything
     else, a plain string say, maps to nothing.
     """
     schema: dict[str, Any] = {}
     for item in metadata:
         if isinstance(item, FieldInfo):
-            for attribute in ("title", "description", "examples"):
+            for attribute in ("title", "description"):
                 value = getattr(item, attribute)
                 if value is not None:
                     schema[attribute] = value
+            if item.examples is not None:
+                # JSON mode, as pydantic renders examples: a ``Decimal`` becomes
+                # its string, and examples that do not serialise are left out.
+                with contextlib.suppress(PydanticSerializationError):
+                    schema["examples"] = to_jsonable_python(item.examples)
             schema.update(_metadata_schema(item.metadata, base_type))
             continue
         for attribute, key in _BOUND_KEYS:
             value = getattr(item, attribute, None)
-            if value is not None:
+            # JSON Schema bounds are numbers; a ``Decimal`` or ``date`` bound
+            # would not serialise, and has no keyword of its own here.
+            if isinstance(value, (int, float)):
                 schema[key] = value
         pattern = getattr(item, "pattern", None)
         if isinstance(pattern, re.Pattern):

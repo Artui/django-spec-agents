@@ -65,8 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is passed) and `examples` are carried, and `ge`, `gt`, `le`, `lt`,
   `multiple_of`, `min_length`, `max_length` and `pattern`, from a `Field` or from
   bare `annotated_types` metadata, map to their JSON Schema keywords, a length
-  to `minLength`, `minItems` or `minProperties` by what it bounds. A schema
-  without such metadata is unchanged.
+  to `minLength`, `minItems` or `minProperties` by what it bounds. Every value
+  carried serialises to JSON: a bound that is not an `int` or `float` (a
+  `Decimal`, a `date`) is left out, and `examples` are rendered in JSON mode.
+  A schema without such metadata is unchanged.
 - **`build_input_schema` gave a nested string reference an empty schema.**
   `Annotated["int", Field(ge=1)]`, `list[Annotated["int", "t"]]` and
   `list["int"]` produced `{}` where the reference stood; it is now resolved

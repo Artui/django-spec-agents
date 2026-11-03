@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import datetime
 import functools
+import json
 import re
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Annotated, Any, Union
 
 import annotated_types
@@ -212,6 +215,36 @@ def test_field_metadata_reaches_nested_and_merged_annotations() -> None:
     assert props["flattened"] == {"type": "integer", "minimum": 1, "description": "d"}
     assert props["later"] == {"type": "integer", "minimum": 2}
     assert props["anything"] == {"description": "Free form."}
+
+
+def test_every_value_carried_serialises_to_json() -> None:
+    def fn(
+        day: Annotated[datetime.date, Field(ge=datetime.date(2020, 1, 1))],
+        amount: Annotated[Decimal, Field(ge=Decimal("0"))],
+        price: Annotated[float, Field(le=Decimal("9.99"), gt=0)],
+        rate: Annotated[float, Field(examples=[Decimal("1.5")])],
+        opaque: Annotated[int, Field(examples=[object()])],
+    ) -> None:
+        del day, amount, price, rate, opaque
+
+    props = build_input_schema(fn)["properties"]
+    json.dumps(props)
+    assert props["day"] == {}
+    assert props["amount"] == {}
+    assert props["price"] == {"type": "number", "exclusiveMinimum": 0}
+    assert props["rate"] == {"type": "number", "examples": ["1.5"]}
+    assert props["opaque"] == {"type": "integer"}
+
+
+def test_an_unresolvable_top_level_annotation_raises() -> None:
+    # Under ``from __future__ import annotations`` every annotation is a string,
+    # and `inspect.signature` evaluates the top level; only a nested reference
+    # falls back to an empty fragment.
+    def fn(x: Nope) -> None:  # noqa: F821
+        del x
+
+    with pytest.raises(NameError, match="Nope"):
+        build_input_schema(fn)
 
 
 def test_a_string_reference_nested_in_an_annotation_is_resolved() -> None:

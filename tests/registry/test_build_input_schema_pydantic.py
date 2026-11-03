@@ -6,11 +6,18 @@ from enum import Enum
 from typing import Annotated, Any
 
 import pytest
-from pydantic import Field
+from pydantic import Field, PydanticSchemaGenerationError
+from pydantic.json_schema import PydanticJsonSchemaWarning
 from pydantic_ai import RunContext
 
 from django_spec_agents import SchemaStrategy, ToolCategory, build_input_schema
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+
+_OPAQUE = object()
+
+
+class _Opaque:
+    """A class pydantic has no schema for."""
 
 
 class _Colour(str, Enum):
@@ -110,6 +117,23 @@ def test_the_pydantic_strategy_refuses_a_parameter_pydantic_would_drop() -> None
 
     with pytest.raises(TypeError, match=r"\['_private', 'model_config'\] of 'fn'"):
         build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)
+
+
+def test_the_pydantic_strategy_raises_on_a_type_pydantic_cannot_schematise() -> None:
+    def fn(x: _Opaque) -> None:
+        del x
+
+    with pytest.raises(PydanticSchemaGenerationError):
+        build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)
+
+
+def test_the_pydantic_strategy_leaves_out_a_default_that_is_not_json() -> None:
+    def fn(x: Any = _OPAQUE) -> None:
+        del x
+
+    with pytest.warns(PydanticJsonSchemaWarning):
+        schema = build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)
+    assert schema["properties"]["x"] == {"title": "X"}
 
 
 def test_the_strategy_is_a_closed_choice() -> None:
