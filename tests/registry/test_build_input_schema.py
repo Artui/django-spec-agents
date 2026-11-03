@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import functools
+import re
 from collections.abc import Mapping
 from typing import Annotated, Any, Union
 
+import annotated_types
 import pytest
 from pydantic import Field
 from pydantic_ai import RunContext
@@ -14,6 +17,11 @@ from django_spec_agents.types.tool_category import ToolCategory
 
 class _Custom:
     """Module-level marker for the 'unrecognised class falls through' branch."""
+
+
+# Module-level, so a string reference to it resolves in a tool's globals and
+# nowhere else.
+_Count = int
 
 
 def test_primitive_parameters() -> None:
@@ -101,8 +109,8 @@ def test_union_types() -> None:
 
 
 def test_annotated_parameters_unwrap_to_their_first_argument() -> None:
-    # `eval_str=True` keeps `Annotated`; the metadata (here a `Field`) is not
-    # mapped, so only the underlying type reaches the schema.
+    # `eval_str=True` keeps `Annotated`; the underlying type shapes the schema
+    # and the metadata adds its keys, a plain string adding none.
     def fn(
         n: Annotated[int, Field(description="How many.", ge=1)],
         tags: list[Annotated[str, "tag"]],
@@ -113,11 +121,141 @@ def test_annotated_parameters_unwrap_to_their_first_argument() -> None:
         del n, tags, maybe, wrapped, trailing
 
     props = build_input_schema(fn)["properties"]
-    assert props["n"] == {"type": "integer"}
+    assert props["n"] == {"type": "integer", "description": "How many.", "minimum": 1}
     assert props["tags"] == {"type": "array", "items": {"type": "string"}}
-    assert props["maybe"] == {"type": "integer", "nullable": True}
+    assert props["maybe"] == {"type": "integer", "nullable": True, "maximum": 5}
     assert props["wrapped"] == {"type": "array", "items": {"type": "integer"}}
     assert props["trailing"] == {"type": "integer", "nullable": True}
+
+
+def test_a_field_s_numeric_bounds_map_to_their_json_schema_keywords() -> None:
+    def fn(
+        ratio: Annotated[float, Field(gt=0, lt=1)],
+        step: Annotated[int, Field(ge=0, le=10, multiple_of=2)],
+    ) -> None:
+        del ratio, step
+
+    props = build_input_schema(fn)["properties"]
+    assert props["ratio"] == {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+    assert props["step"] == {"type": "integer", "minimum": 0, "maximum": 10, "multipleOf": 2}
+
+
+def test_a_length_bound_takes_the_keyword_of_what_it_bounds() -> None:
+    def fn(
+        code: Annotated[str, Field(min_length=2, max_length=3)],
+        ids: Annotated[list[int], Field(min_length=1, max_length=5)],
+        extra: Annotated[dict[str, Any], Field(min_length=0, max_length=4)],
+        either: Annotated[int | str, Field(max_length=3)],
+    ) -> None:
+        del code, ids, extra, either
+
+    props = build_input_schema(fn)["properties"]
+    assert props["code"] == {"type": "string", "minLength": 2, "maxLength": 3}
+    assert props["ids"] == {
+        "type": "array",
+        "items": {"type": "integer"},
+        "minItems": 1,
+        "maxItems": 5,
+    }
+    assert props["extra"] == {"type": "object", "minProperties": 0, "maxProperties": 4}
+    # No ``type`` to say which keyword applies, so the bound is not advertised.
+    assert props["either"] == {"anyOf": [{"type": "integer"}, {"type": "string"}]}
+
+
+def test_a_field_s_title_examples_and_pattern_are_advertised() -> None:
+    def fn(
+        slug: Annotated[str, Field(title="Slug", examples=["a-b"], pattern="^[a-z-]+$")],
+        compiled: Annotated[str, Field(pattern=re.compile("^x"))],
+        raw: Annotated[str, re.compile("^y")],
+        binary: Annotated[str, Field(pattern=re.compile(b"^z"))],
+    ) -> None:
+        del slug, compiled, raw, binary
+
+    props = build_input_schema(fn)["properties"]
+    assert props["slug"] == {
+        "type": "string",
+        "title": "Slug",
+        "examples": ["a-b"],
+        "pattern": "^[a-z-]+$",
+    }
+    assert props["compiled"] == {"type": "string", "pattern": "^x"}
+    assert props["raw"] == {"type": "string", "pattern": "^y"}
+    # A bytes pattern has no JSON Schema spelling.
+    assert props["binary"] == {"type": "string"}
+
+
+def test_bare_annotated_types_metadata_maps_as_a_field_s_does() -> None:
+    def fn(
+        n: Annotated[int, annotated_types.Ge(1)],
+        window: Annotated[int, annotated_types.Interval(gt=0, le=9)],
+        name: Annotated[str, annotated_types.Len(1, 8)],
+    ) -> None:
+        del n, window, name
+
+    props = build_input_schema(fn)["properties"]
+    assert props["n"] == {"type": "integer", "minimum": 1}
+    assert props["window"] == {"type": "integer", "exclusiveMinimum": 0, "maximum": 9}
+    assert props["name"] == {"type": "string", "minLength": 1, "maxLength": 8}
+
+
+def test_field_metadata_reaches_nested_and_merged_annotations() -> None:
+    def fn(
+        scores: list[Annotated[int, Field(ge=0)]],
+        flattened: Annotated[Annotated[int, Field(ge=1)], Field(description="d")],
+        later: Annotated[int, Field(ge=1), Field(ge=2)],
+        anything: Annotated[Any, Field(description="Free form.")],
+    ) -> None:
+        del scores, flattened, later, anything
+
+    props = build_input_schema(fn)["properties"]
+    assert props["scores"] == {"type": "array", "items": {"type": "integer", "minimum": 0}}
+    assert props["flattened"] == {"type": "integer", "minimum": 1, "description": "d"}
+    assert props["later"] == {"type": "integer", "minimum": 2}
+    assert props["anything"] == {"description": "Free form."}
+
+
+def test_a_string_reference_nested_in_an_annotation_is_resolved() -> None:
+    def fn(
+        n: Annotated["int", Field(ge=1)],  # noqa: UP037
+        tags: list[Annotated["int", "t"]],  # noqa: UP037
+        plain: list["int"],  # noqa: UP037
+        aliased: Annotated["_Count", "c"],  # noqa: UP037
+    ) -> None:
+        del n, tags, plain, aliased
+
+    props = build_input_schema(fn)["properties"]
+    assert props["n"] == {"type": "integer", "minimum": 1}
+    assert props["tags"] == {"type": "array", "items": {"type": "integer"}}
+    assert props["plain"] == {"type": "array", "items": {"type": "integer"}}
+    # A module-level name, so the reference resolves in ``fn``'s globals.
+    assert props["aliased"] == {"type": "integer"}
+
+
+def test_a_reference_resolves_in_the_wrapped_function_s_globals() -> None:
+    # ``inner`` is defined in a namespace of its own, holding ``_Hidden``, which
+    # this module does not; ``wrapper``'s globals are this module's.
+    namespace: dict[str, Any] = {"_Hidden": int}
+    exec("def inner(ids: \"list['_Hidden']\") -> None: ...", namespace)
+    inner = namespace["inner"]
+
+    @functools.wraps(inner)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+
+    props = build_input_schema(wrapper)["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_an_unresolvable_nested_reference_falls_back_to_an_empty_fragment() -> None:
+    def fn(
+        missing: list[Annotated["Nope", "t"]],  # noqa: F821, UP037
+        broken: list["1 +"],  # noqa: F722
+    ) -> None:
+        del missing, broken
+
+    props = build_input_schema(fn)["properties"]
+    assert props["missing"] == {"type": "array", "items": {}}
+    assert props["broken"] == {"type": "array", "items": {}}
 
 
 def test_var_args_are_skipped() -> None:

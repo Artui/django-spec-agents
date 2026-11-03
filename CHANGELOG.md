@@ -28,6 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`build_tool_catalog(mcp_server=)`**, the server whose tools the catalog
   lists, taking a django-spec-mcp server or a drf-mcp one. Passing it with
   `drf_mcp_server=` raises `TypeError`.
+- **`SchemaStrategy` and `schema_strategy=`**, on `build_input_schema` and on
+  `ToolRegistry`, choosing how a tool's JSON Schema is derived.
+  `SchemaStrategy.HAND_BUILT`, the default, is the package's own mapping;
+  `SchemaStrategy.PYDANTIC` returns the `model_json_schema()` of a pydantic
+  model over the same parameters, with pydantic's titles, `anyOf` for
+  `X | None`, defaults and `$defs`, and raises where pydantic does. A value
+  outside the enum raises `ValueError`. The schema the agent offers the model
+  for an `@tool` tool is pydantic-ai's under either.
 
 ### Deprecated
 
@@ -48,10 +56,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`build_input_schema` gave an `Annotated[T, ...]` parameter an empty schema.**
   `n: Annotated[int, Field(description=..., ge=1)]` produced `{"n": {}}`, so a
   schema built with it and attached through `toolsets=` imposed no type. It now
-  reads `T`, including inside `list[...]` and `X | None`. The `Field`'s
-  description and bounds are still not carried. An `@tool` tool the agent offers
-  was never affected: pydantic-ai derives the model's schema from the function,
-  `Field` included.
+  reads `T`, including inside `list[...]` and `X | None`. An `@tool` tool the
+  agent offers was never affected: pydantic-ai derives the model's schema from
+  the function, `Field` included.
+- **`build_input_schema` dropped a `Field`'s description and bounds.** Under the
+  default strategy, `Annotated[int, Field(description="How many.", ge=1)]` now
+  advertises `description` and `minimum: 1`. A `Field`'s `title` (only when one
+  is passed) and `examples` are carried, and `ge`, `gt`, `le`, `lt`,
+  `multiple_of`, `min_length`, `max_length` and `pattern`, from a `Field` or from
+  bare `annotated_types` metadata, map to their JSON Schema keywords, a length
+  to `minLength`, `minItems` or `minProperties` by what it bounds. A schema
+  without such metadata is unchanged.
+- **`build_input_schema` gave a nested string reference an empty schema.**
+  `Annotated["int", Field(ge=1)]`, `list[Annotated["int", "t"]]` and
+  `list["int"]` produced `{}` where the reference stood; it is now resolved
+  against the function's module globals, so each gives `{"type": "integer"}`
+  (with `minimum: 1` for the first). A reference that does not resolve is still
+  an empty fragment under the default strategy, and a `NameError` under
+  `SchemaStrategy.PYDANTIC`.
 
 ## [0.5.0] — 2026-10-31
 
