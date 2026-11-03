@@ -15,6 +15,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was built and advertised the list as a required argument, then failed every
   call with `ImproperlyConfigured`. The toolset now raises that at construction,
   naming the tool and the list. Nothing that worked is refused.
+- **A string reference nested in a tool's annotation resolves for a
+  `functools.partial` and a callable instance**, as it already did for a plain
+  or decorated function. `build_input_schema` read globals from the object it
+  was given, which for either has none, while `inspect.signature` evaluates the
+  top level in the partial's `func` or in `type(fn).__call__`. A module-level
+  `_N = int` behind `ids: list[Annotated["_N", ...]]` gave `items: {}` under the
+  hand-built strategy and raised `NameError` at registration under
+  `SchemaStrategy.PYDANTIC`; it now resolves under both.
+- **The hand-built schema leaves out an infinite or NaN bound or example.**
+  `Field(le=float("inf"))` gave `"maximum": Infinity` and `ge=nan` or
+  `examples=[nan]` gave `NaN`, which JSON does not have: `json.dumps(...,
+  allow_nan=False)` and strict parsers refuse the schema. Such a bound is now
+  left out, as a `Decimal` one is, and so are examples holding such a float.
+- **The hand-built schema reads a `Field` given as a parameter's default**,
+  `n: int = Field(ge=1, description=...)`, as it reads one inside `Annotated`:
+  its description, title, examples and bounds are carried, and its default is
+  shown. **A parameter can become required:** one whose `Field` has no default
+  is now listed in `required`, as `SchemaStrategy.PYDANTIC` lists it, where it
+  was optional with only its type. `ToolRegistry.call` binds the arguments as
+  given, so an omitted one reached the tool as the `FieldInfo` itself.
+- **`SchemaStrategy.PYDANTIC` keys a property by its parameter's name, not by
+  a `Field` alias.** `s: Annotated[str, Field(alias="other")]` was advertised as
+  `other`, which `ToolRegistry.call` refused with `TypeError`, since it binds
+  the arguments by name. The schema is now `model_json_schema(by_alias=False)`,
+  agreeing with the call and with the hand-built strategy; a nested model's
+  aliased fields are keyed by name as well.
 
 ## [0.6.0] — 2026-11-03
 

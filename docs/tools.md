@@ -147,14 +147,26 @@ wire-valid.
 | `pattern`, a string or a compiled `str` pattern | `pattern` |
 
 A `title` appears only when the `Field` passes one. Other `Field` arguments
-(`alias`, `json_schema_extra`, `deprecated`, a default) are not carried, nor is
-any other metadata, such as a plain string. A string or forward reference
+(`alias`, `json_schema_extra`, `deprecated`) are not carried, nor is any other
+metadata, such as a plain string.
+
+A `Field` given as the parameter's default, `n: int = Field(ge=1)`, reads as one
+inside `Annotated` does, after the annotation's own metadata, so its keys win. A
+`Field` with no default makes the parameter required, as pydantic does:
+`ToolRegistry.call` binds the arguments as given, so an omitted `n` would reach
+the tool as the `FieldInfo` itself. A `Field` with a default shows it as
+`default`, in JSON mode (left out when it does not serialise), and a
+`default_factory` makes the parameter optional with no `default` shown. A plain
+default, `n: int = 1`, makes the parameter optional and is not shown. A string or forward reference
 nested in an annotation, `Annotated["int", Field(ge=1)]` or `list["int"]`, is
-resolved against the function's module globals; one that does not resolve is
-an empty fragment, as an unknown type is. Every value carried serialises to
-JSON: a bound that is not an `int` or `float` (a `Decimal`, a `date`) is left
-out, and `examples` are rendered as pydantic renders them (a `Decimal` as its
-string), or left out when they do not serialise.
+resolved in the globals the top level is evaluated in: the module of the function
+`inspect.signature` reads, through a decorator's `__wrapped__`, a
+`functools.partial`'s `func` or a callable instance's `__call__`. One that does
+not resolve is an empty fragment, as an unknown type is. Every value carried serialises to
+JSON: a bound that is not an `int` or `float` (a `Decimal`, a `date`), or is
+infinite or NaN, is left out, and `examples` are rendered as pydantic renders
+them (a `Decimal` as its string), or left out when they do not serialise or
+hold an infinite or NaN float.
 
 ### Choosing a strategy
 
@@ -167,6 +179,12 @@ derives. It takes a `SchemaStrategy`:
   `RunContext` and `*args` / `**kwargs` left out), with extra keys forbidden, and
   its `model_json_schema()`. It carries whatever pydantic does, models and enums
   included.
+
+Under either, a property is keyed by its parameter's name, never by a `Field`
+alias (`alias=` or `validation_alias=`), because `ToolRegistry.call` binds the
+arguments by name: `s: Annotated[str, Field(alias="other")]` is advertised as
+`s`, and a payload keyed `other` is refused. The pydantic strategy passes
+`by_alias=False`, so a nested model's fields are keyed by name too.
 
 The `x-*` keys are stamped at the root under either. The strategy shapes the
 schema `build_input_schema` returns and `ToolBinding.input_schema`; the schema the
@@ -182,7 +200,7 @@ def find_order(
 ```
 
 the hand-built strategy gives a flat schema with no titles, `nullable` for
-`X | None`, and no defaults:
+`X | None`, and no defaults but a `Field`'s:
 
 ```json
 {
@@ -234,7 +252,8 @@ silently missing an argument). A default that is not JSON-serialisable is left
 out of its schema, with pydantic's warning.
 
 Pick the hand-built strategy for a schema that stays as it is across pydantic
-releases and does not fail a registration on a type it cannot map; pick pydantic's when a client should
-see what the agent's own validation sees, nested models and enums included.
+releases and does not fail a registration on a type it cannot map; pick
+pydantic's when a client should see what the agent's own validation sees,
+nested models and enums included.
 
 See the [registry reference](reference/registry.md) for the full signatures.

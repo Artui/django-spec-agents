@@ -2,27 +2,49 @@
 
 from __future__ import annotations
 
+import functools
 from enum import Enum
 from typing import Annotated, Any
 
 import pytest
-from pydantic import Field, PydanticSchemaGenerationError
+from pydantic import BaseModel, Field, PydanticSchemaGenerationError
 from pydantic.json_schema import PydanticJsonSchemaWarning
-from pydantic_ai import RunContext
+from pydantic_ai import RunContext, Tool
 
 from django_spec_agents import SchemaStrategy, ToolCategory, build_input_schema
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.types.tool_spec import ToolSpec
 
 _OPAQUE = object()
+
+# Module-level, so a string reference to it resolves in a tool's globals and
+# nowhere else.
+_Count = int
 
 
 class _Opaque:
     """A class pydantic has no schema for."""
 
 
+class _Order(BaseModel):
+    order_id: int = Field(alias="orderId")
+
+
 class _Colour(str, Enum):
     RED = "red"
     BLUE = "blue"
+
+
+class _CountTool:
+    """A callable instance: `inspect.signature` reads ``type(self).__call__``."""
+
+    def __call__(self, ids: list[Annotated["_Count", "t"]]) -> None:  # noqa: UP037
+        del ids
+
+
+def _count_ids(ids: list[Annotated["_Count", "t"]], limit: int) -> None:  # noqa: UP037
+    del ids, limit
 
 
 def _find(
@@ -101,6 +123,86 @@ def test_the_pydantic_strategy_resolves_nested_string_references() -> None:
     props = build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)["properties"]
     assert props["n"] == {"minimum": 1, "title": "N", "type": "integer"}
     assert props["tags"] == {"items": {"type": "integer"}, "title": "Tags", "type": "array"}
+
+
+@pytest.mark.parametrize(
+    ("fn", "title"),
+    [(_CountTool(), "_CountTool"), (functools.partial(_count_ids, limit=1), "partial")],
+    ids=["callable instance", "partial"],
+)
+def test_the_pydantic_strategy_resolves_references_where_the_signature_does(
+    fn: Any, title: str
+) -> None:
+    # Neither object has a ``__name__``, so the model is named after its type.
+    schema = build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)
+    assert schema["title"] == title
+    assert schema["properties"]["ids"] == {
+        "items": {"type": "integer"},
+        "title": "Ids",
+        "type": "array",
+    }
+
+
+def _take(
+    n: int = Field(ge=1, description="How many."),
+    m: int = Field(5, le=9),
+) -> None:
+    del n, m
+
+
+def test_a_field_given_as_the_default_under_each_derivation() -> None:
+    # The hand-built strategy agrees with the pydantic one: ``n`` has no
+    # default, so it is required, since ``ToolRegistry.call`` would otherwise
+    # hand the tool the ``FieldInfo``.
+    for strategy in SchemaStrategy:
+        schema = build_input_schema(_take, schema_strategy=strategy)
+        assert schema["required"] == ["n"], strategy
+    pydantic = build_input_schema(_take, schema_strategy=SchemaStrategy.PYDANTIC)
+    assert pydantic["properties"] == {
+        "n": {"description": "How many.", "minimum": 1, "title": "N", "type": "integer"},
+        "m": {"default": 5, "maximum": 9, "title": "M", "type": "integer"},
+    }
+    # Pydantic-ai's own schema, which the agent offers the model for an ``@tool``
+    # tool, carries the same keys but leaves ``n`` optional.
+    offered = Tool(_take).tool_def.parameters_json_schema
+    assert offered == {
+        "additionalProperties": False,
+        "properties": {
+            "n": {"description": "How many.", "minimum": 1, "type": "integer"},
+            "m": {"default": 5, "maximum": 9, "type": "integer"},
+        },
+        "type": "object",
+    }
+
+
+def _echo(
+    s: Annotated[str, Field(alias="other")],
+    t: str = Field("", validation_alias="later"),
+) -> str:
+    return s + t
+
+
+@pytest.mark.parametrize("strategy", list(SchemaStrategy))
+def test_a_field_alias_is_not_the_property_key(strategy: SchemaStrategy) -> None:
+    # ``ToolRegistry.call`` binds by parameter name, so the schema keys on it
+    # under either strategy, and the advertised payload is one the call takes.
+    registry = ToolRegistry(schema_strategy=strategy)
+    schema = registry.register(ToolSpec(name="echo", fn=_echo, description="d")).input_schema
+    assert list(schema["properties"]) == ["s", "t"]
+    assert schema["required"] == ["s"]
+    assert registry.call("echo", {"s": "x", "t": "y"}) == "xy"
+    with pytest.raises(TypeError, match="'s'"):
+        registry.call("echo", {"other": "x"})
+
+
+def test_a_nested_model_s_alias_is_not_its_property_key_either() -> None:
+    # ``by_alias=False`` reaches the whole schema; ``ToolRegistry.call`` hands
+    # the tool the nested object as sent.
+    def fn(order: _Order) -> None:
+        del order
+
+    schema = build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)
+    assert list(schema["$defs"]["_Order"]["properties"]) == ["order_id"]
 
 
 def test_the_pydantic_strategy_raises_on_an_unresolvable_reference() -> None:

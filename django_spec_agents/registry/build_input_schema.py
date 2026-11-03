@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import inspect
+import json
+import math
 import re
 import types
 import typing
@@ -10,7 +13,7 @@ from typing import Any
 
 from pydantic import ConfigDict, create_model
 from pydantic.fields import FieldInfo
-from pydantic_core import PydanticSerializationError, to_jsonable_python
+from pydantic_core import PydanticSerializationError, PydanticUndefined, to_jsonable_python
 
 from django_spec_agents.registry.utils import run_context_parameter
 from django_spec_agents.types.schema_strategy import SchemaStrategy
@@ -55,9 +58,10 @@ def build_input_schema(
     reads ``Annotated[T, ...]`` as ``T`` plus what its metadata maps to: a
     ``Field``'s ``description``, ``title`` and ``examples``, and the bounds of a
     ``Field`` or of ``annotated_types`` metadata. A string or forward reference
-    nested in an annotation is resolved against ``fn``'s module globals.
-    Anything richer, or a nested reference that does not resolve, falls back to
-    an empty fragment, imposing no type constraint but staying wire-valid; so
+    nested in an annotation is resolved in the globals the top level is
+    evaluated in. Anything richer, or a nested reference that does not resolve,
+    falls back to an empty fragment, imposing no type constraint but staying
+    wire-valid; so
     does a bound that is not an ``int`` or ``float`` (a ``Decimal``, a
     ``date``), and ``examples`` that do not serialise to JSON. An annotation
     that does not evaluate at the top level raises ``NameError`` under either
@@ -65,7 +69,8 @@ def build_input_schema(
 
     ``SchemaStrategy.PYDANTIC`` builds a pydantic model over the same
     parameters and returns its JSON Schema, so it covers whatever pydantic
-    does, and raises where pydantic does: on a type it cannot schematise, an
+    does, keyed by parameter name rather than a ``Field`` alias, and raises
+    where pydantic does: on a type it cannot schematise, an
     unresolvable reference (``NameError``), or a parameter pydantic would not
     hold as a field (``TypeError``).
 
@@ -88,9 +93,7 @@ def build_input_schema(
     # `_hint_to_schema` unwraps `Annotated`, resolves a nested reference and reads
     # a bare ``None`` itself.
     sig = inspect.signature(fn, eval_str=True)
-    # The namespace `eval_str` evaluates in, so a nested reference resolves as a
-    # top-level one does.
-    globalns = getattr(inspect.unwrap(fn), "__globals__", {})
+    globalns = _signature_globals(fn)
     context_parameter = run_context_parameter(sig)
     arguments = [
         param
@@ -105,9 +108,17 @@ def build_input_schema(
     properties: dict[str, Any] = {}
     required: list[str] = []
     for param in arguments:
-        properties[param.name] = _hint_to_schema(_hint(param), globalns)
-        if param.default is inspect.Parameter.empty:
+        fragment = _hint_to_schema(_hint(param), globalns)
+        if isinstance(param.default, FieldInfo):
+            fragment = _field_default_schema(fragment, param.default)
+            # ``ToolRegistry.call`` binds the arguments as given, so an omitted
+            # one with no default of its own would reach the tool as the
+            # ``FieldInfo``; pydantic requires it too.
+            if param.default.is_required():
+                required.append(param.name)
+        elif param.default is inspect.Parameter.empty:
             required.append(param.name)
+        properties[param.name] = fragment
     schema: dict[str, Any] = {
         "type": "object",
         "properties": properties,
@@ -117,6 +128,25 @@ def build_input_schema(
     if required:
         schema["required"] = required
     return schema
+
+
+def _signature_globals(fn: Callable[..., Any]) -> dict[str, Any]:
+    """The namespace `eval_str` evaluates ``fn``'s annotations in.
+
+    So a nested reference resolves as a top-level one does. `inspect.signature`
+    reads a partial through its ``func`` and a callable instance through
+    ``type(fn).__call__``, neither of which has ``__globals__`` of its own; a
+    builtin has none anywhere, and nothing to resolve in one. A bound method
+    reads its function's, which is why it is not sent to ``__call__``
+    (`test_a_reference_resolves_in_a_bound_method_s_globals` fails without
+    the ``ismethod`` check).
+    """
+    target = inspect.unwrap(fn)
+    if isinstance(target, functools.partial):
+        target = inspect.unwrap(target.func)
+    if not (inspect.isfunction(target) or inspect.ismethod(target)):
+        target = inspect.unwrap(type(target).__call__)
+    return getattr(target, "__globals__", {})
 
 
 def _hint(param: inspect.Parameter) -> Any:
@@ -176,7 +206,9 @@ def _pydantic_schema(
             "pydantic does not hold them as fields. Rename them or use "
             "SchemaStrategy.HAND_BUILT."
         )
-    return model.model_json_schema()
+    # Keyed by parameter name, not a ``Field`` alias: `ToolRegistry.call` binds
+    # by name, so an aliased key would advertise a payload it refuses.
+    return model.model_json_schema(by_alias=False)
 
 
 def _hint_to_schema(hint: Any, globalns: dict[str, Any]) -> dict[str, Any]:
@@ -222,6 +254,38 @@ def _hint_to_schema(hint: Any, globalns: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _field_default_schema(fragment: dict[str, Any], field: FieldInfo) -> dict[str, Any]:
+    """``fragment`` with what a ``FieldInfo`` given as the default maps to.
+
+    It reads as it would inside ``Annotated``, after the annotation's own
+    metadata, so it wins, as pydantic merges the two. Its default, when it has
+    one, is shown in JSON mode, or left out when it does not serialise; a
+    ``default_factory`` is not a value the schema can show.
+    """
+    schema = {**fragment, **_metadata_schema([field], fragment.get("type"))}
+    # The sentinel would fail to serialise and be left out without this check
+    # too; the check says what is meant rather than leaning on that.
+    if field.default is not PydanticUndefined:
+        with contextlib.suppress(PydanticSerializationError, ValueError):
+            schema["default"] = _json_value(field.default)
+    return schema
+
+
+def _json_value(value: Any) -> Any:
+    """``value`` in JSON mode, as pydantic renders a default or examples.
+
+    A ``Decimal`` becomes its string. A non-finite float survives JSON mode, but
+    JSON has no spelling for it, so ``allow_nan=False`` refuses it as well.
+
+    Raises:
+        PydanticSerializationError: when ``value`` does not serialise.
+        ValueError: when it holds an infinite or NaN float.
+    """
+    result = to_jsonable_python(value)
+    json.dumps(result, allow_nan=False)
+    return result
+
+
 def _metadata_schema(metadata: Iterable[Any], base_type: str | None) -> dict[str, Any]:
     """The JSON Schema keys ``Annotated`` metadata maps to; later pieces win.
 
@@ -240,17 +304,23 @@ def _metadata_schema(metadata: Iterable[Any], base_type: str | None) -> dict[str
                 if value is not None:
                     schema[attribute] = value
             if item.examples is not None:
-                # JSON mode, as pydantic renders examples: a ``Decimal`` becomes
-                # its string, and examples that do not serialise are left out.
-                with contextlib.suppress(PydanticSerializationError):
-                    schema["examples"] = to_jsonable_python(item.examples)
+                # Examples that do not serialise, or hold an infinite or NaN
+                # float, are left out.
+                with contextlib.suppress(PydanticSerializationError, ValueError):
+                    schema["examples"] = _json_value(item.examples)
             schema.update(_metadata_schema(item.metadata, base_type))
             continue
         for attribute, key in _BOUND_KEYS:
             value = getattr(item, attribute, None)
             # JSON Schema bounds are numbers; a ``Decimal`` or ``date`` bound
-            # would not serialise, and has no keyword of its own here.
-            if isinstance(value, (int, float)):
+            # would not serialise, and has no keyword of its own here, and JSON
+            # has no infinity or NaN. Only a float can be non-finite, and
+            # ``isfinite`` overflows on an ``int`` past float range
+            # (`test_a_non_finite_bound_or_example_is_left_out` fails without
+            # ``isfinite`` or the ``int`` branch first,
+            # `test_every_value_carried_serialises_to_json` without the
+            # ``float`` check).
+            if isinstance(value, int) or (isinstance(value, float) and math.isfinite(value)):
                 schema[key] = value
         pattern = getattr(item, "pattern", None)
         if isinstance(pattern, re.Pattern):
