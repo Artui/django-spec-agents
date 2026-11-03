@@ -255,6 +255,8 @@ out of its schema, with pydantic's warning.
 Pick the hand-built strategy for a schema that stays as it is across pydantic
 releases and does not fail a registration on a type it cannot map; pick
 pydantic's when a client should see what the agent's own validation sees,
-nested models and enums included.
+nested models and enums included, bar one difference: a field is keyed by its
+parameter's name, not by a `Field` alias, where the agent's validation reads the
+alias.
 
 See the [registry reference](reference/registry.md) for the full signatures.

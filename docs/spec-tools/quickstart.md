@@ -714,6 +714,12 @@ row: a field it is annotated to fill is not in the item schema, and one it may
 fill, or any field beside a provider whose return names no `TypedDict`, is
 offered and not required.
 
+The list's name may not be a [pool seed](#project-pool-seeds)'s: a seed fills
+its name on every call, so no call could send the list. A `many` spec whose
+`many_argument` is a seed the mount registers, or `request` or `view`, which
+each call registers, is refused with `ImproperlyConfigured` naming the tool when
+the toolset is built.
+
 What the model is told when a call is wrong:
 
 - **An invalid item** comes back as a `ModelRetry` naming the argument, then the

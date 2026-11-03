@@ -4,7 +4,7 @@ import datetime
 import functools
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from decimal import Decimal
 from typing import Annotated, Any, Union
 
@@ -356,6 +356,39 @@ def test_a_reference_resolves_in_the_wrapped_function_s_globals() -> None:
         del args, kwargs
 
     props = build_input_schema(wrapper)["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def _wrapped_in_a_namespace_of_its_own(source: str) -> Callable[..., Any]:
+    # ``inner`` is defined where ``_Hidden`` is, which this module does not
+    # hold, and ``wrapper`` reads as ``inner`` only through ``__wrapped__``.
+    namespace: dict[str, Any] = {"_Hidden": int}
+    exec(source, namespace)
+    inner = namespace["inner"]
+
+    @functools.wraps(inner)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+
+    return wrapper
+
+
+def test_a_reference_resolves_in_a_partial_over_a_wrapped_function() -> None:
+    wrapper = _wrapped_in_a_namespace_of_its_own(
+        "def inner(ids: \"list['_Hidden']\", limit: int = 0) -> None: ..."
+    )
+
+    props = build_input_schema(functools.partial(wrapper, limit=1))["properties"]
+    assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_a_reference_resolves_in_a_wrapped_call_method() -> None:
+    class Tool:
+        __call__ = _wrapped_in_a_namespace_of_its_own(
+            "def inner(self, ids: \"list['_Hidden']\") -> None: ..."
+        )
+
+    props = build_input_schema(Tool())["properties"]
     assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
 
 
