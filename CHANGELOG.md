@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-03
+
+Runs on django-service-specs 0.23.0 and adds the in-process django-spec-mcp
+bridge, deprecating the drf-mcp one.
+
 ### Added
 
 - **The `[mcp]` extra and `MCPToolset`**, in
@@ -526,7 +531,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Artui/django-spec-agents/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Artui/django-spec-agents/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/Artui/django-spec-agents/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Artui/django-spec-agents/compare/v0.3.0...v0.4.0
