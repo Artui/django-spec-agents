@@ -198,13 +198,18 @@ class MCPToolset(AbstractToolset[Any]):
                     continue
                 annotations = tool.get("annotations") or {}
                 # Destructiveness rides ``metadata`` so ``ToolGuard`` can gate a
-                # bridged mutation. Key on ``readOnlyHint``, not
-                # ``destructiveHint``: django-spec-mcp omits the latter on read-only
-                # tools, so only the former lets a project's per-registration
-                # ``annotations`` override exempt a mutation.
+                # bridged mutation. MCP reads ``destructiveHint`` only on a tool
+                # that is not read-only, and defaults it to true, so a tool is
+                # marked unless ``readOnlyHint`` is true or ``destructiveHint``
+                # is false: either a project's per-registration ``annotations``
+                # override (django-spec-mcp keeps ``destructiveHint: true`` beside
+                # a read-only one) exempts it. A tool listed with no
+                # ``annotations`` says nothing and is left alone.
                 metadata = (
                     {DESTRUCTIVE_METADATA_KEY: True}
-                    if annotations.get("readOnlyHint") is False
+                    if annotations
+                    and annotations.get("readOnlyHint") is not True
+                    and annotations.get("destructiveHint") is not False
                     else None
                 )
                 # Passing django-spec-mcp's ``outputSchema`` through as ``return_schema``

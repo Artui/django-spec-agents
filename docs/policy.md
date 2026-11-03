@@ -166,23 +166,32 @@ one hook covers every tool regardless of origin:
 - **Registry tools** — `@tool(destructive=True)`. The flag lives on the spec and
   never reaches pydantic-ai as a bare callable, so the guard reads it from the
   registry directly at construction.
-- **MCP bridged tools** — both bridges map each tool's `readOnlyHint`
-  annotation onto `DESTRUCTIVE_METADATA_KEY`, which the guard reads from
-  pydantic-ai's tool metadata.
-- **MCP tool annotations** — `metadata["annotations"]["readOnlyHint"] is False`,
-  which is how a toolset speaking MCP's own vocabulary says it mutates. A
-  `ServiceSpec` exposed through `SpecToolset` is the case that
-  matters: without this the *same* spec would be gated over an MCP bridge and
-  ungated attached in process, so a transport swap would remove the gate silently.
+- **MCP bridged tools** — both bridges map each tool's annotations onto
+  `DESTRUCTIVE_METADATA_KEY`, which the guard reads from pydantic-ai's tool
+  metadata. A tool is marked unless its `readOnlyHint` is true or its
+  `destructiveHint` is false, as MCP reads the pair; a tool listed with no
+  `annotations` is not marked.
+- **MCP tool annotations** — `metadata["annotations"]`, read by the bridges' own
+  rule: annotations that say anything mark the tool destructive unless
+  `readOnlyHint` is true or `destructiveHint` is false. A field that is `None` is
+  unsaid, so the full dump a remote MCP client stores (every field present,
+  the ones the server never sent `None`) reads as the plain dict does, and
+  annotations that say nothing at all, `{}` or all `None`, mark nothing. It is how
+  a toolset speaking MCP's own vocabulary says it mutates: a `ServiceSpec`
+  exposed through `SpecToolset` writes `readOnlyHint: False`, and a remote
+  server's tools arrive with its annotations. Without this the *same* spec would
+  be gated over an MCP bridge and ungated attached in process, so a transport
+  swap would remove the gate silently.
 - **The `x-destructive` schema stamp** at the root of `parameters_json_schema`,
   which is what `build_input_schema` writes. A project deriving a schema with
   that helper and attaching the tool through `toolsets=` gets the gate from it.
 - **`require_approval`** — an explicit opt-in for anything the rest miss.
 
-A hint has to *say* the tool mutates. A missing `readOnlyHint`, an absent stamp,
-or metadata of some other shape entirely leaves the tool alone — silence is not
-a claim, and `require_approval` is the answer for a tool whose source declares
-nothing.
+A hint has to *say* something. Annotations that say nothing, an absent stamp, or
+metadata of some other shape entirely leave the tool alone — silence is not a
+claim, and `require_approval` is the answer for a tool whose source declares
+nothing. Annotations that say anything are read by MCP's defaults, as the
+bridges read them.
 
 `DESTRUCTIVE_METADATA_KEY` still rides tool *metadata* rather than only the
 schema, because metadata is the channel a bridge controls and the schema is the
@@ -217,9 +226,10 @@ server does not perform is worse than no promise at all:
       model can supply that itself on the next turn. On a page that confirmation
       is a prompt for a person; on the agent route it is a retry, not a security
       boundary. An operation that needs a human decision belongs in
-      `require_approval`. A tool declaring `readOnlyHint: False` is gated by
+      `require_approval`. A bridged mutation is gated by
       default while the guard is enabled, but only until its name is in `exempt`
-      or a registration overrides the annotation.
+      or a registration overrides the annotation with `readOnlyHint: True` or
+      `destructiveHint: False`.
 
 ## What a raising tool costs
 

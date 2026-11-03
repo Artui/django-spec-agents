@@ -41,22 +41,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The `[drf-mcp]` extra and `DRFMCPToolset`**: constructing the toolset warns
   `DeprecationWarning`, naming `MCPToolset` and `[mcp]`. Its behaviour is
-  unchanged. Both are removed in the next minor.
+  unchanged, bar the destructive-hint rule under Changed. Both are removed in
+  the next minor.
 - **`build_tool_catalog(drf_mcp_server=)`**, which warns `DeprecationWarning`
   and lists the server's tools as `mcp_server=` does. Removed in the next minor.
 
 ### Changed
 
-- **The lock resolves django-service-specs 0.23.0**, the release
-  django-spec-mcp 0.2.0 requires, where it pinned 0.16.0. The `[specs]` floor
-  is unchanged.
-- **The `[specs]` floor is django-service-specs 0.23.0**, and `SpecToolset`
-  advertises the kernel's `spec_caller_input_schema` in place of its own reading
-  of `spec_input_schema`. Off a `many` spec the schema is unchanged. On a `many`
-  spec each row is now read by what `input_data=` fills, as dispatch reads it: a
-  row field it is annotated to fill leaves the row's `properties`, and one it may
-  fill, or any field beside an untyped provider, is offered and not required.
-  The rows used to require every field as declared.
+- **The `[specs]` floor is django-service-specs 0.23.0**, the release
+  django-spec-mcp 0.2.0 requires, so the lock and the lowest-versions job both
+  resolve it; it was 0.16.0. `SpecToolset` advertises the kernel's
+  `spec_caller_input_schema` in place of its own reading of `spec_input_schema`.
+  Off a `many` spec the schema is unchanged. On a `many` spec each row is now
+  read by what `input_data=` fills, as dispatch reads it: a row field it is
+  annotated to fill leaves the row's `properties`, and one it may fill, or any
+  field beside an untyped provider, is offered and not required. The rows used
+  to require every field as declared.
+- **A `DRFMCPToolset` tool registered `annotations={"destructiveHint": False}`
+  is no longer gated.** The toolset marked a tool destructive on
+  `readOnlyHint: False` alone, so `ToolGuard` kept gating a mutation its project
+  had declared non-destructive; only a read-only override exempted it. A tool is
+  now marked unless its `readOnlyHint` is true or its `destructiveHint` is
+  false, which is how MCP reads the pair and how django-spec-mcp documents the
+  override. A tool listed with no `annotations` is still not marked. A project
+  that relied on the gate for such a mutation names it in `require_approval`.
+  The new `MCPToolset` follows the same rule.
+- **`ToolGuard` reads a tool's MCP annotations as the bridges do.** A tool
+  whose metadata carries `annotations`, as `SpecToolset` writes them and as a
+  remote MCP client stores a server's, was gated on `readOnlyHint: False` alone.
+  A remote tool registered `annotations={"destructiveHint": False}` was gated
+  where the in-process bridges leave it alone, and one carrying only
+  `destructiveHint: True` was not gated where they mark it. The guard now gates a
+  tool whose annotations say anything unless `readOnlyHint` is true or
+  `destructiveHint` is false, a `None` field counting as unsaid; annotations
+  that say nothing, `{}` or every field `None` (a server that sent an empty
+  annotations object), still gate nothing. A project that relied on the gate
+  for a remote `destructiveHint: False` mutation names it in
+  `require_approval`. A remote tool whose annotations carry only `title`,
+  `idempotentHint` or `openWorldHint` is now gated, as MCP's defaults read it;
+  `exempt` un-gates it.
 
 ### Fixed
 

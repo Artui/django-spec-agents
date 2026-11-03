@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -183,6 +184,88 @@ class TestEveryDestructivenessSignal:
             [_def("create_order", metadata={"annotations": {"readOnlyHint": False}})],
         )
         assert kinds["create_order"] == "function"
+
+
+# Each row: the annotations a server sent (only the fields it set) and whether a
+# tool carrying them is destructive. The bridges' rule is the reference: a
+# tool that says something is marked unless ``readOnlyHint`` is true or
+# ``destructiveHint`` is false; one that says nothing is not.
+_ANNOTATION_TRUTH_TABLE = [
+    pytest.param({}, False, id="empty-says-nothing"),
+    pytest.param({"readOnlyHint": True}, False, id="read-only"),
+    pytest.param(
+        {"readOnlyHint": True, "destructiveHint": True}, False, id="read-only-beats-destructive"
+    ),
+    pytest.param({"readOnlyHint": False}, True, id="mutation"),
+    pytest.param({"readOnlyHint": False, "destructiveHint": True}, True, id="destructive-mutation"),
+    pytest.param(
+        {"readOnlyHint": False, "destructiveHint": False}, False, id="non-destructive-mutation"
+    ),
+    pytest.param({"destructiveHint": True}, True, id="destructive-read-only-unsaid"),
+    pytest.param({"destructiveHint": False}, False, id="non-destructive-read-only-unsaid"),
+    pytest.param({"title": "T"}, True, id="title-only-leaves-both-unsaid"),
+    pytest.param({"idempotentHint": True}, True, id="other-hint-leaves-both-unsaid"),
+    pytest.param({"readOnlyHint": True, "title": "T"}, False, id="read-only-with-title"),
+]
+
+# What pydantic-ai's ``MCPServer`` stores for the same annotations:
+# ``ToolAnnotations.model_dump(by_alias=True)``, which lists every field and gives
+# the ones the server never sent as ``None``.
+_FULL_DUMP = {
+    "title": None,
+    "readOnlyHint": None,
+    "destructiveHint": None,
+    "idempotentHint": None,
+    "openWorldHint": None,
+}
+
+
+def _full_dump(sent: dict[str, Any]) -> dict[str, Any]:
+    return {**_FULL_DUMP, **sent}
+
+
+class TestMcpAnnotationsAgreeWithTheBridges:
+    @pytest.mark.parametrize(("sent", "destructive"), _ANNOTATION_TRUTH_TABLE)
+    @pytest.mark.parametrize("shape", [dict, _full_dump], ids=["plain-dict", "full-dump"])
+    async def test_the_guard_reads_annotations_as_the_bridges_do(
+        self, sent: dict[str, Any], destructive: bool, shape: Callable[[dict[str, Any]], Any]
+    ) -> None:
+        guard = ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True))
+        kinds = await _prepare(guard, [_def("t", metadata={"annotations": shape(sent)})])
+        assert kinds["t"] == ("unapproved" if destructive else "function")
+
+    @pytest.mark.parametrize(("sent", "destructive"), _ANNOTATION_TRUTH_TABLE)
+    async def test_the_table_is_what_both_bridges_mark(
+        self, sent: dict[str, Any], destructive: bool
+    ) -> None:
+        """The expected column is not the guard's own reading: it is what each
+        bridge stamps for the same annotations on the wire."""
+        from types import SimpleNamespace
+
+        from django.contrib.auth.models import AnonymousUser
+        from django.test import RequestFactory
+
+        from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
+        from django_spec_agents.integrations.mcp import MCPToolset
+
+        request = RequestFactory().post("/agent/")
+        request.user = AnonymousUser()  # type: ignore[attr-defined]
+        tool_listing = {"name": "t", "inputSchema": {"type": "object"}, "annotations": sent}
+
+        async def no_unavailable_tools(**_kw: Any) -> dict[str, Any]:
+            return {}
+
+        server = SimpleNamespace(
+            list_tools=lambda *_a, **_k: {"tools": [tool_listing]},
+            aunavailable_tools=no_unavailable_tools,
+        )
+        for toolset_class in (MCPToolset, DRFMCPToolset):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                toolset = toolset_class(server, request)  # type: ignore[arg-type]
+            listed = await toolset.get_tools(None)  # type: ignore[arg-type]
+            marked = listed["t"].tool_def.metadata == {DESTRUCTIVE_METADATA_KEY: True}
+            assert marked is destructive, toolset_class
 
 
 async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
