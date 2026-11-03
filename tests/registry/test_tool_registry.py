@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
+from pydantic import Field
 from pydantic_ai import RunContext
 
+from django_spec_agents import SchemaStrategy
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.registry.types.tool_spec import ToolSpec
@@ -144,3 +146,26 @@ class TestDispatchingAToolThatTakesTheRunContext:
         reg.register(make_spec())
 
         assert reg.call("noop", {"x": 5}, ctx=SimpleNamespace()) == 6
+
+
+def test_the_registry_derives_each_binding_with_its_schema_strategy() -> None:
+    def fn(n: Annotated[int, Field(ge=1)]) -> int:
+        return n
+
+    spec = ToolSpec(name="t", fn=fn, description="d")
+    assert ToolRegistry().register(spec).input_schema["properties"]["n"] == {
+        "type": "integer",
+        "minimum": 1,
+    }
+    pydantic_binding = ToolRegistry(schema_strategy=SchemaStrategy.PYDANTIC).register(spec)
+    assert pydantic_binding.input_schema["properties"]["n"] == {
+        "minimum": 1,
+        "title": "N",
+        "type": "integer",
+    }
+
+
+def test_the_registry_refuses_an_unknown_schema_strategy() -> None:
+    bogus: Any = "bogus"
+    with pytest.raises(ValueError, match="bogus"):
+        ToolRegistry(schema_strategy=bogus)

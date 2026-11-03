@@ -8,18 +8,25 @@ from django_spec_agents.registry.build_input_schema import build_input_schema
 from django_spec_agents.registry.types.tool_binding import ToolBinding
 from django_spec_agents.registry.types.tool_spec import ToolSpec
 from django_spec_agents.registry.utils import run_context_parameter
+from django_spec_agents.types.schema_strategy import SchemaStrategy
 
 
 class ToolRegistry:
     """An ordered, named collection of server-side tools.
 
     State lives on the instance — a transport holds one, tests build a fresh one
-    per scenario. Each tool's JSON Schema is derived once at registration, and
-    either sync or async callables can be dispatched.
+    per scenario. Each tool's JSON Schema is derived once at registration, with
+    ``schema_strategy`` (see
+    [`build_input_schema`][django_spec_agents.build_input_schema]), and either
+    sync or async callables can be dispatched.
+
+    The strategy shapes ``ToolBinding.input_schema`` only. The schema the agent
+    offers the model for a registry tool is pydantic-ai's own, whichever is set.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, schema_strategy: SchemaStrategy = SchemaStrategy.HAND_BUILT) -> None:
         self._bindings: dict[str, ToolBinding] = {}
+        self._schema_strategy = SchemaStrategy(schema_strategy)
 
     def register(self, spec: ToolSpec) -> ToolBinding:
         """Register ``spec`` and return its binding.
@@ -37,6 +44,7 @@ class ToolRegistry:
                 category=spec.category,
                 confirm=spec.confirm,
                 summary=spec.summary,
+                schema_strategy=self._schema_strategy,
             ),
         )
         self._bindings[spec.name] = binding

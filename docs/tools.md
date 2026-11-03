@@ -130,4 +130,111 @@ follows the same rule — `registry.call(name, arguments, ctx=ctx)` binds it fro
 the caller, and a tool that declares one and is dispatched without a `ctx`
 raises rather than being handed `None`.
 
+### What the hand-built schema carries
+
+The default derivation maps `str`, `int`, `float`, `bool`, `list[T]` (and
+`tuple`, `set`, `frozenset`), `dict`, `X | None` and other unions. Anything else,
+a model or an enum say, is an empty fragment: it constrains nothing and stays
+wire-valid.
+
+`Annotated[T, ...]` is read as `T` plus what its metadata maps to:
+
+| Metadata | Schema keys |
+| --- | --- |
+| `Field(description=...)`, `Field(title=...)`, `Field(examples=...)` | `description`, `title`, `examples` |
+| `ge`, `gt`, `le`, `lt`, `multiple_of` (a `Field`'s, or `annotated_types`' `Ge`, `Interval` and so on) | `minimum`, `exclusiveMinimum`, `maximum`, `exclusiveMaximum`, `multipleOf` |
+| `min_length`, `max_length` (or `annotated_types.Len`) | `minLength` / `maxLength` on a string, `minItems` / `maxItems` on a list, `minProperties` / `maxProperties` on a dict, nothing on a union |
+| `pattern`, a string or a compiled `str` pattern | `pattern` |
+
+A `title` appears only when the `Field` passes one. Other `Field` arguments
+(`alias`, `json_schema_extra`, `deprecated`, a default) are not carried, nor is
+any other metadata, such as a plain string. A string or forward reference
+nested in an annotation, `Annotated["int", Field(ge=1)]` or `list["int"]`, is
+resolved against the function's module globals; one that does not resolve is
+an empty fragment, as an unknown type is. Every value carried serialises to
+JSON: a bound that is not an `int` or `float` (a `Decimal`, a `date`) is left
+out, and `examples` are rendered as pydantic renders them (a `Decimal` as its
+string), or left out when they do not serialise.
+
+### Choosing a strategy
+
+`schema_strategy=` picks the derivation, on `build_input_schema` for one call
+and on `ToolRegistry(schema_strategy=...)` for every binding the registry
+derives. It takes a `SchemaStrategy`:
+
+- `SchemaStrategy.HAND_BUILT`, the default: the mapping above.
+- `SchemaStrategy.PYDANTIC`: a pydantic model over the same parameters (the
+  `RunContext` and `*args` / `**kwargs` left out), with extra keys forbidden, and
+  its `model_json_schema()`. It carries whatever pydantic does, models and enums
+  included.
+
+The `x-*` keys are stamped at the root under either. The strategy shapes the
+schema `build_input_schema` returns and `ToolBinding.input_schema`; the schema the
+agent offers the model for an `@tool` tool is pydantic-ai's own under both.
+
+For this tool:
+
+```python
+def find_order(
+    n: Annotated[int, Field(description="How many.", ge=1)],
+    note: str | None = None,
+) -> list[Order]: ...
+```
+
+the hand-built strategy gives a flat schema with no titles, `nullable` for
+`X | None`, and no defaults:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "n": {"type": "integer", "description": "How many.", "minimum": 1},
+    "note": {"type": "string", "nullable": true}
+  },
+  "additionalProperties": false,
+  "x-category": "other",
+  "required": ["n"]
+}
+```
+
+and `schema_strategy=SchemaStrategy.PYDANTIC` gives pydantic's, with a `title`
+on the root (the function's name) and on each property, `anyOf` with a `null`
+branch for `X | None`, the default, and a nested model or enum under `$defs`,
+reached by `$ref`:
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "n": {"description": "How many.", "minimum": 1, "title": "N", "type": "integer"},
+    "note": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "title": "Note"
+    }
+  },
+  "required": ["n"],
+  "title": "find_order",
+  "type": "object",
+  "x-category": "other"
+}
+```
+
+**Where they differ in failing.** Under both, an annotation that does not
+evaluate at the top level, `x: Missing` (in a module with `from __future__
+import annotations`, any unresolvable name), raises `NameError` from
+`inspect.signature`, so at registration for a `ToolRegistry`. Past that, the
+hand-built strategy does not raise on a type: what it cannot map, or a nested
+reference that does not resolve, is an empty fragment. The pydantic strategy raises at
+derivation, so at registration for a `ToolRegistry`, where pydantic does: a type
+it cannot build a schema for (`PydanticSchemaGenerationError`), a reference that
+does not resolve (`NameError`), and a parameter pydantic would not keep as a
+field, a leading underscore or `model_config` (`TypeError`, rather than a schema
+silently missing an argument). A default that is not JSON-serialisable is left
+out of its schema, with pydantic's warning.
+
+Pick the hand-built strategy for a schema that stays as it is across pydantic
+releases and does not fail a registration on a type it cannot map; pick pydantic's when a client should
+see what the agent's own validation sees, nested models and enums included.
+
 See the [registry reference](reference/registry.md) for the full signatures.
