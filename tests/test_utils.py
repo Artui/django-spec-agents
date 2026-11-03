@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
+from asgiref.sync import async_to_sync, markcoroutinefunction, sync_to_async
 from django.http import HttpRequest
 from django.test import RequestFactory
 
@@ -140,3 +143,72 @@ async def test_acall_get_user_awaits_a_native_async_hook() -> None:
         return sentinel
 
     assert await acall_get_user(hook, RequestFactory().get("/")) is sentinel
+
+
+# Two hooks that asgiref calls coroutine functions and ``inspect`` does not on
+# Python 3.11, where ``inspect.iscoroutinefunction`` ignores the marker:
+# ``sync_to_async(hook)`` and a plain function that ``markcoroutinefunction``
+# marks. Python 3.12+ agrees on both, so there the test passes either way and
+# only a 3.11 run can tell the two predicates apart.
+def _marked_hook(user: object) -> Callable[[HttpRequest], Any]:
+    async def lookup() -> object:
+        return user
+
+    def hook(request: HttpRequest) -> Any:
+        return lookup()
+
+    return markcoroutinefunction(hook)
+
+
+def _wrapped_hook(user: object) -> Callable[[HttpRequest], Any]:
+    return sync_to_async(lambda request: user)
+
+
+MARKED_HOOKS = pytest.mark.parametrize("make_hook", [_marked_hook, _wrapped_hook])
+
+
+@MARKED_HOOKS
+async def test_acall_get_user_awaits_a_marked_hook_without_a_thread_hop(
+    make_hook: Callable[[object], Callable[[HttpRequest], Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hook asgiref marks as a coroutine function is awaited, not wrapped again.
+
+    Wrapping it would put one more ``sync_to_async`` hop in front of a hook that
+    already hands back an awaitable, so the call to ``sync_to_async`` is the
+    observable.
+    """
+    user = object()
+    hook = make_hook(user)
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("a marked coroutine function must not be wrapped in sync_to_async")
+
+    monkeypatch.setattr("django_spec_agents.utils.sync_to_async", forbidden)
+
+    assert await acall_get_user(hook, RequestFactory().get("/")) is user
+
+
+@MARKED_HOOKS
+def test_call_get_user_bridges_a_marked_hook_itself(
+    make_hook: Callable[[object], Callable[[HttpRequest], Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sync twin hands the marked hook itself to ``async_to_sync``.
+
+    Treated as sync it would be called directly and its awaitable bridged after
+    the fact, so ``async_to_sync`` would receive the internal ``_consume``
+    instead of the hook.
+    """
+    user = object()
+    hook = make_hook(user)
+    bridged: list[object] = []
+
+    def spy(awaitable: Any) -> Any:
+        bridged.append(awaitable)
+        return async_to_sync(awaitable)
+
+    monkeypatch.setattr("django_spec_agents.utils.async_to_sync", spy)
+
+    assert call_get_user(hook, factory.get("/")) is user
+    assert bridged == [hook]
