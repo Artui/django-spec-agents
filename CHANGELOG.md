@@ -50,6 +50,13 @@ public is added or removed; one parameter shape can become required, below.
   the arguments by name. The schema is now `model_json_schema(by_alias=False)`,
   agreeing with the call and with the hand-built strategy; a nested model's
   aliased fields are keyed by name as well.
+- **`ToolRegistry.call` and `acall` give an omitted `Field` parameter its
+  default.** With `m: int = Field(5, le=9)` and `m` left out, the tool received
+  the `FieldInfo` object, while the hand-built schema advertises `default: 5`, so
+  a model trusting the schema omitted `m` and the tool broke. The call now binds
+  the field's default, calling a `default_factory` once per call. A `Field` with
+  no default is required in the schema, so omitting it raises `TypeError` naming
+  the tool and the parameter, rather than passing the `FieldInfo`.
 
 ## [0.6.0] — 2026-11-03
 

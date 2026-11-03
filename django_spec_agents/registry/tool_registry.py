@@ -4,6 +4,9 @@ import inspect
 from collections.abc import Callable, Iterator
 from typing import Any
 
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
+
 from django_spec_agents.registry.build_input_schema import build_input_schema
 from django_spec_agents.registry.types.tool_binding import ToolBinding
 from django_spec_agents.registry.types.tool_spec import ToolSpec
@@ -109,6 +112,15 @@ def _bind(
     ``eval_str`` matches the derivation at registration time, so the annotation
     seen here is the same object that shaped the tool's schema rather than the
     string a module's ``from __future__ import annotations`` leaves behind.
+
+    An omitted parameter whose default is a pydantic ``Field`` gets that field's
+    default, the one the schema advertises, rather than the ``FieldInfo`` itself.
+    A ``Field`` with no default is required in the schema, so omitting it is the
+    caller's error and raises as any missing argument does.
+
+    Raises:
+        TypeError: when the tool declares a ``RunContext`` parameter and no
+            ``ctx`` was given, or an argument is missing or unknown.
     """
     sig = inspect.signature(fn, eval_str=True)
     context_parameter = run_context_parameter(sig)
@@ -122,6 +134,12 @@ def _bind(
         # argument cannot shadow the real one with a value of its own.
         arguments = {**arguments, context_parameter: ctx}
     bound = sig.bind(**arguments)
+    for param in sig.parameters.values():
+        if param.name not in bound.arguments and isinstance(param.default, FieldInfo):
+            value = param.default.get_default(call_default_factory=True)
+            if value is PydanticUndefined:
+                raise TypeError(f"tool {name!r} missing a required argument: {param.name!r}")
+            bound.arguments[param.name] = value
     bound.apply_defaults()
     return bound
 

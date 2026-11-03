@@ -169,3 +169,54 @@ def test_the_registry_refuses_an_unknown_schema_strategy() -> None:
     bogus: Any = "bogus"
     with pytest.raises(ValueError, match="bogus"):
         ToolRegistry(schema_strategy=bogus)
+
+
+class TestAnOmittedParameterWhoseDefaultIsAField:
+    def test_a_sync_tool_gets_the_fields_default(self) -> None:
+        def fn(m: int = Field(5, le=9)) -> int:
+            return m
+
+        reg = ToolRegistry()
+        reg.register(ToolSpec(name="t", fn=fn, description="d"))
+
+        assert reg.call("t", {}) == 5
+        assert reg.call("t", {"m": 7}) == 7
+
+    async def test_an_async_tool_gets_the_fields_default(self) -> None:
+        async def fn(m: int = Field(5, le=9)) -> int:
+            return m
+
+        reg = ToolRegistry()
+        reg.register(ToolSpec(name="t", fn=fn, description="d"))
+
+        assert await reg.acall("t", {}) == 5
+        assert await reg.acall("t", {"m": 7}) == 7
+
+    def test_a_default_factory_is_called_once_per_call(self) -> None:
+        calls: list[int] = []
+
+        def make() -> list[int]:
+            calls.append(1)
+            return [len(calls)]
+
+        def fn(m: list[int] = Field(default_factory=make)) -> list[int]:  # noqa: B008
+            return m
+
+        reg = ToolRegistry()
+        reg.register(ToolSpec(name="t", fn=fn, description="d"))
+
+        assert reg.call("t", {}) == [1]
+        assert reg.call("t", {}) == [2]
+        assert reg.call("t", {"m": [9]}) == [9]
+        assert len(calls) == 2
+
+    def test_a_field_with_no_default_stays_required(self) -> None:
+        def fn(m: int = Field(le=9)) -> int:
+            return m
+
+        reg = ToolRegistry()
+        reg.register(ToolSpec(name="t", fn=fn, description="d"))
+
+        with pytest.raises(TypeError, match="'m'"):
+            reg.call("t", {})
+        assert reg.call("t", {"m": 3}) == 3
