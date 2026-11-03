@@ -188,18 +188,28 @@ MARKED_HOOKS = pytest.mark.parametrize("make_hook", [_marked_hook, _wrapped_hook
 @MARKED_HOOKS
 async def test_acall_get_user_awaits_a_marked_hook_directly(
     make_hook: Callable[[object], Callable[[HttpRequest], Any]],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A hook asgiref marks as a coroutine function is awaited, not wrapped again.
 
     On 3.11 ``inspect`` would call it sync and hand it to ``sync_to_async``, which
     refuses a marked hook or a ``sync_to_async`` wrapper with ``TypeError:
-    sync_to_async can only be applied to sync functions.`` The call raising that
-    is the observable, so nothing is patched.
+    sync_to_async can only be applied to sync functions.`` That is the observable
+    there. On any Python, the spy delegates to the real ``sync_to_async`` and must
+    never be called, so an extra thread hop in front of the hook fails too.
     """
     user = object()
     hook = make_hook(user)
+    wrapped: list[object] = []
+
+    def spy(func: Any, **kwargs: Any) -> Any:
+        wrapped.append(func)
+        return sync_to_async(func, **kwargs)
+
+    monkeypatch.setattr("django_spec_agents.utils.sync_to_async", spy)
 
     assert await acall_get_user(hook, RequestFactory().get("/")) is user
+    assert wrapped == []
 
 
 @MARKED_HOOKS
