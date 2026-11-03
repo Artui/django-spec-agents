@@ -39,9 +39,10 @@ def build_input_schema(
     acting user — so advertising it would ask the model to invent a value for
     something it cannot supply.
     """
-    # `eval_str=True` resolves string annotations and leaves the rest as written.
-    # `typing.get_type_hints` also rewrites a bare ``None`` annotation to
-    # ``type(None)``, which `_hint_to_schema` therefore handles itself.
+    # `eval_str=True` resolves string annotations and leaves the result as written.
+    # `typing.get_type_hints` would also strip `Annotated`, resolve forward
+    # references nested in a generic and turn a bare ``None`` into ``type(None)``;
+    # `_hint_to_schema` unwraps `Annotated` and reads a bare ``None`` itself.
     sig = inspect.signature(fn, eval_str=True)
     context_parameter = run_context_parameter(sig)
     properties: dict[str, Any] = {}

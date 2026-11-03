@@ -107,15 +107,17 @@ def test_annotated_parameters_unwrap_to_their_first_argument() -> None:
         n: Annotated[int, Field(description="How many.", ge=1)],
         tags: list[Annotated[str, "tag"]],
         maybe: Annotated[int | None, Field(le=5)] = None,
-        nested: Annotated[Annotated[float, "a"], "b"] = 1.0,
+        wrapped: Annotated[list[Annotated[int, "i"]], "outer"] = [],  # noqa: B006
+        trailing: Annotated[int, "a"] | None = None,
     ) -> None:
-        del n, tags, maybe, nested
+        del n, tags, maybe, wrapped, trailing
 
     props = build_input_schema(fn)["properties"]
     assert props["n"] == {"type": "integer"}
     assert props["tags"] == {"type": "array", "items": {"type": "string"}}
     assert props["maybe"] == {"type": "integer", "nullable": True}
-    assert props["nested"] == {"type": "number"}
+    assert props["wrapped"] == {"type": "array", "items": {"type": "integer"}}
+    assert props["trailing"] == {"type": "integer", "nullable": True}
 
 
 def test_var_args_are_skipped() -> None:
