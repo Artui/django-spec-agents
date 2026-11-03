@@ -4866,6 +4866,39 @@ def test_a_lookup_read_named_after_a_registered_seed_is_refused_at_build():
         SpecToolset({"rename": spec}, pool_seeds=_tenant_seeds())
 
 
+def _seeds_named(name: str) -> PoolSeeds:
+    return DEFAULT_POOL_SEEDS.extend(**{name: lambda user: []})
+
+
+@pytest.mark.parametrize("seed", ["items", "request", "view"])
+def test_a_many_list_named_after_a_seed_is_refused_at_build(seed):
+    """A seed the mount registers, or each call registers itself, fills the name
+    the list travels under, and the kernel refuses every call for an argument
+    meeting a seed in one pool. The caller's schema still offers the list as
+    required, so the tool would build and serve nothing; refused when the
+    toolset is built, naming the tool and the list."""
+    spec = bulk_spec(many_argument=seed)
+
+    with pytest.raises(ImproperlyConfigured, match=rf"^SpecToolset tool 'bulk': .*'{seed}'"):
+        SpecToolset({"bulk": spec}, pool_seeds=_seeds_named("items"))
+
+
+def test_a_many_list_beside_a_seed_of_another_name_builds():
+    toolset = SpecToolset({"bulk": bulk_spec()}, pool_seeds=_seeds_named("tenant"))
+
+    assert set(toolset.specs) == {"bulk"}
+
+
+def test_a_seed_named_like_the_default_list_does_not_touch_a_spec_with_no_list():
+    """Only a ``many`` service has a list to collide: a single-item service and a
+    selector, whose ``many_argument`` is the unused default ``items``, build."""
+    toolset = SpecToolset(
+        {"create": create_spec(), "list": list_spec()}, pool_seeds=_seeds_named("items")
+    )
+
+    assert set(toolset.specs) == {"create", "list"}
+
+
 # --- what a call needs from the model -----------------------------------------
 #
 # A tool's input schema is the model's only account of what to send. A spec

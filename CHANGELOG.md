@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`SpecToolset` refuses a `many` spec whose list is named after a pool seed.**
+  A mount registering a seed named like the spec's `many_argument` (`items`
+  unless the spec names another), or a spec naming its list `request` or `view`,
+  was built and advertised the list as a required argument, then failed every
+  call with `ImproperlyConfigured`. The toolset now raises that at construction,
+  naming the tool and the list. Nothing that worked is refused.
+
 ## [0.6.0] — 2026-11-03
 
 Runs on django-service-specs 0.23.0 and adds the in-process django-spec-mcp
