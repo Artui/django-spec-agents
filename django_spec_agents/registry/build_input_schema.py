@@ -111,9 +111,8 @@ def build_input_schema(
         fragment = _hint_to_schema(_hint(param), globalns)
         if isinstance(param.default, FieldInfo):
             fragment = _field_default_schema(fragment, param.default)
-            # ``ToolRegistry.call`` binds the arguments as given, so an omitted
-            # one with no default of its own would reach the tool as the
-            # ``FieldInfo``; pydantic requires it too.
+            # ``ToolRegistry.call`` refuses an omitted one with no default of
+            # its own, as pydantic requires it too.
             if param.default.is_required():
                 required.append(param.name)
         elif param.default is inspect.Parameter.empty:

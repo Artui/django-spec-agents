@@ -152,11 +152,12 @@ metadata, such as a plain string.
 
 A `Field` given as the parameter's default, `n: int = Field(ge=1)`, reads as one
 inside `Annotated` does, after the annotation's own metadata, so its keys win. A
-`Field` with no default makes the parameter required, as pydantic does:
-`ToolRegistry.call` binds the arguments as given, so an omitted `n` would reach
-the tool as the `FieldInfo` itself. A `Field` with a default shows it as
-`default`, in JSON mode (left out when it does not serialise), and a
-`default_factory` makes the parameter optional with no `default` shown. A plain
+`Field` with no default makes the parameter required, as pydantic does, and
+`ToolRegistry.call` refuses a call that omits it with `TypeError`. A `Field`
+with a default shows it as `default`, in JSON mode (left out when it does not
+serialise), and a `default_factory` makes the parameter optional with no
+`default` shown. An omitted one reaches the tool as that default, or as a fresh
+value from the factory, never as the `FieldInfo` itself. A plain
 default, `n: int = 1`, makes the parameter optional and is not shown. A string or forward reference
 nested in an annotation, `Annotated["int", Field(ge=1)]` or `list["int"]`, is
 resolved in the globals the top level is evaluated in: the module of the function
