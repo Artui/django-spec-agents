@@ -43,6 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   django-spec-mcp 0.2.0 requires, where it pinned 0.16.0. The `[specs]` floor
   is unchanged.
 
+### Fixed
+
+- **A tool parameter annotated `Annotated[T, ...]` advertised an empty schema.**
+  `n: Annotated[int, Field(description=..., ge=1)]` produced `{"n": {}}`, imposing
+  no type; `build_input_schema` now reads it as `T`, so `{"type": "integer"}`,
+  inside `list[...]` and `X | None` as well. The `Field`'s description and bounds
+  are still not advertised. spec-twins compares the kernel-derived spec route,
+  which does not pass through `build_input_schema`, so no row of it changes.
+
 ## [0.5.0] — 2026-10-31
 
 Requires Python 3.11 and pydantic-ai 2.58, as the rest of the family now does.

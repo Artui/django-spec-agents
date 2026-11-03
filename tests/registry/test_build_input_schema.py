@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Union
+from typing import Annotated, Any, Union
 
 import pytest
+from pydantic import Field
 from pydantic_ai import RunContext
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -97,6 +98,24 @@ def test_union_types() -> None:
     assert props["a"] == {"type": "integer", "nullable": True}
     assert "anyOf" in props["b"]
     assert "anyOf" in props["c"]
+
+
+def test_annotated_parameters_unwrap_to_their_first_argument() -> None:
+    # `eval_str=True` keeps `Annotated`; the metadata (here a `Field`) is not
+    # mapped, so only the underlying type reaches the schema.
+    def fn(
+        n: Annotated[int, Field(description="How many.", ge=1)],
+        tags: list[Annotated[str, "tag"]],
+        maybe: Annotated[int | None, Field(le=5)] = None,
+        nested: Annotated[Annotated[float, "a"], "b"] = 1.0,
+    ) -> None:
+        del n, tags, maybe, nested
+
+    props = build_input_schema(fn)["properties"]
+    assert props["n"] == {"type": "integer"}
+    assert props["tags"] == {"type": "array", "items": {"type": "string"}}
+    assert props["maybe"] == {"type": "integer", "nullable": True}
+    assert props["nested"] == {"type": "number"}
 
 
 def test_var_args_are_skipped() -> None:

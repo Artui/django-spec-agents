@@ -25,8 +25,10 @@ def build_input_schema(
     """Derive a JSON Schema object from ``fn``'s parameters.
 
     Covers ``str``, ``int``, ``float``, ``bool``, ``list[T]``, ``dict[str,
-    Any]`` and ``X | None`` unions. Anything richer falls back to an empty
-    fragment, imposing no type constraint but staying wire-valid.
+    Any]`` and ``X | None`` unions. ``Annotated[T, ...]`` is read as ``T``: its
+    metadata, such as a ``Field``'s description or bounds, is not advertised.
+    Anything richer falls back to an empty fragment, imposing no type
+    constraint but staying wire-valid.
 
     ``destructive`` / ``category`` / ``confirm`` / ``summary`` are stamped at the
     schema root as the matching ``x-*`` extension keys, which AG-UI passes
@@ -37,8 +39,9 @@ def build_input_schema(
     acting user — so advertising it would ask the model to invent a value for
     something it cannot supply.
     """
-    # `eval_str=True` resolves string annotations while preserving them verbatim,
-    # where `typing.get_type_hints` rewrites them (it strips `Annotated`).
+    # `eval_str=True` resolves string annotations and leaves the rest as written.
+    # `typing.get_type_hints` also rewrites a bare ``None`` annotation to
+    # ``type(None)``, which `_hint_to_schema` therefore handles itself.
     sig = inspect.signature(fn, eval_str=True)
     context_parameter = run_context_parameter(sig)
     properties: dict[str, Any] = {}
@@ -79,6 +82,10 @@ def _hint_to_schema(hint: Any) -> dict[str, Any]:
     if hint is Any:
         return {}
     origin = typing.get_origin(hint)
+    if origin is typing.Annotated:
+        # The metadata (a pydantic ``Field``'s description and bounds, say) is
+        # not carried into the schema; only the underlying type is.
+        return _hint_to_schema(typing.get_args(hint)[0])
     if origin is None:
         return _scalar_schema(hint)
     if origin in (list, tuple, set, frozenset):
