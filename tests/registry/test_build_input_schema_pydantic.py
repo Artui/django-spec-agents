@@ -7,12 +7,14 @@ from enum import Enum
 from typing import Annotated, Any
 
 import pytest
-from pydantic import Field, PydanticSchemaGenerationError
+from pydantic import BaseModel, Field, PydanticSchemaGenerationError
 from pydantic.json_schema import PydanticJsonSchemaWarning
 from pydantic_ai import RunContext, Tool
 
 from django_spec_agents import SchemaStrategy, ToolCategory, build_input_schema
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.registry.types.tool_spec import ToolSpec
 
 _OPAQUE = object()
 
@@ -23,6 +25,10 @@ _Count = int
 
 class _Opaque:
     """A class pydantic has no schema for."""
+
+
+class _Order(BaseModel):
+    order_id: int = Field(alias="orderId")
 
 
 class _Colour(str, Enum):
@@ -167,6 +173,36 @@ def test_a_field_given_as_the_default_under_each_derivation() -> None:
         },
         "type": "object",
     }
+
+
+def _echo(
+    s: Annotated[str, Field(alias="other")],
+    t: str = Field("", validation_alias="later"),
+) -> str:
+    return s + t
+
+
+@pytest.mark.parametrize("strategy", list(SchemaStrategy))
+def test_a_field_alias_is_not_the_property_key(strategy: SchemaStrategy) -> None:
+    # ``ToolRegistry.call`` binds by parameter name, so the schema keys on it
+    # under either strategy, and the advertised payload is one the call takes.
+    registry = ToolRegistry(schema_strategy=strategy)
+    schema = registry.register(ToolSpec(name="echo", fn=_echo, description="d")).input_schema
+    assert list(schema["properties"]) == ["s", "t"]
+    assert schema["required"] == ["s"]
+    assert registry.call("echo", {"s": "x", "t": "y"}) == "xy"
+    with pytest.raises(TypeError, match="'s'"):
+        registry.call("echo", {"other": "x"})
+
+
+def test_a_nested_model_s_alias_is_not_its_property_key_either() -> None:
+    # ``by_alias=False`` reaches the whole schema; ``ToolRegistry.call`` hands
+    # the tool the nested object as sent.
+    def fn(order: _Order) -> None:
+        del order
+
+    schema = build_input_schema(fn, schema_strategy=SchemaStrategy.PYDANTIC)
+    assert list(schema["$defs"]["_Order"]["properties"]) == ["order_id"]
 
 
 def test_the_pydantic_strategy_raises_on_an_unresolvable_reference() -> None:

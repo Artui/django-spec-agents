@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is now listed in `required`, as `SchemaStrategy.PYDANTIC` lists it, where it
   was optional with only its type. `ToolRegistry.call` binds the arguments as
   given, so an omitted one reached the tool as the `FieldInfo` itself.
+- **`SchemaStrategy.PYDANTIC` keys a property by its parameter's name, not by
+  a `Field` alias.** `s: Annotated[str, Field(alias="other")]` was advertised as
+  `other`, which `ToolRegistry.call` refused with `TypeError`, since it binds
+  the arguments by name. The schema is now `model_json_schema(by_alias=False)`,
+  agreeing with the call and with the hand-built strategy; a nested model's
+  aliased fields are keyed by name as well.
 
 ## [0.6.0] — 2026-11-03
 

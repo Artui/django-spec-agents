@@ -69,7 +69,8 @@ def build_input_schema(
 
     ``SchemaStrategy.PYDANTIC`` builds a pydantic model over the same
     parameters and returns its JSON Schema, so it covers whatever pydantic
-    does, and raises where pydantic does: on a type it cannot schematise, an
+    does, keyed by parameter name rather than a ``Field`` alias, and raises
+    where pydantic does: on a type it cannot schematise, an
     unresolvable reference (``NameError``), or a parameter pydantic would not
     hold as a field (``TypeError``).
 
@@ -205,7 +206,9 @@ def _pydantic_schema(
             "pydantic does not hold them as fields. Rename them or use "
             "SchemaStrategy.HAND_BUILT."
         )
-    return model.model_json_schema()
+    # Keyed by parameter name, not a ``Field`` alias: `ToolRegistry.call` binds
+    # by name, so an aliased key would advertise a payload it refuses.
+    return model.model_json_schema(by_alias=False)
 
 
 def _hint_to_schema(hint: Any, globalns: dict[str, Any]) -> dict[str, Any]:

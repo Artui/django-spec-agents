@@ -180,6 +180,12 @@ derives. It takes a `SchemaStrategy`:
   its `model_json_schema()`. It carries whatever pydantic does, models and enums
   included.
 
+Under either, a property is keyed by its parameter's name, never by a `Field`
+alias (`alias=` or `validation_alias=`), because `ToolRegistry.call` binds the
+arguments by name: `s: Annotated[str, Field(alias="other")]` is advertised as
+`s`, and a payload keyed `other` is refused. The pydantic strategy passes
+`by_alias=False`, so a nested model's fields are keyed by name too.
+
 The `x-*` keys are stamped at the root under either. The strategy shapes the
 schema `build_input_schema` returns and `ToolBinding.input_schema`; the schema the
 agent offers the model for an `@tool` tool is pydantic-ai's own under both.
