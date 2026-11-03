@@ -127,8 +127,9 @@ def _annotations_declare_a_mutation(annotations: Mapping[str, Any]) -> bool:
     ``destructiveHint`` to true, so annotations that say anything at all mark a
     tool unless ``readOnlyHint`` is true or ``destructiveHint`` is false. A
     ``None`` is a field the server never sent, so it is unsaid, and annotations
-    with nothing said (``{}``, or every field ``None``) are no claim: otherwise
-    every remote tool, whose full dump has no field set, would be gated.
+    with nothing said (``{}``, or every field ``None``, which is what a server's
+    empty annotations object dumps to) are no claim: otherwise that tool would
+    be gated though its server claimed nothing.
     """
     if all(value is None for value in annotations.values()):
         return False

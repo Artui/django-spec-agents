@@ -60,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `destructiveHint: True` was not gated where they mark it. The guard now gates a
   tool whose annotations say anything unless `readOnlyHint` is true or
   `destructiveHint` is false, a `None` field counting as unsaid; annotations
-  that say nothing, `{}` or every field `None` (a server that sent none), still
+  that say nothing, `{}` or every field `None` (a server that sent an empty annotations object), still
   gate nothing. A project that relied on the gate for a remote
   `destructiveHint: False` mutation names it in `require_approval`.
 
