@@ -147,8 +147,17 @@ wire-valid.
 | `pattern`, a string or a compiled `str` pattern | `pattern` |
 
 A `title` appears only when the `Field` passes one. Other `Field` arguments
-(`alias`, `json_schema_extra`, `deprecated`, a default) are not carried, nor is
-any other metadata, such as a plain string. A string or forward reference
+(`alias`, `json_schema_extra`, `deprecated`) are not carried, nor is any other
+metadata, such as a plain string.
+
+A `Field` given as the parameter's default, `n: int = Field(ge=1)`, reads as one
+inside `Annotated` does, after the annotation's own metadata, so its keys win. A
+`Field` with no default makes the parameter required, as pydantic does:
+`ToolRegistry.call` binds the arguments as given, so an omitted `n` would reach
+the tool as the `FieldInfo` itself. A `Field` with a default shows it as
+`default`, in JSON mode (left out when it does not serialise), and a
+`default_factory` makes the parameter optional with no `default` shown. A plain
+default, `n: int = 1`, makes the parameter optional and is not shown. A string or forward reference
 nested in an annotation, `Annotated["int", Field(ge=1)]` or `list["int"]`, is
 resolved in the globals the top level is evaluated in: the module of the function
 `inspect.signature` reads, through a decorator's `__wrapped__`, a
@@ -185,7 +194,7 @@ def find_order(
 ```
 
 the hand-built strategy gives a flat schema with no titles, `nullable` for
-`X | None`, and no defaults:
+`X | None`, and no defaults but a `Field`'s:
 
 ```json
 {

@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import ConfigDict, create_model
 from pydantic.fields import FieldInfo
-from pydantic_core import PydanticSerializationError, to_jsonable_python
+from pydantic_core import PydanticSerializationError, PydanticUndefined, to_jsonable_python
 
 from django_spec_agents.registry.utils import run_context_parameter
 from django_spec_agents.types.schema_strategy import SchemaStrategy
@@ -107,9 +107,17 @@ def build_input_schema(
     properties: dict[str, Any] = {}
     required: list[str] = []
     for param in arguments:
-        properties[param.name] = _hint_to_schema(_hint(param), globalns)
-        if param.default is inspect.Parameter.empty:
+        fragment = _hint_to_schema(_hint(param), globalns)
+        if isinstance(param.default, FieldInfo):
+            fragment = _field_default_schema(fragment, param.default)
+            # ``ToolRegistry.call`` binds the arguments as given, so an omitted
+            # one with no default of its own would reach the tool as the
+            # ``FieldInfo``; pydantic requires it too.
+            if param.default.is_required():
+                required.append(param.name)
+        elif param.default is inspect.Parameter.empty:
             required.append(param.name)
+        properties[param.name] = fragment
     schema: dict[str, Any] = {
         "type": "object",
         "properties": properties,
@@ -243,6 +251,38 @@ def _hint_to_schema(hint: Any, globalns: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _field_default_schema(fragment: dict[str, Any], field: FieldInfo) -> dict[str, Any]:
+    """``fragment`` with what a ``FieldInfo`` given as the default maps to.
+
+    It reads as it would inside ``Annotated``, after the annotation's own
+    metadata, so it wins, as pydantic merges the two. Its default, when it has
+    one, is shown in JSON mode, or left out when it does not serialise; a
+    ``default_factory`` is not a value the schema can show.
+    """
+    schema = {**fragment, **_metadata_schema([field], fragment.get("type"))}
+    # The sentinel would fail to serialise and be left out without this check
+    # too; the check says what is meant rather than leaning on that.
+    if field.default is not PydanticUndefined:
+        with contextlib.suppress(PydanticSerializationError, ValueError):
+            schema["default"] = _json_value(field.default)
+    return schema
+
+
+def _json_value(value: Any) -> Any:
+    """``value`` in JSON mode, as pydantic renders a default or examples.
+
+    A ``Decimal`` becomes its string. A non-finite float survives JSON mode, but
+    JSON has no spelling for it, so ``allow_nan=False`` refuses it as well.
+
+    Raises:
+        PydanticSerializationError: when ``value`` does not serialise.
+        ValueError: when it holds an infinite or NaN float.
+    """
+    result = to_jsonable_python(value)
+    json.dumps(result, allow_nan=False)
+    return result
+
+
 def _metadata_schema(metadata: Iterable[Any], base_type: str | None) -> dict[str, Any]:
     """The JSON Schema keys ``Annotated`` metadata maps to; later pieces win.
 
@@ -261,14 +301,10 @@ def _metadata_schema(metadata: Iterable[Any], base_type: str | None) -> dict[str
                 if value is not None:
                     schema[attribute] = value
             if item.examples is not None:
-                # JSON mode, as pydantic renders examples: a ``Decimal`` becomes
-                # its string, and examples that do not serialise are left out.
-                # A non-finite float survives JSON mode, but JSON has no
-                # spelling for it, so ``allow_nan=False`` leaves those out too.
+                # Examples that do not serialise, or hold an infinite or NaN
+                # float, are left out.
                 with contextlib.suppress(PydanticSerializationError, ValueError):
-                    examples = to_jsonable_python(item.examples)
-                    json.dumps(examples, allow_nan=False)
-                    schema["examples"] = examples
+                    schema["examples"] = _json_value(item.examples)
             schema.update(_metadata_schema(item.metadata, base_type))
             continue
         for attribute, key in _BOUND_KEYS:

@@ -26,6 +26,8 @@ class _Custom:
 # nowhere else.
 _Count = int
 
+_OPAQUE = object()
+
 
 class _CountTool:
     """A callable instance: `inspect.signature` reads ``type(self).__call__``."""
@@ -272,6 +274,46 @@ def test_a_non_finite_bound_or_example_is_left_out() -> None:
     assert props["nested"] == {"type": "object"}
     assert props["fine"] == {"type": "number", "examples": [1.5]}
     assert props["huge"] == {"type": "integer", "maximum": 10**400}
+
+
+def test_a_field_given_as_the_default_reads_as_one_inside_annotated() -> None:
+    def fn(
+        n: int = Field(ge=1, description="How many."),
+        m: int = Field(5, le=9),
+        k: Annotated[int, Field(description="K", ge=5)] = Field(3, ge=0),
+        tags: list[str] = Field(default_factory=list),  # noqa: B008
+        note: str | None = Field(None, title="Note"),
+    ) -> None:
+        del n, m, k, tags, note
+
+    schema = build_input_schema(fn)
+    props = schema["properties"]
+    # ``ToolRegistry.call`` binds the arguments as given, so an omitted ``n``
+    # would reach the tool as the ``FieldInfo`` itself: it is required.
+    assert schema["required"] == ["n"]
+    assert props["n"] == {"type": "integer", "minimum": 1, "description": "How many."}
+    assert props["m"] == {"type": "integer", "maximum": 9, "default": 5}
+    # The default's metadata comes after the annotation's, so it wins, as in pydantic.
+    assert props["k"] == {"type": "integer", "description": "K", "minimum": 0, "default": 3}
+    # A factory is not a default the schema can show, but it makes ``tags`` optional.
+    assert props["tags"] == {"type": "array", "items": {"type": "string"}}
+    assert props["note"] == {"type": "string", "nullable": True, "title": "Note", "default": None}
+
+
+def test_a_field_default_that_is_not_json_is_left_out() -> None:
+    def fn(
+        when: datetime.date = Field(datetime.date(2020, 1, 1)),  # noqa: B008
+        opaque: Any = Field(_OPAQUE),  # noqa: B008
+        ratio: float = Field(float("nan")),
+    ) -> None:
+        del when, opaque, ratio
+
+    props = build_input_schema(fn)["properties"]
+    json.dumps(props, allow_nan=False)
+    # JSON mode, as pydantic renders a default.
+    assert props["when"] == {"default": "2020-01-01"}
+    assert props["opaque"] == {}
+    assert props["ratio"] == {"type": "number"}
 
 
 def test_an_unresolvable_top_level_annotation_raises() -> None:

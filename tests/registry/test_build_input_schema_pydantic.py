@@ -9,7 +9,7 @@ from typing import Annotated, Any
 import pytest
 from pydantic import Field, PydanticSchemaGenerationError
 from pydantic.json_schema import PydanticJsonSchemaWarning
-from pydantic_ai import RunContext
+from pydantic_ai import RunContext, Tool
 
 from django_spec_agents import SchemaStrategy, ToolCategory, build_input_schema
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -134,6 +134,38 @@ def test_the_pydantic_strategy_resolves_references_where_the_signature_does(
         "items": {"type": "integer"},
         "title": "Ids",
         "type": "array",
+    }
+
+
+def _take(
+    n: int = Field(ge=1, description="How many."),
+    m: int = Field(5, le=9),
+) -> None:
+    del n, m
+
+
+def test_a_field_given_as_the_default_under_each_derivation() -> None:
+    # The hand-built strategy agrees with the pydantic one: ``n`` has no
+    # default, so it is required, since ``ToolRegistry.call`` would otherwise
+    # hand the tool the ``FieldInfo``.
+    for strategy in SchemaStrategy:
+        schema = build_input_schema(_take, schema_strategy=strategy)
+        assert schema["required"] == ["n"], strategy
+    pydantic = build_input_schema(_take, schema_strategy=SchemaStrategy.PYDANTIC)
+    assert pydantic["properties"] == {
+        "n": {"description": "How many.", "minimum": 1, "title": "N", "type": "integer"},
+        "m": {"default": 5, "maximum": 9, "title": "M", "type": "integer"},
+    }
+    # Pydantic-ai's own schema, which the agent offers the model for an ``@tool``
+    # tool, carries the same keys but leaves ``n`` optional.
+    offered = Tool(_take).tool_def.parameters_json_schema
+    assert offered == {
+        "additionalProperties": False,
+        "properties": {
+            "n": {"description": "How many.", "minimum": 1, "type": "integer"},
+            "m": {"default": 5, "maximum": 9, "type": "integer"},
+        },
+        "type": "object",
     }
 
 

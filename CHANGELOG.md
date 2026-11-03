@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `examples=[nan]` gave `NaN`, which JSON does not have: `json.dumps(...,
   allow_nan=False)` and strict parsers refuse the schema. Such a bound is now
   left out, as a `Decimal` one is, and so are examples holding such a float.
+- **The hand-built schema reads a `Field` given as a parameter's default**,
+  `n: int = Field(ge=1, description=...)`, as it reads one inside `Annotated`:
+  its description, title, examples and bounds are carried, and its default is
+  shown. **A parameter can become required:** one whose `Field` has no default
+  is now listed in `required`, as `SchemaStrategy.PYDANTIC` lists it, where it
+  was optional with only its type. `ToolRegistry.call` binds the arguments as
+  given, so an omitted one reached the tool as the `FieldInfo` itself.
 
 ## [0.6.0] — 2026-11-03
 
