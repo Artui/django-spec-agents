@@ -40,6 +40,7 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.registry.types.tool_binding import ToolBinding
 from django_spec_agents.registry.types.tool_spec import ToolSpec
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
+from django_spec_agents.types.schema_strategy import SchemaStrategy
 from django_spec_agents.types.tool_category import ToolCategory
 from django_spec_agents.types.x_category_key import X_CATEGORY_KEY
 from django_spec_agents.types.x_confirm_key import X_CONFIRM_KEY
@@ -70,6 +71,7 @@ __all__ = [
     "NullAuditLogger",
     "NullConversationStore",
     "OpenedAttachment",
+    "SchemaStrategy",
     "ScopedConversationStore",
     "ToolBinding",
     "ToolCategory",

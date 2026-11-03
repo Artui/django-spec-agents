@@ -28,7 +28,8 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
-from tests.integrations.drf_server import BOOKS, REFUSED_SPEC, server
+from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
+from tests.integrations.drf_server import BOOKS, REFUSED_SPEC, hinted_server, server
 from tests.integrations.drf_server_lookup import lookup_server
 from tests.integrations.drf_specs_lookup import SPECS as LOOKUP_SPECS
 from tests.integrations.drf_specs_lookup import Row
@@ -94,6 +95,80 @@ async def test_toolset_exposes_drf_tools_with_schemas() -> None:
     # An in-process function rather than a deferred `external` call, so
     # pydantic-ai's run loop actually invokes our `call_tool`.
     assert tool_def.kind == "function"
+
+
+def _listed_annotations() -> dict[str, Any]:
+    listed = hinted_server.list_tools(None, user=AnonymousUser())
+    assert not isinstance(listed, JsonRpcError)
+    return {tool["name"]: tool["annotations"] for tool in listed["tools"]}
+
+
+async def _hinted_metadata(name: str) -> dict[str, Any] | None:
+    tools = await DRFMCPToolset(hinted_server, _request()).get_tools(None)
+    return tools[name].tool_def.metadata
+
+
+def test_the_producer_publishes_the_override_under_the_keys_the_bridge_reads() -> None:
+    # The bridge's rule is only as true as the wire it reads: drf-mcp merges a
+    # registration's ``annotations=`` over its derived defaults, and keeps
+    # ``destructiveHint: true`` beside a read-only override.
+    assert _listed_annotations() == {
+        "plain": {"readOnlyHint": False, "destructiveHint": True},
+        "read_only": {"readOnlyHint": True, "destructiveHint": True},
+        "non_destructive": {"readOnlyHint": False, "destructiveHint": False},
+        "destructive": {"readOnlyHint": False, "destructiveHint": True},
+    }
+
+
+async def test_a_read_only_override_is_not_destructive() -> None:
+    # ``destructiveHint`` stays true on the wire here; ``readOnlyHint`` decides.
+    assert await _hinted_metadata("read_only") is None
+
+
+async def test_a_non_destructive_override_is_not_destructive() -> None:
+    # A mutation registered ``annotations={"destructiveHint": False}`` is exempt,
+    # as the MCP spec reads it.
+    assert await _hinted_metadata("non_destructive") is None
+
+
+async def test_a_mutation_is_destructive_unless_it_says_otherwise() -> None:
+    assert await _hinted_metadata("plain") == {DESTRUCTIVE_METADATA_KEY: True}
+    assert await _hinted_metadata("destructive") == {DESTRUCTIVE_METADATA_KEY: True}
+
+
+async def test_a_tool_listed_without_annotations_is_not_marked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Unchanged from before the rule: a tool that says nothing is not claimed to
+    # mutate, so an absent or empty ``annotations`` leaves it ungated.
+    tools = [
+        {"name": "absent", "inputSchema": {"type": "object"}},
+        {"name": "empty", "inputSchema": {"type": "object"}, "annotations": {}},
+    ]
+    monkeypatch.setattr(server, "list_tools", lambda *_a, **_k: {"tools": tools})
+    listed = await DRFMCPToolset(server, _request()).get_tools(None)
+    assert listed["absent"].tool_def.metadata is None
+    assert listed["empty"].tool_def.metadata is None
+
+
+async def test_a_tool_that_leaves_read_only_unsaid_is_marked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # MCP defaults ``readOnlyHint`` to false, so annotations that speak but do
+    # not claim the tool reads (only a title, or only ``destructiveHint``) leave
+    # it a mutation unless ``destructiveHint`` is false.
+    tools = [
+        {"name": "titled", "inputSchema": {"type": "object"}, "annotations": {"title": "T"}},
+        {
+            "name": "unsaid_false",
+            "inputSchema": {"type": "object"},
+            "annotations": {"destructiveHint": False},
+        },
+    ]
+    monkeypatch.setattr(server, "list_tools", lambda *_a, **_k: {"tools": tools})
+    listed = await DRFMCPToolset(server, _request()).get_tools(None)
+    assert listed["titled"].tool_def.metadata == {DESTRUCTIVE_METADATA_KEY: True}
+    assert listed["unsaid_false"].tool_def.metadata is None
 
 
 @pytest.mark.django_db

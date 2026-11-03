@@ -40,6 +40,7 @@ from tests.integrations.mcp_server import (
     REFUSED_SPEC,
     SELECTOR_ASKS_SPEC,
     bare_server,
+    hinted_server,
     lookup_server,
     paged_server,
     server,
@@ -112,6 +113,80 @@ async def test_a_service_is_destructive_and_a_selector_is_not() -> None:
     tools = await MCPToolset(lookup_server, _request()).get_tools(None)  # type: ignore[arg-type]
     assert tools["get_row"].tool_def.metadata is None
     assert tools["rename_row"].tool_def.metadata == {DESTRUCTIVE_METADATA_KEY: True}
+
+
+def _listed_annotations(hinted: MCPServer) -> dict[str, Any]:
+    listed = hinted.list_tools(None, user=AnonymousUser())
+    assert not isinstance(listed, JsonRpcError)
+    return {tool["name"]: tool["annotations"] for tool in listed["tools"]}
+
+
+async def _hinted_metadata(name: str) -> dict[str, Any] | None:
+    tools = await MCPToolset(hinted_server, _request()).get_tools(None)  # type: ignore[arg-type]
+    return tools[name].tool_def.metadata
+
+
+def test_the_producer_publishes_the_override_under_the_keys_the_bridge_reads() -> None:
+    # The bridge's rule is only as true as the wire it reads: django-spec-mcp
+    # merges a registration's ``annotations=`` over its derived defaults, and
+    # keeps ``destructiveHint: true`` beside a read-only override.
+    assert _listed_annotations(hinted_server) == {
+        "plain": {"readOnlyHint": False, "destructiveHint": True},
+        "read_only": {"readOnlyHint": True, "destructiveHint": True},
+        "non_destructive": {"readOnlyHint": False, "destructiveHint": False},
+        "destructive": {"readOnlyHint": False, "destructiveHint": True},
+    }
+
+
+async def test_a_read_only_override_is_not_destructive() -> None:
+    # ``destructiveHint`` stays true on the wire here; ``readOnlyHint`` decides.
+    assert await _hinted_metadata("read_only") is None
+
+
+async def test_a_non_destructive_override_is_not_destructive() -> None:
+    # A mutation registered ``annotations={"destructiveHint": False}`` is exempt,
+    # as the MCP spec reads it, and as django-spec-mcp documents the override.
+    assert await _hinted_metadata("non_destructive") is None
+
+
+async def test_a_mutation_is_destructive_unless_it_says_otherwise() -> None:
+    assert await _hinted_metadata("plain") == {DESTRUCTIVE_METADATA_KEY: True}
+    assert await _hinted_metadata("destructive") == {DESTRUCTIVE_METADATA_KEY: True}
+
+
+async def test_a_tool_listed_without_annotations_is_not_marked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Unchanged from before the rule: a tool that says nothing is not claimed to
+    # mutate, so an absent or empty ``annotations`` leaves it ungated.
+    tools = [
+        {"name": "absent", "inputSchema": {"type": "object"}},
+        {"name": "empty", "inputSchema": {"type": "object"}, "annotations": {}},
+    ]
+    monkeypatch.setattr(server, "list_tools", lambda *_a, **_k: {"tools": tools})
+    listed = await MCPToolset(server, _request()).get_tools(None)  # type: ignore[arg-type]
+    assert listed["absent"].tool_def.metadata is None
+    assert listed["empty"].tool_def.metadata is None
+
+
+async def test_a_tool_that_leaves_read_only_unsaid_is_marked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # MCP defaults ``readOnlyHint`` to false, so annotations that speak but do
+    # not claim the tool reads (only a title, or only ``destructiveHint``) leave
+    # it a mutation unless ``destructiveHint`` is false.
+    tools = [
+        {"name": "titled", "inputSchema": {"type": "object"}, "annotations": {"title": "T"}},
+        {
+            "name": "unsaid_false",
+            "inputSchema": {"type": "object"},
+            "annotations": {"destructiveHint": False},
+        },
+    ]
+    monkeypatch.setattr(server, "list_tools", lambda *_a, **_k: {"tools": tools})
+    listed = await MCPToolset(server, _request()).get_tools(None)  # type: ignore[arg-type]
+    assert listed["titled"].tool_def.metadata == {DESTRUCTIVE_METADATA_KEY: True}
+    assert listed["unsaid_false"].tool_def.metadata is None
 
 
 @pytest.mark.django_db

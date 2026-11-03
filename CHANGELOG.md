@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-03
+
+Runs on django-service-specs 0.23.0 and adds the in-process django-spec-mcp
+bridge, deprecating the drf-mcp one.
+
 ### Added
 
 - **The `[mcp]` extra and `MCPToolset`**, in
@@ -28,20 +33,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`build_tool_catalog(mcp_server=)`**, the server whose tools the catalog
   lists, taking a django-spec-mcp server or a drf-mcp one. Passing it with
   `drf_mcp_server=` raises `TypeError`.
+- **`SchemaStrategy` and `schema_strategy=`**, on `build_input_schema` and on
+  `ToolRegistry`, choosing how a tool's JSON Schema is derived.
+  `SchemaStrategy.HAND_BUILT`, the default, is the package's own mapping;
+  `SchemaStrategy.PYDANTIC` returns the `model_json_schema()` of a pydantic
+  model over the same parameters, with pydantic's titles, `anyOf` for
+  `X | None`, defaults and `$defs`, and raises where pydantic does. A value
+  outside the enum raises `ValueError`. The schema the agent offers the model
+  for an `@tool` tool is pydantic-ai's under either.
 
 ### Deprecated
 
 - **The `[drf-mcp]` extra and `DRFMCPToolset`**: constructing the toolset warns
   `DeprecationWarning`, naming `MCPToolset` and `[mcp]`. Its behaviour is
-  unchanged. Both are removed in the next minor.
+  unchanged, bar the destructive-hint rule under Changed. Both are removed in
+  the next minor.
 - **`build_tool_catalog(drf_mcp_server=)`**, which warns `DeprecationWarning`
   and lists the server's tools as `mcp_server=` does. Removed in the next minor.
 
 ### Changed
 
-- **The lock resolves django-service-specs 0.23.0**, the release
-  django-spec-mcp 0.2.0 requires, where it pinned 0.16.0. The `[specs]` floor
-  is unchanged.
+- **The `[specs]` floor is django-service-specs 0.23.0**, the release
+  django-spec-mcp 0.2.0 requires, so the lock and the lowest-versions job both
+  resolve it; it was 0.16.0. `SpecToolset` advertises the kernel's
+  `spec_caller_input_schema` in place of its own reading of `spec_input_schema`.
+  Off a `many` spec the schema is unchanged. On a `many` spec each row is now
+  read by what `input_data=` fills, as dispatch reads it: a row field it is
+  annotated to fill leaves the row's `properties`, and one it may fill, or any
+  field beside an untyped provider, is offered and not required. The rows used
+  to require every field as declared.
+- **A `DRFMCPToolset` tool registered `annotations={"destructiveHint": False}`
+  is no longer gated.** The toolset marked a tool destructive on
+  `readOnlyHint: False` alone, so `ToolGuard` kept gating a mutation its project
+  had declared non-destructive; only a read-only override exempted it. A tool is
+  now marked unless its `readOnlyHint` is true or its `destructiveHint` is
+  false, which is how MCP reads the pair and how django-spec-mcp documents the
+  override. A tool listed with no `annotations` is still not marked. A project
+  that relied on the gate for such a mutation names it in `require_approval`.
+  The new `MCPToolset` follows the same rule.
+- **`ToolGuard` reads a tool's MCP annotations as the bridges do.** A tool
+  whose metadata carries `annotations`, as `SpecToolset` writes them and as a
+  remote MCP client stores a server's, was gated on `readOnlyHint: False` alone.
+  A remote tool registered `annotations={"destructiveHint": False}` was gated
+  where the in-process bridges leave it alone, and one carrying only
+  `destructiveHint: True` was not gated where they mark it. The guard now gates a
+  tool whose annotations say anything unless `readOnlyHint` is true or
+  `destructiveHint` is false, a `None` field counting as unsaid; annotations
+  that say nothing, `{}` or every field `None` (a server that sent an empty
+  annotations object), still gate nothing. A project that relied on the gate
+  for a remote `destructiveHint: False` mutation names it in
+  `require_approval`. A remote tool whose annotations carry only `title`,
+  `idempotentHint` or `openWorldHint` is now gated, as MCP's defaults read it;
+  `exempt` un-gates it.
+
+### Fixed
+
+- **`build_input_schema` gave an `Annotated[T, ...]` parameter an empty schema.**
+  `n: Annotated[int, Field(description=..., ge=1)]` produced `{"n": {}}`, so a
+  schema built with it and attached through `toolsets=` imposed no type. It now
+  reads `T`, including inside `list[...]` and `X | None`. An `@tool` tool the
+  agent offers was never affected: pydantic-ai derives the model's schema from
+  the function, `Field` included.
+- **`build_input_schema` dropped a `Field`'s description and bounds.** Under the
+  default strategy, `Annotated[int, Field(description="How many.", ge=1)]` now
+  advertises `description` and `minimum: 1`. A `Field`'s `title` (only when one
+  is passed) and `examples` are carried, and `ge`, `gt`, `le`, `lt`,
+  `multiple_of`, `min_length`, `max_length` and `pattern`, from a `Field` or from
+  bare `annotated_types` metadata, map to their JSON Schema keywords, a length
+  to `minLength`, `minItems` or `minProperties` by what it bounds. Every value
+  carried serialises to JSON: a bound that is not an `int` or `float` (a
+  `Decimal`, a `date`) is left out, and `examples` are rendered in JSON mode.
+  A schema without such metadata is unchanged.
+- **`build_input_schema` gave a nested string reference an empty schema.**
+  `Annotated["int", Field(ge=1)]`, `list[Annotated["int", "t"]]` and
+  `list["int"]` produced `{}` where the reference stood; it is now resolved
+  against the function's module globals, so each gives `{"type": "integer"}`
+  (with `minimum: 1` for the first). A reference that does not resolve is still
+  an empty fragment under the default strategy, and a `NameError` under
+  `SchemaStrategy.PYDANTIC`.
 
 ## [0.5.0] — 2026-10-31
 
@@ -462,7 +531,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Artui/django-spec-agents/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Artui/django-spec-agents/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/Artui/django-spec-agents/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Artui/django-spec-agents/compare/v0.3.0...v0.4.0

@@ -161,16 +161,15 @@ class AuditCapability(AbstractCapability[Any]):
         self._ip_address = ip_address
         self._organization_id = organization_id
         # What this capability has seen of the tool call in flight. A context
-        # variable, because pydantic-ai runs every tool call in its own asyncio
-        # task, so parallel calls in one run and concurrent runs of one agent
-        # each read their own value with no shared table to clean up: the state
-        # goes with the call's task, including when a hook never runs. Not a
-        # table keyed by ``tool_call_id``, which the model chooses and
-        # ``TestModel`` repeats in every run. One per instance, so two audit
-        # capabilities in one chain never read each other's.
-        self._execution: ContextVar[_Execution | None] = ContextVar(
-            "django_spec_agents.audit.execution", default=None
-        )
+        # variable, because pydantic-ai runs a tool call in a task of its own,
+        # so parallel calls in one run and concurrent runs of one agent each
+        # read their own value with no shared table to clean up: the state goes
+        # with the call's task, including when a hook never runs. A call code
+        # mode awaits inline shares its caller's task, which the wrapper's
+        # reset covers. Not a table keyed by ``tool_call_id``, which the model
+        # chooses and ``TestModel`` repeats in every run. One per instance, so
+        # two audit capabilities in one chain never read each other's.
+        self._execution: ContextVar[_Execution] = ContextVar("django_spec_agents.audit.execution")
 
     def get_ordering(self) -> CapabilityOrdering:
         """Pin audit as an **innermost** capability.
@@ -205,19 +204,26 @@ class AuditCapability(AbstractCapability[Any]):
         class). A call whose ``before_tool_execute`` never ran here never
         reached the tool, and is not recorded.
 
-        Every entry starts a fresh execution, because pydantic-ai lets an outer
-        wrapper call its handler more than once and each call runs the tool
-        again. ``before_tool_execute`` runs again inside each entry and says
-        so itself, unless a capability ahead of audit stops that entry first.
-        The reset on the way out is what keeps the previous entry's "reached"
-        from carrying into one stopped that way, which would record a call
-        that never ran. Coverage cannot see it go missing, since the line runs
-        either way; ``test_a_rerun_refused_ahead_of_audit_is_not_recorded``
-        fails without it.
+        Every entry starts a fresh, unreached execution, because pydantic-ai
+        lets an outer wrapper call its handler more than once and each call
+        runs the tool again. ``before_tool_execute`` runs again inside each
+        entry and says so itself, unless a capability ahead of audit stops
+        that entry first; an entry stopped that way is not recorded, whatever
+        an earlier entry, or an outer call of a nested run, reached.
+
+        The reset on the way out puts back what the context held before. Code
+        mode awaits a nested call inline, in ``run_code``'s own task, when the
+        nested tool is marked sequential or the run is, so that call's wrapper
+        sets the variable in the context ``run_code``'s own hooks read. Without
+        the reset they would settle the nested call's execution and leave
+        ``run_code``'s to its wrapper, whose record then describes another
+        capability's rewrite of the result and times its hooks.
+        ``test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls``
+        fails without it. Coverage cannot see it go missing, since the line
+        runs either way.
         """
-        execution = _Execution(call, reached=self._current(call).reached)
+        execution = _Execution()
         token = self._execution.set(execution)
-        execution.begin(args)
         ip_address = self._resolve_ip_address(ctx)
         try:
             try:
@@ -244,10 +250,10 @@ class AuditCapability(AbstractCapability[Any]):
 
         Innermost, so this runs after every other capability's
         ``before_tool_execute``, and nothing else stands between it and the
-        tool, unless a capability sorts after audit (see the class).
+        tool, unless a capability sorts after audit (see the class). It runs
+        inside the wrapper, so the execution is the wrapper's own for this call.
         """
-        execution = self._current(call)
-        self._execution.set(execution)
+        execution = self._execution.get()
         execution.reached = True
         execution.begin(args)
         return args
@@ -268,7 +274,7 @@ class AuditCapability(AbstractCapability[Any]):
         class). Re-raising is what keeps the chain going: the next
         capability's hook is handed the same exception.
         """
-        self._current(call).settle(error=error)
+        self._execution.get().settle(error=error)
         raise error
 
     async def after_tool_execute(
@@ -287,30 +293,8 @@ class AuditCapability(AbstractCapability[Any]):
         class). After a recovery it is handed the recovered value instead,
         which ``settle`` ignores: the error hook settled the call first.
         """
-        self._current(call).settle(result=result)
+        self._execution.get().settle(result=result)
         return result
-
-    def _current(self, call: ToolCallPart) -> _Execution:
-        """The execution this context holds for ``call``, else a fresh one.
-
-        Both conditions are one branch arc, so coverage cannot see either go
-        missing. These tests do:
-
-        - ``execution is not None``: every recording test, starting with
-          ``test_records_toolset_tools_not_just_registry_tools``, which would
-          read ``.call`` off ``None`` in a fresh context.
-        - ``execution.call is call``: a tool that runs an agent composed with
-          this same capability, whose inner calls start in a context that
-          already holds the outer call's execution. An inner call that a
-          capability ahead of audit refuses with anything but a veto, such as a
-          ``ModelRetry``, would take the outer call's "reached" and be recorded:
-          ``test_a_nested_call_refused_ahead_of_audit_is_not_recorded``.
-          Identity rather than ``tool_call_id``, which the model chooses.
-        """
-        execution = self._execution.get()
-        if execution is not None and execution.call is call:
-            return execution
-        return _Execution(call)
 
     def _resolve_ip_address(self, ctx: RunContext[Any]) -> str | None:
         """This run's client IP: ``deps.ip_address``, else the constructed one.
@@ -388,11 +372,10 @@ class _Execution:
     nearest the tool.
     """
 
-    def __init__(self, call: ToolCallPart, *, reached: bool = False) -> None:
-        self.call = call
+    def __init__(self) -> None:
         # Whether audit's ``before_tool_execute`` ran for this call, which is
         # the last moment before the tool: a veto ahead of it means no record.
-        self.reached = reached
+        self.reached = False
         # The run about to start, as ``begin`` last saw it.
         self.args: dict[str, Any] = {}
         self.started = 0.0
@@ -406,10 +389,9 @@ class _Execution:
     def begin(self, args: dict[str, Any]) -> None:
         """The tool is about to run with ``args``.
 
-        The wrapper and ``before_tool_execute`` both call this, and the later
-        of the two is nearer the tool, so each call replaces the last. A call
-        after ``settle`` changes nothing the record holds, which ``settle``
-        has already taken.
+        Only ``before_tool_execute`` calls this, and it runs again on each run
+        of the tool, so each call replaces the last. A call after ``settle``
+        changes nothing the record holds, which ``settle`` has already taken.
         """
         self.args = args
         self.started = time.perf_counter()

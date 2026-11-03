@@ -239,3 +239,20 @@ bare_server.register_tool(
     include_output_schema=False,
     include_structured_content=False,
 )
+
+# One mutation per ``annotations=`` override a project can register it with, for
+# the bridge's destructive-hint rule. The wire each produces is asserted where
+# the rule is, so a change to django-spec-mcp's merge fails there.
+hinted_server = MCPServer(name="hinted")
+for _name, _annotations in (
+    ("plain", None),
+    ("read_only", {"readOnlyHint": True}),
+    ("non_destructive", {"destructiveHint": False}),
+    ("destructive", {"destructiveHint": True}),
+):
+    hinted_server.register_tool(
+        ServiceSpec(service=add_numbers, reads=_TWO_NUMBERS, permissions=_OPEN, atomic=False),
+        name=_name,
+        description="Add two numbers.",
+        annotations=_annotations,
+    )

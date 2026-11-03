@@ -27,6 +27,10 @@ narrative.
 
 ::: django_spec_agents.ToolCategory
 
+## `SchemaStrategy`
+
+::: django_spec_agents.SchemaStrategy
+
 ## Schema and metadata keys
 
 The `x-*` keys are JSON-Schema extensions that reach the **client** on a tool's

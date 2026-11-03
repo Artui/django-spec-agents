@@ -215,9 +215,10 @@ Return the rows, or declare `RETRIEVE` to present one.
 
 A tool's parameter schema is the model's only account of what to send, and the
 kernel reflects nothing off a callable's signature: every argument is one the
-spec declares. So the schema is the kernel's `spec_input_schema` of the
-compiled spec, the argument set `dispatch` checks, less the kernel's
-`server_owned_keys` for the toolset's seeds:
+spec declares. So the schema is the kernel's `spec_caller_input_schema` of the
+compiled spec: the argument set `dispatch` checks, less the kernel's
+`server_owned_keys` for the toolset's seeds, with a parameter a provider may
+fill offered and not required:
 
 - **A name the toolset fills is not advertised.** That is the dispatcher's own
   pool seeds (`request`, `user`, `progress` and the rest), every name registered
@@ -708,7 +709,10 @@ an object with that one required property, an array of the item schema,
 carrying the spec's `many_min_length` and `many_max_length` as `minItems` /
 `maxItems`, and, under the default [`REJECT`](#unexpected-arguments),
 `additionalProperties: false`. A read the spec declares is advertised beside
-it.
+it. Each item is read by what `input_data=` fills, since it is merged over every
+row: a field it is annotated to fill is not in the item schema, and one it may
+fill, or any field beside a provider whose return names no `TypedDict`, is
+offered and not required.
 
 What the model is told when a call is wrong:
 

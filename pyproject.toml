@@ -97,7 +97,10 @@ specs = [
     # declaring ``shapes`` is handed the call's shape values. Below it the
     # toolset's schema would promise fields a shape may drop, and a read,
     # shape or Validator field named ``shapes`` is not yet refused.
-    "django-service-specs>=0.16.0",
+    # 0.23.0: the toolset advertises the kernel's ``spec_caller_input_schema``,
+    # which first exists there; it also relaxes a ``many`` spec's rows by what
+    # ``input_data`` fills, which the toolset left as declared.
+    "django-service-specs>=0.23.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):
 # CodeMode batching, compaction, step persistence, sub-agents.
@@ -135,7 +138,7 @@ dev = [
     "djangorestframework-mcp-server>=0.53.1",
     # The [specs] extra's requirement, so ``spec_tools`` and its tests run in
     # dev, at the extra's floor.
-    "django-service-specs>=0.16.0",
+    "django-service-specs>=0.23.0",
     # Types for the DRF the [drf-mcp] bridge imports.
     "djangorestframework-stubs>=3.15",
     # For the filtered-selector tests: a ``filter_set`` is a django-filter
@@ -253,7 +256,7 @@ root = ["./django_spec_agents"]
 # django_spec_agents/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.5.0"
+current_version = "0.6.0"
 allow_dirty = false
 commit = false
 tag = false
