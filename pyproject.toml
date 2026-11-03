@@ -46,6 +46,10 @@ dependencies = [
     # django-ag-ui serves. Raise it whenever a new default reaches for a newer
     # upstream symbol.
     "pydantic-ai-slim>=2.58,<3",
+    # The schema derivation imports pydantic and pydantic_core itself, so it is
+    # declared rather than left to arrive through pydantic-ai-slim. The floor is
+    # the one pydantic-ai-slim 2.58 requires; nothing here needs a newer one.
+    "pydantic>=2.12",
 ]
 
 [project.optional-dependencies]

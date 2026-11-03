@@ -512,6 +512,7 @@ name = "django-spec-agents"
 source = { editable = "." }
 dependencies = [
     { name = "django" },
+    { name = "pydantic" },
     { name = "pydantic-ai-slim" },
 ]
 
@@ -569,6 +570,7 @@ requires-dist = [
     { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.23.0" },
     { name = "django-spec-mcp", marker = "extra == 'mcp'", specifier = ">=0.2.0" },
     { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.53.1" },
+    { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.13" },
     { name = "pydantic-ai-slim", specifier = ">=2.58,<3" },
     { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2.58,<3" },
