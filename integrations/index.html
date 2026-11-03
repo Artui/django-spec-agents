@@ -602,15 +602,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#drf-mcp-an-mcp-registry-as-a-toolset" class="md-nav__link">
+  <a href="#mcp-an-mcp-registry-as-a-toolset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        [drf-mcp] — an MCP registry as a toolset
+        [mcp] — an MCP registry as a toolset
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="[drf-mcp] — an MCP registry as a toolset">
+    <nav class="md-nav" aria-label="[mcp] — an MCP registry as a toolset">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -637,6 +637,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drf-mcp-deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [drf-mcp] — deprecated
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1233,15 +1244,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#drf-mcp-an-mcp-registry-as-a-toolset" class="md-nav__link">
+  <a href="#mcp-an-mcp-registry-as-a-toolset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        [drf-mcp] — an MCP registry as a toolset
+        [mcp] — an MCP registry as a toolset
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="[drf-mcp] — an MCP registry as a toolset">
+    <nav class="md-nav" aria-label="[mcp] — an MCP registry as a toolset">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1268,6 +1279,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drf-mcp-deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [drf-mcp] — deprecated
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1358,11 +1380,12 @@
 
 
 <h1 id="integrations">Integrations<a class="headerlink" href="#integrations" title="Permanent link">&para;</a></h1>
-<p>Three optional extras, all lazily imported — the base install stays slim and
+<p>Three optional extras, and one deprecated, all lazily imported — the base install stays slim and
 none of these dependencies is pulled unless configured.</p>
-<p>Two of them are <strong>bridges</strong>: <code>[specs]</code> and <code>[drf-mcp]</code> expose an existing
-DRF surface as agent tools, so you don't re-declare your API as <code>@tool</code>
-functions. Both make the agent act as the <strong>logged-in user</strong> — the request is
+<p>Two of them are <strong>bridges</strong>: <code>[specs]</code> and <code>[mcp]</code> expose specs you have
+already declared as agent tools, so you don't re-declare your API as <code>@tool</code>
+functions. The deprecated <code>[drf-mcp]</code> is the second bridge over a drf-mcp
+server. Both make the agent act as the <strong>logged-in user</strong> — the request is
 carried into every call, so your existing permission checks apply exactly as they
 would over HTTP.</p>
 <p>The third, <code>[harness]</code>, is a different shape: it brings in ready-made
@@ -1375,14 +1398,14 @@ tool-guard capabilities use.</p>
 <tr>
 <th></th>
 <th><code>[specs]</code></th>
-<th><code>[drf-mcp]</code></th>
+<th><code>[mcp]</code></th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Path</td>
 <td><code>django-service-specs</code> spec → tool, in process</td>
-<td><code>drf-mcp-server</code> registry → toolset, in process</td>
+<td><code>django-spec-mcp</code> registry → toolset, in process</td>
 </tr>
 <tr>
 <td>Needs an MCP server</td>
@@ -1398,7 +1421,7 @@ tool-guard capabilities use.</p>
 </table>
 <p>If you have <code>ServiceSpec</code> / <code>SelectorSpec</code> objects and no MCP server, take
 <code>[specs]</code>. If you already run an MCP server for external clients, take
-<code>[drf-mcp]</code> and get the identical tool surface without standing up a second one.</p>
+<code>[mcp]</code> and get the identical tool surface without standing up a second one.</p>
 <h2 id="specs-specs-as-tools"><code>[specs]</code> — specs as tools<a class="headerlink" href="#specs-specs-as-tools" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>specs<span class="o">]</span>
 </span></code></pre></div>
@@ -1420,7 +1443,7 @@ tool changing one row names the <code>pk</code> that picks it. A call that leave
 argument out is a <code>ModelRetry</code> naming it, <code>Missing required argument(s): `pk`.</code>,
 so the model supplies it on the next turn rather than the run ending on the
 selector's <code>TypeError</code>. The <code>[specs]</code> route does both, and
-the <code>[drf-mcp]</code> route asks for the same arguments and retries the same omission.
+the <code>[mcp]</code> route asks for the same arguments and retries the same omission.
 The extra is floored where a parameter a <code>kwargs=</code> provider
 declines, and the model left out, is retried the same way rather than reaching
 the selector, and where a selector parameter the toolset takes out of every
@@ -1448,47 +1471,50 @@ duplicates:</p>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">specs</span> <span class="o">=</span> <span class="n">resolve_spec_mapping</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>  <span class="c1"># mapping or registry -&gt; mapping</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">seen</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">specs</span><span class="p">)</span>  <span class="c1"># names, as intended</span>
 </span></code></pre></div>
-<h2 id="drf-mcp-an-mcp-registry-as-a-toolset"><code>[drf-mcp]</code> — an MCP registry as a toolset<a class="headerlink" href="#drf-mcp-an-mcp-registry-as-a-toolset" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>drf-mcp<span class="o">]</span>
+<h2 id="mcp-an-mcp-registry-as-a-toolset"><code>[mcp]</code> — an MCP registry as a toolset<a class="headerlink" href="#mcp-an-mcp-registry-as-a-toolset" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>mcp<span class="o">]</span>
 </span></code></pre></div>
-<p><code>DRFMCPToolset</code> bridges a <code>drf-mcp-server</code> registry through drf-mcp's public
-in-process surface (<code>list_tools</code> / <code>acall_tool</code>), so its validation and
-permission checks apply as they would over HTTP — without the network hop and
-without reaching into handler internals.</p>
-<p>Tool schemas come from drf-mcp's own <code>tools/list</code> rather than being re-derived
-locally, so the bridge advertises the <strong>same</strong> merged <code>inputSchema</code> the HTTP
-transport would — including a selector tool's filter / ordering / pagination
-arguments and its <code>additionalProperties</code> policy, not just the input serializer's
-fields.</p>
-<p>That schema asks for what a call needs. A selector parameter with no default,
-which the server does not fill, is listed in <code>required</code>, so <code>get_row(*, pk)</code>
-requires <code>pk</code> rather than calling it optional. A service tool also advertises
-the target lookup its row is resolved through, its <code>collection_selector_spec</code>
-when it declares one and its <code>instance_selector_spec</code> otherwise, so a tool
-changing one row names the <code>pk</code> that picks it. A <code>many=True</code> service reads no
-target and advertises no lookup. <code>[specs]</code>
-builds its schemas the same way, so one
-spec asks a model for the same arguments by either route. The extra is floored
-where drf-mcp refuses at registration a selector parameter it takes out of every
-call, as <code>[specs]</code> refuses it when the toolset is built, so one spec is
-served by both routes or refused by both.</p>
+<p><code>MCPToolset</code> bridges a <a href="https://github.com/Artui/django-spec-mcp">django-spec-mcp</a>
+server's registry through its public in-process surface (<code>list_tools</code> /
+<code>acall_tool</code>), so the kernel's argument validation and the spec's permissions
+apply as they would over HTTP — without the network hop and without reaching
+into handler internals. The extra installs django-spec-mcp, which brings the
+kernel; it brings no Django REST Framework, and the bridge imports none.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.integrations.mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">MCPToolset</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">MCPToolset</span><span class="p">(</span><span class="n">server</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">exclude_names</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">(</span><span class="n">registry_names</span><span class="p">))</span>
+</span></code></pre></div>
+<p>Import it where the agent is built, never at a module a host import reaches:
+django-spec-mcp needs a ready app registry to import.</p>
+<p>Tool schemas come from the server's own <code>tools/list</code> rather than being
+re-derived locally, so the bridge advertises the <strong>same</strong> <code>inputSchema</code> the
+HTTP transport would — including a paged list tool's pagination arguments and
+the <code>additionalProperties</code> policy.</p>
+<p>That schema asks for what a call needs. A read the spec declares
+<code>required=True</code> is listed in <code>required</code>, and a service tool also advertises the
+target lookup its row is resolved through, so a tool changing one row names the
+<code>pk</code> that picks it. <code>[specs]</code> builds its schemas the same way, so one spec asks
+a model for the same arguments by either route. A paginated list selector
+reading <code>page</code> is refused at registration, as <code>[specs]</code> refuses it
+when the toolset is built, so one spec is served by both routes or refused by
+both.</p>
 <h3 id="a-tool-that-cannot-run-now">A tool that cannot run now<a class="headerlink" href="#a-tool-that-cannot-run-now" title="Permanent link">&para;</a></h3>
 <p>A service's <code>affordances</code> can say when the operation is possible at all: a
 condition written as a callable reads only the user and the request, never the
-call's arguments, so while it is unmet every call is refused. drf-mcp leaves
-such a tool out of <code>tools/list</code>, and whether one is unmet can change mid-run.
-So the bridge lists definitions <strong>once</strong> per request, every tool the user may
-see included, and on <strong>every step</strong>:</p>
+call's arguments, so while it is unmet every call is refused. django-spec-mcp
+leaves such a tool out of <code>tools/list</code>, and whether one is unmet can change
+mid-run. So the bridge lists definitions <strong>once</strong> per request, every tool the
+user may see included, and on <strong>every step</strong>:</p>
 <ul>
-<li>offers only the tools drf-mcp would list right now, asking it through
+<li>offers only the tools the server would list right now, asking it through
   <code>MCPServer.aunavailable_tools</code>, so a tool that becomes
   available mid-run is offered from the next step without listing again;</li>
 <li>names each tool it left out in the toolset's instructions, with the reason
   its condition gives, so a model asked for one says why rather than guessing
   or denying the operation exists:</li>
 </ul>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  - `close_books`: The books are closed.
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  - `close_books`: The books are closed.
 </span></code></pre></div>
 <p>That is word for word what <code>[specs]</code> says for the same spec, so the model
 is taught one sentence whichever way a spec is exposed. A server declaring no
@@ -1502,63 +1528,88 @@ model gets to recover:</p>
 <ul>
 <li>a fault in the request the model produced → <code>ModelRetry</code>, so the model retries
   with the field errors fixed, or with a real name (the retry lists the tools
-  this toolset advertises), instead of the run dying. drf-mcp answers arguments
-  it refuses with a tool-level <code>validation_error</code> result, and an unknown tool
-  name on JSON-RPC <code>-32602</code>; the bridge retries both. The retry is drf-mcp's
-  message, then its field detail as JSON, unless the message already names
-  every field in the detail, nested ones included, in which case the detail is
-  left off rather than read twice. A detail is sent whole or not at all, so
-  <code>Invalid arguments: {"a": ["A valid integer is required."]}</code> keeps it, since
-  that message names nothing. Refused arguments include one a selector
-  requires that the call left out, which the model reads as
+  this toolset advertises), instead of the run dying. django-spec-mcp answers
+  arguments it refuses with a tool-level <code>validation_error</code> result, and an
+  unknown tool name on JSON-RPC <code>-32602</code>; the bridge retries both. The retry is
+  the server's message, then its field detail as JSON, unless the message
+  already names every field in the detail, nested ones included, in which case
+  the detail is left off rather than read twice. A detail is sent whole or not
+  at all, so <code>Invalid arguments: {"a": ["Expected an integer."]}</code> keeps it,
+  since that message names nothing. A reason under no field, which the server
+  writes under the kernel's <code>NON_FIELD_ERRORS</code> key (a bare <code>DispatchError</code>, say),
+  is kept unless the message quotes it. Refused arguments include a required
+  read the call left out, which the model reads as
   <code>Missing required argument(s): `pk`.</code>, word for word what <code>[specs]</code>
-  raises for the same call. They also include a read-shaping <code>QueryParam</code> value (a
-  <code>fields</code> selection, say) the output serializer refuses while rendering, which
-  drf-mcp answers as a <code>validation_error</code> naming the argument and quoting
-  the serializer's reason; on a paged tool the likeliest one is a selection
-  written against the page envelope rather than one item;</li>
-<li>a tool-level <code>input_required</code> result (a service asking for more input, which
-  an in-process caller cannot be asked for mid-call) → <code>ModelRetry</code> naming the
-  arguments to add on the next call;</li>
+  raises for the same call. They also include a <code>shapes</code> value (a <code>fields</code>
+  selection, say) the spec's presenter refuses while rendering, which the
+  server answers as a <code>validation_error</code> naming the argument and quoting the
+  presenter's reason; on a paged tool the likeliest one is a selection written
+  against the page envelope rather than one item;</li>
+<li>a tool-level <code>input_required</code> result → <code>ModelRetry</code> naming the arguments to
+  add on the next call. In process the server has no client to ask, so a
+  service's <code>AdditionalInputRequired</code> for inputs its spec declares arrives this
+  way;</li>
 <li>every other tool-level failure (<code>service_error</code>, <code>not_found</code>, a timeout, an
   oversized result) → <code>ToolFailed</code>, so the model reads the sentence and adapts,
   no retry budget is spent, and the call is recorded <code>outcome="failed"</code> for
   anything streaming the run;</li>
-<li>genuine protocol faults (auth, rate limits, an internal error) → a hard
-  <code>RuntimeError</code> that aborts the run: nothing the model can rewrite its way out
-  of.</li>
+<li>genuine protocol faults → a hard <code>RuntimeError</code> that aborts the run: nothing
+  the model can rewrite its way out of. These are auth, a permission refusing
+  the user (<code>-32006</code>), rate limits, and an internal error (<code>-32603</code>). The last
+  is also the answer to a service asking, through <code>AdditionalInputRequired</code>,
+  for an input its spec does not declare in <code>reads=</code>: no answer could reach the
+  service, so declare every input a service may ask for.</li>
 </ul>
 <p>A refusal keeps what names it. <code>ToolFailed</code> carries a single string, so when
-drf-mcp serves an affordance refusal's <code>code</code>, or the chain step
-that failed, it rides as a suffix on the sentence:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>The books are closed. (code: books_closed)
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>The books are closed. (code: books_closed, step: void)
+the server serves an affordance refusal's <code>code</code>, it rides as a suffix on the
+sentence:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>The books are closed. (code: books_closed)
 </span></code></pre></div>
-<p>The first line is word for word what <code>[specs]</code> produces for the same
-refusal raised in process, so a spec reads the same to the model whichever way
-it is exposed, and the code matches the one a row's <code>affordances</code> answer
-advertised. The suffix is written for the model and for a person reading the
-tool call; a program that needs the code reads it from drf-mcp's result, or on
-the <code>[specs]</code> route off the exception through <code>translate_exception</code>, rather
-than parsing it out of the sentence.</p>
+<p>That is word for word what <code>[specs]</code> produces for the same refusal raised in
+process, so a spec reads the same to the model whichever way it is exposed,
+and the code matches the one a row's <code>affordances</code> answer advertised. The
+suffix is written for the model and for a person reading the tool call; a
+program that needs the code reads it from the server's result, or on the
+<code>[specs]</code> route off the exception through <code>translate_exception</code>, rather than
+parsing it out of the sentence.</p>
 <p>Bridged tools also carry destructiveness into the <a href="../policy/">tool guard</a>: the
-bridge maps each tool's <code>readOnlyHint</code> annotation onto <code>DESTRUCTIVE_METADATA_KEY</code>.</p>
-<p>A spec's own confirmation (<code>AdditionalInputRequired</code>) is the <code>input_required</code>
+bridge maps each tool's annotations onto <code>DESTRUCTIVE_METADATA_KEY</code> the way MCP
+reads them, where <code>destructiveHint</code> defaults to true and means something only on
+a tool that is not read-only. A tool is marked unless <code>readOnlyHint</code> is true or
+<code>destructiveHint</code> is false, so a service tool is destructive, a selector tool is
+not, and a mutation registered with <code>annotations={"destructiveHint": False}</code> is
+not either. A tool listed with no <code>annotations</code> says nothing and is not marked.</p>
+<p>A service's own confirmation (<code>AdditionalInputRequired</code>) is the <code>input_required</code>
 retry above, which the model can answer itself, on this route and on
-<code>[specs]</code> alike. It is not an approval gate: see
+<code>[specs]</code> alike. A selector's request does not agree: django-spec-mcp builds no
+input round for a selector, so it arrives as a service error, and so as
+<code>ToolFailed</code> here, where <code>[specs]</code> raises <code>ModelRetry</code>. It is not an approval gate: see
 <a href="../policy/#what-is-gated-and-what-is-not">what is gated, and what is not</a>.</p>
+<h2 id="drf-mcp-deprecated"><code>[drf-mcp]</code> — deprecated<a class="headerlink" href="#drf-mcp-deprecated" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>drf-mcp<span class="o">]</span>
+</span></code></pre></div>
+<p><code>DRFMCPToolset</code>, in <code>django_spec_agents.integrations.drf_mcp</code>, is the same
+bridge over a <code>drf-mcp-server</code> registry, and behaves as above with drf-mcp's
+names: its arguments are refused by the input serializer, a <code>QueryParam</code> the
+output serializer refuses is the rendering retry, DRF's <code>NON_FIELD_ERRORS_KEY</code>
+setting is the non-field key, and a chain tool's refusal also names the step
+that failed, <code>(code: books_closed, step: void)</code>. It is deprecated, with the
+extra: constructing one warns <code>DeprecationWarning</code>, and both are removed in the
+next minor. Move to <code>[mcp]</code> and <code>MCPToolset</code>, serving the same operations as
+kernel specs from a django-spec-mcp server. <code>build_tool_catalog</code>'s
+<code>drf_mcp_server=</code> is deprecated with them: pass the server as <code>mcp_server=</code>.</p>
 <h2 id="harness-upstream-capabilities"><code>[harness]</code> — upstream capabilities<a class="headerlink" href="#harness-upstream-capabilities" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>harness<span class="o">]</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>harness<span class="o">]</span>
 </span></code></pre></div>
 <p>The other two extras bridge <em>your</em> API into the agent. This one is different: it
 pulls in <a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>,
 a library of ready-made <strong>capabilities</strong> — the same seam this package's own audit
 and tool-guard capabilities use. Nothing here wraps or re-implements them; you
 construct one and hand it to <code>AgentConfig</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindow</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">)])</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">build_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindow</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">)])</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">build_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
 </span></code></pre></div>
 <p>That is the whole integration. <code>capabilities</code> takes live instances (never dotted
 paths), so a harness capability, a first-party one, and your own all compose the
@@ -1634,12 +1685,12 @@ instructions. <code>Skills</code> discovers them and exposes each as a <strong>d
 capability: the model sees only the name and description up front, and the body
 loads into context if it selects that skill. A dozen skills therefore cost a
 dozen one-line descriptions, not a dozen instruction blocks.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">Skills</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">Skills</span><span class="p">(</span><span class="s2">&quot;/srv/app/skills&quot;</span><span class="p">)],</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">Skills</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">Skills</span><span class="p">(</span><span class="s2">&quot;/srv/app/skills&quot;</span><span class="p">)],</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><code>directories</code> takes one path or several. Discovery scans <em>immediate</em> child
 directories for a <code>SKILL.md</code>, so <code>/srv/app/skills/summarise/SKILL.md</code> registers a
@@ -1665,7 +1716,7 @@ client needs to show "using skill X". Enumerate them with <code>skills.apply(vis
 package — if it is a pydantic-ai capability, <code>capabilities=[...]</code> takes it.</p>
 <h2 id="name-collisions">Name collisions<a class="headerlink" href="#name-collisions" title="Permanent link">&para;</a></h2>
 <p>Both bridges take <code>exclude_names</code>, and precedence is fixed: the <code>@tool</code> registry
-wins, then drf-mcp, then spec tools. A duplicate that slipped through would make
+wins, then the MCP server's, then spec tools. A duplicate that slipped through would make
 pydantic-ai raise <code>UserError</code> at run time, so the excluded set is threaded
 through composition instead.</p>
 <p>Full signatures in the <a href="../reference/integrations/">integrations reference</a>.</p>

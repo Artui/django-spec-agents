@@ -891,15 +891,82 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#mcp-tools-drf-mcp" class="md-nav__link">
+  <a href="#mcp-tools-mcp" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MCP tools ([drf-mcp])
+        MCP tools ([mcp])
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="MCP tools ([drf-mcp])">
+    <nav class="md-nav" aria-label="MCP tools ([mcp])">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mcptoolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCPToolset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCPToolset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCPToolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_instructions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecated-mcp-tools-drf-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecated MCP tools ([drf-mcp])
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deprecated MCP tools ([drf-mcp])">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1346,15 +1413,82 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#mcp-tools-drf-mcp" class="md-nav__link">
+  <a href="#mcp-tools-mcp" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MCP tools ([drf-mcp])
+        MCP tools ([mcp])
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="MCP tools ([drf-mcp])">
+    <nav class="md-nav" aria-label="MCP tools ([mcp])">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mcptoolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCPToolset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCPToolset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCPToolset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_instructions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deprecated-mcp-tools-drf-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecated MCP tools ([drf-mcp])
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deprecated MCP tools ([drf-mcp])">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1438,10 +1572,10 @@
 
 
 <h1 id="integrations">Integrations<a class="headerlink" href="#integrations" title="Permanent link">&para;</a></h1>
-<p>Optional bridges exposing an existing DRF surface as agent tools. Both are
-lazily imported and live under <code>django_spec_agents.integrations</code> rather than
-being re-exported at the package root, so the base install pulls neither
-dependency. See <a href="../../integrations/">Integrations</a> for which to choose.</p>
+<p>Optional bridges exposing declared specs as agent tools. Each is lazily
+imported and lives under <code>django_spec_agents.integrations</code> rather than being
+re-exported at the package root, so the base install pulls none of their
+dependencies. See <a href="../../integrations/">Integrations</a> for which to choose.</p>
 <h2 id="spec-tools-specs">Spec tools (<code>[specs]</code>)<a class="headerlink" href="#spec-tools-specs" title="Permanent link">&para;</a></h2>
 <h3 id="build_spec_capability"><code>build_spec_capability</code><a class="headerlink" href="#build_spec_capability" title="Permanent link">&para;</a></h3>
 
@@ -1657,7 +1791,248 @@ what lets a caller accept either and tell them apart.</p>
 
     </div>
 
-</div><h2 id="mcp-tools-drf-mcp">MCP tools (<code>[drf-mcp]</code>)<a class="headerlink" href="#mcp-tools-drf-mcp" title="Permanent link">&para;</a></h2>
+</div><h2 id="mcp-tools-mcp">MCP tools (<code>[mcp]</code>)<a class="headerlink" href="#mcp-tools-mcp" title="Permanent link">&para;</a></h2>
+<h3 id="mcptoolset"><code>MCPToolset</code><a class="headerlink" href="#mcptoolset" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.integrations.mcp.MCPToolset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MCPToolset</span>
+
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic_ai.toolsets.AbstractToolset">AbstractToolset</span>[<span title="typing.Any">Any</span>]</code></p>
+
+
+
+        <p>Exposes a django-spec-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
+<p>Built per request, so the agent acts as the request's logged-in user. Both
+schemas and execution route through django-spec-mcp's public in-process
+surface (<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised
+parameters, the kernel's argument validation and the spec's permissions
+match the HTTP transport exactly, without the network hop. Tool definitions carry the default
+<code>kind="function"</code>, the in-process kind the run loop calls itself; an
+<code>external</code> tool would instead be deferred to the client and never run.</p>
+<p><strong>Definitions once, availability every step.</strong> django-spec-mcp leaves a tool
+out of <code>tools/list</code> while an operation-scope affordance refuses it, and
+whether one does can change mid-run — an admin closes the books. So the
+definitions are listed once, with every tool the user may see, and each step
+asks django-spec-mcp which of them a fresh listing would leave out
+(<code>aunavailable_tools</code>):
+those are not offered that step, and the instructions name
+each with its <code>reason</code>, so a model asked for one can say why rather than
+guess or deny the operation exists. A server declaring no such condition
+answers that without leaving the event loop.</p>
+<p>Failures split three ways, along MCP's protocol-vs-tool boundary:</p>
+<ul>
+<li>JSON-RPC <code>-32602</code> and tool-level <code>validation_error</code> and
+  <code>input_required</code> results raise <code>pydantic_ai.ModelRetry</code>, so the model
+  calls again with the field errors fixed or the missing input supplied,
+  instead of the run dying;</li>
+<li>every other tool-level failure (<code>service_error</code>, <code>not_found</code>, a
+  timeout, an oversized result) raises <code>pydantic_ai.ToolFailed</code>, so the
+  model reads the sentence and the call is recorded <code>outcome="failed"</code>;</li>
+<li>protocol faults raise <code>RuntimeError</code> and abort the run: auth, a
+  permission refusing the user (<code>-32006</code>), rate limits, and an internal
+  error (<code>-32603</code>), which is also the answer to a service asking for an
+  input its spec does not declare in <code>reads=</code>, since no answer to it
+  could reach the service.</li>
+</ul>
+<p>Running in process, the server has no client to ask, so a service's
+<code>AdditionalInputRequired</code> for inputs its spec declares arrives degraded,
+as <code>input_required</code>.</p>
+<p>The mapping is the one <code>spec_tools</code> applies to the same exceptions raised
+in process, except for a selector's <code>AdditionalInputRequired</code>:
+django-spec-mcp builds no input round for a selector, so it arrives as a
+service error and raises <code>ToolFailed</code>, where <code>spec_tools</code> raises
+<code>ModelRetry</code>. A refusal reads identically through both:
+<code>The books are closed. (code: books_closed)</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>server</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The django-spec-mcp <code>MCPServer</code> whose registry is bridged.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="django.http.HttpRequest">HttpRequest</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The request carried into every call; its <code>user</code> is the
+acting user.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exclude_names</code>
+            </td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Names the <code>@tool</code> registry has already claimed. A
+colliding server tool is skipped, so the registry wins — the rule
+<code>build_tool_catalog</code> applies — because pydantic-ai raises
+<code>UserError</code> for a duplicate name at run time.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_retries</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-tool retry budget: how many times a <code>ModelRetry</code> is
+fed back to the model before the run aborts. The default matches
+pydantic-ai's own function-tool default.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_tools</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset.get_tools" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_tools</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolsetTool</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The tools this step may call: every definition, less the unavailable.</p>
+<p>Definitions come from django-spec-mcp's <code>tools/list</code> once per toolset, which is
+once per request. Availability is asked again here every step, because
+pydantic-ai calls this once per step and a condition may flip between
+two: offering a tool django-spec-mcp would leave out only invites a refusal, and
+withholding one that became available hides an operation the model could
+now perform. The call enforces every condition whatever was offered.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_instructions</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset.get_instructions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_instructions</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Name each tool left out this step, with the reason its condition gives.</p>
+<p><code>get_tools</code> withholds such a tool, so without this the model sees
+neither it nor any sign it exists, and a user asking for it gets a guess
+where a sentence was available. <code>None</code> when nothing is left out, which
+is every step for a server declaring no operation condition.</p>
+<p>Asked separately from <code>get_tools</code>, as the spec-tools route asks: the
+run context carries no key that could safely scope one answer to one
+step, and asking twice costs a second evaluation of conditions that read
+only seeds. A condition flipping between the two reads can leave one
+step's tools and instructions disagreeing about a tool; the call's own
+enforcement is authoritative either way.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="deprecated-mcp-tools-drf-mcp">Deprecated MCP tools (<code>[drf-mcp]</code>)<a class="headerlink" href="#deprecated-mcp-tools-drf-mcp" title="Permanent link">&para;</a></h2>
+<p>Removed in the next minor; use <code>MCPToolset</code> and <code>[mcp]</code>.</p>
 <h3 id="drfmcptoolset"><code>DRFMCPToolset</code><a class="headerlink" href="#drfmcptoolset" title="Permanent link">&para;</a></h3>
 
 
@@ -1679,6 +2054,9 @@ what lets a caller accept either and tell them apart.</p>
 
 
         <p>Exposes a drf-mcp <code>MCPServer</code>'s tools as a Pydantic-AI toolset.</p>
+<p>Deprecated: constructing one warns <code>DeprecationWarning</code>. Use
+<code>MCPToolset</code> and the <code>[mcp]</code> extra; this class is removed in the next
+minor.</p>
 <p>Built per request, so the agent acts as the request's logged-in user. Both
 schemas and execution route through drf-mcp's public in-process surface
 (<code>MCPServer.list_tools</code> / <code>acall_tool</code>), so the advertised

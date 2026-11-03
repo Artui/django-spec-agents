@@ -1234,8 +1234,9 @@ dependency. Reach for it on its own when you are:</p>
   <code>django_spec_agents.contrib.store</code>, whose label is <code>django_spec_agents_store</code>.</li>
 <li><strong><a href="policy/">Policy</a></strong>: an audit trail over every tool call, a server-side
   approval gate for destructive tools, and the failure policy.</li>
-<li><strong><a href="integrations/">Integrations</a></strong>: the <code>[specs]</code> and <code>[drf-mcp]</code> bridges
-  that compose specs or a <code>drf-mcp-server</code> registry into an agent the host builds.</li>
+<li><strong><a href="integrations/">Integrations</a></strong>: the <code>[specs]</code> and <code>[mcp]</code> bridges
+  that compose specs or a <code>django-spec-mcp</code> registry into an agent the host builds,
+  and the deprecated <code>[drf-mcp]</code>.</li>
 </ul>
 <h2 id="specs-as-tools">Specs as tools<a class="headerlink" href="#specs-as-tools" title="Permanent link">&para;</a></h2>
 <p><code>SpecToolset</code> turns a <code>name -&gt; spec</code> mapping, or a spec registry, into

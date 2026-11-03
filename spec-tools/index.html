@@ -1089,8 +1089,10 @@ declared it:</p>
   or provider declaring <code>request</code> or <code>view</code> is handed <code>None</code>, while a
   permission check reads the principal and, where it declares <code>arguments</code>,
   the call's arguments;</li>
-<li><strong><code>spec_input_schema</code></strong>, the kernel's, derives each tool's parameter schema
-  from the compiled spec, the argument set <code>dispatch</code> checks, and
+<li><strong><code>spec_caller_input_schema</code></strong>, the kernel's, derives each tool's parameter
+  schema from the compiled spec: the argument set <code>dispatch</code> checks, less what
+  the server fills, requiring what <code>dispatch</code> refuses the caller for leaving
+  out; and
   <strong><code>spec_output_schema</code></strong> its <code>return_schema</code>, projected for the audience;</li>
 <li><strong><code>paginate_output</code></strong>, the kernel's, slices a list selector into the page the
   tool returns, the same shaper the MCP transport uses;</li>
@@ -1102,8 +1104,9 @@ would: the same validation errors, the same permission checks (class-level
 before anything is called, and object-level on the resolved row), the same rendered payloads —
 without the network hop, and without standing up an MCP server.</p>
 <h2 id="how-it-compares">How it compares<a class="headerlink" href="#how-it-compares" title="Permanent link">&para;</a></h2>
-<p>If you already run an MCP server, <code>django-ag-ui</code>'s <code>DRFMCPToolset</code> exposes its
-tools to Pydantic-AI through the in-process MCP surface. <code>SpecToolset</code> is for the
+<p>If you already run a django-spec-mcp server, <code>MCPToolset</code> from this package's
+<code>[mcp]</code> extra exposes its tools to Pydantic-AI through the in-process MCP
+surface. <code>SpecToolset</code> is for the
 case where you want the specs as tools <strong>without</strong> any MCP layer: the <code>[specs]</code>
 extra installs it on <code>django-service-specs</code> and <code>pydantic-ai-slim</code> alone, and
 the toolset imports nothing from Django REST Framework.</p>

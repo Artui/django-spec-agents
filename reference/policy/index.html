@@ -2509,15 +2509,22 @@ below have recorded the tool's side first where they could, and
 the tool's whenever nothing sorts between audit and the tool (see the
 class). A call whose <code>before_tool_execute</code> never ran here never
 reached the tool, and is not recorded.</p>
-<p>Every entry starts a fresh execution, because pydantic-ai lets an outer
-wrapper call its handler more than once and each call runs the tool
-again. <code>before_tool_execute</code> runs again inside each entry and says
-so itself, unless a capability ahead of audit stops that entry first.
-The reset on the way out is what keeps the previous entry's "reached"
-from carrying into one stopped that way, which would record a call
-that never ran. Coverage cannot see it go missing, since the line runs
-either way; <code>test_a_rerun_refused_ahead_of_audit_is_not_recorded</code>
-fails without it.</p>
+<p>Every entry starts a fresh, unreached execution, because pydantic-ai
+lets an outer wrapper call its handler more than once and each call
+runs the tool again. <code>before_tool_execute</code> runs again inside each
+entry and says so itself, unless a capability ahead of audit stops
+that entry first; an entry stopped that way is not recorded, whatever
+an earlier entry, or an outer call of a nested run, reached.</p>
+<p>The reset on the way out puts back what the context held before. Code
+mode awaits a nested call inline, in <code>run_code</code>'s own task, when the
+nested tool is marked sequential or the run is, so that call's wrapper
+sets the variable in the context <code>run_code</code>'s own hooks read. Without
+the reset they would settle the nested call's execution and leave
+<code>run_code</code>'s to its wrapper, whose record then describes another
+capability's rewrite of the result and times its hooks.
+<code>test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls</code>
+fails without it. Coverage cannot see it go missing, since the line
+runs either way.</p>
 
 
     </div>
@@ -2550,7 +2557,8 @@ fails without it.</p>
         <p>Note that the call reached the tool, with the arguments it gets.</p>
 <p>Innermost, so this runs after every other capability's
 <code>before_tool_execute</code>, and nothing else stands between it and the
-tool, unless a capability sorts after audit (see the class).</p>
+tool, unless a capability sorts after audit (see the class). It runs
+inside the wrapper, so the execution is the wrapper's own for this call.</p>
 
 
     </div>
@@ -2759,7 +2767,8 @@ by default, so the gate never surprises a project that has not opted in.</p>
 <p>When enabled, a tool is gated if it is destructive or its name is in
 <code>require_approval</code>; <code>exempt</code> overrides both. A tool counts as destructive
 when it is a registry <code>@tool(destructive=True)</code>, or when its definition
-says so — the drf-mcp bridge's metadata key, an MCP <code>readOnlyHint</code> of
+says so — a bridge's metadata key (set for a tool that lists annotations,
+unless it is read-only or declares <code>destructiveHint</code> false), an MCP <code>readOnlyHint</code> of
 <code>False</code> (a <code>ServiceSpec</code> through <code>SpecToolset</code>, among
 others), or an <code>x-destructive</code> stamp at the root of its parameter schema.</p>
 <p><strong>Nothing else is gated.</strong> A tool from a source that declares none of those
@@ -2904,20 +2913,27 @@ so one hook covers every tool the agent sees wherever it came from:</p>
 <li><strong>Registry</strong> <code>@tool(destructive=True)</code>, collected at construction: the
   flag lives on the spec and never reaches pydantic-ai, which sees a bare
   callable, so the capability reads it directly.</li>
-<li><strong>drf-mcp bridged tools</strong>, through the
+<li><strong>Bridged MCP tools</strong>, through the
   <a class="autorefs autorefs-internal" title="DESTRUCTIVE_METADATA_KEY
 
 
   
       module-attribute
   " href="../registry/#django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY"><code>DESTRUCTIVE_METADATA_KEY</code></a> the
-  bridge stamps into <code>ToolDefinition.metadata</code>.</li>
-<li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]["readOnlyHint"] is
-  False</code>. A toolset that speaks MCP's own vocabulary rather than this
-  package's key declares a mutation this way, <code>SpecToolset</code> over a
-  <code>ServiceSpec</code> among them. Reading it gates a spec
-  attached in process the way the bridge's key gates the same spec over
-  drf-mcp, so a transport swap cannot silently remove the gate.</li>
+  bridge stamps into <code>ToolDefinition.metadata</code>. Both bridges mark a tool
+  unless its <code>readOnlyHint</code> is true or its <code>destructiveHint</code> is false, as
+  MCP reads the pair, so a mutation registered with
+  <code>annotations={"destructiveHint": False}</code> is not gated. A tool listed
+  with no <code>annotations</code> is not marked.</li>
+<li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]</code>, read by the bridges'
+  rule: annotations that say something mark the tool unless <code>readOnlyHint</code>
+  is true or <code>destructiveHint</code> is false, and a field that is <code>None</code> is
+  unsaid, as are annotations with nothing said. A toolset that speaks MCP's
+  own vocabulary rather than this package's key declares a mutation this
+  way, <code>SpecToolset</code> over a <code>ServiceSpec</code> and a remote MCP server among
+  them. Reading it gates a spec attached in process the way the bridge's key
+  gates the same spec over drf-mcp, so a transport swap cannot silently
+  remove the gate.</li>
 <li><strong>The <code>x-destructive</code> schema stamp</strong> at the root of
   <code>parameters_json_schema</code>, which is what
   <a class="autorefs autorefs-internal" title="build_input_schema" href="../registry/#django_spec_agents.build_input_schema"><code>build_input_schema</code></a> writes,
@@ -2926,10 +2942,11 @@ so one hook covers every tool the agent sees wherever it came from:</p>
 <li><strong>Project overrides</strong>: <code>require_approval</code> force-gates a name, <code>exempt</code>
   un-gates one, and <code>exempt</code> wins.</li>
 </ul>
-<p>A hint has to <em>say</em> the tool mutates. A missing <code>readOnlyHint</code>, an absent
-stamp or metadata of another shape entirely leaves the tool alone — silence
-is not a claim, and <code>require_approval</code> is the answer for a tool whose
-source declares nothing.</p>
+<p>A hint has to <em>say</em> something. Annotations that say nothing, an absent stamp
+or metadata of another shape entirely leave the tool alone — silence is not
+a claim, and <code>require_approval</code> is the answer for a tool whose source
+declares nothing. Annotations that say anything are read by MCP's defaults,
+as the bridges read them.</p>
 <p>Only <code>kind="function"</code> tools are flipped — an <code>external</code> tool is already
 gated client-side, and an <code>output</code> tool is not executed.</p>
 <p>The guard touches only <code>prepare_tools</code>, so it is orthogonal to

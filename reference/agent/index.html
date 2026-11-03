@@ -2482,10 +2482,12 @@ that exception.</p>
 <p><strong>A destructive tool is not confirmed unless a config asks for it.</strong> The
 approval interrupt exists only when <code>config.tool_guard</code> is enabled, and
 even then it reaches a tool only if that tool's source declares the mutation
-— a registry <code>@tool(destructive=True)</code>, an MCP <code>readOnlyHint</code> of
-<code>False</code>, an <code>x-destructive</code> schema stamp, or an explicit
-<code>require_approval</code> name. With no <code>tool_guard</code>, every server-side tool
-here runs the moment the model calls it. The browser's own confirmation card
+— a registry <code>@tool(destructive=True)</code>, an MCP tool, bridged or
+carrying its annotations in a toolset's own metadata, whose <code>readOnlyHint</code>
+is not true and <code>destructiveHint</code> is not false, an <code>x-destructive</code>
+schema stamp, or an explicit <code>require_approval</code> name. With no
+<code>tool_guard</code>, every server-side tool here runs the moment the model calls
+it. The browser's own confirmation card
 is no substitute: it is driven by a client-registered tool's schema and never
 sees a tool that executes server-side. A transport describing this agent to
 the model should say which of the two it configured.</p>
@@ -2514,9 +2516,10 @@ the model should say which of the two it configured.</p>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_tool_catalog</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">ToolRegistry</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">drf_mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">service_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">drf_mcp_server</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">service_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2527,7 +2530,7 @@ browser and a web component cannot read an <code>x-summary</code> off it. This c
 is that channel: the component fetches it and maps tool name to label.</p>
 <p>Each entry is <code>{"name", "summary", "description"?}</code>. <code>summary</code> is always
 present, resolved from <code>@tool(summary=...)</code> for registry tools and from
-<code>display_name</code> then <code>title</code> for drf-mcp ones, falling back to a
+<code>display_name</code> then <code>title</code> for an MCP server's, falling back to a
 prettified name. <code>description</code> is carried through when the source has one.</p>
 <p><strong>The catalog covers these sources and no others.</strong> A tool attached through
 a transport's <code>capabilities=</code> / <code>toolsets=</code> is not listed and its card
@@ -2567,6 +2570,24 @@ Route spec tools through a transport's <code>service_specs=</code> to keep label
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>mcp_server</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An MCP server whose registered tools are appended: a
+django-spec-mcp <code>MCPServer</code>, or a drf-mcp one, whose bindings
+carry the same four label fields.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>drf_mcp_server</code>
             </td>
             <td>
@@ -2574,7 +2595,9 @@ Route spec tools through a transport's <code>service_specs=</code> to keep label
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A drf-mcp server whose registered tools are appended.</p>
+                <p>Deprecated, removed in the next minor: the name
+<code>mcp_server</code> had while the only server was drf-mcp's. It takes
+the same server; passing both raises <code>TypeError</code>.</p>
               </div>
             </td>
             <td>
@@ -2618,6 +2641,29 @@ described by its service or selector callable's docstring.</p>
             <td>
               <div class="doc-md-description">
                 <p>One entry per tool, in that source order.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Both <code>mcp_server</code> and <code>drf_mcp_server</code> were passed.</p>
               </div>
             </td>
           </tr>

@@ -960,6 +960,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schemastrategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SchemaStrategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.SchemaStrategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SchemaStrategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#schema-and-metadata-keys" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1736,6 +1758,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schemastrategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SchemaStrategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.SchemaStrategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SchemaStrategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#schema-and-metadata-keys" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1934,8 +1978,12 @@ narrative.</p>
 
         <p>An ordered, named collection of server-side tools.</p>
 <p>State lives on the instance — a transport holds one, tests build a fresh one
-per scenario. Each tool's JSON Schema is derived once at registration, and
-either sync or async callables can be dispatched.</p>
+per scenario. Each tool's JSON Schema is derived once at registration, with
+<code>schema_strategy</code> (see
+<a class="autorefs autorefs-internal" title="build_input_schema" href="#django_spec_agents.build_input_schema"><code>build_input_schema</code></a>), and either
+sync or async callables can be dispatched.</p>
+<p>The strategy shapes <code>ToolBinding.input_schema</code> only. The schema the agent
+offers the model for a registry tool is pydantic-ai's own, whichever is set.</p>
 
 
 
@@ -2445,15 +2493,31 @@ so a tool listing does not re-introspect on every request.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">category</span><span class="p">:</span> <span class="n">ToolCategory</span> <span class="o">=</span> <span class="n">ToolCategory</span><span class="o">.</span><span class="n">OTHER</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">confirm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">schema_strategy</span><span class="p">:</span> <span class="n">SchemaStrategy</span> <span class="o">=</span> <span class="n">SchemaStrategy</span><span class="o">.</span><span class="n">HAND_BUILT</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Derive a JSON Schema object from <code>fn</code>'s parameters.</p>
-<p>Covers <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>list[T]</code>, <code>dict[str,
-Any]</code> and <code>X | None</code> unions. Anything richer falls back to an empty
-fragment, imposing no type constraint but staying wire-valid.</p>
+<p><code>schema_strategy</code> picks the derivation. The default,
+<code>SchemaStrategy.HAND_BUILT</code>, covers <code>str</code>, <code>int</code>, <code>float</code>,
+<code>bool</code>, <code>list[T]</code>, <code>dict[str, Any]</code> and <code>X | None</code> unions, and
+reads <code>Annotated[T, ...]</code> as <code>T</code> plus what its metadata maps to: a
+<code>Field</code>'s <code>description</code>, <code>title</code> and <code>examples</code>, and the bounds of a
+<code>Field</code> or of <code>annotated_types</code> metadata. A string or forward reference
+nested in an annotation is resolved against <code>fn</code>'s module globals.
+Anything richer, or a nested reference that does not resolve, falls back to
+an empty fragment, imposing no type constraint but staying wire-valid; so
+does a bound that is not an <code>int</code> or <code>float</code> (a <code>Decimal</code>, a
+<code>date</code>), and <code>examples</code> that do not serialise to JSON. An annotation
+that does not evaluate at the top level raises <code>NameError</code> under either
+strategy, from <code>inspect.signature</code>.</p>
+<p><code>SchemaStrategy.PYDANTIC</code> builds a pydantic model over the same
+parameters and returns its JSON Schema, so it covers whatever pydantic
+does, and raises where pydantic does: on a type it cannot schematise, an
+unresolvable reference (<code>NameError</code>), or a parameter pydantic would not
+hold as a field (<code>TypeError</code>).</p>
 <p><code>destructive</code> / <code>category</code> / <code>confirm</code> / <code>summary</code> are stamped at the
 schema root as the matching <code>x-*</code> extension keys, which AG-UI passes
 through verbatim to the client.</p>
@@ -2461,6 +2525,29 @@ through verbatim to the client.</p>
 left out. Pydantic-AI fills it from the run — it is how a tool reaches the
 acting user — so advertising it would ask the model to invent a value for
 something it cannot supply.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>when <code>schema_strategy</code> is not a <code>SchemaStrategy</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2489,6 +2576,61 @@ something it cannot supply.</p>
 <p>Advisory metadata: it lets a frontend group tools, a system prompt reason
 about capability classes, and a project apply category-wide policy. It does
 <strong>not</strong> gate execution; that is the <code>destructive</code> flag's job.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="schemastrategy"><code>SchemaStrategy</code><a class="headerlink" href="#schemastrategy" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.SchemaStrategy" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SchemaStrategy</span>
+
+
+<a href="#django_spec_agents.SchemaStrategy" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="str">str</span></code>, <code><span title="enum.Enum">Enum</span></code></p>
+
+
+
+        <p>How <a class="autorefs autorefs-internal" title="build_input_schema" href="#django_spec_agents.build_input_schema"><code>build_input_schema</code></a> derives a
+tool's JSON Schema from its signature.</p>
+<p><code>HAND_BUILT</code> is the default and the package's own mapping: a flat schema
+with no titles, <code>X | None</code> as <code>nullable</code>, and an unrecognised type as an
+empty fragment. <code>PYDANTIC</code> hands the parameters to pydantic and returns its
+JSON Schema: titles on every property, <code>X | None</code> as <code>anyOf</code>, defaults,
+and <code>$defs</code> for nested models and enums.</p>
 
 
 
@@ -2806,9 +2948,9 @@ only place its author said so.</p>
 <p>The same signal as <code>x-destructive</code>, but on metadata rather than the schema,
 because metadata is the channel a <em>bridge</em> controls where the schema belongs to
 the tool's author: <code>ToolGuard</code> reads it at <code>prepare_tools</code> time for tools
-whose destructiveness the <code>@tool</code> registry does not know, such as a drf-mcp
-tool whose <code>readOnlyHint</code> the bridge maps onto this key. It lives in process
-only and is never stored, so its value follows the package's name.</p>
+whose destructiveness the <code>@tool</code> registry does not know, such as a bridged
+MCP tool whose <code>readOnlyHint</code> and <code>destructiveHint</code> the bridge maps onto this
+key. It lives in process only and is never stored, so its value follows the package's name.</p>
 
 
 

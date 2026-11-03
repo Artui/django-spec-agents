@@ -1404,7 +1404,7 @@ off by default.</p>
 </span></code></pre></div>
 <p>It hooks pydantic-ai's tool execution itself, which is the point: it times and
 records <strong>every tool the agent runs</strong>, not just the ones in the registry —
-drf-mcp and spec-toolset bridges, attachment tools, everything. A per-tool
+MCP and spec-toolset bridges, attachment tools, everything. A per-tool
 wrapper would miss the composed toolsets.</p>
 <p><code>NullAuditLogger</code> is the no-op default; <code>build_agent</code> skips composition entirely
 when the logger is null, so "auditing off" costs nothing.</p>
@@ -1449,8 +1449,8 @@ wrapper when the tool raised <code>ModelRetry</code> or <code>ToolFailed</code>.
 and are recorded as they propagate. A <code>ToolFailed</code> that <strong>a tool raises
 itself</strong> is converted by pydantic-ai into a <code>ToolFailedError</code> carrying the same
 message, so <code>raise ToolFailed("model copy") from e</code> is recorded as
-<code>ToolFailedError: model copy</code>, and the policy is never handed it. The drf-mcp
-bridge's refusals arrive the same way. A <code>ModelRetry</code> is recorded as
+<code>ToolFailedError: model copy</code>, and the policy is never handed it. The MCP
+bridges' refusals arrive the same way. A <code>ModelRetry</code> is recorded as
 <code>ToolRetryError: &lt;message&gt;</code>, and the retried call gets a record of its own.
 From a code-mode sandbox, whose nested tool manager converts neither, both are
 recorded as raised: <code>ToolFailed: model copy</code> and <code>ModelRetry: &lt;message&gt;</code>.</p>
@@ -1530,23 +1530,32 @@ one hook covers every tool regardless of origin:</p>
 <li><strong>Registry tools</strong> — <code>@tool(destructive=True)</code>. The flag lives on the spec and
   never reaches pydantic-ai as a bare callable, so the guard reads it from the
   registry directly at construction.</li>
-<li><strong>drf-mcp bridged tools</strong> — the bridge maps each tool's <code>readOnlyHint</code>
-  annotation onto <code>DESTRUCTIVE_METADATA_KEY</code>, which the guard reads from
-  pydantic-ai's tool metadata.</li>
-<li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]["readOnlyHint"] is False</code>,
-  which is how a toolset speaking MCP's own vocabulary says it mutates. A
-  <code>ServiceSpec</code> exposed through <code>SpecToolset</code> is the case that
-  matters: without this the <em>same</em> spec would be gated over the drf-mcp bridge and
-  ungated attached in process, so a transport swap would remove the gate silently.</li>
+<li><strong>MCP bridged tools</strong> — both bridges map each tool's annotations onto
+  <code>DESTRUCTIVE_METADATA_KEY</code>, which the guard reads from pydantic-ai's tool
+  metadata. A tool is marked unless its <code>readOnlyHint</code> is true or its
+  <code>destructiveHint</code> is false, as MCP reads the pair; a tool listed with no
+  <code>annotations</code> is not marked.</li>
+<li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]</code>, read by the bridges' own
+  rule: annotations that say anything mark the tool destructive unless
+  <code>readOnlyHint</code> is true or <code>destructiveHint</code> is false. A field that is <code>None</code> is
+  unsaid, so the full dump a remote MCP client stores (every field present,
+  the ones the server never sent <code>None</code>) reads as the plain dict does, and
+  annotations that say nothing at all, <code>{}</code> or all <code>None</code>, mark nothing. It is how
+  a toolset speaking MCP's own vocabulary says it mutates: a <code>ServiceSpec</code>
+  exposed through <code>SpecToolset</code> writes <code>readOnlyHint: False</code>, and a remote
+  server's tools arrive with its annotations. Without this the <em>same</em> spec would
+  be gated over an MCP bridge and ungated attached in process, so a transport
+  swap would remove the gate silently.</li>
 <li><strong>The <code>x-destructive</code> schema stamp</strong> at the root of <code>parameters_json_schema</code>,
   which is what <code>build_input_schema</code> writes. A project deriving a schema with
   that helper and attaching the tool through <code>toolsets=</code> gets the gate from it.</li>
 <li><strong><code>require_approval</code></strong> — an explicit opt-in for anything the rest miss.</li>
 </ul>
-<p>A hint has to <em>say</em> the tool mutates. A missing <code>readOnlyHint</code>, an absent stamp,
-or metadata of some other shape entirely leaves the tool alone — silence is not
-a claim, and <code>require_approval</code> is the answer for a tool whose source declares
-nothing.</p>
+<p>A hint has to <em>say</em> something. Annotations that say nothing, an absent stamp, or
+metadata of some other shape entirely leave the tool alone — silence is not a
+claim, and <code>require_approval</code> is the answer for a tool whose source declares
+nothing. Annotations that say anything are read by MCP's defaults, as the
+bridges read them.</p>
 <p><code>DESTRUCTIVE_METADATA_KEY</code> still rides tool <em>metadata</em> rather than only the
 schema, because metadata is the channel a bridge controls and the schema is the
 tool author's; the guard reads both, and a client reads the schema alone.</p>
@@ -1579,9 +1588,10 @@ deployment ends up without the gate it assumes:</p>
   model can supply that itself on the next turn. On a page that confirmation
   is a prompt for a person; on the agent route it is a retry, not a security
   boundary. An operation that needs a human decision belongs in
-  <code>require_approval</code>. A tool declaring <code>readOnlyHint: False</code> is gated by
+  <code>require_approval</code>. A bridged mutation is gated by
   default while the guard is enabled, but only until its name is in <code>exempt</code>
-  or a registration overrides the annotation.</li>
+  or a registration overrides the annotation with <code>readOnlyHint: True</code> or
+  <code>destructiveHint: False</code>.</li>
 </ul>
 </div>
 <h2 id="what-a-raising-tool-costs">What a raising tool costs<a class="headerlink" href="#what-a-raising-tool-costs" title="Permanent link">&para;</a></h2>
@@ -1687,7 +1697,7 @@ the kernel are both installed. Leave out the ones your project cannot raise.</p>
 <li><strong><code>reraise</code> replaces the default set, it does not extend it.</strong> The default is
   <code>django.core.exceptions.PermissionDenied</code>; <code>rest_framework.exceptions.PermissionDenied</code>
   when DRF is installed; and <code>NotPermitted</code> and <code>PrincipalUnavailable</code> from
-  <code>django_service_specs</code> when the kernel is installed (the <code>[specs]</code> or <code>[drf-mcp]</code> extra)
+  <code>django_service_specs</code> when the kernel is installed (the <code>[specs]</code>, <code>[mcp]</code> or <code>[drf-mcp]</code> extra)
   (<a href="#a-denial-is-not-a-tool-failure">a denial is not a tool failure</a>). A tuple
   that leaves them out converts denials again, so re-list each one your project
   can raise.</li>
@@ -1706,7 +1716,7 @@ one of them inherits from another:</p>
   <code>[drf-mcp]</code> extra brings it); a DRF permission check behind that bridge
   raises it.</li>
 <li><code>django_service_specs.NotPermitted</code>, when the kernel is installed (the
-  <code>[specs]</code> or <code>[drf-mcp]</code> extra); the kernel's dispatch raises it when a permission check
+  <code>[specs]</code>, <code>[mcp]</code> or <code>[drf-mcp]</code> extra); the kernel's dispatch raises it when a permission check
   refuses the principal.</li>
 <li><code>django_service_specs.PrincipalUnavailable</code>, with it; the kernel raises it for
   a principal that cannot act at all, such as a deactivated account.</li>
@@ -1812,9 +1822,12 @@ because it observes the tool from all four hooks. Its <code>before_tool_execute<
 tool's result. Its wrapper is the only one that writes the record, once per
 execution, as it exits, preferring what the hooks captured over what it saw
 itself. The wrapper encloses every hook, and the captures are what keep the
-record the tool's. Each call's captures belong to
+record the tool's. The arguments and the start come from <code>before_tool_execute</code>
+alone: the wrapper takes neither, because a call that never reached that hook
+never ran the tool and is not recorded. Each call's captures belong to
 that call, so parallel calls in one run and concurrent runs of one agent never
-read each other's. Reruns that a capability sorted after audit makes
+read each other's, nor does a tool that runs another agent composed with the
+same capability, nor does a code-mode script that calls tools inline. Reruns that a capability sorted after audit makes
 concurrently, inside one call, are one call to audit, and share its captures.</p>
 <p>Full signatures in the <a href="../reference/policy/">policy reference</a>.</p>
 

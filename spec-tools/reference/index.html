@@ -1871,8 +1871,8 @@ compiled spec's. Build it from a <code>name -&gt; spec</code> mapping and hand i
 agent = Agent(model, deps_type=AgentDeps, toolsets=[toolset])
 </code></pre></div>
 <p>Each key becomes one tool: the description is the spec's selector/service
-docstring, the parameter schema is the kernel's <code>spec_input_schema</code> (with a
-list selector's <code>page</code> / <code>limit</code> args merged in), the <code>return_schema</code>
+docstring, the parameter schema is the kernel's <code>spec_caller_input_schema</code>
+(with a list selector's <code>page</code> / <code>limit</code> args merged in), the <code>return_schema</code>
 comes from the same spec's projected output path, and the <code>readOnlyHint</code>
 annotation is derived from the spec kind (selectors read, services mutate).</p>
 <p><strong>The parameter schema asks for what a call needs and nothing the toolset

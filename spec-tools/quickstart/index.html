@@ -1859,9 +1859,10 @@ Return the rows, or declare <code>RETRIEVE</code> to present one.</p>
 <h2 id="what-a-tool-asks-the-model-for">What a tool asks the model for<a class="headerlink" href="#what-a-tool-asks-the-model-for" title="Permanent link">&para;</a></h2>
 <p>A tool's parameter schema is the model's only account of what to send, and the
 kernel reflects nothing off a callable's signature: every argument is one the
-spec declares. So the schema is the kernel's <code>spec_input_schema</code> of the
-compiled spec, the argument set <code>dispatch</code> checks, less the kernel's
-<code>server_owned_keys</code> for the toolset's seeds:</p>
+spec declares. So the schema is the kernel's <code>spec_caller_input_schema</code> of the
+compiled spec: the argument set <code>dispatch</code> checks, less the kernel's
+<code>server_owned_keys</code> for the toolset's seeds, with a parameter a provider may
+fill offered and not required:</p>
 <ul>
 <li><strong>A name the toolset fills is not advertised.</strong> That is the dispatcher's own
   pool seeds (<code>request</code>, <code>user</code>, <code>progress</code> and the rest), every name registered
@@ -2355,7 +2356,10 @@ an object with that one required property, an array of the item schema,
 carrying the spec's <code>many_min_length</code> and <code>many_max_length</code> as <code>minItems</code> /
 <code>maxItems</code>, and, under the default <a href="#unexpected-arguments"><code>REJECT</code></a>,
 <code>additionalProperties: false</code>. A read the spec declares is advertised beside
-it.</p>
+it. Each item is read by what <code>input_data=</code> fills, since it is merged over every
+row: a field it is annotated to fill is not in the item schema, and one it may
+fill, or any field beside a provider whose return names no <code>TypedDict</code>, is
+offered and not required.</p>
 <p>What the model is told when a call is wrong:</p>
 <ul>
 <li><strong>An invalid item</strong> comes back as a <code>ModelRetry</code> naming the argument, then the

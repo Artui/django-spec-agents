@@ -548,6 +548,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Deriving a schema on its own">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-hand-built-schema-carries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the hand-built schema carries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-a-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing a strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1196,6 +1224,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Deriving a schema on its own">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-hand-built-schema-carries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the hand-built schema carries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-a-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing a strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1299,8 +1355,8 @@ metadata rather than the schema, because metadata is the channel a <em>bridge</e
 controls where the schema belongs to the tool's author. It is read
 <strong>server-side</strong> at <code>prepare_tools</code> time by the <a href="../policy/">tool guard</a>, which
 needs destructiveness for tools whose flag doesn't come from the <code>@tool</code>
-registry at all — a bridged drf-mcp tool, whose <code>readOnlyHint</code> annotation the
-bridge maps onto this key.</p>
+registry at all — a bridged MCP tool, whose <code>readOnlyHint</code> and <code>destructiveHint</code>
+annotations the bridge maps onto this key.</p>
 <p>A registry tool's own <code>destructive=True</code> never travels either channel: it stays
 on the spec, and the guard reads it from the registry directly. What reaches the
 guard through the schema is the case where <code>build_input_schema</code> was used
@@ -1312,11 +1368,13 @@ browser — which means a web component can't read an <code>x-summary</code> off
 what <code>build_tool_catalog</code> is for: a list of <code>{"name", "summary", "description"?}</code>
 entries a frontend fetches to label tool-call cards.</p>
 <p><code>summary</code> is always present, resolved through a fallback chain — for registry
-tools, <code>@tool(summary=…)</code> then a prettified name; for drf-mcp tools,
-<code>display_name</code> then <code>title</code> then a prettified name.</p>
+tools, <code>@tool(summary=…)</code> then a prettified name; for the tools of the server
+passed as <code>mcp_server=</code>, <code>display_name</code> then <code>title</code> then a prettified name.
+<code>drf_mcp_server=</code>, the keyword's old name, is deprecated and removed in the next
+minor; it warns <code>DeprecationWarning</code>, and passing both raises <code>TypeError</code>.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_tool_catalog</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">catalog</span> <span class="o">=</span> <span class="n">build_tool_catalog</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">drf_mcp_server</span><span class="o">=</span><span class="n">server</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">specs</span><span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">catalog</span> <span class="o">=</span> <span class="n">build_tool_catalog</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">mcp_server</span><span class="o">=</span><span class="n">server</span><span class="p">,</span> <span class="n">service_specs</span><span class="o">=</span><span class="n">specs</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="what-the-catalog-does-not-cover">What the catalog does not cover<a class="headerlink" href="#what-the-catalog-does-not-cover" title="Permanent link">&para;</a></h3>
 <p><strong>Only the sources above.</strong> A tool reaching the agent through a transport's
@@ -1346,6 +1404,115 @@ would ask the model to invent a value for something it cannot supply. Dispatch
 follows the same rule — <code>registry.call(name, arguments, ctx=ctx)</code> binds it from
 the caller, and a tool that declares one and is dispatched without a <code>ctx</code>
 raises rather than being handed <code>None</code>.</p>
+<h3 id="what-the-hand-built-schema-carries">What the hand-built schema carries<a class="headerlink" href="#what-the-hand-built-schema-carries" title="Permanent link">&para;</a></h3>
+<p>The default derivation maps <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>list[T]</code> (and
+<code>tuple</code>, <code>set</code>, <code>frozenset</code>), <code>dict</code>, <code>X | None</code> and other unions. Anything else,
+a model or an enum say, is an empty fragment: it constrains nothing and stays
+wire-valid.</p>
+<p><code>Annotated[T, ...]</code> is read as <code>T</code> plus what its metadata maps to:</p>
+<table>
+<thead>
+<tr>
+<th>Metadata</th>
+<th>Schema keys</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Field(description=...)</code>, <code>Field(title=...)</code>, <code>Field(examples=...)</code></td>
+<td><code>description</code>, <code>title</code>, <code>examples</code></td>
+</tr>
+<tr>
+<td><code>ge</code>, <code>gt</code>, <code>le</code>, <code>lt</code>, <code>multiple_of</code> (a <code>Field</code>'s, or <code>annotated_types</code>' <code>Ge</code>, <code>Interval</code> and so on)</td>
+<td><code>minimum</code>, <code>exclusiveMinimum</code>, <code>maximum</code>, <code>exclusiveMaximum</code>, <code>multipleOf</code></td>
+</tr>
+<tr>
+<td><code>min_length</code>, <code>max_length</code> (or <code>annotated_types.Len</code>)</td>
+<td><code>minLength</code> / <code>maxLength</code> on a string, <code>minItems</code> / <code>maxItems</code> on a list, <code>minProperties</code> / <code>maxProperties</code> on a dict, nothing on a union</td>
+</tr>
+<tr>
+<td><code>pattern</code>, a string or a compiled <code>str</code> pattern</td>
+<td><code>pattern</code></td>
+</tr>
+</tbody>
+</table>
+<p>A <code>title</code> appears only when the <code>Field</code> passes one. Other <code>Field</code> arguments
+(<code>alias</code>, <code>json_schema_extra</code>, <code>deprecated</code>, a default) are not carried, nor is
+any other metadata, such as a plain string. A string or forward reference
+nested in an annotation, <code>Annotated["int", Field(ge=1)]</code> or <code>list["int"]</code>, is
+resolved against the function's module globals; one that does not resolve is
+an empty fragment, as an unknown type is. Every value carried serialises to
+JSON: a bound that is not an <code>int</code> or <code>float</code> (a <code>Decimal</code>, a <code>date</code>) is left
+out, and <code>examples</code> are rendered as pydantic renders them (a <code>Decimal</code> as its
+string), or left out when they do not serialise.</p>
+<h3 id="choosing-a-strategy">Choosing a strategy<a class="headerlink" href="#choosing-a-strategy" title="Permanent link">&para;</a></h3>
+<p><code>schema_strategy=</code> picks the derivation, on <code>build_input_schema</code> for one call
+and on <code>ToolRegistry(schema_strategy=...)</code> for every binding the registry
+derives. It takes a <code>SchemaStrategy</code>:</p>
+<ul>
+<li><code>SchemaStrategy.HAND_BUILT</code>, the default: the mapping above.</li>
+<li><code>SchemaStrategy.PYDANTIC</code>: a pydantic model over the same parameters (the
+  <code>RunContext</code> and <code>*args</code> / <code>**kwargs</code> left out), with extra keys forbidden, and
+  its <code>model_json_schema()</code>. It carries whatever pydantic does, models and enums
+  included.</li>
+</ul>
+<p>The <code>x-*</code> keys are stamped at the root under either. The strategy shapes the
+schema <code>build_input_schema</code> returns and <code>ToolBinding.input_schema</code>; the schema the
+agent offers the model for an <code>@tool</code> tool is pydantic-ai's own under both.</p>
+<p>For this tool:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">find_order</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">n</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;How many.&quot;</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">note</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Order</span><span class="p">]:</span> <span class="o">...</span>
+</span></code></pre></div>
+<p>the hand-built strategy gives a flat schema with no titles, <code>nullable</code> for
+<code>X | None</code>, and no defaults:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">&quot;n&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;integer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;How many.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;minimum&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">},</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">&quot;note&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;nullable&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="nt">&quot;additionalProperties&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="nt">&quot;x-category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;other&quot;</span><span class="p">,</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;n&quot;</span><span class="p">]</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>and <code>schema_strategy=SchemaStrategy.PYDANTIC</code> gives pydantic's, with a <code>title</code>
+on the root (the function's name) and on each property, <code>anyOf</code> with a <code>null</code>
+branch for <code>X | None</code>, the default, and a nested model or enum under <code>$defs</code>,
+reached by <code>$ref</code>:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;additionalProperties&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">&quot;n&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;How many.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;minimum&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;N&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;integer&quot;</span><span class="p">},</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">&quot;note&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">&quot;anyOf&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;null&quot;</span><span class="p">}],</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="nt">&quot;default&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">      </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Note&quot;</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;n&quot;</span><span class="p">],</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;find_order&quot;</span><span class="p">,</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">  </span><span class="nt">&quot;x-category&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;other&quot;</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>Where they differ in failing.</strong> Under both, an annotation that does not
+evaluate at the top level, <code>x: Missing</code> (in a module with <code>from __future__
+import annotations</code>, any unresolvable name), raises <code>NameError</code> from
+<code>inspect.signature</code>, so at registration for a <code>ToolRegistry</code>. Past that, the
+hand-built strategy does not raise on a type: what it cannot map, or a nested
+reference that does not resolve, is an empty fragment. The pydantic strategy raises at
+derivation, so at registration for a <code>ToolRegistry</code>, where pydantic does: a type
+it cannot build a schema for (<code>PydanticSchemaGenerationError</code>), a reference that
+does not resolve (<code>NameError</code>), and a parameter pydantic would not keep as a
+field, a leading underscore or <code>model_config</code> (<code>TypeError</code>, rather than a schema
+silently missing an argument). A default that is not JSON-serialisable is left
+out of its schema, with pydantic's warning.</p>
+<p>Pick the hand-built strategy for a schema that stays as it is across pydantic
+releases and does not fail a registration on a type it cannot map; pick pydantic's when a client should
+see what the agent's own validation sees, nested models and enums included.</p>
 <p>See the <a href="../reference/registry/">registry reference</a> for the full signatures.</p>
 
 
