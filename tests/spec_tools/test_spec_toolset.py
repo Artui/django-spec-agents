@@ -5978,7 +5978,7 @@ def reprice(collection, data):
 
 
 def test_a_collection_lookup_is_advertised_as_an_instance_lookup_is():
-    """Holds the target lookup's reads in ``_required_arguments``, a collection lookup's included."""
+    """The kernel advertises a collection lookup's reads as it does an instance lookup's."""
     spec = ServiceSpec(
         service=reprice,
         validator=widget_input(),

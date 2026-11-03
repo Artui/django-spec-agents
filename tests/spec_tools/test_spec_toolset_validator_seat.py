@@ -258,3 +258,22 @@ def test_a_row_field_a_typed_input_data_always_fills_is_not_offered_in_any_row()
     rows = schema["properties"][spec.many_argument]["items"]
     assert sorted(rows["properties"]) == ["name"]
     assert rows["required"] == ["name"]
+
+
+def test_a_row_field_a_typed_input_data_may_decline_is_offered_and_not_required():
+    """A field ``input_data`` may decline stays the caller's to send in each row,
+    and is not demanded of it: ``name`` is still the row's own."""
+    spec = ServiceSpec(
+        service=make_rows,
+        validator=_Recording(Row),
+        input_data=_fills_owner_when_it_can,
+        many=True,
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    rows = _input_schema_of(toolset, "t")["properties"][spec.many_argument]["items"]
+
+    assert sorted(rows["properties"]) == ["name", "owner"]
+    assert rows["required"] == ["name"]
