@@ -369,8 +369,9 @@ one of them inherits from another:
   [MCP bridges](integrations.md) raise it for a permission refusing the user
   (JSON-RPC `-32006`).
 - `rest_framework.exceptions.PermissionDenied`, when DRF is installed (the
-  `[drf-mcp]` extra brings it); a DRF permission check behind that bridge
-  raises it.
+  `[drf-mcp]` extra brings it), for a tool that raises it. A DRF permission
+  check behind the drf-mcp bridge does not arrive as this class: drf-mcp
+  answers it with `-32006`, which the bridge raises as Django's.
 - `django_service_specs.NotPermitted`, when the kernel is installed (the
   `[specs]`, `[mcp]` or `[drf-mcp]` extra); the kernel's dispatch raises it when a permission check
   refuses the principal.

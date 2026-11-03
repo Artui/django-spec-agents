@@ -326,18 +326,22 @@ async def test_a_permission_refusal_payload_raises_permission_denied(
         await toolset.call_tool("add", {}, None, None)
 
 
+@pytest.mark.parametrize(
+    "code",
+    [JsonRpcErrorCode.UNAUTHORIZED, JsonRpcErrorCode.RATE_LIMITED, JsonRpcErrorCode.INTERNAL_ERROR],
+)
 async def test_a_fault_the_model_cannot_rewrite_raises_runtime_error(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, code: JsonRpcErrorCode
 ) -> None:
     """Auth, rate limits and internal faults are not retryable: nothing the
     model writes changes them."""
 
     async def broken(*_a: object, **_k: object) -> JsonRpcError:
-        return JsonRpcError(JsonRpcErrorCode.INTERNAL_ERROR, "Internal error")
+        return JsonRpcError(code, "Refused")
 
     toolset = DRFMCPToolset(server, _request())
     monkeypatch.setattr(server, "acall_tool", broken)
-    with pytest.raises(RuntimeError, match="^drf-mcp tool 'add' failed: Internal error$"):
+    with pytest.raises(RuntimeError, match="^drf-mcp tool 'add' failed: Refused$"):
         await toolset.call_tool("add", {}, None, None)
 
 

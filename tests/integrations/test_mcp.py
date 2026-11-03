@@ -387,15 +387,19 @@ async def test_a_permission_refusal_payload_raises_permission_denied(
         await MCPToolset(server, _request()).call_tool("add", {}, None, None)
 
 
+@pytest.mark.parametrize(
+    "code",
+    [JsonRpcErrorCode.UNAUTHORIZED, JsonRpcErrorCode.RATE_LIMITED, JsonRpcErrorCode.INTERNAL_ERROR],
+)
 async def test_a_protocol_fault_payload_raises_runtime_error(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, code: JsonRpcErrorCode
 ) -> None:
     # Payload-level twin of the undeclared-read test above, for the same reason.
     async def broken(*_a: object, **_k: object) -> JsonRpcError:
-        return JsonRpcError(JsonRpcErrorCode.INTERNAL_ERROR, "Internal error")
+        return JsonRpcError(code, "Refused")
 
     monkeypatch.setattr(server, "acall_tool", broken)
-    with pytest.raises(RuntimeError, match="^MCP tool 'add' failed: Internal error$"):
+    with pytest.raises(RuntimeError, match="^MCP tool 'add' failed: Refused$"):
         await MCPToolset(server, _request()).call_tool("add", {}, None, None)
 
 
