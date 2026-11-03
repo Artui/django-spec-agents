@@ -483,7 +483,7 @@ alone: the wrapper takes neither, because a call that never reached that hook
 never ran the tool and is not recorded. Each call's captures belong to
 that call, so parallel calls in one run and concurrent runs of one agent never
 read each other's, nor does a tool that runs another agent composed with the
-same capability. Reruns that a capability sorted after audit makes
+same capability, nor does a code-mode script that calls tools inline. Reruns that a capability sorted after audit makes
 concurrently, inside one call, are one call to audit, and share its captures.
 
 Full signatures in the [policy reference](reference/policy.md).

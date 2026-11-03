@@ -1898,3 +1898,74 @@ def test_the_execution_context_variable_names_this_package() -> None:
     # two loggers keep, which a project's logging configuration does name.
     capability = AuditCapability(CapturingAuditLogger())
     assert capability._execution.name == "django_spec_agents.audit.execution"
+
+
+class _PadRunCode(AbstractCapability[Any]):
+    """Rewrites ``run_code``'s result, ahead of audit, as an output limit would."""
+
+    async def after_tool_execute(
+        self,
+        ctx: RunContext[Any],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: dict[str, Any],
+        result: Any,
+    ) -> Any:
+        return str(result) + "x" * 5000 if tool_def.name == "run_code" else result
+
+
+async def _code_mode_records(
+    code: str, *, sequential: bool, mode: Any, pad: bool
+) -> list[tuple[str, bool, int | None]]:
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if len(messages) == 1:
+            return ModelResponse(parts=[ToolCallPart("run_code", {"code": code})])
+        return ModelResponse(parts=[TextPart("done")])
+
+    def lookup() -> str:
+        """Look up order 42."""
+        return "found"
+
+    audit = CapturingAuditLogger()
+    agent = Agent(
+        FunctionModel(respond),
+        toolsets=[FunctionToolset([Tool(lookup, name="lookup", sequential=sequential)])],
+        capabilities=[CodeMode(), *([_PadRunCode()] if pad else []), AuditCapability(audit)],
+    )
+    with Agent.parallel_tool_call_execution_mode(mode):
+        await agent.run("go")
+    return [(e.tool_name, e.success, e.result_size) for e in audit.events]
+
+
+@pytest.mark.parametrize(
+    ("code", "sequential", "mode"),
+    [
+        ("await lookup()", False, "parallel"),
+        ("lookup()", True, "parallel"),
+        ("await lookup()", False, "sequential"),
+    ],
+    ids=["parallel-nested", "sequential-tool", "global-sequential"],
+)
+async def test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls(
+    code: str, sequential: bool, mode: str
+) -> None:
+    """Code mode awaits a nested call inline, in ``run_code``'s own task, when
+    the nested tool is marked sequential or the run is.
+
+    The nested call's wrapper then sets the context variable in the context
+    ``run_code``'s own hooks read. Without the reset on the way out, those
+    hooks would settle the nested call's execution and leave ``run_code``'s to
+    its wrapper, which sees the result after a capability ahead of audit has
+    rewritten it, and the time its hooks took. The record is the same with or
+    without that rewrite. ``run_code``'s result carries the script's timings,
+    so its size varies by a few characters between runs; the rewrite adds
+    thousands.
+    """
+    padded = await _code_mode_records(code, sequential=sequential, mode=mode, pad=True)
+    plain = await _code_mode_records(code, sequential=sequential, mode=mode, pad=False)
+
+    assert [(name, ok) for name, ok, _ in padded] == [(name, ok) for name, ok, _ in plain]
+    assert [name for name, _, _ in plain] == ["lookup", "run_code"]
+    assert padded[0] == plain[0]
+    assert abs(padded[1][2] - plain[1][2]) < 100

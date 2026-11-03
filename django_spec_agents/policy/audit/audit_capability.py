@@ -161,13 +161,14 @@ class AuditCapability(AbstractCapability[Any]):
         self._ip_address = ip_address
         self._organization_id = organization_id
         # What this capability has seen of the tool call in flight. A context
-        # variable, because pydantic-ai runs every tool call in its own asyncio
-        # task, so parallel calls in one run and concurrent runs of one agent
-        # each read their own value with no shared table to clean up: the state
-        # goes with the call's task, including when a hook never runs. Not a
-        # table keyed by ``tool_call_id``, which the model chooses and
-        # ``TestModel`` repeats in every run. One per instance, so two audit
-        # capabilities in one chain never read each other's.
+        # variable, because pydantic-ai runs a tool call in a task of its own,
+        # so parallel calls in one run and concurrent runs of one agent each
+        # read their own value with no shared table to clean up: the state goes
+        # with the call's task, including when a hook never runs. A call code
+        # mode awaits inline shares its caller's task, which the wrapper's
+        # reset covers. Not a table keyed by ``tool_call_id``, which the model
+        # chooses and ``TestModel`` repeats in every run. One per instance, so
+        # two audit capabilities in one chain never read each other's.
         self._execution: ContextVar[_Execution] = ContextVar("django_spec_agents.audit.execution")
 
     def get_ordering(self) -> CapabilityOrdering:
@@ -210,24 +211,32 @@ class AuditCapability(AbstractCapability[Any]):
         that entry first; an entry stopped that way is not recorded, whatever
         an earlier entry, or an outer call of a nested run, reached.
 
-        Nothing resets the context variable on the way out. pydantic-ai runs
-        every tool call in a task of its own, code mode's nested calls and a
-        nested run's included, so the value goes with that task, and every
-        hook that reads it runs inside the wrapper that set it. A reset would
-        only be tidiness no test could tell from its absence.
+        The reset on the way out puts back what the context held before. Code
+        mode awaits a nested call inline, in ``run_code``'s own task, when the
+        nested tool is marked sequential or the run is, so that call's wrapper
+        sets the variable in the context ``run_code``'s own hooks read. Without
+        the reset they would settle the nested call's execution and leave
+        ``run_code``'s to its wrapper, whose record then describes another
+        capability's rewrite of the result and times its hooks.
+        ``test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls``
+        fails without it. Coverage cannot see it go missing, since the line
+        runs either way.
         """
         execution = _Execution()
-        self._execution.set(execution)
+        token = self._execution.set(execution)
         ip_address = self._resolve_ip_address(ctx)
         try:
-            result = await handler(args)
-        except Exception as error:
-            execution.settle(error=error)
+            try:
+                result = await handler(args)
+            except Exception as error:
+                execution.settle(error=error)
+                self._record(tool_def.name, execution, ip_address=ip_address)
+                raise
+            execution.settle(result=result)
             self._record(tool_def.name, execution, ip_address=ip_address)
-            raise
-        execution.settle(result=result)
-        self._record(tool_def.name, execution, ip_address=ip_address)
-        return result
+            return result
+        finally:
+            self._execution.reset(token)
 
     async def before_tool_execute(
         self,
