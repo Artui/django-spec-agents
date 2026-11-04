@@ -34,8 +34,10 @@ _TOOL_ARGS_VALIDATOR = SchemaValidator(schema=core_schema.any_schema())
 # out, worded as ``spec_tools`` words it. A consumer can expose one spec either
 # way, and the model is taught one sentence for a missing operation;
 # ``test_the_missing_tools_heading_is_the_one_spec_tools_says`` asserts it against
-# ``spec_tools``' real default, so a change on either side fails there rather
-# than drifting.
+# ``spec_tools``' real default, and
+# ``test_a_missing_tool_reads_the_same_through_both_bridges`` compares the whole
+# list across the routes, so a change on either side fails there rather than
+# drifting.
 _UNAVAILABLE_INSTRUCTION = (
     "- These operations exist but cannot be performed right now, so they are not among your "
     "tools. If the user asks for one, say it is unavailable at the moment and give the reason "

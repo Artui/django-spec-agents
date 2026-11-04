@@ -507,6 +507,8 @@ async def test_the_missing_tools_heading_is_the_one_spec_tools_says() -> None:
     # ``_MISSING`` is a literal this file owns, so it cannot notice the bridge's
     # heading drifting from ``spec_tools``'; the default it teaches the model is
     # read from ``AgentConventions`` here instead, so a change to either fails.
+    # The both-bridges test below compares the whole list, but its ``endswith``
+    # is met by the reason line alone, so it cannot say the heading is there.
     instructions = await MCPToolset(server, _request()).get_instructions(None)
     assert instructions is not None
     assert instructions.splitlines()[0] == AgentConventions().unavailable_heading
