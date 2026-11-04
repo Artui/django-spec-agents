@@ -284,19 +284,25 @@ def _served_page_size(max_page_size: int | None) -> int:
     return min(DEFAULT_PAGE_SIZE, max_page_size)
 
 
-def _limit_param_schema(max_page_size: int | None) -> dict[str, Any]:
+def _limit_param_schema(
+    max_page_size: int | None, *, include_total: bool = False
+) -> dict[str, Any]:
     """A list tool's ``limit`` arg: the default it is served, and its ceiling.
 
     The ceiling is advertised as well as clamped: a schema with no ``maximum``
     invites a request for 100 000 rows, and telling the model is cheaper than
-    correcting it.
+    correcting it. ``total`` is named when the page carries it, so a model
+    asked "how many" knows one small page answers it.
     """
+    reported = (
+        "`total`, `totalPages` and `hasNext`" if include_total else "`totalPages` and `hasNext`"
+    )
     schema: dict[str, Any] = {
         "type": "integer",
         "minimum": 1,
         "description": (
             f"Maximum number of items per page. Defaults to {_served_page_size(max_page_size)}; "
-            "the result reports `totalPages` and `hasNext`."
+            f"the result reports {reported}."
         ),
     }
     if max_page_size is not None:
@@ -315,6 +321,20 @@ class _PageArgs:
 
     page: int | None
     limit: int | None
+
+
+@dataclass(frozen=True)
+class _CountedPage(OutputPage):
+    """A page whose envelope also says how many rows matched, across every page.
+
+    What the default ``shape_page`` returns under ``include_total``. The count
+    is the one ``paginate_output`` took before slicing, so writing it costs no
+    query. Private: an override that wants a page of its own subclasses the
+    kernel's ``OutputPage``, as the toolset page's aggregates recipe does.
+    """
+
+    def envelope(self, rendered: Any) -> dict[str, Any]:
+        return {**super().envelope(rendered), "total": self.total}
 
 
 class SpecToolset(AbstractToolset[Any]):
@@ -517,6 +537,13 @@ class SpecToolset(AbstractToolset[Any]):
             ``DEFAULT_PAGE_SIZE`` rows per page — the unbounded read is the one
             that hurts, and it is what a model produces by not thinking about
             pagination.
+        include_total: Adds ``total``, how many rows the list matched across
+            every page, to each list tool's page beside ``totalPages`` and
+            ``hasNext``, and advertises it in the tool's return schema and its
+            ``limit`` description. Off by default. It costs no query: the count
+            is the one taken before the slice. It is read by the default
+            ``shape_page``, so a project that wants it on some tools only
+            overrides that and returns the page each tool should carry.
         thread_sensitive: Whether every dispatch shares one thread. ``True``
             (the default, and asgiref's) is what keeps Django's thread-local
             database connections coherent, and is why it is not flipped for you.
@@ -622,6 +649,7 @@ class SpecToolset(AbstractToolset[Any]):
         max_result_bytes: int | None = None,
         tool_max_result_bytes: Mapping[str, int | None] | None = None,
         max_page_size: int | None = None,
+        include_total: bool = False,
         dispatch_timeout: float | None = None,
         require_permissions: bool = True,
         descriptions: Mapping[str, str] | None = None,
@@ -655,6 +683,7 @@ class SpecToolset(AbstractToolset[Any]):
         self._pool_seeds = pool_seeds
         self._max_retries = max_retries
         self._max_page_size = max_page_size
+        self._include_total = include_total
         self._dispatch_timeout = dispatch_timeout
         self._thread_sensitive = thread_sensitive
         self._executor = executor
@@ -717,6 +746,7 @@ class SpecToolset(AbstractToolset[Any]):
                 spec,
                 self._descriptions.get(name),
                 self._max_page_size,
+                include_total=include_total,
                 shapes=self._tool_shapes[name],
                 projection=self._projections[name],
                 pool_seeds=pool_seeds,
@@ -1234,9 +1264,20 @@ class SpecToolset(AbstractToolset[Any]):
         belongs to whatever the spec declared it on, which has already applied it
         to the queryset by the time this runs; an ``order_by`` here would replace
         that sort rather than compose with it.
+
+        **``include_total`` is read here**, and only here: on, the page returned
+        writes ``total`` into its envelope. An override that builds a page of
+        its own carries what that page's ``envelope`` writes, which is how a
+        project decides per tool (``ctx.tool_name`` names the call's) or adds
+        figures of its own beside the count.
         """
         del ctx  # unused by the default; present so an override has it
-        return _shape_list(rows, page=page, limit=limit, max_page_size=max_page_size)
+        shaped = _shape_list(rows, page=page, limit=limit, max_page_size=max_page_size)
+        if not self._include_total:
+            return shaped
+        return _CountedPage(
+            items=shaped.items, page=shaped.page, limit=shaped.limit, total=shaped.total
+        )
 
     def render_output(
         self,
@@ -2101,6 +2142,7 @@ def _build_tool_def(
     description: str | None = None,
     max_page_size: int | None = None,
     *,
+    include_total: bool = False,
     projection: AudienceProjection | None = None,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
@@ -2126,13 +2168,16 @@ def _build_tool_def(
         parameters_json_schema=_input_schema(
             spec,
             max_page_size,
+            include_total=include_total,
             pool_seeds=pool_seeds,
             conventions=conventions,
             server_names=server_names,
             shapes=shapes,
             unknown_arguments=unknown_arguments,
         ),
-        return_schema=_return_schema(spec, projection=projection, conventions=conventions),
+        return_schema=_return_schema(
+            spec, include_total=include_total, projection=projection, conventions=conventions
+        ),
         metadata={
             "annotations": {"readOnlyHint": isinstance(kernel_spec(spec), KernelSelectorSpec)}
         },
@@ -2142,6 +2187,7 @@ def _build_tool_def(
 def _return_schema(
     spec: Spec,
     *,
+    include_total: bool = False,
     projection: AudienceProjection | None = None,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
 ) -> dict[str, Any] | None:
@@ -2181,6 +2227,11 @@ def _return_schema(
     declaring none is described as the kernel describes it
     (``test_a_list_declaring_no_shape_keeps_every_required``).
 
+    **``include_total`` adds ``total`` to the envelope**, beside the kernel's
+    keys and required with them, because the default ``shape_page`` then
+    writes it on every page. Off, the kernel's envelope is advertised as it
+    stands.
+
     **A ``metadata["json_schema"]["output"]`` fragment wins, key by key**, and
     annotates a derived
     schema without conjuring one: a spec with no output keeps ``None``
@@ -2197,9 +2248,21 @@ def _return_schema(
         # field undescribed, which is what dropping the line means.
         handle_description=_render(conventions.handle_field_description),
     )
+    if derived is not None and paginate and include_total:
+        derived = {
+            **derived,
+            "properties": {**derived["properties"], "total": _TOTAL_SCHEMA},
+            "required": [*derived["required"], "total"],
+        }
     if derived is None or fragment is None:
         return derived
     return {**derived, **fragment}
+
+
+_TOTAL_SCHEMA: dict[str, Any] = {
+    "type": "integer",
+    "description": "How many items match, across every page.",
+}
 
 
 def _spec_description(spec: Spec) -> str | None:
@@ -2213,6 +2276,7 @@ def _input_schema(
     spec: Spec,
     max_page_size: int | None = None,
     *,
+    include_total: bool = False,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
     server_names: frozenset[str] = frozenset(),
@@ -2263,7 +2327,7 @@ def _input_schema(
                     schema["properties"], shapes, _render(conventions.query_param_on_pages)
                 ),
                 "page": _PAGE_PARAM_SCHEMA,
-                "limit": _limit_param_schema(max_page_size),
+                "limit": _limit_param_schema(max_page_size, include_total=include_total),
             },
         }
     return _without(schema, server_names)
@@ -2719,8 +2783,9 @@ def _call_spec(
         # would look for markings that cannot exist.
         rendered = page.envelope(rendered)
     # Measured on the envelope, because the envelope is what is sent. It adds
-    # three small scalars and the "there is more" signal the model needs in
-    # order to act on a refusal that tells it to lower `limit`.
+    # three small scalars (four with ``include_total``) and the "there is more"
+    # signal the model needs in order to act on a refusal that tells it to lower
+    # `limit`.
     return enforce_result_bytes(rendered, max_bytes=max_result_bytes, label=label)
 
 

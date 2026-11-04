@@ -152,6 +152,101 @@ toolset = SpecToolset(specs, max_page_size=25)
 The same envelope is what the tool's `return_schema` describes, generated from
 the same spec — so the schema and the payload cannot disagree about it.
 
+### How many rows match: `include_total`
+
+A model asked "how many orders are open" can read only `totalPages` off the
+envelope above and multiply, or page through every row and count. Turn on
+`include_total` and every list tool the toolset serves says it outright, beside
+the rows:
+
+```python
+toolset = SpecToolset(specs, include_total=True)
+```
+
+```python
+{
+    "items": [{"id": 12, "total": "48.00"}, ...],
+    "page": 1,
+    "totalPages": 4,
+    "hasNext": True,
+    "total": 352,
+}
+```
+
+`total` is how many rows the selector matched across every page, after its
+filters and before the slice. It costs no query: the toolset already counts
+the rows to clamp `page` against the last one, and the flag hands that count
+on. With it on, the tool's `return_schema` lists `total` as required and the
+`limit` description names it, so a model knows a one-row page answers "how
+many". With it off, the default, the envelope and both schemas are exactly as
+above. `SpecCapability` takes the same keyword.
+
+The flag is read by the default
+[`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page], which is
+also where a project decides per tool: an override returns the page each tool
+should carry, reading the call's tool name off `ctx.tool_name`, and a page it
+builds itself writes only what that page's `envelope` writes.
+
+### Aggregates beside the total: a `shape_page` override
+
+The toolset ships the count and no other figure, because which sums a list owes
+its reader is the project's to declare. A model asked "how much is outstanding"
+otherwise pages through every invoice and adds the balances itself, slowly and
+not always correctly; the database does it in one query. Declare the aggregates
+per tool and write them into the envelope from `shape_page`:
+
+```python
+import dataclasses
+from typing import Any
+
+from django.db.models import Aggregate, QuerySet, Sum
+from django_service_specs import OutputPage
+
+from django_spec_agents.spec_tools import SpecToolset
+
+# Keyed by tool name. A list tool with no entry is served the default page.
+LIST_AGGREGATES: dict[str, dict[str, Aggregate]] = {
+    "list_invoices": {"amount_total": Sum("amount")},
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class AggregatedPage(OutputPage):
+    """A page whose envelope also carries the count and the declared aggregates."""
+
+    aggregates: dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def envelope(self, rendered: Any) -> dict[str, Any]:
+        return {**super().envelope(rendered), "total": self.total, **self.aggregates}
+
+
+class AggregatedSpecToolset(SpecToolset):
+    def shape_page(self, rows, *, ctx, page, limit, max_page_size):
+        shaped = super().shape_page(
+            rows, ctx=ctx, page=page, limit=limit, max_page_size=max_page_size
+        )
+        declared = LIST_AGGREGATES.get(ctx.tool_name or "")
+        if not declared or not isinstance(rows, QuerySet):
+            return shaped
+        # Over ``rows``, the filtered queryset before its slice: the same set
+        # ``total`` counts. An empty list sums to ``None``, reported as 0.
+        aggregates = {name: value or 0 for name, value in rows.aggregate(**declared).items()}
+        return AggregatedPage(
+            items=shaped.items,
+            page=shaped.page,
+            limit=shaped.limit,
+            total=shaped.total,
+            aggregates=aggregates,
+        )
+```
+
+`list_invoices` then answers `{"items": [...], "page": 1, "totalPages": 3,
+"hasNext": true, "total": 41, "amount_total": 10428}`. Unlike `total`, the
+aggregates are a query of their own, one per call of a tool that declares any.
+The `return_schema` still describes the default envelope, so a project sending
+return schemas to the model states the extra keys in the tool's
+`metadata["json_schema"]["output"]` fragment, [below](#the-output-schema).
+
 ## The output schema
 
 Each tool definition carries a `return_schema` derived from the spec's presenter
