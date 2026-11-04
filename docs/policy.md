@@ -326,7 +326,6 @@ To have a spent budget end the run, name the exception in `reraise`:
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django_service_specs import NotPermitted, PrincipalUnavailable
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
 
 AgentConfig(
     model=...,
@@ -334,7 +333,6 @@ AgentConfig(
         reraise=(
             UnexpectedModelBehavior,
             DjangoPermissionDenied,
-            DRFPermissionDenied,
             NotPermitted,
             PrincipalUnavailable,
         ),
@@ -342,15 +340,15 @@ AgentConfig(
 )
 ```
 
-The example re-lists every denial the default set holds, so it assumes DRF and
-the kernel are both installed. Leave out the ones your project cannot raise.
+The example re-lists every denial the default set holds, so it assumes the
+kernel is installed. Leave out the ones your project cannot raise, and add the
+refusal class of any other stack your own tools call.
 
 Two caveats:
 
 - **`reraise` replaces the default set, it does not extend it.** The default is
-  `django.core.exceptions.PermissionDenied`; `rest_framework.exceptions.PermissionDenied`
-  when DRF is installed; and `NotPermitted` and `PrincipalUnavailable` from
-  `django_service_specs` when the kernel is installed (the `[specs]` or `[mcp]` extra)
+  `django.core.exceptions.PermissionDenied`, and `NotPermitted` and
+  `PrincipalUnavailable` from `django_service_specs` when the kernel is installed (the `[specs]` or `[mcp]` extra)
   ([a denial is not a tool failure](#a-denial-is-not-a-tool-failure)). A tuple
   that leaves them out converts denials again, so re-list each one your project
   can raise.
@@ -362,14 +360,12 @@ Two caveats:
 ### A denial is not a tool failure
 
 An authorization refusal passes through untouched and ends the run, exactly as
-it would with the policy off. Four classes are in the default set, because no
-one of them inherits from another:
+it would with the policy off. Three classes are in the default set, because
+Django's and the kernel's are unrelated:
 
 - `django.core.exceptions.PermissionDenied`, always. The
   [MCP bridge](integrations.md) raises it for a permission refusing the user
   (JSON-RPC `-32006`).
-- `rest_framework.exceptions.PermissionDenied`, when your project installs DRF
-  (no extra brings it), for a tool of your own that raises it.
 - `django_service_specs.NotPermitted`, when the kernel is installed (the
   `[specs]` or `[mcp]` extra); the kernel's dispatch raises it when a permission check
   refuses the principal.
@@ -381,6 +377,10 @@ row, and a converted denial stays distinguishable from a missing row. A sweep
 over ids therefore turns the permission boundary into an existence oracle over
 rows the acting user cannot read — inside a single turn, spending no retry
 budget, bounded by nothing `build_agent` sets.
+
+A tool of your own that calls into another stack may raise that stack's refusal
+class, which is in none of the above. Name it in `reraise=`, with the three
+above, to keep it exempt.
 
 A missing row and a converted denial share an `outcome` — both are `failed` —
 so the two are not told apart by the result's *shape*. They are still told apart

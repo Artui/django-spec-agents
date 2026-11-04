@@ -33,9 +33,12 @@ own schema strategy.
   Upgrading needs django-ag-ui 0.74.0 and django-admin-agent 0.59.0 or later if
   you run either, since earlier releases pass `drf_mcp_server=` and set no cap
   on this package.
-- **No extra installs Django REST Framework any more.** `ToolFailurePolicy`
-  still passes DRF's `PermissionDenied` through by default when your project
-  installs DRF itself, so a tool of yours that raises it ends the run as before.
+- **`ToolFailurePolicy`'s default pass-through set no longer holds DRF's
+  `PermissionDenied`.** It holds Django's `PermissionDenied` and, with the
+  kernel, `NotPermitted` and `PrincipalUnavailable`. When a project's own
+  tool raises `rest_framework.exceptions.PermissionDenied`, the policy now
+  converts it into a failed call. To keep it ending the run, list it in
+  `ToolFailureConfig(reraise=(...))` beside the three defaults.
 
 ## [0.6.2] — 2026-11-03
 
