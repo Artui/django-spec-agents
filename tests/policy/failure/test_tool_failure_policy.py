@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import types
 from collections.abc import Callable
 from typing import Any
 from unittest import mock
@@ -698,12 +699,23 @@ async def _handle(policy: ToolFailurePolicy, error: Exception) -> None:
 
 def test_the_default_set_is_djangos_denial_and_the_kernels() -> None:
     """Nothing else is exempt by default, whatever else is importable: a host
-    whose own stack raises another refusal class names it in ``reraise=``."""
-    assert failure_policy_module._denial_types() == (
-        DjangoPermissionDenied,
-        NotPermitted,
-        PrincipalUnavailable,
-    )
+    whose own stack raises another refusal class names it in ``reraise=``.
+
+    Another stack's refusal class is made importable here, so a guarded import
+    of it in ``_denial_types`` fails this test in an environment without it.
+    """
+    exceptions = types.ModuleType("rest_framework.exceptions")
+    exceptions.PermissionDenied = type("PermissionDenied", (Exception,), {})
+    stack = {
+        "rest_framework": types.ModuleType("rest_framework"),
+        "rest_framework.exceptions": exceptions,
+    }
+    with mock.patch.dict(sys.modules, stack):
+        assert failure_policy_module._denial_types() == (
+            DjangoPermissionDenied,
+            NotPermitted,
+            PrincipalUnavailable,
+        )
 
 
 async def test_the_default_set_survives_the_kernel_not_being_installed() -> None:

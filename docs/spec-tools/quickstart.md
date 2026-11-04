@@ -1004,7 +1004,7 @@ The toolset maps the kernel's failure kinds onto the Pydantic-AI model loop:
 | An `ordering` outside a `filter_set`'s `OrderingFilter` choices | `ModelRetry` — the FilterSet rejects it, which arrives as the `InvalidArguments` row above |
 | A FilterSet `param_map` target that isn't a real column | Django's `FieldError` propagates — an author's error the model cannot correct by picking a different sort, and one that can't be checked at construction without a queryset |
 | A denied permission check (class-level `has_permission` **or** object-level `has_object_permission`), raised as the kernel's `NotPermitted`, Django's own `PermissionDenied` raised bare by a service, or a deactivated principal (`PrincipalUnavailable`, refused before any check) | The refusal is raised, logged at `WARNING` naming the tool, and aborts the run — see the caveat below |
-| Django REST Framework's `PermissionDenied` or `ValidationError`, raised by a spec | Neither of the above: the exception escapes the call unchanged. A spec library raising them translates them into the kernel's refusals |
+| Another library's permission or validation exception, raised by a spec | Neither of the above: the exception escapes the call unchanged. A spec library raising one translates it into the kernel's refusals |
 
 !!! warning "A confirmation raised as `AdditionalInputRequired` is not a gate"
     The retry for `AdditionalInputRequired` goes to the model, so the model can
