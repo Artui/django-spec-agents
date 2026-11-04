@@ -153,6 +153,7 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 | --- | --- |
 | `make init` | `uv sync --all-groups` + install pre-commit hooks |
 | `make test` | pytest with 100% line+branch coverage gate |
+| `make tool-schemas` | rewrite `tests/spec_tools/tool_schemas.json`, the pinned `get_tools` dump |
 | `make test-host-only` | the boundary tests on an install with no extra, in `build/host-only-venv` |
 | `make lint` | `ruff check .` + `ty check django_spec_agents` |
 | `make format` | `ruff format .` |
@@ -228,6 +229,13 @@ are fine — module-level **mutable** state is not.
 - A store that writes through `sync_to_async` needs
   `@pytest.mark.django_db(transaction=True)` — its ORM calls run on a different
   connection than a transaction-wrapped test would roll back.
+- The advertised tool definitions are an API for deployed agents, so `get_tools` is
+  pinned: `tests/spec_tools/test_tool_schemas.py` builds a toolset over the spec test
+  app's shapes and diffs its definitions against `tests/spec_tools/tool_schemas.json`. A
+  change to what a tool advertises (its name, description, parameters schema, return
+  schema, metadata) runs `make tool-schemas` and commits the rewritten dump in the same
+  pull request, so the reviewer reads the change as a diff. A schema feature the
+  definitions gain earns a tool in that toolset.
 
 ## Lint and types
 

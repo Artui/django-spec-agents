@@ -1,9 +1,10 @@
-.PHONY: help init test test-host-only lint lint-fix format format-check type-check deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
+.PHONY: help init test tool-schemas test-host-only lint lint-fix format format-check type-check deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
 
 help:
 	@echo "Available targets:"
 	@echo "  init             Sync deps (all groups) and install pre-commit hooks"
 	@echo "  test             Run pytest with coverage (100% required)"
+	@echo "  tool-schemas     Rewrite tests/spec_tools/tool_schemas.json from get_tools"
 	@echo "  test-host-only   Run the boundary tests on an install with no extra"
 	@echo "  lint             Run ruff check + ty check"
 	@echo "  lint-fix         Auto-fix lint issues with ruff"
@@ -24,6 +25,11 @@ init:
 
 test:
 	uv run pytest
+
+# Rewrites the checked-in get_tools dump instead of diffing it. One test, so
+# --no-cov: the coverage gate is for the whole suite.
+tool-schemas:
+	TOOL_SCHEMAS_WRITE=1 uv run pytest -q --no-cov tests/spec_tools/test_tool_schemas.py
 
 # The package with no extra, the install django-admin-agent ships, in a venv of
 # its own: ``uv run`` would sync the dev group, which brings every extra's
