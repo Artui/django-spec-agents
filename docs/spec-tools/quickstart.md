@@ -387,6 +387,14 @@ A registered name is reserved the way `user` and `request` are:
   a value the call would ignore. See
   [What a tool asks the model for](#what-a-tool-asks-the-model-for).
 
+A top-level Validator field named like a registered seed is the exception to
+the first point: the model sends it and it is validated into `data`, while the
+service parameter of that name stays the seed's. A Validator declaring
+`parameters(self, *, call_context=None)` is read as it declares itself to the
+call. A field the tool's schema offers that the call's declaration drops is
+answered by the seed, and the model's value is dropped rather than refused as
+unknown. A field declared only to the call is the model's to send.
+
 The registry applies to the whole toolset. A seed is ambient to the
 deployment, and what varies with the acting user belongs in the resolver,
 which declares `user` to receive it. What varies with the run or the tool

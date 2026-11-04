@@ -595,15 +595,15 @@ wheels = [
 
 [[package]]
 name = "django-service-specs"
-version = "0.23.0"
+version = "0.26.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/42/f0/a381dcfc31a187c5c828b4352d9a4ca6ceaba9850e0d8f53832a7145c1cc/django_service_specs-0.23.0.tar.gz", hash = "sha256:66ae717fb11544f3e682cf4acfaede870e9cdb5c8cce90a12aba991a78184e29", size = 1158203, upload-time = "2026-11-02T15:05:51.407Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/65/30/87dc70c57842ca9560319843a051f4ad6631af42f81c35f2329736540fbf/django_service_specs-0.26.1.tar.gz", hash = "sha256:c451fe217ae1a67844f828aab24b9d3a4b320e52cc790c1c0d8c252fd69be641", size = 1176183, upload-time = "2026-11-04T13:15:49.11Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/55/9394ae7e94906b4d748a00ebf47771a652f5d7ec6fbad7a144e3126e860d/django_service_specs-0.23.0-py3-none-any.whl", hash = "sha256:47444d917333f75bb8d2d7bf2cbe6e6c44ce43acd888490faad1b840d79b4d73", size = 509812, upload-time = "2026-11-02T15:05:49.728Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/42/3d7f01196a6329e0682e56bba769fb080fad8c46aaab099a7f5f79b1040f/django_service_specs-0.26.1-py3-none-any.whl", hash = "sha256:b88a71204277fd16ac4c5cbaf86d57a4263fd6dba402df74cf52e2523c3fb6f5", size = 515442, upload-time = "2026-11-04T13:15:47.309Z" },
 ]
 
 [[package]]
@@ -661,7 +661,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "django", specifier = ">=4.2" },
-    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.23.0" },
+    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.26.0" },
     { name = "django-spec-mcp", marker = "extra == 'mcp'", specifier = ">=0.2.0" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.13" },
@@ -675,7 +675,7 @@ provides-extras = ["anthropic", "google", "harness", "mcp", "openai", "specs"]
 [package.metadata.requires-dev]
 dev = [
     { name = "django-filter", specifier = ">=23" },
-    { name = "django-service-specs", specifier = ">=0.23.0" },
+    { name = "django-service-specs", specifier = ">=0.26.0" },
     { name = "django-spec-mcp", specifier = ">=0.2.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },

@@ -2500,7 +2500,12 @@ def _call_spec(
     server_names: frozenset[str] = frozenset()
     if server_arguments is not None:
         server_names = server_arguments.names()
-        args = _apply_server_arguments(spec, args, server_arguments, label=label)
+        # Named for the tool, as the construction checks are: the refusal is the
+        # server's configuration, outside ``translate_exception``'s reach.
+        with _refusals_name_the_tool(label):
+            args = _apply_server_arguments(
+                spec, args, server_arguments, label=label, call_context=call_context
+            )
     # **Then against the arguments as the model sent them.** A selector -- the
     # tool's own, or the lookup a service resolves its target through -- that is
     # called without a parameter it has no default for raises ``TypeError``,
@@ -2547,10 +2552,17 @@ def _call_spec(
             if args.get(parameter.name) is not None and parameter.name not in server_names
         ]
         _fill_reads(compiled, args)
+        # The names the spec declares to no call and to this one, so a field
+        # declared only to the call is weighed against ``owned`` as well.
+        declared = (
+            compiled.parameters().names() | compiled.parameters(call_context=call_context).names()
+        )
         arguments = _call_arguments(
             args,
-            compiled.parameters().names(),
-            owned=kernel_server_owned_keys(compiled, pool_seeds=pool_seeds),
+            declared,
+            owned=kernel_server_owned_keys(
+                compiled, pool_seeds=pool_seeds, call_context=call_context
+            ),
         )
         result = dispatch(
             compiled,
@@ -2713,7 +2725,12 @@ def _call_spec(
 
 
 def _apply_server_arguments(
-    spec: Spec, args: dict[str, Any], server: ServerArguments, *, label: str
+    spec: Spec,
+    args: dict[str, Any],
+    server: ServerArguments,
+    *,
+    label: str,
+    call_context: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """``args`` with ``server``'s values in place and its withheld names out.
 
@@ -2724,6 +2741,14 @@ def _apply_server_arguments(
     is scoped by, and what the model guessed for it is no business of a log.
     It is not a refusal either: the model was never offered the name, and a
     retry spent on it can end a run on a small budget.
+
+    ``call_context`` is the call's, so the bound values are checked against
+    what the spec declares to this call. Construction checked them against
+    the declaration made to no call; a Validator declaring a bound field
+    otherwise to the call refuses the value here, as the server's
+    ``ImproperlyConfigured`` (named for the tool by the caller), never as a
+    retry asking the model to correct a value it neither sent nor saw
+    (``test_a_bound_value_is_checked_against_the_call_s_own_declaration``).
     """
     dropped = sorted(server.names() & args.keys())
     if dropped:
@@ -2733,7 +2758,7 @@ def _apply_server_arguments(
             label,
             ", ".join(dropped),
         )
-    return apply_server_arguments(spec, args, server)
+    return apply_server_arguments(spec, args, server, call_context=call_context)
 
 
 def _enforce_result_bytes(
@@ -3100,8 +3125,8 @@ def _call_arguments(
     """The call's arguments: the model's, less the ones the server answers.
 
     The model's own argument is dropped when the spec declares it and
-    ``owned``, the kernel's ``server_owned_keys`` for the call's seeds, lists
-    it: a seed's name, so the seed answers instead of ``REJECT`` refusing it
+    ``owned``, the kernel's ``server_owned_keys`` for the call's seeds and
+    context, lists it: a seed's name, so the seed answers instead of ``REJECT`` refusing it
     (``test_a_registered_seed_outranks_a_model_argument_of_the_same_name``), or
     a key a typed provider fills, whose value from the model was never the one
     the call read
@@ -3112,6 +3137,21 @@ def _call_arguments(
     (``test_a_validator_field_named_like_a_seed_is_the_model_s_to_send``). An
     owned name the spec never declares is left for the kernel to answer
     (``test_a_seed_named_argument_a_spec_never_declares_is_refused``).
+
+    ``declared`` is the union of what the spec declares to no call, the names
+    the tool's schema offered the model, and what it declares to this call,
+    while ``owned`` reads the Validator as it declares itself to this call. So
+    a seed-named field the advertised schema offers and the call's declaration
+    drops is the seed's in that call: the model's value is dropped rather than
+    refused as unknown
+    (``test_a_seed_named_field_the_call_does_not_declare_is_answered_by_the_seed``).
+    A field declared only to the call is weighed against ``owned`` too, so the
+    ``server_owned_keys`` keyword decides it, and ``owned`` leaves it to the
+    model
+    (``test_a_seed_named_field_declared_only_to_the_call_is_the_model_s_to_send``),
+    while a key a typed provider fills is the server's, so the model's value
+    for it is dropped rather than shape-checked into a retry
+    (``test_a_provider_filled_field_declared_only_to_the_call_drops_the_model_s_value``).
     """
     arguments = {
         name: value for name, value in args.items() if not (name in declared and name in owned)

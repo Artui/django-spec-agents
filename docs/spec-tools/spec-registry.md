@@ -295,6 +295,13 @@ would otherwise win over the server's value without a trace. A bound Validator
 field of the same name is not refused, here or on the mount: the field takes the
 bound value and the service parameter the seed.
 
+Those checks read the spec as described to no call, as the tool's schema does.
+A Validator declaring `parameters(self, *, call_context=None)` can declare a
+bound field otherwise to a call, so every call checks the bound values again,
+against what the Validator declares to that call. One its declaration refuses
+raises `ImproperlyConfigured` naming the tool and the spec, never a retry, since
+the model neither sent the value nor can see it.
+
 The bindings are fixed when the toolset is built, like its tool definitions.
 For a per-run scope, build a toolset per run, from the run's scope. A tool
 counts as scoped by the run only when the run binds one of the scope names it
