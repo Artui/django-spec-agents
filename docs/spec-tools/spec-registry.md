@@ -4,7 +4,7 @@ If the agent is the only place your project exposes its specs, keep passing a
 plain dict — this page buys you nothing.
 
 It pays off when the **same specs** are also exposed elsewhere: over MCP with
-[`djangorestframework-mcp-server`](https://github.com/Artui/djangorestframework-mcp-server),
+[`django-spec-mcp`](https://github.com/Artui/django-spec-mcp),
 or as ordinary HTTP views. Each transport has to be told which specs it exposes,
 so the list gets written once per transport and the copies drift — a spec is
 added to the MCP wiring and forgotten in the agent's, or the same operation is

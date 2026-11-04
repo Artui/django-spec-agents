@@ -226,7 +226,7 @@ fill offered and not required:
   returns when its return annotation is a `TypedDict`, less any it may decline
   with `UNSET` (below). The annotation is read by the kernel's
   `provider_keys`, the reader dispatch's own contract is stated in, so this
-  toolset and drf-mcp read a provider the same way.
+  toolset and django-spec-mcp read a provider the same way.
 - **An input field the spec's Validator requires and no call can send** is
   refused when the toolset is built, with `ImproperlyConfigured` naming the
   tool and the field, under either [`unknown_arguments`](#unexpected-arguments)
@@ -641,7 +641,7 @@ correction a later release makes to the wording.
 `SpecCapability` takes the same keyword, and
 [`SpecCapability.from_toolset`](reference.md#django_spec_agents.spec_tools.SpecCapability.from_toolset)
 keeps the conventions of the toolset it wraps. They reach this toolset's tools
-only: the MCP transport, djangorestframework-mcp-server, writes its own schemas
+only: the MCP transport, django-spec-mcp, writes its own schemas
 and retries, so a model reading the same specs over MCP is told what that
 transport is configured to say.
 

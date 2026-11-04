@@ -52,8 +52,7 @@ If you want an agent in a browser, start with
 - **[Policy](policy.md)**: an audit trail over every tool call, a server-side
   approval gate for destructive tools, and the failure policy.
 - **[Integrations](integrations.md)**: the `[specs]` and `[mcp]` bridges
-  that compose specs or a `django-spec-mcp` registry into an agent the host builds,
-  and the deprecated `[drf-mcp]`.
+  that compose specs or a `django-spec-mcp` registry into an agent the host builds.
 
 ## Specs as tools
 
@@ -74,9 +73,8 @@ nothing else; the deps a run passes are the host's
 **The package reads no Django settings of its own.** There is no `DJANGO_*`
 lookup anywhere in it. Its public input is an `AgentConfig` dataclass; each
 transport owns its own settings namespace, resolves its config, and hands the
-record down. What it does read is Django's and DRF's own configuration:
-`STORAGES`, for the store app's optional attachment storage alias, and DRF's
-settings, where `spec_tools` and the `[drf-mcp]` bridge run through DRF.
+record down. What it does read is Django's own configuration: `STORAGES`, for
+the store app's optional attachment storage alias.
 
 That is what keeps transports independent: `django-ag-ui` reads `DJANGO_AG_UI`,
 `django-a2a` reads its own, and neither fights the other for keys. A settings

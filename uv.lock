@@ -619,9 +619,6 @@ dependencies = [
 anthropic = [
     { name = "pydantic-ai-slim", extra = ["anthropic"] },
 ]
-drf-mcp = [
-    { name = "djangorestframework-mcp-server" },
-]
 google = [
     { name = "pydantic-ai-slim", extra = ["google"] },
 ]
@@ -644,8 +641,6 @@ dev = [
     { name = "django-service-specs" },
     { name = "django-spec-mcp" },
     { name = "django-stubs" },
-    { name = "djangorestframework-mcp-server" },
-    { name = "djangorestframework-stubs" },
     { name = "flake8-tidy-imports" },
     { name = "pre-commit" },
     { name = "pydantic-ai-harness", extra = ["code-mode"] },
@@ -668,7 +663,6 @@ requires-dist = [
     { name = "django", specifier = ">=4.2" },
     { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.23.0" },
     { name = "django-spec-mcp", marker = "extra == 'mcp'", specifier = ">=0.2.0" },
-    { name = "djangorestframework-mcp-server", marker = "extra == 'drf-mcp'", specifier = ">=0.53.1" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.13" },
     { name = "pydantic-ai-slim", specifier = ">=2.58,<3" },
@@ -676,7 +670,7 @@ requires-dist = [
     { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2.58,<3" },
     { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2.58,<3" },
 ]
-provides-extras = ["anthropic", "drf-mcp", "google", "harness", "mcp", "openai", "specs"]
+provides-extras = ["anthropic", "google", "harness", "mcp", "openai", "specs"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -684,8 +678,6 @@ dev = [
     { name = "django-service-specs", specifier = ">=0.23.0" },
     { name = "django-spec-mcp", specifier = ">=0.2.0" },
     { name = "django-stubs", specifier = ">=5.0" },
-    { name = "djangorestframework-mcp-server", specifier = ">=0.53.1" },
-    { name = "djangorestframework-stubs", specifier = ">=3.15" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "pre-commit", specifier = ">=3.8.0" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], specifier = ">=0.13" },
@@ -742,78 +734,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/36/50/917f7224ea470e89cdcdc93d3dfe75b8391adf976cf12f2ecdb5f5d122be/django_stubs_ext-6.0.7.tar.gz", hash = "sha256:c3172c5126614fd2a44d0196b313b44c21f717cb09477ba52b447d41f4ce613e", size = 6665, upload-time = "2026-07-14T10:07:56.933Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/83/65/4d73fce956b5ebf26449259664360e539fbe95f0e86be396c28b636ba72a/django_stubs_ext-6.0.7-py3-none-any.whl", hash = "sha256:53a9c7c5a7c7e718cc6308cfce1e7470f2cac0b9d38dbcd60fbfa82704f1d592", size = 10362, upload-time = "2026-07-14T10:07:55.653Z" },
-]
-
-[[package]]
-name = "djangorestframework"
-version = "3.18.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/b2/1cee76b188301f7d03169ca77fab2b3d3ec5d01b3469189f944af2d7f11a/djangorestframework-3.18.3.tar.gz", hash = "sha256:446a9b352e7eff630421ab3f2328bd2401b109a9470afa4a31189994911ed030", size = 923563, upload-time = "2026-10-06T21:33:51.521Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/dd/de5f4543765bec94e036a5e9593a42f8fa7efec8de78eb56b9ca834385f3/djangorestframework-3.18.3-py3-none-any.whl", hash = "sha256:8544bb674846731b1e3c9b309236ee1dc412905a0aa725be2ec193ca950a7d12", size = 903986, upload-time = "2026-10-06T21:33:49.917Z" },
-]
-
-[[package]]
-name = "djangorestframework-dataclasses"
-version = "1.4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "djangorestframework" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/91/cac1ae679f6f92c1ad38f4f13e14bb75eeb469559d5e1b250efa6978cee7/djangorestframework_dataclasses-1.4.0.tar.gz", hash = "sha256:fffa19b6f650b2c4c346b3cadf42dd9aa5a265a34f0827608953910d01919039", size = 37319, upload-time = "2025-05-14T19:46:48.109Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/6f/48546d114a62258bf8fe2f03a47d20bc52489887771606292aac85cb78de/djangorestframework_dataclasses-1.4.0-py3-none-any.whl", hash = "sha256:eb599f2dbaf8bdb158ac1ff7bc690ab865c2302407b4e93758bff0689a66ad0f", size = 26922, upload-time = "2025-05-14T19:46:46.355Z" },
-]
-
-[[package]]
-name = "djangorestframework-mcp-server"
-version = "0.54.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "django-service-specs" },
-    { name = "djangorestframework" },
-    { name = "djangorestframework-dataclasses" },
-    { name = "djangorestframework-services" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/92/09c2510ae90a421d5c7117767f1bbaeae20c2b1b6baae374a344fa5fd8cd/djangorestframework_mcp_server-0.54.1.tar.gz", hash = "sha256:6d86da760f3f7b959a821f2b1df415ac2e56cd17fff557989981008440772686", size = 1238607, upload-time = "2026-10-29T18:22:32.17Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/fa/03a76650480727134213328d3f489ff9859dedbd97959016cf6a165b4970/djangorestframework_mcp_server-0.54.1-py3-none-any.whl", hash = "sha256:73098f789bdffea7e9b1394538c98abd84d90f1053c20471eadc20e8ba707e34", size = 512750, upload-time = "2026-10-29T18:22:30.215Z" },
-]
-
-[[package]]
-name = "djangorestframework-services"
-version = "0.62.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "django-service-specs" },
-    { name = "djangorestframework" },
-    { name = "djangorestframework-dataclasses" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/28/29/12acb93b6a788ecc2b78e8dd32122987b2dc95a4b38273e2718f7670eb54/djangorestframework_services-0.62.0.tar.gz", hash = "sha256:2e5acbfe6e50486afbe20cc0f0c49ba8a3c4e7a04b00415b487759639d8aa923", size = 1166143, upload-time = "2026-10-23T18:44:50.388Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/74/2a/e76a69ad57ca66b1390e4576f97db2725799fcfda45439a9637487de0156/djangorestframework_services-0.62.0-py3-none-any.whl", hash = "sha256:e273e886be63c791206213d862b421c0d2707ef016979644c8464d119d7d849d", size = 404373, upload-time = "2026-10-23T18:44:48.762Z" },
-]
-
-[[package]]
-name = "djangorestframework-stubs"
-version = "3.18.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django-stubs" },
-    { name = "types-pyyaml" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5c/f1/f3650bfe36dde8a9aaed2997d25d1aa5dd87da39eb3be5ffda2d12edd9b0/djangorestframework_stubs-3.18.0.tar.gz", hash = "sha256:072adaf1a6f507e2ccca2e4ba5611a2259d6c9d171eb6256c103acecdd33a40d", size = 32520, upload-time = "2026-08-12T18:33:34.557Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/74/f9/96c49ee155839c3ae5bb4d7afea6738fd270dfdc34413b632d30b16d0964/djangorestframework_stubs-3.18.0-py3-none-any.whl", hash = "sha256:dd04de8100689851e13843eebdc03a84d336f34aab6d30c726bca0f2f11aaf6b", size = 55750, upload-time = "2026-08-12T18:33:32.727Z" },
 ]
 
 [[package]]

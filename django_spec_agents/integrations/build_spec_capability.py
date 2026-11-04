@@ -54,7 +54,7 @@ def build_spec_capability(
             to read one from. Prefer the registry: it is the same specs plus the
             per-entry declarations an agent transport reads.
         exclude_names: Names a higher-precedence source (the ``@tool`` registry,
-            the drf-mcp bridge) already claimed. They are dropped so that source
+            the MCP bridge) already claimed. They are dropped so that source
             wins the collision, since pydantic-ai raises ``UserError`` for a
             duplicate name at run time.
     """

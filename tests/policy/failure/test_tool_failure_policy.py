@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Callable
+import types
+from collections.abc import Callable, Iterator
 from typing import Any
 from unittest import mock
 
@@ -22,7 +23,6 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness.step_persistence import StepPersistence
-from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
 
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
@@ -610,6 +610,32 @@ async def test_a_model_retry_still_reaches_the_model_as_a_retry() -> None:
     assert len(calls) == 2
 
 
+class DRFPermissionDenied(Exception):
+    """Stands in for ``rest_framework.exceptions.PermissionDenied``.
+
+    No extra installs Django REST Framework, so the suite runs without it, and a
+    host whose own tools call DRF code is who the policy's guarded import is
+    for. The policy reads the class off that dotted path and nothing else of it,
+    so a module at the path holding this class is the import it makes.
+    """
+
+
+def _drf_modules() -> dict[str, types.ModuleType]:
+    package = types.ModuleType("rest_framework")
+    exceptions = types.ModuleType("rest_framework.exceptions")
+    vars(exceptions).update(PermissionDenied=DRFPermissionDenied)
+    vars(package).update(exceptions=exceptions)
+    return {"rest_framework": package, "rest_framework.exceptions": exceptions}
+
+
+@pytest.fixture
+def drf_installed() -> Iterator[None]:
+    """DRF importable while the policy resolves its default set."""
+    with mock.patch.dict(sys.modules, _drf_modules()):
+        yield
+
+
+@pytest.mark.usefixtures("drf_installed")
 class TestAuthorizationIsNotAToolFailure:
     """A denial is the one failure the policy must not absorb.
 
@@ -699,7 +725,7 @@ async def _handle(policy: ToolFailurePolicy, error: Exception) -> None:
 
 
 async def test_the_default_set_survives_drf_not_being_installed() -> None:
-    """DRF arrives with the optional extras, so the default set is resolved
+    """No extra installs DRF, so the default set is resolved
     through an import that finds nothing in a slim install, such as a project
     that uses the kernel directly with no DRF. Django's own denial and the
     kernel's refusals are still exempt there; DRF's is just another exception
@@ -724,12 +750,12 @@ async def test_the_default_set_survives_drf_not_being_installed() -> None:
 
 
 async def test_the_default_set_survives_the_kernel_not_being_installed() -> None:
-    """The kernel arrives with the ``[specs]`` and ``[drf-mcp]`` extras, so a DRF
+    """The kernel arrives with the ``[specs]`` and ``[mcp]`` extras, so a DRF
     project on this package's host-only install, which has no kernel, resolves
     the set with the kernel's import finding nothing. Django's and DRF's denials
     stay exempt; the kernel's refusals are just exceptions nobody can raise
     there."""
-    with mock.patch.dict(sys.modules, {"django_service_specs": None}):
+    with mock.patch.dict(sys.modules, {**_drf_modules(), "django_service_specs": None}):
         policy = ToolFailurePolicy()
 
     with pytest.raises(DjangoPermissionDenied):

@@ -34,7 +34,7 @@ class AuditCapability(AbstractCapability[Any]):
     [`AuditLogger`][django_spec_agents.AuditLogger] sink.
 
     A Pydantic-AI capability on the tool-execution hooks, so it records
-    **every** tool the agent runs: registry tools, the drf-mcp and spec
+    **every** tool the agent runs: registry tools, the MCP and spec
     bridges, attachment and skill tools alike.
 
     **One record per execution, describing the tool's own execution**, whatever

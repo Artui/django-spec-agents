@@ -83,8 +83,6 @@ entries a frontend fetches to label tool-call cards.
 `summary` is always present, resolved through a fallback chain — for registry
 tools, `@tool(summary=…)` then a prettified name; for the tools of the server
 passed as `mcp_server=`, `display_name` then `title` then a prettified name.
-`drf_mcp_server=`, the keyword's old name, is deprecated and removed in the next
-minor; it warns `DeprecationWarning`, and passing both raises `TypeError`.
 
 ```python
 from django_spec_agents import build_tool_catalog

@@ -2,9 +2,8 @@
 
 ``build_spec_capability`` hands its source to ``spec_tools``, which serves
 django-service-specs specs only, so these are the kernel's own ``ServiceSpec``
-and ``SelectorSpec``. The drf-mcp bridge's tests keep their drf-services
-declarations in ``drf_specs_lookup``, because that bridge registers nothing
-else.
+and ``SelectorSpec``. The ``[mcp]`` bridge's server, in ``mcp_server``,
+registers ``LOOKUP_SPECS`` too, so both routes serve one declaration.
 """
 
 from __future__ import annotations

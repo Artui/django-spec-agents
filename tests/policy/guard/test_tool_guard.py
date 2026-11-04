@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -57,7 +56,7 @@ _KINDS = [
         {"delete_thing": "unapproved", "read_thing": "function"},
         id="destructive-registry-tool",
     ),
-    # A drf-mcp bridged mutating tool carries destructiveness in metadata, not in
+    # An MCP-bridged mutating tool carries destructiveness in metadata, not in
     # the registry; the guard must gate it just the same.
     pytest.param(
         ToolRegistry,
@@ -128,9 +127,9 @@ class TestEveryDestructivenessSignal:
         """A toolset that speaks MCP's own vocabulary nests ``readOnlyHint``
         under ``annotations`` instead of stamping the metadata key.
 
-        The same spec was therefore gated when it arrived over the drf-mcp
-        bridge (which maps the hint onto the key) and ungated when the identical
-        spec was attached in process.
+        The same spec was therefore gated when it arrived over an MCP bridge
+        (which maps the hint onto the key) and ungated when the identical spec
+        was attached in process.
         """
         guard = ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True))
         kinds = await _prepare(
@@ -235,17 +234,16 @@ class TestMcpAnnotationsAgreeWithTheBridges:
         assert kinds["t"] == ("unapproved" if destructive else "function")
 
     @pytest.mark.parametrize(("sent", "destructive"), _ANNOTATION_TRUTH_TABLE)
-    async def test_the_table_is_what_both_bridges_mark(
+    async def test_the_table_is_what_the_bridge_marks(
         self, sent: dict[str, Any], destructive: bool
     ) -> None:
-        """The expected column is not the guard's own reading: it is what each
+        """The expected column is not the guard's own reading: it is what the
         bridge stamps for the same annotations on the wire."""
         from types import SimpleNamespace
 
         from django.contrib.auth.models import AnonymousUser
         from django.test import RequestFactory
 
-        from django_spec_agents.integrations.drf_mcp import DRFMCPToolset
         from django_spec_agents.integrations.mcp import MCPToolset
 
         request = RequestFactory().post("/agent/")
@@ -259,13 +257,10 @@ class TestMcpAnnotationsAgreeWithTheBridges:
             list_tools=lambda *_a, **_k: {"tools": [tool_listing]},
             aunavailable_tools=no_unavailable_tools,
         )
-        for toolset_class in (MCPToolset, DRFMCPToolset):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                toolset = toolset_class(server, request)  # type: ignore[arg-type]
-            listed = await toolset.get_tools(None)  # type: ignore[arg-type]
-            marked = listed["t"].tool_def.metadata == {DESTRUCTIVE_METADATA_KEY: True}
-            assert marked is destructive, toolset_class
+        toolset = MCPToolset(server, request)  # type: ignore[arg-type]
+        listed = await toolset.get_tools(None)  # type: ignore[arg-type]
+        marked = listed["t"].tool_def.metadata == {DESTRUCTIVE_METADATA_KEY: True}
+        assert marked is destructive
 
 
 async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
@@ -273,7 +268,7 @@ async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
 
     ``SpecToolset`` builds its tool definitions from the spec kind — a
     ``ServiceSpec`` mutates, a ``SelectorSpec`` reads — and says so with MCP's
-    ``readOnlyHint``. Serving a write in process rather than over the drf-mcp
+    ``readOnlyHint``. Serving a write in process rather than over the MCP
     bridge is presented as a transport swap, so the gate has to survive it.
     """
     from django_service_specs import SelectorKind, SelectorSpec, ServiceSpec, Unrestricted

@@ -24,11 +24,3 @@ dependencies. See [Integrations](../integrations.md) for which to choose.
 ### `MCPToolset`
 
 ::: django_spec_agents.integrations.mcp.MCPToolset
-
-## Deprecated MCP tools (`[drf-mcp]`)
-
-Removed in the next minor; use `MCPToolset` and `[mcp]`.
-
-### `DRFMCPToolset`
-
-::: django_spec_agents.integrations.drf_mcp.DRFMCPToolset

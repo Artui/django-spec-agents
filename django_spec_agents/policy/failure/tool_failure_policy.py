@@ -147,13 +147,13 @@ def _denial_types() -> tuple[type[BaseException], ...]:
 
     Django's own, DRF's and the kernel's are unrelated classes — none inherits
     from another — and a project raises whichever its stack uses, so covering
-    one is covering a third of a boundary. DRF is optional here (it arrives
-    with the ``[drf-mcp]`` extra; a tool calling DRF code may raise its
-    ``PermissionDenied``, while a DRF permission check behind that bridge
-    reaches the run as Django's, which the bridge raises for drf-mcp's
-    ``-32006``) and so is the kernel (it
-    arrives with ``[specs]`` or ``[drf-mcp]``; its dispatch raises ``NotPermitted`` for a refused
-    principal and ``PrincipalUnavailable`` for one that cannot act), so each
+    one is covering a third of a boundary. DRF is optional here (no extra
+    installs it, but a project's own tool calling DRF code may raise its
+    ``PermissionDenied``, while a refusal over the ``[mcp]`` bridge reaches the
+    run as Django's, which the bridge raises for the server's ``-32006``) and so
+    is the kernel (it arrives with ``[specs]`` or ``[mcp]``; its dispatch raises
+    ``NotPermitted`` for a refused principal and ``PrincipalUnavailable`` for one
+    that cannot act), so each
     class is imported at call time under its own guard and is simply absent from
     the set when its package is. The guards are independent: a host with the
     kernel and no DRF, or DRF and no kernel, keeps the other's classes.
@@ -164,7 +164,9 @@ def _denial_types() -> tuple[type[BaseException], ...]:
     # Held by ``test_a_reraised_failure_aborts_the_run[django-denial]``.
     denials: list[type[BaseException]] = [DjangoPermissionDenied]
     try:
-        from rest_framework.exceptions import PermissionDenied
+        # No extra or dev group installs DRF, so ty cannot resolve the module;
+        # the guard is what makes the import safe.
+        from rest_framework.exceptions import PermissionDenied  # ty: ignore[unresolved-import]
     except ImportError:
         pass
     else:

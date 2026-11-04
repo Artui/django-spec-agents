@@ -166,12 +166,12 @@ one hook covers every tool regardless of origin:
 - **Registry tools** — `@tool(destructive=True)`. The flag lives on the spec and
   never reaches pydantic-ai as a bare callable, so the guard reads it from the
   registry directly at construction.
-- **MCP bridged tools** — both bridges map each tool's annotations onto
+- **MCP bridged tools** — the bridge maps each tool's annotations onto
   `DESTRUCTIVE_METADATA_KEY`, which the guard reads from pydantic-ai's tool
   metadata. A tool is marked unless its `readOnlyHint` is true or its
   `destructiveHint` is false, as MCP reads the pair; a tool listed with no
   `annotations` is not marked.
-- **MCP tool annotations** — `metadata["annotations"]`, read by the bridges' own
+- **MCP tool annotations** — `metadata["annotations"]`, read by the bridge's own
   rule: annotations that say anything mark the tool destructive unless
   `readOnlyHint` is true or `destructiveHint` is false. A field that is `None` is
   unsaid, so the full dump a remote MCP client stores (every field present,
@@ -350,7 +350,7 @@ Two caveats:
 - **`reraise` replaces the default set, it does not extend it.** The default is
   `django.core.exceptions.PermissionDenied`; `rest_framework.exceptions.PermissionDenied`
   when DRF is installed; and `NotPermitted` and `PrincipalUnavailable` from
-  `django_service_specs` when the kernel is installed (the `[specs]`, `[mcp]` or `[drf-mcp]` extra)
+  `django_service_specs` when the kernel is installed (the `[specs]` or `[mcp]` extra)
   ([a denial is not a tool failure](#a-denial-is-not-a-tool-failure)). A tuple
   that leaves them out converts denials again, so re-list each one your project
   can raise.
@@ -365,15 +365,13 @@ An authorization refusal passes through untouched and ends the run, exactly as
 it would with the policy off. Four classes are in the default set, because no
 one of them inherits from another:
 
-- `django.core.exceptions.PermissionDenied`, always. Both
-  [MCP bridges](integrations.md) raise it for a permission refusing the user
+- `django.core.exceptions.PermissionDenied`, always. The
+  [MCP bridge](integrations.md) raises it for a permission refusing the user
   (JSON-RPC `-32006`).
-- `rest_framework.exceptions.PermissionDenied`, when DRF is installed (the
-  `[drf-mcp]` extra brings it), for a tool that raises it. A DRF permission
-  check behind the drf-mcp bridge does not arrive as this class: drf-mcp
-  answers it with `-32006`, which the bridge raises as Django's.
+- `rest_framework.exceptions.PermissionDenied`, when your project installs DRF
+  (no extra brings it), for a tool of your own that raises it.
 - `django_service_specs.NotPermitted`, when the kernel is installed (the
-  `[specs]`, `[mcp]` or `[drf-mcp]` extra); the kernel's dispatch raises it when a permission check
+  `[specs]` or `[mcp]` extra); the kernel's dispatch raises it when a permission check
   refuses the principal.
 - `django_service_specs.PrincipalUnavailable`, with it; the kernel raises it for
   a principal that cannot act at all, such as a deactivated account.

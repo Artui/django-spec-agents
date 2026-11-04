@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The drf-mcp bridge is gone, after its minor of deprecation.** The
+  `[drf-mcp]` extra, `DRFMCPToolset` and its module
+  `django_spec_agents.integrations.drf_mcp` are removed; bridge a django-spec-mcp
+  server with `[mcp]` and `MCPToolset` instead, serving the same operations as
+  kernel specs. `build_tool_catalog` no longer takes `drf_mcp_server=`: pass the
+  server as `mcp_server=`, or the call raises `TypeError`. A failed call's
+  message no longer carries a `step:` label, which only drf-mcp's chains sent.
+  Upgrading needs django-ag-ui 0.74.0 and django-admin-agent 0.59.0 or later if
+  you run either, since earlier releases pass `drf_mcp_server=` and set no cap
+  on this package.
+- **No extra installs Django REST Framework any more.** `ToolFailurePolicy`
+  still passes DRF's `PermissionDenied` through by default when your project
+  installs DRF itself, so a tool of yours that raises it ends the run as before.
+
 ## [0.6.2] — 2026-11-03
 
 A permission refusal through either MCP bridge now ends the run.

@@ -40,7 +40,7 @@ class ToolFailureConfig:
 
     ``None`` means the built-in set: an authorization refusal, in each flavour a
     project raises it — ``django.core.exceptions``' ``PermissionDenied``;
-    ``rest_framework.exceptions``' when DRF is installed; and
+    ``rest_framework.exceptions``' when the project installs DRF; and
     ``django_service_specs``' ``NotPermitted`` and ``PrincipalUnavailable`` when
     the kernel is installed. Pass a tuple to replace that set wholesale, or
     ``()`` to convert every exception. Replacing means re-listing each of those

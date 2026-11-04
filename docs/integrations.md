@@ -1,12 +1,11 @@
 # Integrations
 
-Three optional extras, and one deprecated, all lazily imported — the base install stays slim and
+Three optional extras, all lazily imported — the base install stays slim and
 none of these dependencies is pulled unless configured.
 
 Two of them are **bridges**: `[specs]` and `[mcp]` expose specs you have
 already declared as agent tools, so you don't re-declare your API as `@tool`
-functions. The deprecated `[drf-mcp]` is the second bridge over a drf-mcp
-server. Both make the agent act as the **logged-in user** — the request is
+functions. Both make the agent act as the **logged-in user** — the request is
 carried into every call, so your existing permission checks apply exactly as they
 would over HTTP.
 
@@ -228,23 +227,6 @@ retry above, which the model can answer itself, on this route and on
 input round for a selector, so it arrives as a service error, and so as
 `ToolFailed` here, where `[specs]` raises `ModelRetry`. It is not an approval gate: see
 [what is gated, and what is not](policy.md#what-is-gated-and-what-is-not).
-
-## `[drf-mcp]` — deprecated
-
-```bash
-pip install django-spec-agents[drf-mcp]
-```
-
-`DRFMCPToolset`, in `django_spec_agents.integrations.drf_mcp`, is the same
-bridge over a `drf-mcp-server` registry, and behaves as above with drf-mcp's
-names: its arguments are refused by the input serializer, a `QueryParam` the
-output serializer refuses is the rendering retry, DRF's `NON_FIELD_ERRORS_KEY`
-setting is the non-field key, and a chain tool's refusal also names the step
-that failed, `(code: books_closed, step: void)`. It is deprecated, with the
-extra: constructing one warns `DeprecationWarning`, and both are removed in the
-next minor. Move to `[mcp]` and `MCPToolset`, serving the same operations as
-kernel specs from a django-spec-mcp server. `build_tool_catalog`'s
-`drf_mcp_server=` is deprecated with them: pass the server as `mcp_server=`.
 
 ## `[harness]` — upstream capabilities
 

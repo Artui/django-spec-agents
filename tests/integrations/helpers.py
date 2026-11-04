@@ -1,11 +1,9 @@
 """What both integration routes' tests drive alike: a real run context, and a
 run in which a model leaves out an argument and then sends it.
 
-The calls are shared and the declarations are per route: the drf-mcp bridge's
-tests serve the specs in ``drf_specs_lookup``, which that bridge registers, and
-the spec capability's serve the kernel's own in ``kernel_specs``. The cross-route
-tests in ``test_drf_mcp`` also run ``build_spec_capability`` over the drfs specs
-on purpose, to exercise them through the ``[drf-mcp]`` bridge."""
+Both routes serve kernel specs: the spec capability's come from ``kernel_specs``,
+and the ``[mcp]`` bridge's from the server in ``mcp_server``, which registers the
+lookup specs declared there."""
 
 from __future__ import annotations
 
@@ -42,9 +40,8 @@ def run_context(deps: AgentDeps) -> RunContext[AgentDeps]:
 
 
 # Each tool reads its row by a ``pk`` it requires: the selector tool's own
-# selector, and the service tool's target lookup. Over drf-mcp that is a
-# selector taking ``pk`` with no default; on the kernel's specs it is a read
-# declared ``required=True``. A call leaving ``pk`` out is corrected by sending it.
+# selector, and the service tool's target lookup. On the kernel's specs it is a
+# read declared ``required=True``. A call leaving ``pk`` out is corrected by sending it.
 LOOKUP_CALLS = [
     pytest.param("get_row", {}, {"pk": 1}, {"id": 1, "name": "first"}, id="selector"),
     pytest.param(

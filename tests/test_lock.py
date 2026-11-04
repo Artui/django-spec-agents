@@ -1,12 +1,14 @@
-"""The lock names neither distribution this package replaces.
+"""The lock names no distribution this package replaces.
 
 ``django-spec-agents`` carries ``django-pydantic-agent`` and
 ``djangorestframework-pydantic-ai`` as one package, under its own import path. With
 either old distribution in the lock, its classes would sit in the same process as
 this package's under the same names, and a test importing the old path by mistake
-would test the old code and pass. Neither is a dependency of anything this package
-installs, so the lock should name neither, as a package or as any package's
-dependency.
+would test the old code and pass. ``djangorestframework-mcp-server`` went with the
+bridge over it, replaced by the ``[mcp]`` extra's django-spec-mcp; back in the lock
+it would bring Django REST Framework into a suite whose boundary tests hold that
+nothing here needs it. None is a dependency of anything this package installs, so
+the lock should name none, as a package or as any package's dependency.
 
 The lock is read as text rather than as TOML. Every place a lock names a
 distribution, a ``[[package]]`` entry, a dependency, an optional or dev dependency
@@ -24,7 +26,11 @@ import pytest
 
 LOCK = pathlib.Path(__file__).resolve().parent.parent / "uv.lock"
 
-REPLACED = {"django-pydantic-agent", "djangorestframework-pydantic-ai"}
+REPLACED = {
+    "django-pydantic-agent",
+    "djangorestframework-pydantic-ai",
+    "djangorestframework-mcp-server",
+}
 
 _NAME = re.compile(r'\bname = "([^"]+)"')
 
@@ -39,7 +45,7 @@ def _named_in(text: str) -> set[str]:
     return {_normalise(name) for name in _NAME.findall(text)}
 
 
-def test_the_lock_names_neither_replaced_distribution() -> None:
+def test_the_lock_names_no_replaced_distribution() -> None:
     names = _named_in(LOCK.read_text())
 
     # The scan read the lock it was meant to: this package and its one required
