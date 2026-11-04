@@ -35,6 +35,7 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from django_spec_agents.integrations.mcp import MCPToolset, _failure_message, _retry_message
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.spec_tools import AgentConventions
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
 from tests.integrations.kernel_specs import LOOKUP_SPECS
@@ -500,6 +501,15 @@ async def test_instructions_name_each_missing_tool_with_its_reason() -> None:
     instructions = await MCPToolset(server, _request()).get_instructions(None)
     assert instructions is not None
     assert instructions.splitlines() == _MISSING
+
+
+async def test_the_missing_tools_heading_is_the_one_spec_tools_says() -> None:
+    # ``_MISSING`` is a literal this file owns, so it cannot notice the bridge's
+    # heading drifting from ``spec_tools``'; the default it teaches the model is
+    # read from ``AgentConventions`` here instead, so a change to either fails.
+    instructions = await MCPToolset(server, _request()).get_instructions(None)
+    assert instructions is not None
+    assert instructions.splitlines()[0] == AgentConventions().unavailable_heading
 
 
 async def test_no_instructions_when_nothing_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
