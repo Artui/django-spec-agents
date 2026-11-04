@@ -10,25 +10,32 @@ The dump is what ``get_tools`` returns, read off each ``ToolDefinition``.
 Nothing here builds an entry by hand, so the file moves when the toolset's
 output does, and only then. It keeps the fields this package sets on a
 definition (``name``, ``description``, ``parameters_json_schema``,
-``return_schema``, ``metadata``) rather than every field pydantic-ai declares:
-pydantic-ai adds fields with defaults in its minor releases, and a lock bump
-that adds one changes nothing this package advertises.
+``return_schema``, ``metadata``), plus any other field set away from
+pydantic-ai's default: a new defaulted pydantic-ai field does not move the
+dump, and a field the toolset starts setting does.
 
 The toolset below is built for the dump, over the spec test app's shapes: one
 tool per schema feature a definition carries, not one per test spec. Adding a
-feature to the definitions earns a tool here.
+feature to the definitions earns a tool here. It covers a service with a form's
+bounds, a retrieve, a list with a filter set and a read-shaping argument, a
+parameter with a default, a bound and a withheld server argument, a ``many``
+service, a spec with no presenter and an output field hidden from the audience.
+It is one toolset: a feature that needs a toolset-level setting other than
+``max_page_size``, ``descriptions`` and ``tool_server_arguments`` (an omitted
+tool, a pool seed, ``unknown_arguments``, conventions) is not in the dump.
 
 A schema change regenerates the dump in the same pull request::
 
     make tool-schemas
 
 which runs this test with ``TOOL_SCHEMAS_WRITE=1`` set, so it writes the file
-instead of comparing; the diff of ``tool_schemas.json`` is then the change a
-reviewer reads.
+instead of comparing, then skips so a run that wrote never reports a pass; the
+diff of ``tool_schemas.json`` is then the change a reviewer reads.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import difflib
 import json
 import os
@@ -36,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 import django_filters
+import pytest
 from django_service_specs import (
     FieldMarking,
     OutputField,
@@ -47,6 +55,7 @@ from django_service_specs import (
     ServiceSpec,
     SpecRegistry,
 )
+from pydantic_ai.tools import ToolDefinition
 
 from django_spec_agents.spec_tools import SpecToolset
 from tests.spec_tools.kernel_specs import RowPresenter, allow, widget_input, widget_presenter
@@ -55,6 +64,7 @@ from tests.spec_tools.wording_specs import run_context
 
 DUMP = Path(__file__).parent / "tool_schemas.json"
 WRITE = os.environ.get("TOOL_SCHEMAS_WRITE") == "1"
+# Always dumped: what this package sets on a definition.
 FIELDS = ("name", "description", "parameters_json_schema", "return_schema", "metadata")
 
 
@@ -87,6 +97,16 @@ def _vendor(*, project_pk: str, draw_request_pk: str = "", note: str = "") -> di
     return {"name": project_pk}
 
 
+def _create_widgets(*, items: list[dict[str, Any]]) -> list[Widget]:
+    """Create several widgets in one call."""
+    return [Widget(**item) for item in items]
+
+
+def _ping() -> dict[str, str]:
+    """Check the service is up."""
+    return {"status": "ok"}
+
+
 def _toolset() -> SpecToolset:
     registry = SpecRegistry()
     # A service: a form's required fields and its bounds. Each tool but the
@@ -112,6 +132,8 @@ def _toolset() -> SpecToolset:
                 OutputField("id", "integer", marking=FieldMarking.handle("Widget handle.")),
                 OutputField("name", "string", marking=FieldMarking.label()),
                 OutputField("price", "integer"),
+                # Hidden from the audience, so it leaves the return schema.
+                OutputField("cost", "integer", marking=FieldMarking.hidden()),
             ),
             permissions=allow(),
         ),
@@ -130,7 +152,8 @@ def _toolset() -> SpecToolset:
         ),
     )
     # Server arguments: ``project_pk`` bound to a value, ``draw_request_pk``
-    # withheld, so only the optional ``note`` is left for the model.
+    # withheld, so only the optional ``note`` is left for the model, which
+    # declares a default, so the schema pins a ``default``.
     registry.register(
         "vendor",
         SelectorSpec(
@@ -139,11 +162,26 @@ def _toolset() -> SpecToolset:
             reads=Parameters.of(
                 Parameter("project_pk", "string", required=True),
                 Parameter("draw_request_pk", "string"),
-                Parameter("note", "string", help="A note to match."),
+                Parameter("note", "string", help="A note to match.", default=""),
             ),
             presenter=RowPresenter(OutputField("name", "string")),
             permissions=allow(),
         ),
+    )
+    # A ``many`` service: its list travels as one required array argument.
+    registry.register(
+        "create_widgets",
+        ServiceSpec(
+            service=_create_widgets,
+            many=True,
+            validator=widget_input(),
+            presenter=widget_presenter(),
+            permissions=allow(),
+        ),
+    )
+    # No presenter: the spec declares no output, so ``return_schema`` is null.
+    registry.register(
+        "ping", SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_ping, permissions=allow())
     )
     return SpecToolset(
         registry,
@@ -157,14 +195,30 @@ def _toolset() -> SpecToolset:
     )
 
 
+def _declared_default(field: dataclasses.Field[Any]) -> Any:
+    """What a ``ToolDefinition`` field is when nobody sets it.
+
+    A ``default_factory`` field has no ``default`` (it is ``MISSING``), so the
+    factory is called: comparing against ``MISSING`` would dump every one.
+    """
+    if field.default is not dataclasses.MISSING:
+        return field.default
+    return field.default_factory()
+
+
+def _projection(tool_def: ToolDefinition) -> dict[str, Any]:
+    """The five fields always, and any other field set away from its default."""
+    kept = {field: getattr(tool_def, field) for field in FIELDS}
+    for field in dataclasses.fields(tool_def):
+        if field.name not in kept and getattr(tool_def, field.name) != _declared_default(field):
+            kept[field.name] = getattr(tool_def, field.name)
+    return kept
+
+
 async def _definitions() -> dict[str, Any]:
     """Every tool ``get_tools`` offers, in its order, as the fields above."""
     tools = await _toolset().get_tools(run_context())
-    return {
-        "tools": [
-            {field: getattr(tool.tool_def, field) for field in FIELDS} for tool in tools.values()
-        ]
-    }
+    return {"tools": [_projection(tool.tool_def) for tool in tools.values()]}
 
 
 def _encode(definitions: dict[str, Any]) -> str:
@@ -176,7 +230,9 @@ async def test_the_advertised_tool_definitions_match_the_checked_in_dump():
     current = _encode(await _definitions())
     if WRITE:
         DUMP.write_text(current, encoding="utf-8")
-        return
+        # A skip, not a pass: a write left exported must not turn drift into a
+        # silent rewrite that CI reports green.
+        pytest.skip("wrote tests/spec_tools/tool_schemas.json")
     checked_in = DUMP.read_text(encoding="utf-8") if DUMP.exists() else ""
     if current != checked_in:
         diff = "".join(

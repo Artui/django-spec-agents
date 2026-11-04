@@ -235,7 +235,10 @@ are fine — module-level **mutable** state is not.
   change to what a tool advertises (its name, description, parameters schema, return
   schema, metadata) runs `make tool-schemas` and commits the rewritten dump in the same
   pull request, so the reviewer reads the change as a diff. A schema feature the
-  definitions gain earns a tool in that toolset.
+  definitions gain earns a tool in that toolset. A dump that changes because a kernel
+  (django-service-specs) or pydantic-ai release changed its output raises that
+  dependency's floor in the same pull request, since the lowest-declared-versions job and
+  the newest matrix cells otherwise need different dumps.
 
 ## Lint and types
 
