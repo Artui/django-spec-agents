@@ -19,7 +19,8 @@ class ToolRegistry:
 
     State lives on the instance — a transport holds one, tests build a fresh one
     per scenario. Each tool's JSON Schema is derived once at registration, with
-    ``schema_strategy`` (see
+    the tool's own ``ToolSpec.schema_strategy`` when it sets one and the
+    registry's ``schema_strategy`` otherwise (see
     [`build_input_schema`][django_spec_agents.build_input_schema]), and either
     sync or async callables can be dispatched.
 
@@ -35,10 +36,14 @@ class ToolRegistry:
         """Register ``spec`` and return its binding.
 
         Raises:
-            ValueError: when ``spec.name`` is already registered.
+            ValueError: when ``spec.name`` is already registered, or its
+                ``schema_strategy`` is not a ``SchemaStrategy``.
         """
         if spec.name in self._bindings:
             raise ValueError(f"tool {spec.name!r} already registered")
+        # ``build_input_schema`` coerces the strategy, so an unknown one on the
+        # spec is refused there.
+        strategy = self._schema_strategy if spec.schema_strategy is None else spec.schema_strategy
         binding = ToolBinding(
             spec=spec,
             input_schema=build_input_schema(
@@ -47,7 +52,7 @@ class ToolRegistry:
                 category=spec.category,
                 confirm=spec.confirm,
                 summary=spec.summary,
-                schema_strategy=self._schema_strategy,
+                schema_strategy=strategy,
             ),
         )
         self._bindings[spec.name] = binding

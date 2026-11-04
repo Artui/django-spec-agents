@@ -165,6 +165,59 @@ def test_the_registry_derives_each_binding_with_its_schema_strategy() -> None:
     }
 
 
+# The two strategies' schemas for ``_bounded``'s ``n``, so a binding shows which
+# derivation it got.
+_HAND_BUILT_N = {"type": "integer", "minimum": 1}
+_PYDANTIC_N = {"minimum": 1, "title": "N", "type": "integer"}
+
+
+def _bounded(n: Annotated[int, Field(ge=1)]) -> int:
+    return n
+
+
+@pytest.mark.parametrize(
+    ("registry_strategy", "tool_strategy", "expected"),
+    [
+        (SchemaStrategy.HAND_BUILT, SchemaStrategy.PYDANTIC, _PYDANTIC_N),
+        (SchemaStrategy.PYDANTIC, SchemaStrategy.HAND_BUILT, _HAND_BUILT_N),
+        (SchemaStrategy.HAND_BUILT, None, _HAND_BUILT_N),
+        (SchemaStrategy.PYDANTIC, None, _PYDANTIC_N),
+    ],
+    ids=["tool-pydantic", "tool-hand-built", "unset-hand-built", "unset-pydantic"],
+)
+def test_a_tools_own_schema_strategy_overrides_the_registrys(
+    registry_strategy: SchemaStrategy,
+    tool_strategy: SchemaStrategy | None,
+    expected: dict[str, Any],
+) -> None:
+    spec = ToolSpec(name="t", fn=_bounded, description="d", schema_strategy=tool_strategy)
+    binding = ToolRegistry(schema_strategy=registry_strategy).register(spec)
+    assert binding.input_schema["properties"]["n"] == expected
+
+
+def test_one_registry_holds_a_tool_of_each_strategy() -> None:
+    def other(n: Annotated[int, Field(ge=1)]) -> int:
+        return n
+
+    reg = ToolRegistry()
+    reg.register(
+        ToolSpec(
+            name="pydantic", fn=_bounded, description="d", schema_strategy=SchemaStrategy.PYDANTIC
+        )
+    )
+    reg.register(ToolSpec(name="hand_built", fn=other, description="d"))
+
+    assert reg.get("pydantic").input_schema["properties"]["n"] == _PYDANTIC_N
+    assert reg.get("hand_built").input_schema["properties"]["n"] == _HAND_BUILT_N
+
+
+def test_a_tools_unknown_schema_strategy_is_refused_at_registration() -> None:
+    bogus: Any = "bogus"
+    spec = ToolSpec(name="t", fn=_bounded, description="d", schema_strategy=bogus)
+    with pytest.raises(ValueError, match="bogus"):
+        ToolRegistry().register(spec)
+
+
 def test_the_registry_refuses_an_unknown_schema_strategy() -> None:
     bogus: Any = "bogus"
     with pytest.raises(ValueError, match="bogus"):

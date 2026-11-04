@@ -4,6 +4,7 @@ import pytest
 
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
+from django_spec_agents.types.schema_strategy import SchemaStrategy
 from django_spec_agents.types.tool_category import ToolCategory
 
 
@@ -79,3 +80,20 @@ def test_decorator_describes_a_tool_by_its_docstrings_first_paragraph(
     tool(reg)(fn)
 
     assert reg.get("fn").spec.description == description
+
+
+def test_decorator_sets_the_tools_schema_strategy() -> None:
+    reg = ToolRegistry()
+
+    @tool(reg, schema_strategy=SchemaStrategy.PYDANTIC)
+    def titled(n: int) -> int:
+        return n
+
+    @tool(reg)
+    def flat(n: int) -> int:
+        return n
+
+    assert reg.get("titled").spec.schema_strategy is SchemaStrategy.PYDANTIC
+    assert reg.get("titled").input_schema["title"] == "titled"
+    assert reg.get("flat").spec.schema_strategy is None
+    assert "title" not in reg.get("flat").input_schema

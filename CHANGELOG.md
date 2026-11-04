@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A tool can pick its own schema strategy.** `ToolSpec.schema_strategy` and
+  `@tool(schema_strategy=...)` take a `SchemaStrategy` that overrides the
+  registry's for that tool's `ToolBinding.input_schema`, so one `ToolRegistry`
+  can derive some tools by hand and others through pydantic. `None`, the
+  default, keeps the registry's strategy, so no existing schema changes. An
+  unknown strategy is refused with `ValueError` at registration.
+
 ### Removed
 
 - **The drf-mcp bridge is gone, after its minor of deprecation.** The
