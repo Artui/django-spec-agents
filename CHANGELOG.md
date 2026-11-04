@@ -30,9 +30,10 @@ own schema strategy.
   kernel specs. `build_tool_catalog` no longer takes `drf_mcp_server=`: pass the
   server as `mcp_server=`, or the call raises `TypeError`. A failed call's
   message no longer carries a `step:` label, which only drf-mcp's chains sent.
-  Upgrading needs django-ag-ui 0.74.0 and django-admin-agent 0.59.0 or later if
-  you run either, since earlier releases pass `drf_mcp_server=` and set no cap
-  on this package.
+  django-ag-ui before 0.74.0 and django-admin-agent before 0.59.0 still accept
+  `drf_mcp_server=` and import `DRFMCPToolset` for it, which now fails at the
+  first request; they set no cap on this package, so a host passing that
+  keyword moves to `mcp_server=` with a django-spec-mcp server first.
 - **`ToolFailurePolicy`'s default pass-through set no longer holds DRF's
   `PermissionDenied`.** It holds Django's `PermissionDenied` and, with the
   kernel, `NotPermitted` and `PrincipalUnavailable`. When a project's own

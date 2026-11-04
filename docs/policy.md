@@ -69,7 +69,7 @@ and are recorded as they propagate. A `ToolFailed` that **a tool raises
 itself** is converted by pydantic-ai into a `ToolFailedError` carrying the same
 message, so `raise ToolFailed("model copy") from e` is recorded as
 `ToolFailedError: model copy`, and the policy is never handed it. The MCP
-bridges' refusals arrive the same way. A `ModelRetry` is recorded as
+bridge's refusals arrive the same way. A `ModelRetry` is recorded as
 `ToolRetryError: <message>`, and the retried call gets a record of its own.
 From a code-mode sandbox, whose nested tool manager converts neither, both are
 recorded as raised: `ToolFailed: model copy` and `ModelRetry: <message>`.
@@ -191,7 +191,7 @@ A hint has to *say* something. Annotations that say nothing, an absent stamp, or
 metadata of some other shape entirely leave the tool alone — silence is not a
 claim, and `require_approval` is the answer for a tool whose source declares
 nothing. Annotations that say anything are read by MCP's defaults, as the
-bridges read them.
+bridge reads them.
 
 `DESTRUCTIVE_METADATA_KEY` still rides tool *metadata* rather than only the
 schema, because metadata is the channel a bridge controls and the schema is the

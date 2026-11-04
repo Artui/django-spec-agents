@@ -104,6 +104,16 @@ def test_a_reason_under_no_field_counts_as_its_own_words(detail: Any) -> None:
     )
 
 
+def test_the_non_field_key_is_the_one_passed() -> None:
+    # The key is the caller's, not a spelling held here: under another key the
+    # same reason is still structure, and ``non_field_errors`` becomes a field.
+    detail = {"errors": [_UNEXPECTED]}
+    assert retry_message(_UNEXPECTED, detail, non_field_key="errors") == _UNEXPECTED
+    assert retry_message(
+        _UNEXPECTED, {"non_field_errors": [_UNEXPECTED]}, non_field_key="errors"
+    ) == (f"{_UNEXPECTED}: {json.dumps({'non_field_errors': [_UNEXPECTED]})}")
+
+
 def test_a_failure_is_suffixed_with_its_code_alone() -> None:
     # ``failedStep`` named a drf-mcp chain step; django-spec-mcp has no chains
     # and never sends it, so a key by that name is not labelled.

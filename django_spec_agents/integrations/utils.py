@@ -156,7 +156,8 @@ def _message_says(message: str, detail: Any, non_field_key: str) -> bool:
     every name rather than any by
     ``test_a_detail_the_message_names_only_in_part_is_kept_whole``; the
     whole-token match by ``test_a_name_counts_only_as_a_whole_token``; and the
-    non-field key by ``test_a_reason_under_no_field_counts_as_its_own_words``.
+    non-field key by ``test_a_reason_under_no_field_counts_as_its_own_words``,
+    and that it is the caller's by ``test_the_non_field_key_is_the_one_passed``.
     Which key the bridge passes is held at its call site, by
     ``test_the_non_field_key_is_the_kernels`` in ``test_mcp.py``.
     """

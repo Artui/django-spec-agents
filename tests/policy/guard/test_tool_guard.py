@@ -186,7 +186,7 @@ class TestEveryDestructivenessSignal:
 
 
 # Each row: the annotations a server sent (only the fields it set) and whether a
-# tool carrying them is destructive. The bridges' rule is the reference: a
+# tool carrying them is destructive. The bridge's rule is the reference: a
 # tool that says something is marked unless ``readOnlyHint`` is true or
 # ``destructiveHint`` is false; one that says nothing is not.
 _ANNOTATION_TRUTH_TABLE = [
@@ -223,10 +223,10 @@ def _full_dump(sent: dict[str, Any]) -> dict[str, Any]:
     return {**_FULL_DUMP, **sent}
 
 
-class TestMcpAnnotationsAgreeWithTheBridges:
+class TestMcpAnnotationsAgreeWithTheBridge:
     @pytest.mark.parametrize(("sent", "destructive"), _ANNOTATION_TRUTH_TABLE)
     @pytest.mark.parametrize("shape", [dict, _full_dump], ids=["plain-dict", "full-dump"])
-    async def test_the_guard_reads_annotations_as_the_bridges_do(
+    async def test_the_guard_reads_annotations_as_the_bridge_does(
         self, sent: dict[str, Any], destructive: bool, shape: Callable[[dict[str, Any]], Any]
     ) -> None:
         guard = ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True))
