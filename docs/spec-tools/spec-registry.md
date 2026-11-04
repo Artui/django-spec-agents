@@ -299,8 +299,8 @@ Those checks read the spec as described to no call, as the tool's schema does.
 A Validator declaring `parameters(self, *, call_context=None)` can declare a
 bound field otherwise to a call, so every call checks the bound values again,
 against what the Validator declares to that call. One its declaration refuses
-raises `ImproperlyConfigured` naming the spec, never a retry, since the model
-neither sent the value nor can see it.
+raises `ImproperlyConfigured` naming the tool and the spec, never a retry, since
+the model neither sent the value nor can see it.
 
 The bindings are fixed when the toolset is built, like its tool definitions.
 For a per-run scope, build a toolset per run, from the run's scope. A tool
