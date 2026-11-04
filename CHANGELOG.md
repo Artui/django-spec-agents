@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.1] — 2026-11-04
 
+### Fixed
+
+- **A tool call reads a Validator as it declares itself to that call.**
+  django-service-specs 0.26.0 lets a Validator declare
+  `parameters(self, *, call_context=None)`, and `SpecToolset` now hands the
+  call's context to the two kernel helpers a call runs before dispatch. A value
+  `tool_server_arguments` binds is checked against what the Validator declares
+  to the call: one the call's declaration refuses raises `ImproperlyConfigured`,
+  the server's error, where the model was handed a retry naming an argument it
+  never sent. And a seed-named field the tool's schema offers but the call's
+  declaration drops is filled by the registered seed, the model's value dropped,
+  where the call was refused with `Unknown argument`. The schema and the checks
+  run when the toolset is built still describe the spec to no call. The kernel
+  floor is now `>=0.26.0`.
+
 ## [0.7.0] — 2026-11-04
 
 The drf-mcp bridge, deprecated in 0.6.0, is removed, and a tool can pick its
