@@ -1,0 +1,280 @@
+{
+  "tools": [
+    {
+      "description": "Create a widget.",
+      "metadata": {
+        "annotations": {
+          "readOnlyHint": false
+        }
+      },
+      "name": "create_widget",
+      "parameters_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "price": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "price"
+        ],
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "price"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Fetch one widget by id.",
+      "metadata": {
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      "name": "get_widget",
+      "parameters_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "pk": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pk"
+        ],
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "id": {
+            "description": "Widget handle.",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "price"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Search widgets.",
+      "metadata": {
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      "name": "search_widgets",
+      "parameters_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "description": "Fields to return. On a paged result it applies to each item in `items`, never to the page envelope (`items`, `page`, `totalPages`, `hasNext`).",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of items per page. Defaults to 50; the result reports `totalPages` and `hasNext`.",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ordering": {
+            "items": {
+              "enum": [
+                "price",
+                "-price",
+                "name",
+                "-name"
+              ],
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "page": {
+            "description": "1-based page number.",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "totalPages",
+          "hasNext"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "The bound project's vendor.",
+      "metadata": {
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      "name": "vendor",
+      "parameters_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "default": "",
+            "description": "A note to match.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Create several widgets in one call.",
+      "metadata": {
+        "annotations": {
+          "readOnlyHint": false
+        }
+      },
+      "name": "create_widgets",
+      "parameters_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                "price": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "name",
+                "price"
+              ],
+              "type": "object"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "return_schema": {
+        "items": {
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "price": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "price"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    {
+      "description": "Check the service is up.",
+      "metadata": {
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      "name": "ping",
+      "parameters_json_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "return_schema": null
+    }
+  ]
+}
