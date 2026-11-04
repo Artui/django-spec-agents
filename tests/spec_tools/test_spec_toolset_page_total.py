@@ -16,6 +16,7 @@ from __future__ import annotations
 import pathlib
 import re
 import warnings
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
@@ -204,30 +205,58 @@ async def test_the_capability_forwards_the_flag():
     assert "total" in tools["list_widgets"].tool_def.return_schema["properties"]
 
 
+@dataclass(frozen=True)
+class _CountingPage(OutputPage):
+    def envelope(self, rendered: Any) -> dict[str, Any]:
+        return {**super().envelope(rendered), "total": self.total}
+
+
 @pytest.mark.django_db
-def test_an_override_decides_per_tool_by_the_page_it_returns():
-    """The flag is read by the default ``shape_page``, so an override building a
-    page of its own carries only what that page's ``envelope`` writes."""
+def test_per_tool_is_the_flag_off_and_an_override_counting_the_chosen_tools():
+    """What every tool advertises agrees with what it is sent.
+
+    The return schema and the ``limit`` description are written from the flag
+    at construction, and an override changes only the payload. So the per-tool
+    route is the flag off and the override adding ``total``: no tool then
+    advertises a key its page lacks, which the flag on with an override
+    dropping ``total`` would do on every turn.
+    """
 
     class OnlyWidgetsCounted(SpecToolset):
         def shape_page(self, rows, *, ctx, page, limit, max_page_size):
             shaped = super().shape_page(
                 rows, ctx=ctx, page=page, limit=limit, max_page_size=max_page_size
             )
-            if ctx.tool_name == "list_widgets":
+            if ctx.tool_name != "list_widgets":
                 return shaped
-            return OutputPage(
+            return _CountingPage(
                 items=shaped.items, page=shaped.page, limit=shaped.limit, total=shaped.total
             )
 
     user = User.objects.create(username="u")
     _widgets(user, 3)
-    toolset = OnlyWidgetsCounted(
-        {"list_widgets": _list_spec(), "list_others": _list_spec()}, include_total=True
-    )
+    toolset = OnlyWidgetsCounted({"list_widgets": _list_spec(), "list_others": _list_spec()})
 
-    assert _call(toolset, user, {}, "list_widgets")["total"] == 3
-    assert set(_call(toolset, user, {}, "list_others")) == _ENVELOPE
+    counted = _call(toolset, user, {}, "list_widgets")
+    plain = _call(toolset, user, {}, "list_others")
+
+    assert counted["total"] == 3
+    assert set(plain) == _ENVELOPE
+    for name, payload in (("list_widgets", counted), ("list_others", plain)):
+        tool_def = toolset._tool_defs[name]
+        assert tool_def.return_schema is not None
+        assert set(tool_def.return_schema["required"]) <= set(payload), name
+        assert (
+            "`total`" not in tool_def.parameters_json_schema["properties"]["limit"]["description"]
+        )
+
+
+def test_a_list_with_no_presenter_still_advertises_no_return_schema():
+    """The kernel derives no schema without a presenter, and the flag adds
+    ``total`` to a derived envelope only: it never conjures one."""
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=list_widgets, permissions=allow())
+
+    assert SpecToolset({"l": spec}, include_total=True)._tool_defs["l"].return_schema is None
 
 
 def _documented_recipe() -> dict[str, Any]:
@@ -246,13 +275,13 @@ async def test_the_documented_aggregates_recipe_runs_through_call_tool():
     """The page's own code, over this suite's widgets: its ``LIST_AGGREGATES``
     is swapped for one naming a ``Widget`` column, and nothing else is."""
     recipe = _documented_recipe()
-    recipe["LIST_AGGREGATES"] = {"list_widgets": {"price_total": Sum("price")}}
+    recipe["LIST_AGGREGATES"] = {"list_widgets": {"price_total": Sum("price")}, "list_counted": {}}
     user = await sync_to_async(User.objects.create)(username="u")
     other = await sync_to_async(User.objects.create)(username="other")
     for n, owner in ((1, user), (2, user), (4, user), (8, other)):
         await sync_to_async(Widget.objects.create)(name=f"w{n}", price=n, owner=owner)
     toolset = recipe["AggregatedSpecToolset"](
-        {"list_widgets": _list_spec(), "list_others": _list_spec()}
+        {"list_widgets": _list_spec(), "list_others": _list_spec(), "list_counted": _list_spec()}
     )
     tools = await toolset.get_tools(None)
 
@@ -263,8 +292,30 @@ async def test_the_documented_aggregates_recipe_runs_through_call_tool():
         "list_others", {"limit": 1}, _ctx(user, "list_others"), tools["list_others"]
     )
 
+    only_total = await toolset.call_tool(
+        "list_counted", {"limit": 1}, _ctx(user, "list_counted"), tools["list_counted"]
+    )
+
     assert (counted["total"], counted["price_total"], len(counted["items"])) == (3, 7, 1)
     assert set(plain) == _ENVELOPE
+    assert set(only_total) == {*_ENVELOPE, "total"}
+    assert only_total["total"] == 3
+
+
+@pytest.mark.django_db
+def test_the_documented_recipe_runs_no_aggregate_for_an_empty_entry():
+    """``total`` alone is the count already taken, so an empty entry costs no query."""
+    recipe = _documented_recipe()
+    recipe["LIST_AGGREGATES"] = {"list_widgets": {}}
+    user = User.objects.create(username="u")
+    _widgets(user, 3)
+    toolset = recipe["AggregatedSpecToolset"]({"list_widgets": _list_spec()})
+
+    with CaptureQueriesContext(connection) as queries:
+        result = _call(toolset, user, {"limit": 2})
+
+    assert result["total"] == 3
+    assert len(queries.captured_queries) == 2
 
 
 @pytest.mark.django_db

@@ -291,8 +291,11 @@ def _limit_param_schema(
 
     The ceiling is advertised as well as clamped: a schema with no ``maximum``
     invites a request for 100 000 rows, and telling the model is cheaper than
-    correcting it. ``total`` is named when the page carries it, so a model
-    asked "how many" knows one small page answers it.
+    correcting it. ``total`` is named under ``include_total``, so a model
+    asked "how many" knows one small page answers it. It follows the flag,
+    which is fixed at construction, and never a ``shape_page`` override: the
+    description is sent on every turn, so an override dropping ``total`` from
+    the page under the flag would leave it promising a key that never comes.
     """
     reported = (
         "`total`, `totalPages` and `hasNext`" if include_total else "`totalPages` and `hasNext`"
@@ -541,9 +544,12 @@ class SpecToolset(AbstractToolset[Any]):
             every page, to each list tool's page beside ``totalPages`` and
             ``hasNext``, and advertises it in the tool's return schema and its
             ``limit`` description. Off by default. It costs no query: the count
-            is the one taken before the slice. It is read by the default
-            ``shape_page``, so a project that wants it on some tools only
-            overrides that and returns the page each tool should carry.
+            is the one taken before the slice. The flag is toolset-wide, and
+            what is advertised follows it rather than any ``shape_page``
+            override. A project that wants ``total`` on some tools only leaves
+            it off and has an override return a counting page for those
+            tools, so nothing advertised claims a key a page lacks; turning it
+            on and dropping ``total`` from some tools would.
         thread_sensitive: Whether every dispatch shares one thread. ``True``
             (the default, and asgiref's) is what keeps Django's thread-local
             database connections coherent, and is why it is not flipped for you.
@@ -1265,11 +1271,15 @@ class SpecToolset(AbstractToolset[Any]):
         to the queryset by the time this runs; an ``order_by`` here would replace
         that sort rather than compose with it.
 
-        **``include_total`` is read here**, and only here: on, the page returned
-        writes ``total`` into its envelope. An override that builds a page of
-        its own carries what that page's ``envelope`` writes, which is how a
-        project decides per tool (``ctx.tool_name`` names the call's) or adds
-        figures of its own beside the count.
+        **``include_total`` decides the page here**: on, the page returned
+        writes ``total`` into its envelope. The return schema and the ``limit``
+        description follow the flag too, but they are written at construction,
+        so an override changes the payload and never what is advertised. An
+        override that builds a page of its own carries what that page's
+        ``envelope`` writes: that is how a project with the flag off adds
+        ``total``, or figures of its own, on the tools it chooses
+        (``ctx.tool_name`` names the call's). Under the flag, an override should
+        keep ``total`` on every page, since every tool advertises it.
         """
         del ctx  # unused by the default; present so an override has it
         shaped = _shape_list(rows, page=page, limit=limit, max_page_size=max_page_size)

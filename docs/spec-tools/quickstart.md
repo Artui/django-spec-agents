@@ -117,7 +117,7 @@ A list selector answers with the pagination envelope, never a bare array:
 
 ```python
 {
-    "items": [{"id": 12, "total": "48.00"}, ...],
+    "items": [{"id": 12, "amount": "48.00"}, ...],
     "page": 1,
     "totalPages": 4,
     "hasNext": True,
@@ -150,7 +150,8 @@ toolset = SpecToolset(specs, max_page_size=25)
 ```
 
 The same envelope is what the tool's `return_schema` describes, generated from
-the same spec — so the schema and the payload cannot disagree about it.
+the same spec — so, as the default `shape_page` serves it, the schema and the
+payload cannot disagree about it.
 
 ### How many rows match: `include_total`
 
@@ -165,7 +166,7 @@ toolset = SpecToolset(specs, include_total=True)
 
 ```python
 {
-    "items": [{"id": 12, "total": "48.00"}, ...],
+    "items": [{"id": 12, "amount": "48.00"}, ...],
     "page": 1,
     "totalPages": 4,
     "hasNext": True,
@@ -181,11 +182,16 @@ on. With it on, the tool's `return_schema` lists `total` as required and the
 many". With it off, the default, the envelope and both schemas are exactly as
 above. `SpecCapability` takes the same keyword.
 
-The flag is read by the default
-[`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page], which is
-also where a project decides per tool: an override returns the page each tool
-should carry, reading the call's tool name off `ctx.tool_name`, and a page it
-builds itself writes only what that page's `envelope` writes.
+The flag is toolset-wide, and so is what it advertises: the return schema and
+the `limit` description are written from it when the toolset is built. For
+`total` on some tools only, leave the flag off and override
+[`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page] to return a
+counting page for those tools, reading the call's tool name off
+`ctx.tool_name`. The recipe below does exactly that, and an empty entry in its
+`LIST_AGGREGATES` adds `total` alone. Nothing advertised then claims a key a
+page lacks. The reverse, the flag on and an override dropping `total` from some
+tools, leaves those tools' `limit` description, which the model reads on every
+turn, promising a key that never comes.
 
 ### Aggregates beside the total: a `shape_page` override
 
@@ -204,9 +210,11 @@ from django_service_specs import OutputPage
 
 from django_spec_agents.spec_tools import SpecToolset
 
-# Keyed by tool name. A list tool with no entry is served the default page.
+# Keyed by tool name. A list tool with no entry is served the default page;
+# an empty entry adds ``total`` alone.
 LIST_AGGREGATES: dict[str, dict[str, Aggregate]] = {
     "list_invoices": {"amount_total": Sum("amount")},
+    "list_customers": {},
 }
 
 
@@ -226,10 +234,11 @@ class AggregatedSpecToolset(SpecToolset):
             rows, ctx=ctx, page=page, limit=limit, max_page_size=max_page_size
         )
         declared = LIST_AGGREGATES.get(ctx.tool_name or "")
-        if not declared or not isinstance(rows, QuerySet):
+        if declared is None or not isinstance(rows, QuerySet):
             return shaped
         # Over ``rows``, the filtered queryset before its slice: the same set
-        # ``total`` counts. An empty list sums to ``None``, reported as 0.
+        # ``total`` counts. An empty list sums to ``None``, reported as 0, and an
+        # empty entry aggregates nothing, which Django answers without a query.
         aggregates = {name: value or 0 for name, value in rows.aggregate(**declared).items()}
         return AggregatedPage(
             items=shaped.items,
@@ -240,12 +249,17 @@ class AggregatedSpecToolset(SpecToolset):
         )
 ```
 
-`list_invoices` then answers `{"items": [...], "page": 1, "totalPages": 3,
-"hasNext": true, "total": 41, "amount_total": 10428}`. Unlike `total`, the
-aggregates are a query of their own, one per call of a tool that declares any.
-The `return_schema` still describes the default envelope, so a project sending
-return schemas to the model states the extra keys in the tool's
-`metadata["json_schema"]["output"]` fragment, [below](#the-output-schema).
+Called with `limit: 20`, `list_invoices` then answers `{"items": [...], "page":
+1, "totalPages": 3, "hasNext": true, "total": 41, "amount_total": 10428}`, and
+`list_customers` its page with `total` beside it. Unlike `total`, the aggregates
+are a query of their own, one per call of a tool that declares any. With the
+flag off, the `return_schema` and the `limit` description still describe the
+default envelope: true of what is sent, but silent about the new keys, which
+name themselves in the payload. A project sending return schemas to the model
+states them in the tool's `metadata["json_schema"]["output"]`
+[fragment](#the-output-schema). The merge is shallow, so that fragment replaces
+`properties` and `required` whole: restate the envelope's keys, `items` with its
+row schema, beside `total` and the aggregates, or the schema loses them.
 
 ## The output schema
 
