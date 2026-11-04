@@ -29,13 +29,16 @@ bridge's own module.
   `parameters(self, *, call_context=None)`, and `SpecToolset` now hands the
   call's context to the two kernel helpers a call runs before dispatch. A value
   `tool_server_arguments` binds is checked against what the Validator declares
-  to the call: one the call's declaration refuses raises `ImproperlyConfigured`,
-  the server's error, where the model was handed a retry naming an argument it
-  never sent. And a seed-named field the tool's schema offers but the call's
-  declaration drops is filled by the registered seed, the model's value dropped,
-  where the call was refused with `Unknown argument`. The schema and the checks
-  run when the toolset is built still describe the spec to no call. The kernel
-  floor is now `>=0.26.0`.
+  to the call: one the call's declaration refuses raises `ImproperlyConfigured`
+  naming the tool, the server's error, where the model was handed a retry
+  naming an argument it never sent. A seed-named field the tool's schema offers
+  but the call's declaration drops is filled by the registered seed, the
+  model's value dropped, where the call was refused with `Unknown argument`. A
+  key a typed provider fills stays the server's when only the call's
+  declaration names it: the model's value is dropped, where a malformed one was
+  handed back as a retry. The schema and the checks run when the toolset is
+  built still describe the spec to no call. The kernel floor is now
+  `>=0.26.0`.
 
 ## [0.7.0] — 2026-11-04
 

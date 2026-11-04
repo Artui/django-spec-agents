@@ -12,7 +12,7 @@ fails there on what it asserts.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TypedDict
 
 import pytest
 from django.contrib.auth.models import User
@@ -161,3 +161,53 @@ async def test_a_seed_named_field_declared_only_to_the_call_is_the_model_s_to_se
 
     assert "tenant" not in _input_schema_of(toolset, "record")["properties"]
     assert result == {"data": {"title": "Dune", "tenant": "globex"}, "tenant": "tenant-of-acme"}
+
+
+class _Owner(TypedDict):
+    owner: int
+
+
+def _fills_owner() -> _Owner:
+    """A typed provider filling ``owner``, so the key is the server's on every call."""
+    return _Owner(owner=1)
+
+
+class _OwnerToTheCall(Validator):
+    """Declares ``title``, and ``owner`` an integer only to the run's calls."""
+
+    def parameters(self, *, call_context: dict[str, Any] | None = None) -> Parameters:
+        title = Parameter("title", "string")
+        if _marked(call_context):
+            return Parameters.of(title, Parameter("owner", "integer"))
+        return Parameters.of(title)
+
+    def validate(self, arguments: Mapping[str, Any], context: ValidationContext) -> dict[str, Any]:
+        return dict(arguments)
+
+
+async def test_a_provider_filled_field_declared_only_to_the_call_drops_the_model_s_value():
+    """The provider's ``owner`` is the one validated; the model's malformed guess costs no retry.
+
+    The tool's schema does not offer ``owner``, which the Validator declares
+    only to the call, and the typed provider fills it, so it is the server's.
+    The model's value is dropped before dispatch reads it, as it is for a key
+    a provider fills that the schema offers. Weighing only the names declared
+    to no call, the toolset passed the value on and the shape check handed the
+    model ``owner: Expected an integer.`` for a key it can never set.
+    """
+    toolset = SpecToolset(
+        {
+            "record": ServiceSpec(
+                service=report,
+                validator=_OwnerToTheCall(),
+                input_data=_fills_owner,
+                atomic=False,
+                permissions=allow(),
+            )
+        }
+    )
+
+    result = await _call_in_the_run(toolset, "record", {"title": "Dune", "owner": "nobody"})
+
+    assert "owner" not in _input_schema_of(toolset, "record")["properties"]
+    assert result == {"data": {"title": "Dune", "owner": 1}, "tenant": None}

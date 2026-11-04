@@ -3148,7 +3148,10 @@ def _call_arguments(
     A field declared only to the call is weighed against ``owned`` too, so the
     ``server_owned_keys`` keyword decides it, and ``owned`` leaves it to the
     model
-    (``test_a_seed_named_field_declared_only_to_the_call_is_the_model_s_to_send``).
+    (``test_a_seed_named_field_declared_only_to_the_call_is_the_model_s_to_send``),
+    while a key a typed provider fills is the server's, so the model's value
+    for it is dropped rather than shape-checked into a retry
+    (``test_a_provider_filled_field_declared_only_to_the_call_drops_the_model_s_value``).
     """
     arguments = {
         name: value for name, value in args.items() if not (name in declared and name in owned)
