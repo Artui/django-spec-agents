@@ -2019,6 +2019,13 @@ own refusal answer alike.</p>
   a value the call would ignore. See
   <a href="#what-a-tool-asks-the-model-for">What a tool asks the model for</a>.</li>
 </ul>
+<p>A top-level Validator field named like a registered seed is the exception to
+the first point: the model sends it and it is validated into <code>data</code>, while the
+service parameter of that name stays the seed's. A Validator declaring
+<code>parameters(self, *, call_context=None)</code> is read as it declares itself to the
+call. A field the tool's schema offers that the call's declaration drops is
+answered by the seed, and the model's value is dropped rather than refused as
+unknown. A field declared only to the call is the model's to send.</p>
 <p>The registry applies to the whole toolset. A seed is ambient to the
 deployment, and what varies with the acting user belongs in the resolver,
 which declares <code>user</code> to receive it. What varies with the run or the tool
