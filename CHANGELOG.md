@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-11-04
+
+A list tool's page can say how many rows match, opted in per toolset.
+
+### Added
+
+- **`SpecToolset(include_total=True)` adds `total` to every list tool's page.**
+  Beside `items`, `page`, `totalPages` and `hasNext`, `total` is how many rows
+  the selector matched across every page, so a model asked "how many" reads one
+  number instead of paging through the rows or multiplying `totalPages`. It
+  costs no query: the kernel's `paginate_output` already counts the rows before
+  slicing them, and the flag hands that count on. With it on, the tool's
+  `return_schema` lists `total` as required and the `limit` description names
+  it. Off by default, and off the envelope, the schemas and the descriptions are
+  unchanged. `SpecCapability` takes the same keyword. The flag is read by the
+  default `shape_page`, so a project wanting it on some tools only overrides that
+  seam, and the toolset page carries the recipe for declared aggregates (sums
+  over the same filtered rows) as such an override.
+- **django-spec-mcp 0.8.1 in `uv.lock`**, from 0.6.0. Lock only; no floor moved.
+
 ## [0.7.1] — 2026-11-04
 
 A tool call reads a Validator as it declares itself to that call, on
@@ -665,7 +685,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Artui/django-spec-agents/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Artui/django-spec-agents/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Artui/django-spec-agents/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/Artui/django-spec-agents/compare/v0.6.1...v0.6.2
