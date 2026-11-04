@@ -33,7 +33,7 @@ from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
-from django_spec_agents.integrations.mcp import MCPToolset
+from django_spec_agents.integrations.mcp import MCPToolset, _failure_message, _retry_message
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
@@ -853,3 +853,99 @@ async def test_both_routes_refuse_a_list_selector_reading_page() -> None:
         )
     with pytest.raises(ImproperlyConfigured, match=r"\['page'\], but `page` and `limit` are"):
         build_spec_capability({"recent_rows": spec})
+
+
+# ---------- the wording helpers ----------
+#
+# The bridge's wording for a refusal, held on its own terms: the helpers are
+# module-private, so these call them directly rather than through a server.
+
+
+def test_retry_message_without_detail_is_the_bare_message() -> None:
+    assert _retry_message("nope", None) == "nope"
+
+
+def test_a_detail_the_message_already_names_is_dropped() -> None:
+    # The servers' missing-argument line names the argument its detail is keyed
+    # by, and that detail's only reason is "required", which the line says.
+    assert (
+        _retry_message("Missing required argument(s): `pk`.", {"pk": ["This field is required."]})
+        == "Missing required argument(s): `pk`."
+    )
+
+
+def test_a_name_counts_only_as_a_whole_token() -> None:
+    """Holds the lookarounds: a name is matched as a token, never a substring.
+
+    ``a`` sits inside ``arguments``, so a substring match would drop the only
+    place the generic message's reason is written. A key ending in a non-word
+    character still matches, which ``\\b`` would refuse.
+    """
+    detail = {"a": ["A valid integer is required."]}
+    assert _retry_message("Invalid arguments", detail) == (
+        'Invalid arguments: {"a": ["A valid integer is required."]}'
+    )
+    assert _retry_message("Missing required argument(s): `a`.", detail) == (
+        "Missing required argument(s): `a`."
+    )
+    assert (
+        _retry_message("Missing required argument(s): `tags[]`.", {"tags[]": ["Required."]})
+        == "Missing required argument(s): `tags[]`."
+    )
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        pytest.param({"items": {"name": ["This field is required."]}}, id="dict"),
+        pytest.param({"items": [{}, {"name": ["This field is required."]}]}, id="list"),
+    ],
+)
+def test_a_nested_key_is_a_name_the_message_must_carry(detail: Any) -> None:
+    # Every key counts, at any depth: naming ``items`` says nothing about which
+    # of its fields was refused.
+    assert _retry_message("Invalid `items`.", detail) == (f"Invalid `items`.: {json.dumps(detail)}")
+    assert _retry_message("Invalid `name` in `items`.", detail) == "Invalid `name` in `items`."
+
+
+def test_a_detail_the_message_names_only_in_part_is_kept_whole() -> None:
+    # Every name, not any: the field the message leaves out is still in the
+    # detail, and the detail is never cut down to it.
+    detail = {"pk": ["This field is required."], "name": ["This field is required."]}
+    assert _retry_message("Missing required argument(s): `pk`.", detail) == (
+        f"Missing required argument(s): `pk`.: {json.dumps(detail)}"
+    )
+    assert (
+        _retry_message("Missing required argument(s): `name`, `pk`.", detail)
+        == "Missing required argument(s): `name`, `pk`."
+    )
+
+
+_UNEXPECTED = "Unexpected argument(s): 'notify_owner'."
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        pytest.param({NON_FIELD_ERRORS: [_UNEXPECTED]}, id="non-field-key"),
+        pytest.param([_UNEXPECTED], id="bare-list"),
+        pytest.param(_UNEXPECTED, id="bare-string"),
+    ],
+)
+def test_a_reason_under_no_field_counts_as_its_own_words(detail: Any) -> None:
+    """Holds the non-field branch: the non-field key is structure, not a name.
+
+    Its strings sit under no field, so they are what the message has to quote,
+    as a bare list or string's are; the key itself never counts as said.
+    """
+    assert _retry_message(_UNEXPECTED, detail) == _UNEXPECTED
+    assert _retry_message("Invalid arguments", detail) == (
+        f"Invalid arguments: {json.dumps(detail)}"
+    )
+
+
+def test_a_failure_is_suffixed_with_its_code_alone() -> None:
+    # ``failedStep`` named a drf-mcp chain step; django-spec-mcp has no chains
+    # and never sends it, so a key by that name is not labelled.
+    error = {"message": "The books are closed.", "code": "books_closed", "failedStep": "post"}
+    assert _failure_message(error) == "The books are closed. (code: books_closed)"

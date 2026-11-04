@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.1] — 2026-11-04
 
+A tool call reads a Validator as it declares itself to that call, on
+django-service-specs 0.26.0, and the MCP bridge's wording helpers move into the
+bridge's own module.
+
+### Changed
+
+- **`integrations/utils.py` is folded into `integrations/mcp.py`.** Its wording
+  helpers served two MCP bridges until 0.7.0 removed one, so `MCPToolset` now
+  carries them as module-private functions and the module is gone. The
+  `non_field_key` parameter went with it, since the bridge always passed the
+  kernel's `NON_FIELD_ERRORS`. Nothing public moved and no tool's wording
+  changed.
+
 ### Fixed
 
 - **A tool call reads a Validator as it declares itself to that call.**
