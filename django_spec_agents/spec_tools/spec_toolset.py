@@ -2746,8 +2746,8 @@ def _apply_server_arguments(
     what the spec declares to this call. Construction checked them against
     the declaration made to no call; a Validator declaring a bound field
     otherwise to the call refuses the value here, as the server's
-    ``ImproperlyConfigured`` (named for the tool by the caller), never as a retry asking the model to correct a
-    value it neither sent nor saw
+    ``ImproperlyConfigured`` (named for the tool by the caller), never as a
+    retry asking the model to correct a value it neither sent nor saw
     (``test_a_bound_value_is_checked_against_the_call_s_own_declaration``).
     """
     dropped = sorted(server.names() & args.keys())
