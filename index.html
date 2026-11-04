@@ -1235,8 +1235,7 @@ dependency. Reach for it on its own when you are:</p>
 <li><strong><a href="policy/">Policy</a></strong>: an audit trail over every tool call, a server-side
   approval gate for destructive tools, and the failure policy.</li>
 <li><strong><a href="integrations/">Integrations</a></strong>: the <code>[specs]</code> and <code>[mcp]</code> bridges
-  that compose specs or a <code>django-spec-mcp</code> registry into an agent the host builds,
-  and the deprecated <code>[drf-mcp]</code>.</li>
+  that compose specs or a <code>django-spec-mcp</code> registry into an agent the host builds.</li>
 </ul>
 <h2 id="specs-as-tools">Specs as tools<a class="headerlink" href="#specs-as-tools" title="Permanent link">&para;</a></h2>
 <p><code>SpecToolset</code> turns a <code>name -&gt; spec</code> mapping, or a spec registry, into
@@ -1255,9 +1254,8 @@ nothing else; the deps a run passes are the host's
 <p><strong>The package reads no Django settings of its own.</strong> There is no <code>DJANGO_*</code>
 lookup anywhere in it. Its public input is an <code>AgentConfig</code> dataclass; each
 transport owns its own settings namespace, resolves its config, and hands the
-record down. What it does read is Django's and DRF's own configuration:
-<code>STORAGES</code>, for the store app's optional attachment storage alias, and DRF's
-settings, where <code>spec_tools</code> and the <code>[drf-mcp]</code> bridge run through DRF.</p>
+record down. What it does read is Django's own configuration: <code>STORAGES</code>, for
+the store app's optional attachment storage alias.</p>
 <p>That is what keeps transports independent: <code>django-ag-ui</code> reads <code>DJANGO_AG_UI</code>,
 <code>django-a2a</code> reads its own, and neither fights the other for keys. A settings
 read added here would turn every consumer's upgrade into a key migration. It is

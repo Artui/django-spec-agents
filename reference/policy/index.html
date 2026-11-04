@@ -2254,7 +2254,7 @@ classify them.</p>
         <p>Records every tool execution to an
 <a class="autorefs autorefs-internal" title="AuditLogger" href="#django_spec_agents.AuditLogger"><code>AuditLogger</code></a> sink.</p>
 <p>A Pydantic-AI capability on the tool-execution hooks, so it records
-<strong>every</strong> tool the agent runs: registry tools, the drf-mcp and spec
+<strong>every</strong> tool the agent runs: registry tools, the MCP and spec
 bridges, attachment and skill tools alike.</p>
 <p><strong>One record per execution, describing the tool's own execution</strong>, whatever
 other capabilities sort ahead of it and on every supported pydantic-ai.
@@ -2920,19 +2920,19 @@ so one hook covers every tool the agent sees wherever it came from:</p>
   
       module-attribute
   " href="../registry/#django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY"><code>DESTRUCTIVE_METADATA_KEY</code></a> the
-  bridge stamps into <code>ToolDefinition.metadata</code>. Both bridges mark a tool
+  bridge stamps into <code>ToolDefinition.metadata</code>. The bridge marks a tool
   unless its <code>readOnlyHint</code> is true or its <code>destructiveHint</code> is false, as
   MCP reads the pair, so a mutation registered with
   <code>annotations={"destructiveHint": False}</code> is not gated. A tool listed
   with no <code>annotations</code> is not marked.</li>
-<li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]</code>, read by the bridges'
+<li><strong>MCP tool annotations</strong> — <code>metadata["annotations"]</code>, read by the bridge's
   rule: annotations that say something mark the tool unless <code>readOnlyHint</code>
   is true or <code>destructiveHint</code> is false, and a field that is <code>None</code> is
   unsaid, as are annotations with nothing said. A toolset that speaks MCP's
   own vocabulary rather than this package's key declares a mutation this
   way, <code>SpecToolset</code> over a <code>ServiceSpec</code> and a remote MCP server among
   them. Reading it gates a spec attached in process the way the bridge's key
-  gates the same spec over drf-mcp, so a transport swap cannot silently
+  gates the same spec over MCP, so a transport swap cannot silently
   remove the gate.</li>
 <li><strong>The <code>x-destructive</code> schema stamp</strong> at the root of
   <code>parameters_json_schema</code>, which is what
@@ -2946,7 +2946,7 @@ so one hook covers every tool the agent sees wherever it came from:</p>
 or metadata of another shape entirely leave the tool alone — silence is not
 a claim, and <code>require_approval</code> is the answer for a tool whose source
 declares nothing. Annotations that say anything are read by MCP's defaults,
-as the bridges read them.</p>
+as the bridge reads them.</p>
 <p>Only <code>kind="function"</code> tools are flipped — an <code>external</code> tool is already
 gated client-side, and an <code>output</code> tool is not executed.</p>
 <p>The guard touches only <code>prepare_tools</code>, so it is orthogonal to
@@ -3112,13 +3112,14 @@ the browser that renders its answer.</p>
 
         <p>Exception types that pass through untouched, ending the run as they would
 without the policy.</p>
-<p><code>None</code> means the built-in set: an authorization refusal, in each flavour a
-project raises it — <code>django.core.exceptions</code>' <code>PermissionDenied</code>;
-<code>rest_framework.exceptions</code>' when DRF is installed; and
-<code>django_service_specs</code>' <code>NotPermitted</code> and <code>PrincipalUnavailable</code> when
-the kernel is installed. Pass a tuple to replace that set wholesale, or
-<code>()</code> to convert every exception. Replacing means re-listing each of those
-classes your project can raise to keep denials exempt.</p>
+<p><code>None</code> means the built-in set: an authorization refusal, in each flavour
+this package's stack raises it — <code>django.core.exceptions</code>'
+<code>PermissionDenied</code>, and <code>django_service_specs</code>' <code>NotPermitted</code> and
+<code>PrincipalUnavailable</code> when the kernel is installed. Pass a tuple to
+replace that set wholesale, or <code>()</code> to convert every exception. Replacing
+means re-listing each of those classes your project can raise to keep
+denials exempt, and it is how a project whose own stack raises another
+refusal class keeps that one exempt too.</p>
 <p><strong>A spent tool retry budget.</strong> Add <code>UnexpectedModelBehavior</code> (from
 <code>pydantic_ai.exceptions</code>) to end the run when a tool's own <code>ModelRetry</code>
 has no retries left, rather than converting it into a failed result. It

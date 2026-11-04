@@ -641,17 +641,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#drf-mcp-deprecated" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        [drf-mcp] — deprecated
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#harness-upstream-capabilities" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1283,17 +1272,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#drf-mcp-deprecated" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        [drf-mcp] — deprecated
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#harness-upstream-capabilities" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1380,12 +1358,11 @@
 
 
 <h1 id="integrations">Integrations<a class="headerlink" href="#integrations" title="Permanent link">&para;</a></h1>
-<p>Three optional extras, and one deprecated, all lazily imported — the base install stays slim and
+<p>Three optional extras, all lazily imported — the base install stays slim and
 none of these dependencies is pulled unless configured.</p>
 <p>Two of them are <strong>bridges</strong>: <code>[specs]</code> and <code>[mcp]</code> expose specs you have
 already declared as agent tools, so you don't re-declare your API as <code>@tool</code>
-functions. The deprecated <code>[drf-mcp]</code> is the second bridge over a drf-mcp
-server. Both make the agent act as the <strong>logged-in user</strong> — the request is
+functions. Both make the agent act as the <strong>logged-in user</strong> — the request is
 carried into every call, so your existing permission checks apply exactly as they
 would over HTTP.</p>
 <p>The third, <code>[harness]</code>, is a different shape: it brings in ready-made
@@ -1590,31 +1567,18 @@ retry above, which the model can answer itself, on this route and on
 input round for a selector, so it arrives as a service error, and so as
 <code>ToolFailed</code> here, where <code>[specs]</code> raises <code>ModelRetry</code>. It is not an approval gate: see
 <a href="../policy/#what-is-gated-and-what-is-not">what is gated, and what is not</a>.</p>
-<h2 id="drf-mcp-deprecated"><code>[drf-mcp]</code> — deprecated<a class="headerlink" href="#drf-mcp-deprecated" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>drf-mcp<span class="o">]</span>
-</span></code></pre></div>
-<p><code>DRFMCPToolset</code>, in <code>django_spec_agents.integrations.drf_mcp</code>, is the same
-bridge over a <code>drf-mcp-server</code> registry, and behaves as above with drf-mcp's
-names: its arguments are refused by the input serializer, a <code>QueryParam</code> the
-output serializer refuses is the rendering retry, DRF's <code>NON_FIELD_ERRORS_KEY</code>
-setting is the non-field key, and a chain tool's refusal also names the step
-that failed, <code>(code: books_closed, step: void)</code>. It is deprecated, with the
-extra: constructing one warns <code>DeprecationWarning</code>, and both are removed in the
-next minor. Move to <code>[mcp]</code> and <code>MCPToolset</code>, serving the same operations as
-kernel specs from a django-spec-mcp server. <code>build_tool_catalog</code>'s
-<code>drf_mcp_server=</code> is deprecated with them: pass the server as <code>mcp_server=</code>.</p>
 <h2 id="harness-upstream-capabilities"><code>[harness]</code> — upstream capabilities<a class="headerlink" href="#harness-upstream-capabilities" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>harness<span class="o">]</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>harness<span class="o">]</span>
 </span></code></pre></div>
 <p>The other two extras bridge <em>your</em> API into the agent. This one is different: it
 pulls in <a href="https://github.com/pydantic/pydantic-ai-harness"><code>pydantic-ai-harness</code></a>,
 a library of ready-made <strong>capabilities</strong> — the same seam this package's own audit
 and tool-guard capabilities use. Nothing here wraps or re-implements them; you
 construct one and hand it to <code>AgentConfig</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindow</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">)])</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">build_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.compaction</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlidingWindow</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SlidingWindow</span><span class="p">(</span><span class="n">max_messages</span><span class="o">=</span><span class="mi">80</span><span class="p">)])</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">build_agent</span><span class="p">(</span><span class="n">registry</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
 </span></code></pre></div>
 <p>That is the whole integration. <code>capabilities</code> takes live instances (never dotted
 paths), so a harness capability, a first-party one, and your own all compose the
@@ -1690,12 +1654,12 @@ instructions. <code>Skills</code> discovers them and exposes each as a <strong>d
 capability: the model sees only the name and description up front, and the body
 loads into context if it selects that skill. A dozen skills therefore cost a
 dozen one-line descriptions, not a dozen instruction blocks.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">Skills</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">Skills</span><span class="p">(</span><span class="s2">&quot;/srv/app/skills&quot;</span><span class="p">)],</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">Skills</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">Skills</span><span class="p">(</span><span class="s2">&quot;/srv/app/skills&quot;</span><span class="p">)],</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><code>directories</code> takes one path or several. Discovery scans <em>immediate</em> child
 directories for a <code>SKILL.md</code>, so <code>/srv/app/skills/summarise/SKILL.md</code> registers a

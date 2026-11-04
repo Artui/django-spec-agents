@@ -888,6 +888,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ToolSpec.schema_strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        schema_strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1686,6 +1697,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ToolSpec.schema_strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        schema_strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1979,7 +2001,8 @@ narrative.</p>
         <p>An ordered, named collection of server-side tools.</p>
 <p>State lives on the instance — a transport holds one, tests build a fresh one
 per scenario. Each tool's JSON Schema is derived once at registration, with
-<code>schema_strategy</code> (see
+the tool's own <code>ToolSpec.schema_strategy</code> when it sets one and the
+registry's <code>schema_strategy</code> otherwise (see
 <a class="autorefs autorefs-internal" title="build_input_schema" href="#django_spec_agents.build_input_schema"><code>build_input_schema</code></a>), and either
 sync or async callables can be dispatched.</p>
 <p>The strategy shapes <code>ToolBinding.input_schema</code> only. The schema the agent
@@ -2037,7 +2060,8 @@ offers the model for a registry tool is pydantic-ai's own, whichever is set.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>when <code>spec.name</code> is already registered.</p>
+                <p>when <code>spec.name</code> is already registered, or its
+<code>schema_strategy</code> is not a <code>SchemaStrategy</code>.</p>
               </div>
             </td>
           </tr>
@@ -2177,7 +2201,8 @@ parameter and no <code>ctx</code> was given.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">category</span><span class="p">:</span> <span class="n">ToolCategory</span> <span class="o">=</span> <span class="n">ToolCategory</span><span class="o">.</span><span class="n">OTHER</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">confirm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">F</span><span class="p">],</span> <span class="n">F</span><span class="p">]</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">schema_strategy</span><span class="p">:</span> <span class="n">SchemaStrategy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">F</span><span class="p">],</span> <span class="n">F</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2186,7 +2211,8 @@ parameter and no <code>ctx</code> was given.</p>
 <p><code>name</code> defaults to the function's name and <code>description</code> to the first
 paragraph of its docstring. <code>confirm</code> is the confirmation prompt for a
 destructive tool and <code>summary</code> a short display label; both reach the client
-as the matching <code>x-*</code> schema key.</p>
+as the matching <code>x-*</code> schema key. <code>schema_strategy</code> overrides the
+registry's for this tool's schema; <code>None</code> keeps the registry's.</p>
 
 
     </div>
@@ -2408,6 +2434,34 @@ shown instead of a generic "Run <tool>?".</p>
 
         <p>A short label, stamped as <code>x-summary</code>, shown on the tool-call card
 instead of the raw tool name.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_spec_agents.ToolSpec.schema_strategy" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">schema_strategy</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.ToolSpec.schema_strategy" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">schema_strategy</span><span class="p">:</span> <span class="n">SchemaStrategy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>How this tool's <code>ToolBinding.input_schema</code> is derived. <code>None</code> takes
+the registering <a class="autorefs autorefs-internal" title="ToolRegistry" href="#django_spec_agents.ToolRegistry"><code>ToolRegistry</code></a>'s
+strategy; a value overrides it for this tool alone, so one registry can
+hold tools of both strategies.</p>
 
     </div>
 

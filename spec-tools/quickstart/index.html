@@ -1870,7 +1870,7 @@ fill offered and not required:</p>
   returns when its return annotation is a <code>TypedDict</code>, less any it may decline
   with <code>UNSET</code> (below). The annotation is read by the kernel's
   <code>provider_keys</code>, the reader dispatch's own contract is stated in, so this
-  toolset and drf-mcp read a provider the same way.</li>
+  toolset and django-spec-mcp read a provider the same way.</li>
 <li><strong>An input field the spec's Validator requires and no call can send</strong> is
   refused when the toolset is built, with <code>ImproperlyConfigured</code> naming the
   tool and the field, under either <a href="#unexpected-arguments"><code>unknown_arguments</code></a>
@@ -2298,7 +2298,7 @@ correction a later release makes to the wording.</p>
 <p><code>SpecCapability</code> takes the same keyword, and
 <a href="../reference/#django_spec_agents.spec_tools.SpecCapability.from_toolset"><code>SpecCapability.from_toolset</code></a>
 keeps the conventions of the toolset it wraps. They reach this toolset's tools
-only: the MCP transport, djangorestframework-mcp-server, writes its own schemas
+only: the MCP transport, django-spec-mcp, writes its own schemas
 and retries, so a model reading the same specs over MCP is told what that
 transport is configured to say.</p>
 <h2 id="unexpected-arguments">Unexpected arguments<a class="headerlink" href="#unexpected-arguments" title="Permanent link">&para;</a></h2>
@@ -2672,8 +2672,8 @@ not try.</p>
 <td>The refusal is raised, logged at <code>WARNING</code> naming the tool, and aborts the run — see the caveat below</td>
 </tr>
 <tr>
-<td>Django REST Framework's <code>PermissionDenied</code> or <code>ValidationError</code>, raised by a spec</td>
-<td>Neither of the above: the exception escapes the call unchanged. A spec library raising them translates them into the kernel's refusals</td>
+<td>Another library's permission or validation exception, raised by a spec</td>
+<td>Neither of the above: the exception escapes the call unchanged. A spec library raising one translates it into the kernel's refusals</td>
 </tr>
 </tbody>
 </table>
