@@ -47,7 +47,7 @@ The host was published as `django-pydantic-agent` and `spec_tools` as
 | `registry/` | `ToolRegistry`, `@tool`, schema derivation |
 | `policy/` | `audit/`, `guard/` and `failure/`: the capabilities composed around every tool call |
 | `persistence/` | the store protocols, the session, model, scoped and null stores, and the memory namespaces |
-| `integrations/` | the `[mcp]` bridge (`mcp.py`), the wording it teaches the model (`utils.py`), `build_spec_capability` and `resolve_spec_mapping` |
+| `integrations/` | the `[mcp]` bridge (`mcp.py`, with the wording it teaches the model), `build_spec_capability` and `resolve_spec_mapping` |
 | `contrib/store/` | the opt-in store app: models, the one migration, reference stores, management commands |
 | `types/` | the package-wide enums and constants, one per file |
 | `spec_tools/` | the tool half, with its own `types/` |
@@ -69,10 +69,9 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
   django-ag-ui patches the function as an attribute of that submodule, which a
   re-export would shadow, so the patch would stop taking effect.
 - **The `[mcp]` bridge imports nothing of DRF, drf-services or drf-mcp**, and
-  `integrations/utils.py`, the wording it teaches the model, imports no server:
-  the bridge passes it the server's non-field key. django-spec-mcp needs a
-  ready app registry to import, so `integrations/mcp.py` stays off every host
-  import path.
+  carries the wording it teaches the model itself, so `integrations/mcp.py` is
+  the one file the scan covers. django-spec-mcp needs a ready app registry to
+  import, so it stays off every host import path.
 - **`spec_tools` imports nothing from the host but `AgentDeps`, and never
   `contrib.store`.** It reads the acting user structurally, as `ctx.deps.user`, so
   a project's own deps type works as long as it has a `user`.

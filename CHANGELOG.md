@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.1] — 2026-11-04
 
+### Changed
+
+- **`integrations/utils.py` is folded into `integrations/mcp.py`.** Its wording
+  helpers served two MCP bridges until 0.7.0 removed one, so `MCPToolset` now
+  carries them as module-private functions and the module is gone. The
+  `non_field_key` parameter went with it, since the bridge always passed the
+  kernel's `NON_FIELD_ERRORS`. Nothing public moved and no tool's wording
+  changed.
+
 ## [0.7.0] — 2026-11-04
 
 The drf-mcp bridge, deprecated in 0.6.0, is removed, and a tool can pick its
