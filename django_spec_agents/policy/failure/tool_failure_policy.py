@@ -145,31 +145,22 @@ class ToolFailurePolicy(AbstractCapability[Any]):
 def _denial_types() -> tuple[type[BaseException], ...]:
     """The default pass-through set: an authorization refusal, in each flavour.
 
-    Django's own, DRF's and the kernel's are unrelated classes — none inherits
-    from another — and a project raises whichever its stack uses, so covering
-    one is covering a third of a boundary. DRF is optional here (it arrives
-    with the ``[drf-mcp]`` extra; a tool calling DRF code may raise its
-    ``PermissionDenied``, while a DRF permission check behind that bridge
-    reaches the run as Django's, which the bridge raises for drf-mcp's
-    ``-32006``) and so is the kernel (it
-    arrives with ``[specs]`` or ``[drf-mcp]``; its dispatch raises ``NotPermitted`` for a refused
-    principal and ``PrincipalUnavailable`` for one that cannot act), so each
-    class is imported at call time under its own guard and is simply absent from
-    the set when its package is. The guards are independent: a host with the
-    kernel and no DRF, or DRF and no kernel, keeps the other's classes.
+    Django's own and the kernel's are unrelated classes — neither inherits from
+    the other — and a project raises whichever its stack uses, so covering one
+    is covering half a boundary. A refusal over the ``[mcp]`` bridge reaches the
+    run as Django's, which the bridge raises for the server's ``-32006``. The
+    kernel is optional here (it arrives with ``[specs]`` or ``[mcp]``; its
+    dispatch raises ``NotPermitted`` for a refused principal and
+    ``PrincipalUnavailable`` for one that cannot act), so its classes are
+    imported at call time under a guard and are simply absent from the set when
+    it is. A host whose own stack raises another refusal class adds it through
+    ``ToolFailureConfig(reraise=...)``.
 
     Each member of the tuple compiles to one ``isinstance`` arc, which coverage
     cannot see dropped; each is held by the test that fails without it.
     """
     # Held by ``test_a_reraised_failure_aborts_the_run[django-denial]``.
     denials: list[type[BaseException]] = [DjangoPermissionDenied]
-    try:
-        from rest_framework.exceptions import PermissionDenied
-    except ImportError:
-        pass
-    else:
-        # Held by ``test_a_reraised_failure_aborts_the_run[drf-denial]``.
-        denials.append(PermissionDenied)
     try:
         from django_service_specs import NotPermitted, PrincipalUnavailable
     except ImportError:
@@ -178,7 +169,7 @@ def _denial_types() -> tuple[type[BaseException], ...]:
         # ``NotPermitted`` is held by
         # ``test_a_reraised_failure_aborts_the_run[kernel-not-permitted]`` and
         # ``PrincipalUnavailable`` by ``[kernel-principal-unavailable]``; both
-        # are also asserted by ``test_the_default_set_survives_drf_not_being_installed``.
+        # are also asserted by ``test_the_default_set_is_djangos_denial_and_the_kernels``.
         denials.extend((NotPermitted, PrincipalUnavailable))
     return tuple(denials)
 

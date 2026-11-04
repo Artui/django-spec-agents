@@ -69,7 +69,7 @@ and are recorded as they propagate. A `ToolFailed` that **a tool raises
 itself** is converted by pydantic-ai into a `ToolFailedError` carrying the same
 message, so `raise ToolFailed("model copy") from e` is recorded as
 `ToolFailedError: model copy`, and the policy is never handed it. The MCP
-bridges' refusals arrive the same way. A `ModelRetry` is recorded as
+bridge's refusals arrive the same way. A `ModelRetry` is recorded as
 `ToolRetryError: <message>`, and the retried call gets a record of its own.
 From a code-mode sandbox, whose nested tool manager converts neither, both are
 recorded as raised: `ToolFailed: model copy` and `ModelRetry: <message>`.
@@ -166,12 +166,12 @@ one hook covers every tool regardless of origin:
 - **Registry tools** — `@tool(destructive=True)`. The flag lives on the spec and
   never reaches pydantic-ai as a bare callable, so the guard reads it from the
   registry directly at construction.
-- **MCP bridged tools** — both bridges map each tool's annotations onto
+- **MCP bridged tools** — the bridge maps each tool's annotations onto
   `DESTRUCTIVE_METADATA_KEY`, which the guard reads from pydantic-ai's tool
   metadata. A tool is marked unless its `readOnlyHint` is true or its
   `destructiveHint` is false, as MCP reads the pair; a tool listed with no
   `annotations` is not marked.
-- **MCP tool annotations** — `metadata["annotations"]`, read by the bridges' own
+- **MCP tool annotations** — `metadata["annotations"]`, read by the bridge's own
   rule: annotations that say anything mark the tool destructive unless
   `readOnlyHint` is true or `destructiveHint` is false. A field that is `None` is
   unsaid, so the full dump a remote MCP client stores (every field present,
@@ -191,7 +191,7 @@ A hint has to *say* something. Annotations that say nothing, an absent stamp, or
 metadata of some other shape entirely leave the tool alone — silence is not a
 claim, and `require_approval` is the answer for a tool whose source declares
 nothing. Annotations that say anything are read by MCP's defaults, as the
-bridges read them.
+bridge reads them.
 
 `DESTRUCTIVE_METADATA_KEY` still rides tool *metadata* rather than only the
 schema, because metadata is the channel a bridge controls and the schema is the
@@ -326,7 +326,6 @@ To have a spent budget end the run, name the exception in `reraise`:
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django_service_specs import NotPermitted, PrincipalUnavailable
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
 
 AgentConfig(
     model=...,
@@ -334,7 +333,6 @@ AgentConfig(
         reraise=(
             UnexpectedModelBehavior,
             DjangoPermissionDenied,
-            DRFPermissionDenied,
             NotPermitted,
             PrincipalUnavailable,
         ),
@@ -342,15 +340,15 @@ AgentConfig(
 )
 ```
 
-The example re-lists every denial the default set holds, so it assumes DRF and
-the kernel are both installed. Leave out the ones your project cannot raise.
+The example re-lists every denial the default set holds, so it assumes the
+kernel is installed. Leave out the ones your project cannot raise, and add the
+refusal class of any other stack your own tools call.
 
 Two caveats:
 
 - **`reraise` replaces the default set, it does not extend it.** The default is
-  `django.core.exceptions.PermissionDenied`; `rest_framework.exceptions.PermissionDenied`
-  when DRF is installed; and `NotPermitted` and `PrincipalUnavailable` from
-  `django_service_specs` when the kernel is installed (the `[specs]`, `[mcp]` or `[drf-mcp]` extra)
+  `django.core.exceptions.PermissionDenied`, and `NotPermitted` and
+  `PrincipalUnavailable` from `django_service_specs` when the kernel is installed (the `[specs]` or `[mcp]` extra)
   ([a denial is not a tool failure](#a-denial-is-not-a-tool-failure)). A tuple
   that leaves them out converts denials again, so re-list each one your project
   can raise.
@@ -362,18 +360,14 @@ Two caveats:
 ### A denial is not a tool failure
 
 An authorization refusal passes through untouched and ends the run, exactly as
-it would with the policy off. Four classes are in the default set, because no
-one of them inherits from another:
+it would with the policy off. Three classes are in the default set, because
+Django's and the kernel's are unrelated:
 
-- `django.core.exceptions.PermissionDenied`, always. Both
-  [MCP bridges](integrations.md) raise it for a permission refusing the user
+- `django.core.exceptions.PermissionDenied`, always. The
+  [MCP bridge](integrations.md) raises it for a permission refusing the user
   (JSON-RPC `-32006`).
-- `rest_framework.exceptions.PermissionDenied`, when DRF is installed (the
-  `[drf-mcp]` extra brings it), for a tool that raises it. A DRF permission
-  check behind the drf-mcp bridge does not arrive as this class: drf-mcp
-  answers it with `-32006`, which the bridge raises as Django's.
 - `django_service_specs.NotPermitted`, when the kernel is installed (the
-  `[specs]`, `[mcp]` or `[drf-mcp]` extra); the kernel's dispatch raises it when a permission check
+  `[specs]` or `[mcp]` extra); the kernel's dispatch raises it when a permission check
   refuses the principal.
 - `django_service_specs.PrincipalUnavailable`, with it; the kernel raises it for
   a principal that cannot act at all, such as a deactivated account.
@@ -383,6 +377,10 @@ row, and a converted denial stays distinguishable from a missing row. A sweep
 over ids therefore turns the permission boundary into an existence oracle over
 rows the acting user cannot read — inside a single turn, spending no retry
 budget, bounded by nothing `build_agent` sets.
+
+A tool of your own that calls into another stack may raise that stack's refusal
+class, which is in none of the above. Name it in `reraise=`, with the three
+above, to keep it exempt.
 
 A missing row and a converted denial share an `outcome` — both are `failed` —
 so the two are not told apart by the result's *shape*. They are still told apart

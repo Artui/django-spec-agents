@@ -162,7 +162,7 @@ the peer" is core.**
 | --- | --- |
 | `AgentConfig`, model / settings / retries resolution, the factory escape hatch | **core** |
 | `ToolRegistry` + `@tool` + typed schema derivation | **core** |
-| External toolsets and capabilities; the `[mcp]`, `[drf-mcp]` and `[specs]` bridges | **core** (optional extras) |
+| External toolsets and capabilities; the `[mcp]` and `[specs]` bridges | **core** (optional extras) |
 | The `AuditLogger` protocol and the tool guard | **core** |
 | `ConversationStore` / `AttachmentStore` protocols, `contrib.store` models | **core** |
 | An HTTP view, an SSE encoder, a wire adapter, `.urls` | **a transport** |

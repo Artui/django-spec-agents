@@ -6,6 +6,7 @@ from typing import Any, TypeVar
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.registry.types.tool_spec import ToolSpec
 from django_spec_agents.registry.utils import first_doc_paragraph
+from django_spec_agents.types.schema_strategy import SchemaStrategy
 from django_spec_agents.types.tool_category import ToolCategory
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -20,13 +21,15 @@ def tool(
     category: ToolCategory = ToolCategory.OTHER,
     confirm: str | None = None,
     summary: str | None = None,
+    schema_strategy: SchemaStrategy | None = None,
 ) -> Callable[[F], F]:
     """Register the decorated callable on ``registry`` as a tool.
 
     ``name`` defaults to the function's name and ``description`` to the first
     paragraph of its docstring. ``confirm`` is the confirmation prompt for a
     destructive tool and ``summary`` a short display label; both reach the client
-    as the matching ``x-*`` schema key.
+    as the matching ``x-*`` schema key. ``schema_strategy`` overrides the
+    registry's for this tool's schema; ``None`` keeps the registry's.
     """
 
     def _decorator(fn: F) -> F:
@@ -38,6 +41,7 @@ def tool(
             category=category,
             confirm=confirm,
             summary=summary,
+            schema_strategy=schema_strategy,
         )
         registry.register(spec)
         return fn

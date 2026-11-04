@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-04
+
+The drf-mcp bridge, deprecated in 0.6.0, is removed, and a tool can pick its
+own schema strategy.
+
+### Added
+
+- **A tool can pick its own schema strategy.** `ToolSpec.schema_strategy` and
+  `@tool(schema_strategy=...)` take a `SchemaStrategy` that overrides the
+  registry's for that tool's `ToolBinding.input_schema`, so one `ToolRegistry`
+  can derive some tools by hand and others through pydantic. `None`, the
+  default, keeps the registry's strategy, so no existing schema changes. An
+  unknown strategy is refused with `ValueError` at registration.
+
+### Removed
+
+- **The drf-mcp bridge is gone, after its minor of deprecation.** The
+  `[drf-mcp]` extra, `DRFMCPToolset` and its module
+  `django_spec_agents.integrations.drf_mcp` are removed; bridge a django-spec-mcp
+  server with `[mcp]` and `MCPToolset` instead, serving the same operations as
+  kernel specs. `build_tool_catalog` no longer takes `drf_mcp_server=`: pass the
+  server as `mcp_server=`, or the call raises `TypeError`. A failed call's
+  message no longer carries a `step:` label, which only drf-mcp's chains sent.
+  django-ag-ui before 0.74.0 and django-admin-agent before 0.59.0 still accept
+  `drf_mcp_server=` and import `DRFMCPToolset` for it, which now fails at the
+  first request; they set no cap on this package, so a host passing that
+  keyword moves to `mcp_server=` with a django-spec-mcp server first.
+- **`ToolFailurePolicy`'s default pass-through set no longer holds DRF's
+  `PermissionDenied`.** It holds Django's `PermissionDenied` and, with the
+  kernel, `NotPermitted` and `PrincipalUnavailable`. When a project's own
+  tool raises `rest_framework.exceptions.PermissionDenied`, the policy now
+  converts it into a failed call. To keep it ending the run, list it in
+  `ToolFailureConfig(reraise=(...))` beside the three defaults.
+
 ## [0.6.2] — 2026-11-03
 
 A permission refusal through either MCP bridge now ends the run.
@@ -598,7 +632,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Artui/django-spec-agents/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/Artui/django-spec-agents/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Artui/django-spec-agents/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Artui/django-spec-agents/compare/v0.5.0...v0.6.0

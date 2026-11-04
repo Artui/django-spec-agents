@@ -42,7 +42,7 @@ from django_spec_agents.testing import (
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 # Run in a fresh interpreter: by collection time this process has imported the
-# kernel, DRF and drf-mcp for the suite, so a check made here proves nothing.
+# kernel and django-spec-mcp for the suite, so a check made here proves nothing.
 _IMPORTS_OF_THE_DOUBLES = """
 import sys
 import django_spec_agents
@@ -60,8 +60,8 @@ print(sorted(
 def test_the_doubles_import_without_the_specs_extra():
     """No settings module, so the doubles must import on pydantic-ai alone: a
     module importing ``spec_tools``, the kernel the ``[specs]`` extra installs,
-    the server the ``[mcp]`` extra installs, or the server the ``[drf-mcp]``
-    extra installs or the Django REST Framework it brings, eagerly or lazily, would be listed. The package root, imported first, must not have imported them."""
+    the server the ``[mcp]`` extra installs, or Django REST Framework and drf-mcp,
+    which no extra installs any more, eagerly or lazily, would be listed. The package root, imported first, must not have imported them."""
     env = {key: value for key, value in os.environ.items() if key != "DJANGO_SETTINGS_MODULE"}
     completed = subprocess.run(
         [sys.executable, "-c", _IMPORTS_OF_THE_DOUBLES],

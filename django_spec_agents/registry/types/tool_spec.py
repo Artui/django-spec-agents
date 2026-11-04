@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from django_spec_agents.types.schema_strategy import SchemaStrategy
 from django_spec_agents.types.tool_category import ToolCategory
 
 
@@ -41,6 +42,12 @@ class ToolSpec:
     summary: str | None = None
     """A short label, stamped as ``x-summary``, shown on the tool-call card
     instead of the raw tool name."""
+
+    schema_strategy: SchemaStrategy | None = None
+    """How this tool's ``ToolBinding.input_schema`` is derived. ``None`` takes
+    the registering [`ToolRegistry`][django_spec_agents.ToolRegistry]'s
+    strategy; a value overrides it for this tool alone, so one registry can
+    hold tools of both strategies."""
 
 
 __all__ = ["ToolSpec"]

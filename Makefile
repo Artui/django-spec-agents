@@ -28,7 +28,7 @@ test:
 # The package with no extra, the install django-admin-agent ships, in a venv of
 # its own: ``uv run`` would sync the dev group, which brings every extra's
 # packages. Only pytest joins it, not pytest-django, whose plugin would load the
-# suite's settings and stop at ``rest_framework``. So the run takes no coverage
+# suite's settings, and the store and spec test apps this install runs without. So the run takes no coverage
 # gate, ``addopts`` being where ``--cov`` lives, and the ini's Django and asyncio
 # keys are unknown to it, which is expected rather than a warning to read.
 HOST_ONLY_VENV := build/host-only-venv

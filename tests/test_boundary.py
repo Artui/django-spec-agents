@@ -5,20 +5,19 @@ The package is two halves. The host, the root and everything outside
 with no extra. ``spec_tools`` serves specs as agent tools and needs the ``[specs]``
 extra, which installs the spec kernel. So:
 
-- **The root never imports ``spec_tools``**, nor anything only ``[specs]``,
-  ``[mcp]`` or ``[drf-mcp]`` installs. A root that did would fail at import on a host-only
-  install, or, where an extra happens to be installed, load the kernel or DRF
-  into every project that never asked for it.
+- **The root never imports ``spec_tools``**, nor anything only ``[specs]`` or
+  ``[mcp]`` installs, nor Django REST Framework. A root that did would fail at
+  import on a host-only install, or, where an extra happens to be installed, load
+  the kernel into every project that never asked for it.
 - **``spec_tools`` imports nothing from the host but ``AgentDeps``, and never
   ``contrib.store``.** The tool half reads the acting user off the deps it is
   handed, and a project's own deps type works as long as it has a ``user``; a
   dependency on the store's models would make the tool half need the host's
   state, which a project serving specs to its own agent does not install.
 
-Both are checked in a fresh interpreter, under settings that list neither
-``rest_framework`` nor the spec test app. Inside the suite's own process the check
-would prove nothing: pytest-django has imported ``rest_framework`` by collection
-time. The CI job that installs the package with no extra runs this file alone.
+Both are checked in a fresh interpreter, under settings that list no spec test
+app. Inside the suite's own process the check would prove nothing: by collection
+time the suite has imported the kernel and django-spec-mcp. The CI job that installs the package with no extra runs this file alone.
 """
 
 from __future__ import annotations
@@ -44,8 +43,9 @@ HOST_ONLY = "host_only_settings"
 HOST_ONLY_WITH_STORE = "host_only_store_settings"
 
 # What a bare root import must leave unloaded: the tool half, what only the
-# ``[specs]``, ``[mcp]`` and ``[drf-mcp]`` extras install, and the run-loop test
-# doubles, whose module says the root never imports them.
+# ``[specs]`` and ``[mcp]`` extras install, Django REST Framework and drf-services,
+# which no extra installs any more, and the run-loop test doubles, whose module
+# says the root never imports them.
 NOT_FROM_THE_ROOT = (
     "django_spec_agents.spec_tools",
     "django_spec_agents.testing",
@@ -137,7 +137,7 @@ def test_a_bare_root_import_loads_neither_spec_tools_nor_the_specs_extra(setting
 
 
 @pytest.mark.skipif(
-    importlib.util.find_spec("rest_framework") is None,
+    importlib.util.find_spec("django_service_specs") is None,
     reason="spec_tools needs the [specs] extra; the import scan below holds the rule without it",
 )
 def test_importing_spec_tools_loads_nothing_of_the_store() -> None:
@@ -158,8 +158,7 @@ def test_importing_spec_tools_loads_nothing_of_the_store() -> None:
     reason="the [mcp] bridge needs the [mcp] extra; the import scan below holds the rule without it",
 )
 def test_importing_the_mcp_bridge_loads_no_drf() -> None:
-    # Under settings that list no ``rest_framework``, the ``[mcp]`` bridge and
-    # the server it bridges import without Django REST Framework, drf-services
+    # The ``[mcp]`` bridge and the server it bridges import without Django REST Framework, drf-services
     # or drf-mcp. A prefix rather than ``_is_or_under``: ``rest_framework_mcp``
     # and ``rest_framework_services`` are packages of their own.
     modules = _modules_after(
@@ -266,7 +265,7 @@ def test_spec_tools_imports_nothing_of_django_spec_mcp() -> None:
     assert imported == set()
 
 
-# The ``[mcp]`` bridge and the helpers both bridges share import nothing of DRF,
+# The ``[mcp]`` bridge and the wording helpers it uses import nothing of DRF,
 # drf-services or drf-mcp, eagerly or in a function body, so the bridge runs on
 # an install with ``[mcp]`` and no DRF. The fresh-interpreter test above sees
 # only what importing the bridge loads; this scan sees every import it writes.

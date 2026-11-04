@@ -83,8 +83,6 @@ entries a frontend fetches to label tool-call cards.
 `summary` is always present, resolved through a fallback chain — for registry
 tools, `@tool(summary=…)` then a prettified name; for the tools of the server
 passed as `mcp_server=`, `display_name` then `title` then a prettified name.
-`drf_mcp_server=`, the keyword's old name, is deprecated and removed in the next
-minor; it warns `DeprecationWarning`, and passing both raises `TypeError`.
 
 ```python
 from django_spec_agents import build_tool_catalog
@@ -171,9 +169,26 @@ hold an infinite or NaN float.
 
 ### Choosing a strategy
 
-`schema_strategy=` picks the derivation, on `build_input_schema` for one call
-and on `ToolRegistry(schema_strategy=...)` for every binding the registry
-derives. It takes a `SchemaStrategy`:
+`schema_strategy=` picks the derivation in three places: on
+`build_input_schema` for one call, on `ToolRegistry(schema_strategy=...)` for
+every binding the registry derives, and on one tool, as
+`@tool(schema_strategy=...)` or `ToolSpec(schema_strategy=...)`. A tool's own
+strategy wins over its registry's; a tool that sets none (`None`, the default)
+takes the registry's. So one registry can hold tools of both strategies:
+
+```python
+registry = ToolRegistry()  # hand-built, the default
+
+
+@tool(registry, schema_strategy=SchemaStrategy.PYDANTIC)
+def place_order(order: OrderDraft) -> Order: ...  # pydantic's schema, $defs and all
+
+
+@tool(registry)
+def find_order(n: int) -> list[Order]: ...  # the registry's hand-built schema
+```
+
+It takes a `SchemaStrategy`:
 
 - `SchemaStrategy.HAND_BUILT`, the default: the mapping above.
 - `SchemaStrategy.PYDANTIC`: a pydantic model over the same parameters (the

@@ -382,7 +382,7 @@ def test_audit_declares_innermost_ordering() -> None:
 
 async def test_records_toolset_tools_not_just_registry_tools() -> None:
     # The capability hooks the run loop, so tools contributed by a composed
-    # toolset (drf-mcp / spec / attachment / skills) are audited too, not only
+    # toolset (MCP / spec / attachment / skills) are audited too, not only
     # registry tools.
     def triple(n: int) -> int:
         """Triple a number."""

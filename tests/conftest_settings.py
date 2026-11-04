@@ -15,9 +15,6 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     # Opt-in reference store app — exercises the shipped models + migration.
     "django_spec_agents.contrib.store",
-    # DRF, for the dev-only ``[drf-mcp]`` bridge and its tests, which serve
-    # drf-services specs over drf-mcp; ``spec_tools`` imports neither.
-    "rest_framework",
     # The models the spec_tools half's kernel specs serve.
     "tests.spec_tools.testapp",
 ]
@@ -64,10 +61,3 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
-
-# Read by the DRF the ``[drf-mcp]`` bridge brings.
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
-    "DEFAULT_PERMISSION_CLASSES": [],
-    "TEST_REQUEST_DEFAULT_FORMAT": "json",
-}

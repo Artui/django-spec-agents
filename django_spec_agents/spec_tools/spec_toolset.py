@@ -2816,8 +2816,8 @@ def _refusal_message(exc: ActionUnavailable) -> str:
 
     **Written for the model and for a person reading a tool card, not for a
     program.** The format is a convention across the family's agent transports
-    rather than this toolset's own -- the MCP transport this package's
-    ``[drf-mcp]`` bridge reaches is meant to render the same refusal as the
+    rather than this toolset's own -- the MCP server this package's
+    ``[mcp]`` bridge reaches is meant to render the same refusal as the
     same text, so changing it here means changing it there. A program that
     branches on the code should read ``.code`` off the exception instead, either in
     [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]

@@ -226,7 +226,7 @@ fill offered and not required:
   returns when its return annotation is a `TypedDict`, less any it may decline
   with `UNSET` (below). The annotation is read by the kernel's
   `provider_keys`, the reader dispatch's own contract is stated in, so this
-  toolset and drf-mcp read a provider the same way.
+  toolset and django-spec-mcp read a provider the same way.
 - **An input field the spec's Validator requires and no call can send** is
   refused when the toolset is built, with `ImproperlyConfigured` naming the
   tool and the field, under either [`unknown_arguments`](#unexpected-arguments)
@@ -641,7 +641,7 @@ correction a later release makes to the wording.
 `SpecCapability` takes the same keyword, and
 [`SpecCapability.from_toolset`](reference.md#django_spec_agents.spec_tools.SpecCapability.from_toolset)
 keeps the conventions of the toolset it wraps. They reach this toolset's tools
-only: the MCP transport, djangorestframework-mcp-server, writes its own schemas
+only: the MCP transport, django-spec-mcp, writes its own schemas
 and retries, so a model reading the same specs over MCP is told what that
 transport is configured to say.
 
@@ -1004,7 +1004,7 @@ The toolset maps the kernel's failure kinds onto the Pydantic-AI model loop:
 | An `ordering` outside a `filter_set`'s `OrderingFilter` choices | `ModelRetry` — the FilterSet rejects it, which arrives as the `InvalidArguments` row above |
 | A FilterSet `param_map` target that isn't a real column | Django's `FieldError` propagates — an author's error the model cannot correct by picking a different sort, and one that can't be checked at construction without a queryset |
 | A denied permission check (class-level `has_permission` **or** object-level `has_object_permission`), raised as the kernel's `NotPermitted`, Django's own `PermissionDenied` raised bare by a service, or a deactivated principal (`PrincipalUnavailable`, refused before any check) | The refusal is raised, logged at `WARNING` naming the tool, and aborts the run — see the caveat below |
-| Django REST Framework's `PermissionDenied` or `ValidationError`, raised by a spec | Neither of the above: the exception escapes the call unchanged. A spec library raising them translates them into the kernel's refusals |
+| Another library's permission or validation exception, raised by a spec | Neither of the above: the exception escapes the call unchanged. A spec library raising one translates it into the kernel's refusals |
 
 !!! warning "A confirmation raised as `AdditionalInputRequired` is not a gate"
     The retry for `AdditionalInputRequired` goes to the model, so the model can

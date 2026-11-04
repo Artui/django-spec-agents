@@ -1,9 +1,8 @@
-"""The wording both MCP bridges share, held on its own terms.
+"""The wording the MCP bridge teaches the model, held on its own terms.
 
-Each bridge passes the key its server writes a reason under no field with; the
-tests here pass DRF's and the kernel's default spelling, ``non_field_errors``.
-Which key each bridge passes is held at its call site, in ``test_mcp.py`` and
-``test_drf_mcp.py``.
+The bridge passes the key its server writes a reason under no field with; the
+tests here pass the kernel's spelling, ``non_field_errors``. Which key the bridge
+passes is held at its call site, in ``test_mcp.py``.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from django_spec_agents.integrations.utils import retry_message
+from django_spec_agents.integrations.utils import failure_message, retry_message
 
 _NON_FIELD_KEY = "non_field_errors"
 
@@ -103,3 +102,20 @@ def test_a_reason_under_no_field_counts_as_its_own_words(detail: Any) -> None:
     assert _retry_message("Invalid arguments", detail) == (
         f"Invalid arguments: {json.dumps(detail)}"
     )
+
+
+def test_the_non_field_key_is_the_one_passed() -> None:
+    # The key is the caller's, not a spelling held here: under another key the
+    # same reason is still structure, and ``non_field_errors`` becomes a field.
+    detail = {"errors": [_UNEXPECTED]}
+    assert retry_message(_UNEXPECTED, detail, non_field_key="errors") == _UNEXPECTED
+    assert retry_message(
+        _UNEXPECTED, {"non_field_errors": [_UNEXPECTED]}, non_field_key="errors"
+    ) == (f"{_UNEXPECTED}: {json.dumps({'non_field_errors': [_UNEXPECTED]})}")
+
+
+def test_a_failure_is_suffixed_with_its_code_alone() -> None:
+    # ``failedStep`` named a drf-mcp chain step; django-spec-mcp has no chains
+    # and never sends it, so a key by that name is not labelled.
+    error = {"message": "The books are closed.", "code": "books_closed", "failedStep": "post"}
+    assert failure_message(error) == "The books are closed. (code: books_closed)"

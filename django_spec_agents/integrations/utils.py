@@ -1,10 +1,9 @@
-"""What the two in-process MCP bridges share: how a server's answer is worded for a model.
+"""How the in-process MCP bridge words a server's answer for a model.
 
-``MCPToolset`` bridges a django-spec-mcp server and ``DRFMCPToolset`` a drf-mcp
-one. The servers encode a tool error alike and the model is taught one wording
-for each failure, so the composition lives here once. This module imports
-neither server nor Django REST Framework: each bridge passes the one value that
-differs between them, the key its server writes a detail under no field with.
+``MCPToolset`` bridges a django-spec-mcp server; the wording it teaches the model
+for each failure is composed here. This module imports neither the server nor
+Django REST Framework, so it is tested without either: the bridge passes the one
+server value it needs, the key its server writes a detail under no field with.
 """
 
 from __future__ import annotations
@@ -62,17 +61,16 @@ def parse_tool_error(result: dict[str, Any]) -> dict[str, Any]:
 
 
 # The error keys that name a failure, in suffix order, with the label each is
-# written under. ``code`` is a refusal's stable name (both servers send it for an
-# ``ActionUnavailable``); ``failedStep`` is the drf-mcp chain step that failed,
-# which django-spec-mcp, having no chains, never sends.
-_FAILURE_LABELS: tuple[tuple[str, str], ...] = (("code", "code"), ("failedStep", "step"))
+# written under. ``code`` is a refusal's stable name (the server sends it for an
+# ``ActionUnavailable``).
+_FAILURE_LABELS: tuple[tuple[str, str], ...] = (("code", "code"),)
 
 
 def failure_message(error: dict[str, Any]) -> str:
     """Compose the ``ToolFailed`` text: the server's sentence, then what names it.
 
-    ``ToolFailed`` carries a string and nothing else, so ``code`` and
-    ``failedStep`` ride as a suffix rather than being dropped. The
+    ``ToolFailed`` carries a string and nothing else, so ``code`` rides as a
+    suffix rather than being dropped. The
     ``(code: ...)`` form is the one ``spec_tools`` writes for the same refusal
     raised in process, so a model reads one wording whichever route a tool
     arrived by, and can match it to the ``code`` a row's ``affordances`` answer
@@ -102,7 +100,7 @@ def missing_input_prompt(error: dict[str, Any]) -> str:
     """
     message: str = str(error.get("message") or "additional input required")
     requested: Any = error.get("requestedInput")
-    # Absent when the service named no schema; both servers send a mapping otherwise.
+    # Absent when the service named no schema; the server sends a mapping otherwise.
     if not requested:
         return message
     names: str = ", ".join(f"`{name}`" for name in requested)
@@ -158,10 +156,10 @@ def _message_says(message: str, detail: Any, non_field_key: str) -> bool:
     every name rather than any by
     ``test_a_detail_the_message_names_only_in_part_is_kept_whole``; the
     whole-token match by ``test_a_name_counts_only_as_a_whole_token``; and the
-    non-field key by ``test_a_reason_under_no_field_counts_as_its_own_words``.
-    Which key each bridge passes is held at its call site:
-    ``test_the_non_field_key_is_read_from_drf_settings`` in ``test_drf_mcp.py``
-    and ``test_the_non_field_key_is_the_kernels`` in ``test_mcp.py``.
+    non-field key by ``test_a_reason_under_no_field_counts_as_its_own_words``,
+    and that it is the caller's by ``test_the_non_field_key_is_the_one_passed``.
+    Which key the bridge passes is held at its call site, by
+    ``test_the_non_field_key_is_the_kernels`` in ``test_mcp.py``.
     """
     names: list[str] = _detail_names(detail, non_field_key)
     return all(_names_token(message, name) for name in names)
