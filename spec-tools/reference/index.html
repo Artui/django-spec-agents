@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -29,10 +29,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -2261,6 +2261,31 @@ pagination.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>include_total</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Adds <code>total</code>, how many rows the list matched across
+every page, to each list tool's page beside <code>totalPages</code> and
+<code>hasNext</code>, and advertises it in the tool's return schema and its
+<code>limit</code> description. Off by default. It costs no query: the count
+is the one taken before the slice. The flag is toolset-wide, and
+what is advertised follows it rather than any <code>shape_page</code>
+override. A project that wants <code>total</code> on some tools only leaves
+it off and has an override return a counting page for those
+tools, so nothing advertised claims a key a page lacks; turning it
+on and dropping <code>total</code> from some tools would.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>thread_sensitive</code>
             </td>
             <td>
@@ -2914,6 +2939,15 @@ queryset.</p>
 belongs to whatever the spec declared it on, which has already applied it
 to the queryset by the time this runs; an <code>order_by</code> here would replace
 that sort rather than compose with it.</p>
+<p><strong><code>include_total</code> decides the page here</strong>: on, the page returned
+writes <code>total</code> into its envelope. The return schema and the <code>limit</code>
+description follow the flag too, but they are written at construction,
+so an override changes the payload and never what is advertised. An
+override that builds a page of its own carries what that page's
+<code>envelope</code> writes: that is how a project with the flag off adds
+<code>total</code>, or figures of its own, on the tools it chooses
+(<code>ctx.tool_name</code> names the call's). Under the flag, an override should
+keep <code>total</code> on every page, since every tool advertises it.</p>
 
 
     </div>
@@ -4043,10 +4077,10 @@ request, not on the toolset.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
