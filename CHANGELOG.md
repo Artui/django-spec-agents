@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-11-05
+
+The wording a toolset derives names `total` when its pages carry it, through a
+placeholder an overriding project can use too.
+
 ### Added
 
 - **An `{envelope}` placeholder in `AgentConventions`, and the derived wording
@@ -703,7 +708,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Artui/django-spec-agents/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Artui/django-spec-agents/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Artui/django-spec-agents/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Artui/django-spec-agents/compare/v0.6.2...v0.7.0
