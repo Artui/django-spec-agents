@@ -46,14 +46,19 @@ class AgentConventions:
     are the ones listed on it, and nothing else; anything outside them raises
     ``ImproperlyConfigured`` naming the field when the instance is built, so a typo
     fails at startup rather than inside a prompt. A literal brace is written twice,
-    ``{{`` or ``}}``, in every field, as the default ``pagination`` does.
+    ``{{`` or ``}}``, in every field.
 
     **Some lines state facts about behaviour,** not just advice: ``pagination``
     names the keys of the page envelope, ``base`` says which failures come back as
     a retry and which as a failed call, and ``query_param_on_pages`` lists the
     envelope's keys again. The toolset keeps behaving as the defaults describe
     whatever the text says, so an override that rewords one of those owns keeping
-    it true.
+    it true. The envelope is the one fact the toolset keeps true for it:
+    ``{envelope}``, in the three fields that name the page, is the page as the
+    toolset writes it, ``total`` included when it is built with
+    ``include_total``. Text without the placeholder is said as written, flag or
+    not, so an override written against an earlier release keeps its words and
+    does not gain ``total``.
 
     Each transport words these for its own reader, which is why they live here and
     not in a shared library, and why changing them here changes nothing the MCP
@@ -92,8 +97,7 @@ class AgentConventions:
 
     pagination: str | None = (
         "- Read-only tools that return a collection always return one page, shaped "
-        '{{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}}. They accept '
-        "optional `limit` (items per page, default {page_size}) and `page` (1-based). When "
+        "{envelope}. They accept optional `limit` (items per page, default {page_size}) and `page` (1-based). When "
         "`hasNext` is true there are more items than you were shown: ask for the next `page`, "
         "or narrow the request with a filter — never answer as if the page were the whole "
         "collection."
@@ -103,6 +107,11 @@ class AgentConventions:
     ``{page_size}`` is the page an omitted ``limit`` is served, the same number
     each tool's ``limit`` description states, so the model is not told one default
     here and another on the tool.
+
+    ``{envelope}`` is the page written as an object,
+    ``{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}``, with
+    ``"total": T`` last when the toolset is built with ``include_total``. Off,
+    the default says what it said before the placeholder existed, byte for byte.
     """
 
     ordering: str | None = (
@@ -148,7 +157,9 @@ class AgentConventions:
     """Appended to ``read_shaping``, after a space, when some tool that returns a page
     has a read-shaping parameter.
 
-    The block-level half of ``query_param_on_pages``. No placeholders.
+    The block-level half of ``query_param_on_pages``. ``{envelope}`` is the
+    envelope's keys, as ``query_param_on_pages`` receives them. The default names
+    no key, and so says the same whether or not the page carries ``total``.
     """
 
     unavailable_heading: str | None = (
@@ -177,13 +188,17 @@ class AgentConventions:
 
     query_param_on_pages: str | None = (
         "On a paged result it applies to each item in `items`, never to the page envelope "
-        "(`items`, `page`, `totalPages`, `hasNext`)."
+        "({envelope})."
     )
     """What a read-shaping parameter applies to on a tool that returns a page.
 
     Appended after a space to each read-shaping parameter's description on such a tool, or
     its whole description when it declares none, and to the retry a render-time
-    rejection on such a tool produces. No placeholders.
+    rejection on such a tool produces.
+
+    ``{envelope}`` is the envelope's keys, each in backticks and joined with
+    ``", "``: ``items``, ``page``, ``totalPages`` and ``hasNext``, then ``total``
+    when the toolset is built with ``include_total``.
 
     The envelope is the likeliest target for a bad selection because it is exactly
     the shape the tool documents returning -- ``{items{id, name}}`` is a natural
@@ -211,14 +226,14 @@ class AgentConventions:
 _PLACEHOLDERS: Mapping[str, frozenset[str]] = MappingProxyType(
     {
         "base": frozenset(),
-        "pagination": frozenset({"page_size"}),
+        "pagination": frozenset({"envelope", "page_size"}),
         "ordering": frozenset({"names"}),
         "handles": frozenset(),
         "read_shaping": frozenset({"names"}),
-        "read_shaping_on_pages": frozenset(),
+        "read_shaping_on_pages": frozenset({"envelope"}),
         "unavailable_heading": frozenset(),
         "handle_field_description": frozenset(),
-        "query_param_on_pages": frozenset(),
+        "query_param_on_pages": frozenset({"envelope"}),
         "missing_arguments": frozenset({"names"}),
     }
 )
@@ -228,7 +243,9 @@ Keyed by every field, so a field added without an entry fails every construction
 (``test_every_field_declares_its_placeholders``) rather than accepting anything.
 """
 
-_SAMPLES: Mapping[str, Any] = MappingProxyType({"page_size": 1, "names": "`name`"})
+_SAMPLES: Mapping[str, Any] = MappingProxyType(
+    {"page_size": 1, "names": "`name`", "envelope": "`items`"}
+)
 """A value of the type each placeholder is rendered with, for the trial render."""
 
 _NEVER_NONE = frozenset({"missing_arguments"})

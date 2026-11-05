@@ -340,6 +340,46 @@ class _CountedPage(OutputPage):
         return {**super().envelope(rendered), "total": self.total}
 
 
+_ENVELOPE: tuple[tuple[str, str], ...] = (
+    ("items", "[...]"),
+    ("page", "1"),
+    ("totalPages", "N"),
+    ("hasNext", "true|false"),
+)
+"""The kernel's page envelope as the model is shown it: each key, and what it holds.
+
+In the order ``OutputPage.envelope`` writes them, the order both renderings of
+``{envelope}`` keep. ``include_total`` adds ``total`` last, where
+``_CountedPage`` writes it.
+"""
+
+_ENVELOPE_TOTAL = ("total", "T")
+
+
+def _envelope_keys(include_total: bool) -> tuple[tuple[str, str], ...]:
+    """The envelope's keys and sample values, with ``total`` under ``include_total``."""
+    return (*_ENVELOPE, _ENVELOPE_TOTAL) if include_total else _ENVELOPE
+
+
+def _envelope_shape(include_total: bool) -> str:
+    """``{envelope}`` as ``pagination`` receives it: the page, written as an object.
+
+    With the flag off this is the shape 0.8.0's default spelled out literally, so
+    the default line says the same bytes it did
+    (``test_the_default_instructions_block[off]``).
+    """
+    shown = ", ".join(f'"{key}": {sample}' for key, sample in _envelope_keys(include_total))
+    return f"{{{shown}}}"
+
+
+def _envelope_listed(include_total: bool) -> str:
+    """``{envelope}`` as the two read-shaping fields receive it: the keys, listed.
+
+    Each in backticks and comma-joined, as ``{names}`` is everywhere.
+    """
+    return _listed([key for key, _ in _envelope_keys(include_total)])
+
+
 class SpecToolset(AbstractToolset[Any]):
     """Exposes specs as a Pydantic-AI toolset.
 
@@ -543,10 +583,12 @@ class SpecToolset(AbstractToolset[Any]):
         include_total: Adds ``total``, how many rows the list matched across
             every page, to each list tool's page beside ``totalPages`` and
             ``hasNext``, and advertises it in the tool's return schema and its
-            ``limit`` description. Off by default. It costs no query: the count
-            is the one taken before the slice. The flag is toolset-wide, and
-            what is advertised follows it rather than any ``shape_page``
-            override. A project that wants ``total`` on some tools only leaves
+            ``limit`` description, and in what ``{envelope}`` renders: the
+            pagination line of the derived instructions, the sentence on each
+            read-shaping parameter and its render retry. Off by default. It
+            costs no query: the count is the one taken before the slice. The
+            flag is toolset-wide, and what is advertised follows it rather
+            than any ``shape_page`` override. A project that wants ``total`` on some tools only leaves
             it off and has an override return a counting page for those
             tools, so nothing advertised claims a key a page lacks; turning it
             on and dropping ``total`` from some tools would.
@@ -970,10 +1012,11 @@ class SpecToolset(AbstractToolset[Any]):
     def _derived_instructions(self) -> str | None:
         """The conventions block, built once and kept.
 
-        A pure function of six attributes ``__init__`` assigns and nothing
-        reassigns -- the specs, the query-param declarations, the projections,
-        the schema registry, the page ceiling and the conventions, which are
-        frozen -- so recomputing it is recomputing the same string. Pydantic-AI
+        A pure function of what ``__init__`` assigns and nothing reassigns --
+        the specs, the query-param declarations, the projections, the schema
+        registry, the pool seeds, the page ceiling, ``include_total`` and the
+        conventions, which are frozen -- so recomputing it is recomputing the
+        same string. Pydantic-AI
         asks for instructions on **every model step**, and the derivation walks
         each list spec through ``spec_to_json_schema`` to find what that spec
         calls its sort.
@@ -1011,6 +1054,7 @@ class SpecToolset(AbstractToolset[Any]):
             {name: self._offered_shapes(name) for name in offered},
             {name: self._projections[name] for name in offered},
             page_size=_served_page_size(self._max_page_size),
+            include_total=self._include_total,
             pool_seeds=self._pool_seeds,
             conventions=self._conventions,
         )
@@ -1272,9 +1316,10 @@ class SpecToolset(AbstractToolset[Any]):
         that sort rather than compose with it.
 
         **``include_total`` decides the page here**: on, the page returned
-        writes ``total`` into its envelope. The return schema and the ``limit``
-        description follow the flag too, but they are written at construction,
-        so an override changes the payload and never what is advertised. An
+        writes ``total`` into its envelope. The return schema, the ``limit``
+        description and the ``{envelope}`` the conventions render follow the
+        flag too, but they are written at construction, so an override changes
+        the payload and never what is advertised. An
         override that builds a page of its own carries what that page's
         ``envelope`` writes: that is how a project with the flag off adds
         ``total``, or figures of its own, on the tools it chooses
@@ -1370,8 +1415,9 @@ class SpecToolset(AbstractToolset[Any]):
         In the dispatch thread, so ``call_seeds`` runs where the call does, and
         before the module-level pipeline checks the arguments against the
         seeds. ``label`` is the tool's name, the call's ``action``. The
-        toolset's ``conventions`` are bound here too, beside the seams, so
-        every route into a call words its retries the same way.
+        toolset's ``conventions`` and ``include_total`` are bound here too,
+        beside the seams, so every route into a call words its retries the same
+        way, and names the envelope the tool advertised.
         """
         call_context = _call_context(ctx, label)
         hook_seeds = self.call_seeds(ctx=ctx, tool_name=label)
@@ -1408,6 +1454,7 @@ class SpecToolset(AbstractToolset[Any]):
                 *a, ctx=ctx, **kwargs
             ),
             conventions=self._conventions,
+            include_total=self._include_total,
             **kw,
         )
 
@@ -2077,6 +2124,7 @@ def _derive_instructions(
     projections: Mapping[str, AudienceProjection] | None = None,
     *,
     page_size: int = DEFAULT_PAGE_SIZE,
+    include_total: bool = False,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
 ) -> str | None:
@@ -2098,13 +2146,20 @@ def _derive_instructions(
     **The specs are the only source of an ordering argument**, so this asks them
     and nothing else: whatever the schema advertises is what the model may send.
     ``pool_seeds`` is the toolset's, so a sort a registered seed fills is asked
-    about as the schema was built.
+    about as the schema was built. ``include_total`` is too, so ``{envelope}``
+    names the page the toolset's tools return.
     """
     lines: list[str | None] = [_render(conventions.base)]
     if any(_is_list_selector(spec) for spec in specs.values()):
         # The same number each ``limit`` description states, for the reason
         # ``_served_page_size`` gives.
-        lines.append(_render(conventions.pagination, page_size=page_size))
+        lines.append(
+            _render(
+                conventions.pagination,
+                page_size=page_size,
+                envelope=_envelope_shape(include_total),
+            )
+        )
     # Deduplicated, in first-seen order: one toolset can carry several tools
     # whose sorts are declared under different names, and a model reading one
     # block for the whole toolset has to be told each. Named rather than said as
@@ -2128,7 +2183,7 @@ def _derive_instructions(
         # shape both being present: a toolset whose only read-shaping argument
         # is on a retrieve tool returns no page for it to be misread against.
         scope = (
-            _render(conventions.read_shaping_on_pages)
+            _render(conventions.read_shaping_on_pages, envelope=_envelope_listed(include_total))
             if any(
                 _is_list_selector(spec) and tool_shapes.get(name) for name, spec in specs.items()
             )
@@ -2334,7 +2389,11 @@ def _input_schema(
             **schema,
             "properties": {
                 **_with_scope(
-                    schema["properties"], shapes, _render(conventions.query_param_on_pages)
+                    schema["properties"],
+                    shapes,
+                    _render(
+                        conventions.query_param_on_pages, envelope=_envelope_listed(include_total)
+                    ),
                 ),
                 "page": _PAGE_PARAM_SCHEMA,
                 "limit": _limit_param_schema(max_page_size, include_total=include_total),
@@ -2541,6 +2600,7 @@ def _call_spec(
     render_output: _OutputRenderer,
     enforce_result_bytes: _ResultBounder,
     conventions: AgentConventions = _DEFAULT_CONVENTIONS,
+    include_total: bool = False,
 ) -> Any:
     """Dispatch ``spec`` through the kernel and render the result for the model.
 
@@ -2783,7 +2843,13 @@ def _call_spec(
             _render_rejection_message(
                 shaped,
                 exc.detail,
-                scope=_render(conventions.query_param_on_pages) if page is not None else None,
+                scope=(
+                    _render(
+                        conventions.query_param_on_pages, envelope=_envelope_listed(include_total)
+                    )
+                    if page is not None
+                    else None
+                ),
             )
         ) from exc
     if page is not None:

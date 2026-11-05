@@ -1,0 +1,528 @@
+{
+  "default_hand_built": [
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take one parameter of each scalar type.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "anything": {},
+          "bare": {},
+          "count": {
+            "type": "integer"
+          },
+          "flag": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ratio": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "count",
+          "ratio",
+          "flag",
+          "anything",
+          "bare"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "scalars",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take parameters with plain defaults.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "verbose": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "defaults",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take optional and union parameters.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "either": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "legacy": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "note": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "unions",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take annotated parameters.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "description": "1-based page.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "description": "Text to look for.",
+            "examples": [
+              "red",
+              "blue"
+            ],
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^\\w+$",
+            "title": "Search text",
+            "type": "string"
+          },
+          "score": {
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "step": {
+            "multipleOf": 5,
+            "type": "integer"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "page",
+          "query",
+          "score",
+          "tags"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "annotated",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take parameters given as a Field.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "default": "",
+            "description": "Opaque cursor.",
+            "type": "string"
+          },
+          "owner": {
+            "description": "Owner handle.",
+            "type": "string"
+          },
+          "size": {
+            "default": 20,
+            "description": "Page size.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "owner"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "field_defaults",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take container parameters.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "extra": {
+            "type": "object"
+          },
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "nested": {
+            "items": {
+              "description": "An address."
+            },
+            "type": "array"
+          },
+          "pairs": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "maxLength": 8,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unique": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids",
+          "rows",
+          "extra",
+          "unique",
+          "pairs",
+          "nested"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "containers",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take types the hand-built schema leaves unconstrained.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "nullable": true
+          },
+          "colour": {}
+        },
+        "required": [
+          "colour"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "unmapped",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Read the acting user through the run context.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "with_context",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Fetch a remote resource.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "fetch_remote",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "undocumented",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "ui_write",
+      "confirm": "Delete this record?",
+      "description": "Delete a record.",
+      "destructive": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "record_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "record_id"
+        ],
+        "type": "object",
+        "x-category": "ui_write",
+        "x-confirm": "Delete this record?",
+        "x-destructive": true,
+        "x-summary": "Delete a record"
+      },
+      "name": "delete_record",
+      "schema_strategy": null,
+      "summary": "Delete a record"
+    },
+    {
+      "category": "introspect",
+      "confirm": null,
+      "description": "List what the host exposes.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object",
+        "x-category": "introspect"
+      },
+      "name": "introspect",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take parameters the pydantic strategy derives.",
+      "destructive": false,
+      "input_schema": {
+        "$defs": {
+          "_Address": {
+            "properties": {
+              "street": {
+                "title": "Street",
+                "type": "string"
+              },
+              "zip_code": {
+                "pattern": "^\\d{5}$",
+                "title": "Zip Code",
+                "type": "string"
+              }
+            },
+            "required": [
+              "street",
+              "zip_code"
+            ],
+            "title": "_Address",
+            "type": "object"
+          },
+          "_Colour": {
+            "enum": [
+              "red",
+              "blue"
+            ],
+            "title": "_Colour",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "$ref": "#/$defs/_Address"
+          },
+          "colour": {
+            "$ref": "#/$defs/_Colour",
+            "default": "red"
+          },
+          "count": {
+            "default": 1,
+            "description": "Visitors.",
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "pydantic_derived",
+        "type": "object",
+        "x-category": "other",
+        "x-summary": "Register a visit"
+      },
+      "name": "pydantic_derived",
+      "schema_strategy": "pydantic",
+      "summary": "Register a visit"
+    }
+  ],
+  "default_pydantic": [
+    {
+      "category": "other",
+      "confirm": "Merge these records?",
+      "description": "Merge records.",
+      "destructive": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "drop": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Drop",
+            "type": "array"
+          },
+          "keep": {
+            "description": "The record to keep.",
+            "title": "Keep",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "keep",
+          "drop"
+        ],
+        "title": "merge",
+        "type": "object",
+        "x-category": "other",
+        "x-confirm": "Merge these records?",
+        "x-destructive": true
+      },
+      "name": "merge",
+      "schema_strategy": null,
+      "summary": null
+    },
+    {
+      "category": "other",
+      "confirm": null,
+      "description": "Take a parameter the hand-built schema derives.",
+      "destructive": false,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "x-category": "other"
+      },
+      "name": "hand_built",
+      "schema_strategy": "hand_built",
+      "summary": null
+    }
+  ]
+}

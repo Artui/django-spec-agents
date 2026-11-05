@@ -18,14 +18,14 @@ _FRAMEWORK = re.compile(r"(?i)\bdrf\b|drf-|rest[ _-]?framework|djangorestframewo
 # Each field's own placeholders, written out: the table the docs give a reader.
 _ACCEPTED = {
     "base": (),
-    "pagination": ("page_size",),
+    "pagination": ("envelope", "page_size"),
     "ordering": ("names",),
     "handles": (),
     "read_shaping": ("names",),
-    "read_shaping_on_pages": (),
+    "read_shaping_on_pages": ("envelope",),
     "unavailable_heading": (),
     "handle_field_description": (),
-    "query_param_on_pages": (),
+    "query_param_on_pages": ("envelope",),
     "missing_arguments": ("names",),
 }
 
@@ -92,8 +92,17 @@ def test_an_empty_line_is_accepted_wherever_none_is(name):
         ("missing_arguments", "Missing {name}.", "{name}"),
         ("handle_field_description", "An id, {}.", "{}"),
         ("read_shaping", "Shape with {names[0]}.", "{names[0]}"),
+        ("read_shaping", "Not on {envelope}.", "{envelope}"),
     ],
-    ids=["other-fields-placeholder", "swapped", "none-accepted", "typo", "positional", "indexed"],
+    ids=[
+        "other-fields-placeholder",
+        "swapped",
+        "none-accepted",
+        "typo",
+        "positional",
+        "indexed",
+        "envelope-off-the-page-fields",
+    ],
 )
 def test_a_placeholder_a_field_does_not_accept_is_refused_naming_the_field(name, template, named):
     with pytest.raises(ImproperlyConfigured) as refused:

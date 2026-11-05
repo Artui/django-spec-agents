@@ -153,7 +153,7 @@ differently. Reasoning is *produced* here (a model-settings thinking config) but
 | --- | --- |
 | `make init` | `uv sync --all-groups` + install pre-commit hooks |
 | `make test` | pytest with 100% line+branch coverage gate |
-| `make tool-schemas` | rewrite `tests/spec_tools/tool_schemas.json`, the pinned `get_tools` dump |
+| `make tool-schemas` | rewrite both pinned dumps: `tests/spec_tools/tool_schemas.json` (`get_tools`) and `tests/registry/tool_schemas.json` (the `ToolRegistry`) |
 | `make test-host-only` | the boundary tests on an install with no extra, in `build/host-only-venv` |
 | `make lint` | `ruff check .` + `ty check django_spec_agents` |
 | `make format` | `ruff format .` |
@@ -239,6 +239,12 @@ are fine — module-level **mutable** state is not.
   (django-service-specs) or pydantic-ai release changed its output raises that
   dependency's floor in the same pull request, since the lowest-declared-versions job and
   the newest matrix cells otherwise need different dumps.
+- The host's own tools are pinned the same way, one dump per producer:
+  `tests/registry/test_tool_schemas.py` builds a `ToolRegistry` of `@tool`s, one per
+  schema feature `build_input_schema` derives, and diffs each binding (name,
+  description, input schema, the `x-` annotations) against
+  `tests/registry/tool_schemas.json`. `make tool-schemas` rewrites it too, under the
+  same rules.
 
 ## Lint and types
 

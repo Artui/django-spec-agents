@@ -179,19 +179,25 @@ filters and before the slice. It costs no query: the toolset already counts
 the rows to clamp `page` against the last one, and the flag hands that count
 on. With it on, the tool's `return_schema` lists `total` as required and the
 `limit` description names it, so a model knows a one-row page answers "how
-many". With it off, the default, the envelope and both schemas are exactly as
-above. `SpecCapability` takes the same keyword.
+many", and so do the pagination line of the derived instructions and the
+sentence on each [read-shaping parameter](#on-a-list-tool-a-parameter-shapes-each-row)
+that lists the envelope's keys. With it off, the default, the envelope, both
+schemas and the instructions are exactly as above. `SpecCapability` takes the
+same keyword.
 
-The flag is toolset-wide, and so is what it advertises: the return schema and
-the `limit` description are written from it when the toolset is built. For
+The flag is toolset-wide, and so is what it advertises: the return schema, the
+`limit` description, and the envelope the pagination line, each read-shaping
+parameter's sentence and its render retry name (the
+[`{envelope}` placeholder](#changing-what-the-model-is-told)) are written from it
+when the toolset is built, never from a `shape_page` override. For
 `total` on some tools only, leave the flag off and override
 [`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page] to return a
 counting page for those tools, reading the call's tool name off
 `ctx.tool_name`. The recipe below does exactly that, and an empty entry in its
 `LIST_AGGREGATES` adds `total` alone. Nothing advertised then claims a key a
 page lacks. The reverse, the flag on and an override dropping `total` from some
-tools, leaves those tools' `limit` description, which the model reads on every
-turn, promising a key that never comes.
+tools, leaves those tools' `limit` description and the pagination line, which
+the model reads on every turn, promising a key that never comes.
 
 ### Aggregates beside the total: a `shape_page` override
 
@@ -687,10 +693,10 @@ from django_spec_agents.spec_tools import AgentConventions, SpecToolset
 toolset = SpecToolset(
     specs,
     conventions=AgentConventions(
-        # {page_size} is the page an omitted `limit` is served; a literal brace is doubled.
+        # {envelope} is the page as this toolset writes it, `total` included under
+        # include_total; {page_size} is the page an omitted `limit` is served.
         pagination=(
-            "- Collections come back one page at a time, as "
-            '{{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}}, '
+            "- Collections come back one page at a time, as {envelope}, "
             "{page_size} items unless you pass `limit`. Ask for the next `page` while "
             "`hasNext` is true."
         ),
@@ -709,14 +715,14 @@ line wherever it would have been said.
 | Field | Where it lands | Said when | Placeholders |
 | --- | --- | --- | --- |
 | `base` | instructions, first | always | none |
-| `pagination` | instructions | some tool returns a page | `{page_size}` |
+| `pagination` | instructions | some tool returns a page | `{envelope}`, `{page_size}` |
 | `ordering` | instructions | some tool advertises a sort argument | `{names}` |
 | `handles` | instructions | some tool's output marks a handle | none |
 | `read_shaping` | instructions | some tool declares a read-shaping parameter | `{names}` |
-| `read_shaping_on_pages` | instructions, after `read_shaping` | that tool also returns a page | none |
+| `read_shaping_on_pages` | instructions, after `read_shaping` | that tool also returns a page | `{envelope}` |
 | `unavailable_heading` | instructions, last, above the tools left out | a condition left a tool out this step | none |
 | `handle_field_description` | a handle field's output schema | the field declares no description of its own | none |
-| `query_param_on_pages` | a read-shaping parameter's description, and the [render retry](#a-selection-the-presenter-rejects) | the tool returns a page | none |
+| `query_param_on_pages` | a read-shaping parameter's description, and the [render retry](#a-selection-the-presenter-rejects) | the tool returns a page | `{envelope}` |
 | `missing_arguments` | the retry for a call missing an argument | a required read or lookup parameter is left out | `{names}` |
 
 A few rules follow from what each field is:
@@ -724,6 +730,15 @@ A few rules follow from what each field is:
 - **Every field is a `str.format` template**, placeholders or not, so a literal
   brace is written twice everywhere. `{names}` is each name in backticks, joined
   with `, ` (sorted, except `ordering`'s, which follow the tools).
+- **`{envelope}` is the page the default `shape_page` returns**, with `total`
+  when the toolset is built with
+  [`include_total`](#how-many-rows-match-include_total) and without it
+  otherwise. It follows the flag, not a `shape_page` override: an override that
+  adds `total` with the flag off does not change it. In `pagination` it is the page written as an object,
+  `{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}`, with
+  `"total": T` last under the flag; in the two read-shaping fields it is the
+  keys, `` `items`, `page`, `totalPages`, `hasNext` ``, and `` `total` `` last.
+  Text without it is said exactly as written, flag or not.
 - **A typo fails at startup.** A placeholder the field does not accept, an
   unbalanced brace, or a format spec its value cannot take raises
   `ImproperlyConfigured` naming the field when the `AgentConventions` is built.
@@ -743,7 +758,8 @@ true.** `pagination` and `query_param_on_pages` name the page envelope's keys, a
 `base` says which failures come back as a retry and which as a failed call. The
 toolset goes on behaving as the defaults describe whatever the text says, so a
 rewording that drops or contradicts one of those facts tells the model something
-false.
+false. For the envelope the toolset keeps it true for you: write `{envelope}`
+where your text names the page, and it follows `include_total`.
 
 **`conventions=` and `instructions=`.** `instructions=` replaces the whole
 derived block, so changing one of its lines (`base` through
@@ -1046,7 +1062,9 @@ toolset tells the model this in two places:
 - each read-shaping parameter on a list tool has "On a paged result it applies
   to each item in `items`, never to the page envelope (`items`, `page`,
   `totalPages`, `hasNext`)." appended to its description, or as its description
-  when it declares none; a retrieve tool's parameter is left as declared;
+  when it declares none, with `` `total` `` last in the list under
+  [`include_total`](#how-many-rows-match-include_total); a retrieve tool's
+  parameter is left as declared;
 - the read-shaping line of the instructions the toolset derives says the same,
   "On a tool that returns a page, they apply to each item in `items`, never to
   the page itself.", when some list tool declares a read-shaping parameter.
