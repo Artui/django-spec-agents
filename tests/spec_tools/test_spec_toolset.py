@@ -131,7 +131,8 @@ _DEFAULTS = AgentConventions()
 
 
 def _pagination_line(page_size: int) -> str:
-    return _DEFAULTS.pagination.format(page_size=page_size)
+    envelope = '{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}'
+    return _DEFAULTS.pagination.format(page_size=page_size, envelope=envelope)
 
 
 def _ordering_line(names: list[str]) -> str:

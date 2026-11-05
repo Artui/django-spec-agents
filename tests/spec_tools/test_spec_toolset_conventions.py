@@ -48,10 +48,22 @@ _ALLOWED_WITH_INSTRUCTIONS = [
     "query_param_on_pages",
     "missing_arguments",
 ]
-_PLACEHOLDERS = {"pagination": ("page_size",), "ordering": ("names",)} | {
-    name: ("names",) for name in ("read_shaping", "missing_arguments")
-}
+_PLACEHOLDERS = {
+    "pagination": ("envelope", "page_size"),
+    "ordering": ("names",),
+    "read_shaping_on_pages": ("envelope",),
+    "query_param_on_pages": ("envelope",),
+} | {name: ("names",) for name in ("read_shaping", "missing_arguments")}
 _UNAVAILABLE_ITEM = "\n  - `approve`: The books are closed."
+# What ``{envelope}`` renders as, written out: the page's shape in ``pagination``,
+# its keys in the two fields beside a read-shaping parameter. ``total`` comes last,
+# where the page under ``include_total`` writes it.
+_SHAPE = '{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}'
+_SHAPE_WITH_TOTAL = (
+    '{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false, "total": T}'
+)
+_KEYS = "`items`, `page`, `totalPages`, `hasNext`"
+_KEYS_WITH_TOTAL = "`items`, `page`, `totalPages`, `hasNext`, `total`"
 
 
 @dataclass
@@ -139,7 +151,10 @@ _LANDS = {name: {"instructions"} for name in [*_BLOCK, "unavailable_heading"]} |
 }
 
 _VALUES = {
-    ("pagination", "instructions"): {"page_size": DEFAULT_PAGE_SIZE},
+    ("pagination", "instructions"): {"page_size": DEFAULT_PAGE_SIZE, "envelope": _SHAPE},
+    ("read_shaping_on_pages", "instructions"): {"envelope": _KEYS},
+    ("query_param_on_pages", "params:list_widgets"): {"envelope": _KEYS},
+    ("query_param_on_pages", "render_retry"): {"envelope": _KEYS},
     ("ordering", "instructions"): {"names": "`ordering`"},
     ("read_shaping", "instructions"): {"names": "`fields`"},
     ("missing_arguments", "missing_retry"): {"names": "`pk`"},
@@ -199,7 +214,10 @@ async def test_a_field_changed_under_instructions_lands_in_the_same_places():
     ("name", "gone"),
     [
         ("base", f"{_DEFAULTS.base}\n"),
-        ("pagination", f"\n{_DEFAULTS.pagination.format(page_size=DEFAULT_PAGE_SIZE)}"),
+        (
+            "pagination",
+            f"\n{_DEFAULTS.pagination.format(page_size=DEFAULT_PAGE_SIZE, envelope=_SHAPE)}",
+        ),
         ("ordering", f"\n{_DEFAULTS.ordering.format(names='`ordering`')}"),
         ("handles", f"\n{_DEFAULTS.handles}"),
         # The continuation goes with the line it continues.
@@ -256,6 +274,73 @@ async def test_none_drops_the_scope_sentence_from_the_param_and_the_retry():
             "Unknown field `items`.",
         },
     )
+
+
+@pytest.mark.parametrize(
+    ("include_total", "shape", "keys"),
+    [(False, _SHAPE, _KEYS), (True, _SHAPE_WITH_TOTAL, _KEYS_WITH_TOTAL)],
+    ids=["off", "include_total"],
+)
+async def test_the_envelope_placeholder_follows_the_flag(include_total, shape, keys):
+    """``{envelope}`` is the page as this toolset writes it, in every field that takes it.
+
+    A shape in the pagination line, its keys in the block's read-shaping sentence,
+    beside the read-shaping parameter and in its render retry.
+    """
+    surfaces = await _surfaces(
+        conventions=AgentConventions(
+            pagination="- Pages: {envelope}, {page_size} a page.",
+            read_shaping_on_pages="Not on {envelope}.",
+            query_param_on_pages="Rows only, not {envelope}.",
+        ),
+        include_total=include_total,
+    )
+
+    instructions = surfaces["instructions"]
+    accepted = json.loads(surfaces["params:list_widgets"])
+    assert f"\n- Pages: {shape}, {DEFAULT_PAGE_SIZE} a page.\n" in instructions
+    assert "without filtering it. Not on " + keys + ".\n" in instructions
+    assert accepted["properties"]["fields"]["description"] == f"Rows only, not {keys}."
+    assert surfaces["render_retry"].endswith(f"`items`. Rows only, not {keys}.")
+
+
+@pytest.mark.parametrize("include_total", [False, True], ids=["off", "include_total"])
+async def test_text_without_the_envelope_placeholder_renders_as_written(include_total):
+    """An override written before the placeholder says exactly what it said, flag or not.
+
+    It is the project's text, so it does not gain ``total`` either: the
+    placeholder is how it opts in.
+    """
+    surfaces = await _surfaces(
+        conventions=AgentConventions(
+            pagination='- Pages look like {{"items": [...]}}, {page_size} at a time.',
+            read_shaping_on_pages="Per row.",
+            query_param_on_pages="Per row, never the page.",
+        ),
+        include_total=include_total,
+    )
+
+    instructions = surfaces["instructions"]
+    accepted = json.loads(surfaces["params:list_widgets"])
+    assert f'\n- Pages look like {{"items": [...]}}, {DEFAULT_PAGE_SIZE} at a time.\n' in (
+        instructions
+    )
+    assert "without filtering it. Per row.\n" in instructions
+    assert accepted["properties"]["fields"]["description"] == "Per row, never the page."
+    assert surfaces["render_retry"].endswith("`items`. Per row, never the page.")
+
+
+async def test_the_scope_names_total_beside_an_instructions_override():
+    """``query_param_on_pages`` is in force beside ``instructions=``, and so is the flag."""
+    surfaces = await _surfaces(instructions="House rules.", include_total=True)
+
+    accepted = json.loads(surfaces["params:list_widgets"])
+    scope = (
+        "On a paged result it applies to each item in `items`, never to the page envelope "
+        f"({_KEYS_WITH_TOTAL})."
+    )
+    assert accepted["properties"]["fields"]["description"] == scope
+    assert surfaces["render_retry"].endswith(f"`items`. {scope}")
 
 
 async def test_a_declared_param_description_keeps_its_place_ahead_of_a_changed_sentence():
@@ -507,12 +592,14 @@ async def test_conventions_reach_the_model_through_a_capability(route):
     assert captured["instructions"] == "House base."
 
 
-async def test_the_quickstart_example_says_what_it_shows():
+@pytest.mark.parametrize(
+    ("include_total", "shape"), [(False, _SHAPE), (True, _SHAPE_WITH_TOTAL)], ids=["off", "on"]
+)
+async def test_the_quickstart_example_says_what_it_shows(include_total, shape):
     """The example under "Changing what the model is told", as the docs write it."""
     conventions = AgentConventions(
         pagination=(
-            "- Collections come back one page at a time, as "
-            '{{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}}, '
+            "- Collections come back one page at a time, as {envelope}, "
             "{page_size} items unless you pass `limit`. Ask for the next `page` while "
             "`hasNext` is true."
         ),
@@ -521,12 +608,12 @@ async def test_the_quickstart_example_says_what_it_shows():
     toolset = SpecToolset(
         {name: _every_line()[name] for name in ("list_widgets", "get_widget")},
         conventions=conventions,
+        include_total=include_total,
     )
 
     assert await toolset.get_instructions(run_context()) == (
         f"{_DEFAULTS.base}\n"
-        "- Collections come back one page at a time, as "
-        '{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}, '
+        f"- Collections come back one page at a time, as {shape}, "
         f"{DEFAULT_PAGE_SIZE} items unless you pass `limit`. Ask for the next `page` while "
         "`hasNext` is true."
     )

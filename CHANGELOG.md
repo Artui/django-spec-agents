@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An `{envelope}` placeholder in `AgentConventions`, and the derived wording
+  names `total` under `include_total`.** 0.8.0's `include_total=True` put
+  `total` on every list tool's page and in its `limit` description, but the
+  instructions' pagination line and the sentence on each read-shaping parameter
+  still listed the envelope without it. Their defaults now write the page
+  through `{envelope}`, which the toolset renders with `total` when the flag is
+  on and without it when it is off; off, the instructions and every tool
+  definition are byte-identical to 0.8.0. `pagination`, `read_shaping_on_pages`
+  and `query_param_on_pages` accept it: in `pagination` it is the page written as
+  an object, in the other two the envelope's keys, listed.
+  **For a project that overrides those fields**, nothing changes until it opts
+  in: text without the placeholder is said exactly as written, flag or not, and
+  so does not mention `total`. Writing `{envelope}` where the text names the page
+  hands keeping that list true to the toolset. `read_shaping_on_pages`'s default
+  names no envelope key, so it reads the same either way.
+
 ## [0.8.0] — 2026-11-04
 
 A list tool's page can say how many rows match, opted in per toolset.

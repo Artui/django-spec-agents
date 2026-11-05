@@ -43,6 +43,15 @@ _PAGINATION = (
     "`page`, or narrow the request with a filter — never answer as if the page were the "
     "whole collection."
 )
+# Under ``include_total``, the envelope as the page writes it: ``total`` last.
+_PAGINATION_WITH_TOTAL = (
+    "- Read-only tools that return a collection always return one page, shaped "
+    '{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false, "total": T}. They '
+    f"accept optional `limit` (items per page, default {DEFAULT_PAGE_SIZE}) and `page` "
+    "(1-based). When `hasNext` is true there are more items than you were shown: ask for the "
+    "next `page`, or narrow the request with a filter — never answer as if the page were the "
+    "whole collection."
+)
 _ORDERING = (
     "- Some collection tools also accept `ordering`. It takes exactly one of the values "
     "listed in that tool's schema (a sortable name, or the same name prefixed with `-` for "
@@ -72,6 +81,16 @@ _SCOPE = (
     "On a paged result it applies to each item in `items`, never to the page envelope "
     "(`items`, `page`, `totalPages`, `hasNext`)."
 )
+_SCOPE_WITH_TOTAL = (
+    "On a paged result it applies to each item in `items`, never to the page envelope "
+    "(`items`, `page`, `totalPages`, `hasNext`, `total`)."
+)
+# The flag decides which: off, the text 0.8.0 said, byte for byte.
+_BY_FLAG = pytest.mark.parametrize(
+    ("include_total", "pagination", "scope"),
+    [(False, _PAGINATION, _SCOPE), (True, _PAGINATION_WITH_TOTAL, _SCOPE_WITH_TOTAL)],
+    ids=["off", "include_total"],
+)
 
 
 def _every_line() -> dict[str, Any]:
@@ -89,29 +108,36 @@ def _every_line() -> dict[str, Any]:
     }
 
 
-def _toolset() -> SpecToolset:
-    return SpecToolset(shaping(_every_line(), {"list_widgets": [Parameter("fields", "string")]}))
-
-
-async def test_the_default_instructions_block():
-    instructions = await _toolset().get_instructions(run_context())
-
-    assert instructions == "\n".join(
-        [_BASE, _PAGINATION, _ORDERING, _HANDLES, _READ_SHAPING, _UNAVAILABLE]
+def _toolset(*, include_total: bool = False) -> SpecToolset:
+    return SpecToolset(
+        shaping(_every_line(), {"list_widgets": [Parameter("fields", "string")]}),
+        include_total=include_total,
     )
 
 
-async def test_the_default_schema_wording():
-    tools = await _toolset().get_tools(run_context())
+@_BY_FLAG
+async def test_the_default_instructions_block(include_total, pagination, scope):
+    """The read-shaping line names no envelope key, so the flag leaves it as it is."""
+    instructions = await _toolset(include_total=include_total).get_instructions(run_context())
+
+    assert instructions == "\n".join(
+        [_BASE, pagination, _ORDERING, _HANDLES, _READ_SHAPING, _UNAVAILABLE]
+    )
+
+
+@_BY_FLAG
+async def test_the_default_schema_wording(include_total, pagination, scope):
+    tools = await _toolset(include_total=include_total).get_tools(run_context())
 
     returned = tools["get_widget"].tool_def.return_schema
     accepted = tools["list_widgets"].tool_def.parameters_json_schema
     assert returned["properties"]["id"]["description"] == _HANDLE_FIELD
-    assert accepted["properties"]["fields"]["description"] == _SCOPE
+    assert accepted["properties"]["fields"]["description"] == scope
 
 
-async def test_the_default_retries():
-    toolset = _toolset()
+@_BY_FLAG
+async def test_the_default_retries(include_total, pagination, scope):
+    toolset = _toolset(include_total=include_total)
     tools = await toolset.get_tools(run_context())
 
     with pytest.raises(ModelRetry) as rejected:
@@ -122,7 +148,7 @@ async def test_the_default_retries():
         await toolset.call_tool("get_widget", {}, run_context(), tools["get_widget"])
 
     assert rejected.value.message == (
-        f"`fields` was rejected while rendering the result: Unknown field `items`. {_SCOPE}"
+        f"`fields` was rejected while rendering the result: Unknown field `items`. {scope}"
     )
     assert missing.value.message == "Missing required argument(s): `pk`."
 
