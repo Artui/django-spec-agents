@@ -28,7 +28,9 @@ placeholder an overriding project can use too.
   in: text without the placeholder is said exactly as written, flag or not, and
   so does not mention `total`. Writing `{envelope}` where the text names the page
   hands keeping that list true to the toolset. `read_shaping_on_pages`'s default
-  names no envelope key, so it reads the same either way.
+  names no envelope key, so it reads the same either way. Code that formats a
+  default itself, `AgentConventions().pagination.format(page_size=...)`, now
+  passes `envelope=` too, or raises `KeyError`.
 
 ## [0.8.0] — 2026-11-04
 

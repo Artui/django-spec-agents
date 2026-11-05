@@ -185,16 +185,19 @@ that lists the envelope's keys. With it off, the default, the envelope, both
 schemas and the instructions are exactly as above. `SpecCapability` takes the
 same keyword.
 
-The flag is toolset-wide, and so is what it advertises: the return schema and
-the `limit` description are written from it when the toolset is built. For
+The flag is toolset-wide, and so is what it advertises: the return schema, the
+`limit` description, and the envelope the pagination line, each read-shaping
+parameter's sentence and its render retry name (the
+[`{envelope}` placeholder](#changing-what-the-model-is-told)) are written from it
+when the toolset is built, never from a `shape_page` override. For
 `total` on some tools only, leave the flag off and override
 [`shape_page`][django_spec_agents.spec_tools.SpecToolset.shape_page] to return a
 counting page for those tools, reading the call's tool name off
 `ctx.tool_name`. The recipe below does exactly that, and an empty entry in its
 `LIST_AGGREGATES` adds `total` alone. Nothing advertised then claims a key a
 page lacks. The reverse, the flag on and an override dropping `total` from some
-tools, leaves those tools' `limit` description, which the model reads on every
-turn, promising a key that never comes.
+tools, leaves those tools' `limit` description and the pagination line, which
+the model reads on every turn, promising a key that never comes.
 
 ### Aggregates beside the total: a `shape_page` override
 
@@ -727,9 +730,11 @@ A few rules follow from what each field is:
 - **Every field is a `str.format` template**, placeholders or not, so a literal
   brace is written twice everywhere. `{names}` is each name in backticks, joined
   with `, ` (sorted, except `ordering`'s, which follow the tools).
-- **`{envelope}` is the page the toolset's list tools return**, with `total`
-  when it is built with [`include_total`](#how-many-rows-match-include_total)
-  and without it otherwise. In `pagination` it is the page written as an object,
+- **`{envelope}` is the page the default `shape_page` returns**, with `total`
+  when the toolset is built with
+  [`include_total`](#how-many-rows-match-include_total) and without it
+  otherwise. It follows the flag, not a `shape_page` override: an override that
+  adds `total` with the flag off does not change it. In `pagination` it is the page written as an object,
   `{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}`, with
   `"total": T` last under the flag; in the two read-shaping fields it is the
   keys, `` `items`, `page`, `totalPages`, `hasNext` ``, and `` `total` `` last.

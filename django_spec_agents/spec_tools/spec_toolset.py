@@ -583,10 +583,12 @@ class SpecToolset(AbstractToolset[Any]):
         include_total: Adds ``total``, how many rows the list matched across
             every page, to each list tool's page beside ``totalPages`` and
             ``hasNext``, and advertises it in the tool's return schema and its
-            ``limit`` description. Off by default. It costs no query: the count
-            is the one taken before the slice. The flag is toolset-wide, and
-            what is advertised follows it rather than any ``shape_page``
-            override. A project that wants ``total`` on some tools only leaves
+            ``limit`` description, and in what ``{envelope}`` renders: the
+            pagination line of the derived instructions, the sentence on each
+            read-shaping parameter and its render retry. Off by default. It
+            costs no query: the count is the one taken before the slice. The
+            flag is toolset-wide, and what is advertised follows it rather
+            than any ``shape_page`` override. A project that wants ``total`` on some tools only leaves
             it off and has an override return a counting page for those
             tools, so nothing advertised claims a key a page lacks; turning it
             on and dropping ``total`` from some tools would.
@@ -1010,10 +1012,11 @@ class SpecToolset(AbstractToolset[Any]):
     def _derived_instructions(self) -> str | None:
         """The conventions block, built once and kept.
 
-        A pure function of seven attributes ``__init__`` assigns and nothing
-        reassigns -- the specs, the query-param declarations, the projections,
-        the schema registry, the page ceiling, ``include_total`` and the
-        conventions, which are frozen -- so recomputing it is recomputing the same string. Pydantic-AI
+        A pure function of what ``__init__`` assigns and nothing reassigns --
+        the specs, the query-param declarations, the projections, the schema
+        registry, the pool seeds, the page ceiling, ``include_total`` and the
+        conventions, which are frozen -- so recomputing it is recomputing the
+        same string. Pydantic-AI
         asks for instructions on **every model step**, and the derivation walks
         each list spec through ``spec_to_json_schema`` to find what that spec
         calls its sort.
@@ -1313,9 +1316,10 @@ class SpecToolset(AbstractToolset[Any]):
         that sort rather than compose with it.
 
         **``include_total`` decides the page here**: on, the page returned
-        writes ``total`` into its envelope. The return schema and the ``limit``
-        description follow the flag too, but they are written at construction,
-        so an override changes the payload and never what is advertised. An
+        writes ``total`` into its envelope. The return schema, the ``limit``
+        description and the ``{envelope}`` the conventions render follow the
+        flag too, but they are written at construction, so an override changes
+        the payload and never what is advertised. An
         override that builds a page of its own carries what that page's
         ``envelope`` writes: that is how a project with the flag off adds
         ``total``, or figures of its own, on the tools it chooses
