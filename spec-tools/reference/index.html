@@ -2271,10 +2271,12 @@ pagination.</p>
                 <p>Adds <code>total</code>, how many rows the list matched across
 every page, to each list tool's page beside <code>totalPages</code> and
 <code>hasNext</code>, and advertises it in the tool's return schema and its
-<code>limit</code> description. Off by default. It costs no query: the count
-is the one taken before the slice. The flag is toolset-wide, and
-what is advertised follows it rather than any <code>shape_page</code>
-override. A project that wants <code>total</code> on some tools only leaves
+<code>limit</code> description, and in what <code>{envelope}</code> renders: the
+pagination line of the derived instructions, the sentence on each
+read-shaping parameter and its render retry. Off by default. It
+costs no query: the count is the one taken before the slice. The
+flag is toolset-wide, and what is advertised follows it rather
+than any <code>shape_page</code> override. A project that wants <code>total</code> on some tools only leaves
 it off and has an override return a counting page for those
 tools, so nothing advertised claims a key a page lacks; turning it
 on and dropping <code>total</code> from some tools would.</p>
@@ -2940,9 +2942,10 @@ belongs to whatever the spec declared it on, which has already applied it
 to the queryset by the time this runs; an <code>order_by</code> here would replace
 that sort rather than compose with it.</p>
 <p><strong><code>include_total</code> decides the page here</strong>: on, the page returned
-writes <code>total</code> into its envelope. The return schema and the <code>limit</code>
-description follow the flag too, but they are written at construction,
-so an override changes the payload and never what is advertised. An
+writes <code>total</code> into its envelope. The return schema, the <code>limit</code>
+description and the <code>{envelope}</code> the conventions render follow the
+flag too, but they are written at construction, so an override changes
+the payload and never what is advertised. An
 override that builds a page of its own carries what that page's
 <code>envelope</code> writes: that is how a project with the flag off adds
 <code>total</code>, or figures of its own, on the tools it chooses
@@ -3360,13 +3363,18 @@ can be neither dropped nor left blank.</p>
 are the ones listed on it, and nothing else; anything outside them raises
 <code>ImproperlyConfigured</code> naming the field when the instance is built, so a typo
 fails at startup rather than inside a prompt. A literal brace is written twice,
-<code>{{</code> or <code>}}</code>, in every field, as the default <code>pagination</code> does.</p>
+<code>{{</code> or <code>}}</code>, in every field.</p>
 <p><strong>Some lines state facts about behaviour,</strong> not just advice: <code>pagination</code>
 names the keys of the page envelope, <code>base</code> says which failures come back as
 a retry and which as a failed call, and <code>query_param_on_pages</code> lists the
 envelope's keys again. The toolset keeps behaving as the defaults describe
 whatever the text says, so an override that rewords one of those owns keeping
-it true.</p>
+it true. The envelope is the one fact the toolset keeps true for it:
+<code>{envelope}</code>, in the three fields that name the page, is the page as the
+toolset writes it, <code>total</code> included when it is built with
+<code>include_total</code>. Text without the placeholder is said as written, flag or
+not, so an override written against an earlier release keeps its words and
+does not gain <code>total</code>.</p>
 <p>Each transport words these for its own reader, which is why they live here and
 not in a shared library, and why changing them here changes nothing the MCP
 transport says about the same specs.</p>
@@ -3463,7 +3471,7 @@ act on, and the line is read on every step.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.pagination" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">pagination</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s1">&#39;- Read-only tools that return a collection always return one page, shaped {{&quot;items&quot;: [...], &quot;page&quot;: 1, &quot;totalPages&quot;: N, &quot;hasNext&quot;: true|false}}. They accept optional `limit` (items per page, default </span><span class="si">{page_size}</span><span class="s1">) and `page` (1-based). When `hasNext` is true there are more items than you were shown: ask for the next `page`, or narrow the request with a filter — never answer as if the page were the whole collection.&#39;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;- Read-only tools that return a collection always return one page, shaped </span><span class="si">{envelope}</span><span class="s2">. They accept optional `limit` (items per page, default </span><span class="si">{page_size}</span><span class="s2">) and `page` (1-based). When `hasNext` is true there are more items than you were shown: ask for the next `page`, or narrow the request with a filter — never answer as if the page were the whole collection.&quot;</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3473,6 +3481,10 @@ act on, and the line is read on every step.</p>
 <p><code>{page_size}</code> is the page an omitted <code>limit</code> is served, the same number
 each tool's <code>limit</code> description states, so the model is not told one default
 here and another on the tool.</p>
+<p><code>{envelope}</code> is the page written as an object,
+<code>{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}</code>, with
+<code>"total": T</code> last when the toolset is built with <code>include_total</code>. Off,
+the default says what it said before the placeholder existed, byte for byte.</p>
 
     </div>
 
@@ -3592,7 +3604,9 @@ that sentence continues this one.</p>
 
         <p>Appended to <code>read_shaping</code>, after a space, when some tool that returns a page
 has a read-shaping parameter.</p>
-<p>The block-level half of <code>query_param_on_pages</code>. No placeholders.</p>
+<p>The block-level half of <code>query_param_on_pages</code>. <code>{envelope}</code> is the
+envelope's keys, as <code>query_param_on_pages</code> receives them. The default names
+no key, and so says the same whether or not the page carries <code>total</code>.</p>
 
     </div>
 
@@ -3674,7 +3688,7 @@ do with an identifier depends on the reader. No placeholders.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.query_param_on_pages" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">query_param_on_pages</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;On a paged result it applies to each item in `items`, never to the page envelope (`items`, `page`, `totalPages`, `hasNext`).&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;On a paged result it applies to each item in `items`, never to the page envelope (</span><span class="si">{envelope}</span><span class="s2">).&quot;</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3683,7 +3697,10 @@ do with an identifier depends on the reader. No placeholders.</p>
         <p>What a read-shaping parameter applies to on a tool that returns a page.</p>
 <p>Appended after a space to each read-shaping parameter's description on such a tool, or
 its whole description when it declares none, and to the retry a render-time
-rejection on such a tool produces. No placeholders.</p>
+rejection on such a tool produces.</p>
+<p><code>{envelope}</code> is the envelope's keys, each in backticks and joined with
+<code>", "</code>: <code>items</code>, <code>page</code>, <code>totalPages</code> and <code>hasNext</code>, then <code>total</code>
+when the toolset is built with <code>include_total</code>.</p>
 <p>The envelope is the likeliest target for a bad selection because it is exactly
 the shape the tool documents returning -- <code>{items{id, name}}</code> is a natural
 reading of it -- while the presenter that reads the param only ever sees one

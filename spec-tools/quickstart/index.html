@@ -1884,18 +1884,24 @@ filters and before the slice. It costs no query: the toolset already counts
 the rows to clamp <code>page</code> against the last one, and the flag hands that count
 on. With it on, the tool's <code>return_schema</code> lists <code>total</code> as required and the
 <code>limit</code> description names it, so a model knows a one-row page answers "how
-many". With it off, the default, the envelope and both schemas are exactly as
-above. <code>SpecCapability</code> takes the same keyword.</p>
-<p>The flag is toolset-wide, and so is what it advertises: the return schema and
-the <code>limit</code> description are written from it when the toolset is built. For
+many", and so do the pagination line of the derived instructions and the
+sentence on each <a href="#on-a-list-tool-a-parameter-shapes-each-row">read-shaping parameter</a>
+that lists the envelope's keys. With it off, the default, the envelope, both
+schemas and the instructions are exactly as above. <code>SpecCapability</code> takes the
+same keyword.</p>
+<p>The flag is toolset-wide, and so is what it advertises: the return schema, the
+<code>limit</code> description, and the envelope the pagination line, each read-shaping
+parameter's sentence and its render retry name (the
+<a href="#changing-what-the-model-is-told"><code>{envelope}</code> placeholder</a>) are written from it
+when the toolset is built, never from a <code>shape_page</code> override. For
 <code>total</code> on some tools only, leave the flag off and override
 <a class="autorefs autorefs-internal" title="shape_page" href="../reference/#django_spec_agents.spec_tools.SpecToolset.shape_page"><code>shape_page</code></a> to return a
 counting page for those tools, reading the call's tool name off
 <code>ctx.tool_name</code>. The recipe below does exactly that, and an empty entry in its
 <code>LIST_AGGREGATES</code> adds <code>total</code> alone. Nothing advertised then claims a key a
 page lacks. The reverse, the flag on and an override dropping <code>total</code> from some
-tools, leaves those tools' <code>limit</code> description, which the model reads on every
-turn, promising a key that never comes.</p>
+tools, leaves those tools' <code>limit</code> description and the pagination line, which
+the model reads on every turn, promising a key that never comes.</p>
 <h3 id="aggregates-beside-the-total-a-shape_page-override">Aggregates beside the total: a <code>shape_page</code> override<a class="headerlink" href="#aggregates-beside-the-total-a-shape_page-override" title="Permanent link">&para;</a></h3>
 <p>The toolset ships the count and no other figure, because which sums a list owes
 its reader is the project's to declare. A model asked "how much is outstanding"
@@ -2331,10 +2337,10 @@ sentence is the one part that is a field.</p>
 </span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span>
 </span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="n">specs</span><span class="p">,</span>
 </span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="n">conventions</span><span class="o">=</span><span class="n">AgentConventions</span><span class="p">(</span>
-</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>        <span class="c1"># {page_size} is the page an omitted `limit` is served; a literal brace is doubled.</span>
-</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="n">pagination</span><span class="o">=</span><span class="p">(</span>
-</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>            <span class="s2">&quot;- Collections come back one page at a time, as &quot;</span>
-</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>            <span class="s1">&#39;{{&quot;items&quot;: [...], &quot;page&quot;: 1, &quot;totalPages&quot;: N, &quot;hasNext&quot;: true|false}}, &#39;</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>        <span class="c1"># {envelope} is the page as this toolset writes it, `total` included under</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="c1"># include_total; {page_size} is the page an omitted `limit` is served.</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>        <span class="n">pagination</span><span class="o">=</span><span class="p">(</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>            <span class="s2">&quot;- Collections come back one page at a time, as </span><span class="si">{envelope}</span><span class="s2">, &quot;</span>
 </span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>            <span class="s2">&quot;</span><span class="si">{page_size}</span><span class="s2"> items unless you pass `limit`. Ask for the next `page` while &quot;</span>
 </span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>            <span class="s2">&quot;`hasNext` is true.&quot;</span>
 </span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>        <span class="p">),</span>
@@ -2368,7 +2374,7 @@ line wherever it would have been said.</p>
 <td><code>pagination</code></td>
 <td>instructions</td>
 <td>some tool returns a page</td>
-<td><code>{page_size}</code></td>
+<td><code>{envelope}</code>, <code>{page_size}</code></td>
 </tr>
 <tr>
 <td><code>ordering</code></td>
@@ -2392,7 +2398,7 @@ line wherever it would have been said.</p>
 <td><code>read_shaping_on_pages</code></td>
 <td>instructions, after <code>read_shaping</code></td>
 <td>that tool also returns a page</td>
-<td>none</td>
+<td><code>{envelope}</code></td>
 </tr>
 <tr>
 <td><code>unavailable_heading</code></td>
@@ -2410,7 +2416,7 @@ line wherever it would have been said.</p>
 <td><code>query_param_on_pages</code></td>
 <td>a read-shaping parameter's description, and the <a href="#a-selection-the-presenter-rejects">render retry</a></td>
 <td>the tool returns a page</td>
-<td>none</td>
+<td><code>{envelope}</code></td>
 </tr>
 <tr>
 <td><code>missing_arguments</code></td>
@@ -2425,6 +2431,15 @@ line wherever it would have been said.</p>
 <li><strong>Every field is a <code>str.format</code> template</strong>, placeholders or not, so a literal
   brace is written twice everywhere. <code>{names}</code> is each name in backticks, joined
   with <code>,</code> (sorted, except <code>ordering</code>'s, which follow the tools).</li>
+<li><strong><code>{envelope}</code> is the page the default <code>shape_page</code> returns</strong>, with <code>total</code>
+  when the toolset is built with
+  <a href="#how-many-rows-match-include_total"><code>include_total</code></a> and without it
+  otherwise. It follows the flag, not a <code>shape_page</code> override: an override that
+  adds <code>total</code> with the flag off does not change it. In <code>pagination</code> it is the page written as an object,
+  <code>{"items": [...], "page": 1, "totalPages": N, "hasNext": true|false}</code>, with
+  <code>"total": T</code> last under the flag; in the two read-shaping fields it is the
+  keys, <code>`items`, `page`, `totalPages`, `hasNext`</code>, and <code>`total`</code> last.
+  Text without it is said exactly as written, flag or not.</li>
 <li><strong>A typo fails at startup.</strong> A placeholder the field does not accept, an
   unbalanced brace, or a format spec its value cannot take raises
   <code>ImproperlyConfigured</code> naming the field when the <code>AgentConventions</code> is built.</li>
@@ -2444,7 +2459,8 @@ true.</strong> <code>pagination</code> and <code>query_param_on_pages</code> nam
 <code>base</code> says which failures come back as a retry and which as a failed call. The
 toolset goes on behaving as the defaults describe whatever the text says, so a
 rewording that drops or contradicts one of those facts tells the model something
-false.</p>
+false. For the envelope the toolset keeps it true for you: write <code>{envelope}</code>
+where your text names the page, and it follows <code>include_total</code>.</p>
 <p><strong><code>conventions=</code> and <code>instructions=</code>.</strong> <code>instructions=</code> replaces the whole
 derived block, so changing one of its lines (<code>base</code> through
 <code>read_shaping_on_pages</code>) beside it would be ignored, and the toolset refuses the
@@ -2700,7 +2716,9 @@ toolset tells the model this in two places:</p>
 <li>each read-shaping parameter on a list tool has "On a paged result it applies
   to each item in <code>items</code>, never to the page envelope (<code>items</code>, <code>page</code>,
   <code>totalPages</code>, <code>hasNext</code>)." appended to its description, or as its description
-  when it declares none; a retrieve tool's parameter is left as declared;</li>
+  when it declares none, with <code>`total`</code> last in the list under
+  <a href="#how-many-rows-match-include_total"><code>include_total</code></a>; a retrieve tool's
+  parameter is left as declared;</li>
 <li>the read-shaping line of the instructions the toolset derives says the same,
   "On a tool that returns a page, they apply to each item in <code>items</code>, never to
   the page itself.", when some list tool declares a read-shaping parameter.</li>
