@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-11-07
+
+Two notes in the docs. No change to the package.
+
+### Added
+
+- **The page on running from a worker says a test whose tool writes needs
+  `django_db(transaction=True)`.** Under the default `thread_sensitive=True` a
+  tool call runs on asgiref's shared thread, whose connection the test's
+  transaction does not reach. A write that succeeds commits and outlives the
+  test. On PostgreSQL the tool cannot see the test's uncommitted rows, so a
+  write pointing at one fails with `IntegrityError` and a read misses them; on
+  SQLite, once the test has written, every tool write fails on the test's lock
+  (`database is locked`, or `database table is locked` on Django's default
+  in-memory test database). Rows an async test makes with the async ORM are
+  made on that same thread, so they commit too. A test asserting only a refusal
+  that reads nothing the test made, with its rows made by the sync ORM, can keep
+  the plain marker. The danger box on `thread_sensitive=False` now points there,
+  since the default behaves the same.
+- **The quickstart says a service reads its actor from `user`, not
+  `request.user`.** A run that puts no request in its context, as a worker's
+  or a test's started with `AgentDeps(user=...)` alone does, hands a service
+  `request=None`, so a service recording its actor from `request.user` records
+  no one. The principal reaches every callable as the kernel's `user`.
+
 ## [0.10.0] — 2026-11-07
 
 A list reads the same on both routes, as `{"items": [...]}`, and the MCP bridge
@@ -751,7 +776,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/django-spec-agents/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Artui/django-spec-agents/compare/v0.7.1...v0.8.0
