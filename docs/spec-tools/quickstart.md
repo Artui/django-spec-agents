@@ -131,6 +131,14 @@ the answer telling it more existed. `hasNext` closes that gap — the model can
 ask for `page: 2`, or narrow the request with a filter, instead of answering
 from a page it took for the whole set.
 
+A service whose result is a list -- a `LIST` output re-read, a `many=True`
+call, a `returns_many=True` return -- is not paged, but it is not a bare array
+either: the model is handed its rows under `items`, as `{"items": [...]}`, and
+its `return_schema` is an object with that one required property holding the
+array. A model reads a list's rows at one path whether the tool pages or not,
+and django-spec-mcp serves the same spec in the same shape, so a list reads the
+same through `SpecToolset` and the [MCP bridge](../integrations.md#mcp-an-mcp-registry-as-a-toolset).
+
 Because the toolset takes `page` and `limit` out of a list tool's call to serve
 the page, a list selector taking a parameter of either name is refused with
 `ImproperlyConfigured` when the `SpecToolset` is built: the parameter would never
@@ -309,8 +317,11 @@ where the spec says dispatch may hand the model `None`, as the kernel's
   dispatch materializes the re-read with `.first()`, and a re-read that filters
   out the row it wrote finds none;
 - a service with nothing to re-read that declares `ServiceSpec(allow_none=True)`,
-  since dispatch then presents the service's own return, a `None` included, a
-  `many=True` service's too, whose `return_schema` is then `["array", "null"]`.
+  since dispatch then presents the service's own return, a `None` included.
+
+A `many=True` or `returns_many=True` service declaring `allow_none=True` may
+return `None` too, but a list result is an object (below), so the model is
+handed `{"items": []}` and its `return_schema` admits no `null`.
 
 **A `None` the spec does not declare is still handed to the model.** A service
 with nothing to re-read and no `allow_none=True` that returns `None` is
@@ -320,8 +331,8 @@ it, so declare it on any such service that can return nothing.
 
 `allow_none` on a service's nested `output_selector_spec` is not read, because
 dispatch does not read it, and a list result is never `null`, only empty. A
-service whose `output_selector_spec` declares `LIST` is an array whether or not
-it has a `selector` to re-read through: with none, dispatch presents the
+service whose `output_selector_spec` declares `LIST` presents a list whether or
+not it has a `selector` to re-read through: with none, dispatch presents the
 service's own return as the list, and a return that is not a set of rows, such
 as the one row a create returns, raises `ImproperlyConfigured` out of the run.
 Return the rows, or declare `RETRIEVE` to present one.

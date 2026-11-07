@@ -929,7 +929,7 @@ def test_declared_channels_beside_the_list_are_not_unexpected_arguments():
         shapes=(Parameter("fields", "string"),),
     )
 
-    assert [row["name"] for row in result] == ["a"]
+    assert [row["name"] for row in result["items"]] == ["a"]
 
 
 @pytest.mark.django_db
@@ -938,7 +938,7 @@ def test_a_many_tool_creates_every_item_and_returns_the_rendered_list():
 
     result = _dispatch(bulk_spec(), user, {"items": [_ITEM, {"name": "b", "price": 2}]})
 
-    assert [(row["name"], row["price"]) for row in result] == [("a", 1), ("b", 2)]
+    assert [(row["name"], row["price"]) for row in result["items"]] == [("a", 1), ("b", 2)]
     assert Widget.objects.filter(owner=user).count() == 2
 
 
@@ -952,16 +952,16 @@ async def test_a_model_calls_a_many_tool_through_the_run_loop():
 
     part = _tool_return(result)
     assert part.outcome == "success"
-    assert [row["name"] for row in part.content] == ["a"]
+    assert [row["name"] for row in part.content["items"]] == ["a"]
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_many_tool_advertises_the_array_it_returns():
+async def test_a_many_tool_advertises_the_rows_it_returns():
     """The two halves generated from one spec, compared against each other.
 
     A ``many=True`` spec renders its list through an ``output_selector_spec``
     declared ``RETRIEVE``, the kind describing one row, so a return schema read
-    off that kind would advertise an object while every payload is an array.
+    off that kind would advertise one row while every payload is a list of them.
     """
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset({"create_widgets": bulk_spec()})
@@ -971,9 +971,11 @@ async def test_a_many_tool_advertises_the_array_it_returns():
     return_schema = tools["create_widgets"].tool_def.return_schema
 
     assert return_schema is not None
-    assert return_schema["type"] == "array"
-    assert isinstance(payload, list)
-    assert set(payload[0]) == set(return_schema["items"]["properties"])
+    assert return_schema["type"] == "object"
+    rows = return_schema["properties"]["items"]
+    assert rows["type"] == "array"
+    assert set(payload) == {"items"}
+    assert set(payload["items"][0]) == set(rows["items"]["properties"])
 
 
 @pytest.mark.django_db(transaction=True)
@@ -987,7 +989,7 @@ async def test_a_spec_naming_its_list_argument_is_advertised_and_called_by_that_
 
     assert set(schema["properties"]) == {"widgets"}
     assert schema["required"] == ["widgets"]
-    assert [row["name"] for row in payload] == ["a"]
+    assert [row["name"] for row in payload["items"]] == ["a"]
 
 
 @pytest.mark.django_db
@@ -4634,10 +4636,12 @@ async def test_a_row_field_named_like_a_seed_is_validated_on_a_many_spec():
         {"items": [{"tenant": "globex"}, {"tenant": "initech"}]},
     )
 
-    assert result == [
-        {"destination": "globex", "tenant": "tenant-of-acme"},
-        {"destination": "initech", "tenant": "tenant-of-acme"},
-    ]
+    assert result == {
+        "items": [
+            {"destination": "globex", "tenant": "tenant-of-acme"},
+            {"destination": "initech", "tenant": "tenant-of-acme"},
+        ]
+    }
 
 
 def _books_seeds() -> PoolSeeds:
@@ -6763,7 +6767,7 @@ def _making(output: SelectorSpec, **kwargs: Any) -> ServiceSpec:
                 ),
                 allow_none=True,
             ),
-            "array",
+            "object",
             id="list-reread",
         ),
         # A service presenting its own list hands back a ``None`` it returns
@@ -6777,12 +6781,12 @@ def _making(output: SelectorSpec, **kwargs: Any) -> ServiceSpec:
                 allow_none=True,
                 permissions=allow(),
             ),
-            ["array", "null"],
+            "object",
             id="returns-many",
         ),
         # The kernel presents a ``many`` service's ``None`` return as ``None``,
-        # so ``allow_none`` admits it around the whole array.
-        pytest.param(bulk_spec(allow_none=True), ["array", "null"], id="many"),
+        # which the toolset serves as no rows, so the object admits no ``null``.
+        pytest.param(bulk_spec(allow_none=True), "object", id="many"),
     ],
 )
 def test_a_service_admits_null_only_where_dispatch_may_present_it(spec, root_type):
@@ -6791,7 +6795,9 @@ def test_a_service_admits_null_only_where_dispatch_may_present_it(spec, root_typ
     ``allow_none`` or without, so reading the flag for every service would
     promise ``null`` to the first two, which never return it. A ``many`` or
     ``returns_many`` service presents its own return, so a ``None`` from it is
-    ``None``, which its ``allow_none`` declares.
+    ``None``, which its ``allow_none`` declares; the toolset hands the model
+    that as no rows under ``items``, so every list is an object admitting no
+    ``null`` (``test_a_list_that_presents_nothing_is_no_rows``).
     """
     return_schema = _return_schema(spec)
 
@@ -6830,16 +6836,48 @@ def _presenting_a_list(service: Any) -> ServiceSpec:
     )
 
 
-async def test_a_service_whose_output_is_a_list_is_an_array_not_an_envelope():
-    """The toolset paginates list *selectors*. Claiming the envelope here would
-    re-open the same schema-versus-payload gap one spec kind over. Declared
-    ``returns_many``, dispatch presents the service's own return as the list,
-    and the model is handed the bare array the schema states.
+async def test_a_service_whose_output_is_a_list_is_its_rows_under_items():
+    """The toolset paginates list *selectors* only, so a service's list carries
+    no page envelope. It is still an object: declared ``returns_many``, dispatch
+    presents the service's own return as the list, and the model is handed its
+    rows under ``items``, the key a page holds them under and the shape
+    django-spec-mcp serves the same spec as, under an object schema saying so.
     """
     assert await _returned_against_its_schema(_presenting_a_list(touch_every_widget)) == (
-        _TOUCHED,
-        "array",
+        {"items": _TOUCHED},
+        "object",
     )
+
+
+async def test_a_list_that_presents_nothing_is_no_rows():
+    """A ``returns_many`` service declaring ``allow_none`` may return ``None``,
+    which the kernel presents as ``None``. A list result is an object, so that
+    is the empty list under ``items``, as django-spec-mcp serves it, never a
+    ``null`` the object schema does not admit."""
+    spec = ServiceSpec(
+        service=touch_widgets,
+        atomic=False,
+        presenter=widget_presenter(),
+        returns_many=True,
+        allow_none=True,
+        permissions=allow(),
+    )
+
+    assert await _returned_against_its_schema(spec) == ({"items": []}, "object")
+
+
+async def test_a_single_row_that_presents_nothing_is_still_none():
+    """Only a list-shaped spec's ``None`` becomes no rows: a spec presenting one
+    row hands the model the ``None`` its ``["object", "null"]`` schema admits."""
+    spec = ServiceSpec(
+        service=touch_widgets,
+        atomic=False,
+        allow_none=True,
+        presenter=widget_presenter(),
+        permissions=allow(),
+    )
+
+    assert await _returned_against_its_schema(spec) == (None, ["object", "null"])
 
 
 @pytest.mark.xfail(

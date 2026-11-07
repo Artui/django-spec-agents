@@ -38,15 +38,17 @@ from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import AgentConventions
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 from tests.integrations.helpers import LOOKUP_CALLS, run_context, run_omission_then_correction
-from tests.integrations.kernel_specs import LOOKUP_SPECS
+from tests.integrations.kernel_specs import LIST_CALLS, LIST_SPECS, LOOKUP_SPECS
 from tests.integrations.mcp_server import (
     BOOKS,
     REFUSED_SPEC,
     SELECTOR_ASKS_SPEC,
     bare_server,
     hinted_server,
+    list_server,
     lookup_server,
     paged_server,
+    scalar_server,
     server,
 )
 from tests.tool_retries import is_tool_answer, is_tool_retry, tool_answers, tool_retries
@@ -220,6 +222,96 @@ async def test_agent_run_recovers_from_model_retry() -> None:
     assert result.output == "done"
     assert [part.tool_name for part in tool_retries(result.all_messages())] == ["add"]
     assert [part.outcome for part in tool_answers(result.all_messages())] == ["success"]
+
+
+# ---------- the tool value ----------
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [("count_open_books", 3), ("name_the_ledger", "general")],
+)
+@pytest.mark.django_db
+async def test_a_scalar_result_is_the_scalar(name: str, expected: object) -> None:
+    # django-spec-mcp serves a scalar as its JSON text block with no
+    # ``structuredContent``; the model is handed the scalar, not the block list.
+    result = await scalar_server.acall_tool(name, {}, user=AnonymousUser())
+    assert isinstance(result, dict)
+    assert "structuredContent" not in result
+    assert result["content"] == [{"type": "text", "text": json.dumps(expected)}]
+    value = await MCPToolset(scalar_server, _request()).call_tool(name, {}, None, None)
+    assert value == expected
+
+
+@pytest.mark.django_db
+async def test_a_result_served_without_structured_content_is_its_text_parsed() -> None:
+    # A tool registered with ``include_structured_content=False`` carries its
+    # object in the text block alone.
+    result = await bare_server.acall_tool("close_the_books", {}, user=AnonymousUser())
+    assert isinstance(result, dict)
+    assert "structuredContent" not in result
+    value = await MCPToolset(bare_server, _request()).call_tool("close_the_books", {}, None, None)
+    assert value == {"status": "closed"}
+
+
+async def test_a_text_block_that_is_not_json_is_the_raw_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_call(
+        name: str, arguments: object = None, **_kwargs: object
+    ) -> dict[str, object]:
+        return {"content": [{"type": "text", "text": "closed"}]}
+
+    monkeypatch.setattr(scalar_server, "acall_tool", fake_call)
+    value = await MCPToolset(scalar_server, _request()).call_tool("name_the_ledger", {}, None, None)
+    assert value == "closed"
+
+
+@pytest.mark.parametrize(
+    "blocks",
+    [
+        # A media tool carries no ``structuredContent`` and no text to parse.
+        [{"type": "image", "data": "aGk=", "mimeType": "image/png"}],
+        # Two blocks are not one payload, even when both are text.
+        [{"type": "text", "text": "1"}, {"type": "text", "text": "2"}],
+        None,
+    ],
+    ids=["media", "two-text-blocks", "no-content"],
+)
+async def test_content_that_is_not_one_text_block_is_passed_on_as_the_blocks(
+    monkeypatch: pytest.MonkeyPatch, blocks: object
+) -> None:
+    async def fake_call(
+        name: str, arguments: object = None, **_kwargs: object
+    ) -> dict[str, object]:
+        return {} if blocks is None else {"content": blocks}
+
+    monkeypatch.setattr(scalar_server, "acall_tool", fake_call)
+    value = await MCPToolset(scalar_server, _request()).call_tool("name_the_ledger", {}, None, None)
+    assert value == blocks
+
+
+@pytest.mark.parametrize("name", list(LIST_SPECS))
+@pytest.mark.django_db
+async def test_a_list_result_reads_the_same_through_both_routes(name: str) -> None:
+    # django-spec-mcp serves every list result as ``{"items": [...]}`` under an
+    # object ``outputSchema``; the in-process route hands the model the same
+    # payload under the same schema, a list that presents nothing as no rows.
+    capability = build_spec_capability(LIST_SPECS)
+    toolset = capability.get_toolset()
+    ctx = run_context(AgentDeps(user=AnonymousUser()))
+    in_process = await toolset.call_tool(name, dict(LIST_CALLS[name]), ctx, None)  # type: ignore[arg-type]
+    bridge = MCPToolset(list_server, _request())
+    bridged = await bridge.call_tool(name, dict(LIST_CALLS[name]), None, None)
+    assert in_process == bridged
+    assert set(in_process) == {"items"}
+    in_process_schema = (await toolset.get_tools(ctx))[name].tool_def.return_schema
+    bridged_schema = (await bridge.get_tools(None))[name].tool_def.return_schema  # type: ignore[arg-type]
+    assert in_process_schema is not None
+    assert in_process_schema["type"] == "object"
+    assert in_process_schema["required"] == ["items"]
+    assert in_process_schema["properties"]["items"]["type"] == "array"
+    assert in_process_schema == bridged_schema
 
 
 async def test_the_id_and_the_retry_budget() -> None:

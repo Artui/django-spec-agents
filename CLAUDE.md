@@ -274,7 +274,7 @@ Change a rule here and change the config with it, or they drift apart again.
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
 | Pydantic-AI | 2.58, the family's shared floor (2.55 requires Python 3.11); the extras share it | latest in matrix |
 | `[specs]` | django-service-specs, at the floor `pyproject.toml` declares and says the reason for | latest in matrix; the floor in the `lowest declared versions` job |
-| `[mcp]` | django-spec-mcp 0.2.0, the surface the bridge calls; it brings the kernel at the floor it requires | latest in matrix; the floor in the `lowest declared versions` job |
+| `[mcp]` | django-spec-mcp 0.9.0, the wire the bridge reads (a list under `items`, a scalar with no `structuredContent`); it brings the kernel at the floor it requires | latest in matrix; the floor in the `lowest declared versions` job |
 
 ## Branching
 

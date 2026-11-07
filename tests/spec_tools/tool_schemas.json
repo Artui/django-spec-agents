@@ -239,26 +239,34 @@
         "type": "object"
       },
       "return_schema": {
-        "items": {
-          "properties": {
-            "id": {
-              "type": "integer"
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "price"
+              ],
+              "type": "object"
             },
-            "name": {
-              "type": "string"
-            },
-            "price": {
-              "type": "integer"
-            }
-          },
-          "required": [
-            "id",
-            "name",
-            "price"
-          ],
-          "type": "object"
+            "type": "array"
+          }
         },
-        "type": "array"
+        "required": [
+          "items"
+        ],
+        "type": "object"
       }
     },
     {

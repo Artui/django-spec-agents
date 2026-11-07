@@ -28,7 +28,7 @@ from django_service_specs import (
 )
 from django_spec_mcp import MCPServer
 
-from tests.integrations.kernel_specs import LOOKUP_SPECS
+from tests.integrations.kernel_specs import LIST_SPECS, LOOKUP_SPECS
 
 _TWO_NUMBERS = Parameters.of(
     Parameter("a", "integer", required=True), Parameter("b", "integer", required=True)
@@ -256,3 +256,34 @@ for _name, _annotations in (
         description="Add two numbers.",
         annotations=_annotations,
     )
+
+
+def count_open_books() -> int:
+    """Count the open books."""
+    return 3
+
+
+def name_the_ledger() -> str:
+    """Name the ledger."""
+    return "general"
+
+
+# Presenter-less services returning a scalar. django-spec-mcp serves a scalar as
+# the text block alone, with no ``structuredContent`` and no ``outputSchema``,
+# because a scalar has no object form.
+scalar_server = MCPServer(name="scalar")
+scalar_server.register_tool(
+    ServiceSpec(service=count_open_books, permissions=_OPEN, atomic=False),
+    name="count_open_books",
+    description="Count the open books.",
+)
+scalar_server.register_tool(
+    ServiceSpec(service=name_the_ledger, permissions=_OPEN, atomic=False),
+    name="name_the_ledger",
+    description="Name the ledger.",
+)
+
+# The list-shaped specs, so both routes are compared on one declaration each.
+list_server = MCPServer(name="lists")
+for _name, _spec in LIST_SPECS.items():
+    list_server.register_tool(_spec, name=_name, description=f"The {_name} tool.")

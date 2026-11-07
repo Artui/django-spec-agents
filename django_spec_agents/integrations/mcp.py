@@ -73,6 +73,34 @@ def _parse_tool_error(result: dict[str, Any]) -> dict[str, Any]:
     return error if isinstance(error, dict) else {"type": "unknown", "message": str(error)}
 
 
+def _tool_value(result: dict[str, Any]) -> Any:
+    """The value a successful result hands the model.
+
+    ``structuredContent`` when the server sent it. Without it, django-spec-mcp
+    carries the payload in one JSON text block: a scalar result always (it has
+    no object form, so 0.9.0 sends no ``structuredContent``), and any result of
+    a tool registered with ``include_structured_content=False``. That text is
+    parsed, so the model reads ``3`` rather than a content-block list, and kept
+    raw when it is not JSON. Any other content, a media block for one, is
+    passed on as the blocks.
+
+    Each conjunct of the one-text-block guard has a case in
+    ``test_content_that_is_not_one_text_block_is_passed_on_as_the_blocks``:
+    ``no-content`` (not a list), ``two-text-blocks`` (one block), ``media``
+    (a text block).
+    """
+    if "structuredContent" in result:
+        return result["structuredContent"]
+    content = result.get("content")
+    if not (isinstance(content, list) and len(content) == 1 and content[0].get("type") == "text"):
+        return content
+    text: str = content[0].get("text", "")
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text
+
+
 # The error keys that name a failure, in suffix order, with the label each is
 # written under. ``code`` is a refusal's stable name (the server sends it for an
 # ``ActionUnavailable``).
@@ -482,7 +510,7 @@ class MCPToolset(AbstractToolset[Any]):
             # instructions, and marks the return ``outcome="failed"``.
             failure = _failure_message(error)
             raise ToolFailed(failure)
-        return result.get("structuredContent", result.get("content"))
+        return _tool_value(result)
 
     def _advertised_names(self, name: str) -> list[str] | None:
         """The tools this toolset offers, when the failure looks like a bad name.

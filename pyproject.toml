@@ -63,9 +63,12 @@ google = ["pydantic-ai-slim[google]>=2.58,<3"]
 # toolset, ``MCPToolset``: the agent calls the server's kernel-spec tools
 # without a network hop. 0.2.0 is the surface the bridge calls: ``MCPServer``,
 # ``JsonRpcError`` and ``JsonRpcErrorCode`` from the root, ``list_tools`` with
-# ``include_unavailable``, ``aunavailable_tools`` and ``acall_tool``. It brings
-# the kernel at the floor it requires, so no kernel line is needed here.
-mcp = ["django-spec-mcp>=0.2.0"]
+# ``include_unavailable``, ``aunavailable_tools`` and ``acall_tool``; 0.9.0 is
+# the wire the bridge reads a result off: a list served as ``{"items": [...]}``
+# under an object ``outputSchema``, as ``[specs]`` serves the same spec, and a
+# scalar as its JSON text block with no ``structuredContent``. It brings the
+# kernel at the floor it requires, so no kernel line is needed here.
+mcp = ["django-spec-mcp>=0.9.0"]
 # Expose django-service-specs specs directly as agent tools via ``spec_tools``'
 # SpecCapability, with no MCP server in the path. A spec is whatever the
 # kernel's ``kernel_spec`` compiles, and every read the toolset makes is the
@@ -132,7 +135,7 @@ dev = [
     "django-stubs>=5.0",
     # The [mcp] extra's backing package, so its bridge + tests run in dev, at
     # the extra's floor.
-    "django-spec-mcp>=0.2.0",
+    "django-spec-mcp>=0.9.0",
     # The [specs] extra's requirement, so ``spec_tools`` and its tests run in
     # dev, at the extra's floor.
     "django-service-specs>=0.26.0",

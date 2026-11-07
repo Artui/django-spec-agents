@@ -10,9 +10,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from django import forms
 from django_service_specs import (
+    FormValidator,
+    Output,
+    OutputField,
     Parameter,
     Parameters,
+    Presenter,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -68,3 +73,91 @@ RENAME_ROW_SPEC = ServiceSpec(
 )
 
 LOOKUP_SPECS: dict[str, Any] = {"get_row": GET_ROW_SPEC, "rename_row": RENAME_ROW_SPEC}
+
+
+# ---------- list-shaped specs, served by both routes ----------
+
+
+class _NamedRow(Presenter):
+    """A row as its ``id`` and ``name``."""
+
+    def output(self) -> Output:
+        return Output(fields=(OutputField("id", "integer"), OutputField("name", "string")))
+
+    def present(self, value: Any) -> Any:
+        return {"id": value["id"], "name": value["name"]}
+
+
+class _NameForm(forms.Form):
+    """One row a ``many`` call names."""
+
+    name = forms.CharField(max_length=100)
+
+
+_TOUCHED: list[dict[str, Any]] = [{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]
+
+
+def touch_rows() -> list[dict[str, Any]]:
+    """Touch the rows, returning the rows touched."""
+    return _TOUCHED
+
+
+def touch_nothing() -> None:
+    """Touch the rows, returning nothing."""
+    return None
+
+
+def name_rows(*, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Name several rows in one call."""
+    return [{"id": index, "name": row["name"]} for index, row in enumerate(data, start=1)]
+
+
+def _reread_rows(*, result: Any) -> Any:
+    """The output re-read of a write that returns its rows: the rows as returned."""
+    return result
+
+
+# One spec per kind of list result a service presents: its own return
+# (``returns_many``), the rows of a ``many`` call, and a ``LIST`` output re-read;
+# plus a ``returns_many`` that may present nothing.
+LIST_SPECS: dict[str, Any] = {
+    "touch_rows": ServiceSpec(
+        service=touch_rows,
+        presenter=_NamedRow(),
+        returns_many=True,
+        permissions=[Unrestricted()],
+        atomic=False,
+    ),
+    "name_rows": ServiceSpec(
+        service=name_rows,
+        validator=FormValidator(_NameForm),
+        presenter=_NamedRow(),
+        many=True,
+        permissions=[Unrestricted()],
+        atomic=False,
+    ),
+    "reread_rows": ServiceSpec(
+        service=touch_rows,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=_reread_rows, presenter=_NamedRow()
+        ),
+        permissions=[Unrestricted()],
+        atomic=False,
+    ),
+    "touch_nothing": ServiceSpec(
+        service=touch_nothing,
+        presenter=_NamedRow(),
+        returns_many=True,
+        allow_none=True,
+        permissions=[Unrestricted()],
+        atomic=False,
+    ),
+}
+
+# What each call sends: a ``many`` spec's list travels under its ``many_argument``.
+LIST_CALLS: dict[str, dict[str, Any]] = {
+    "touch_rows": {},
+    "name_rows": {"items": [{"name": "first"}, {"name": "second"}]},
+    "reread_rows": {},
+    "touch_nothing": {},
+}
