@@ -2685,11 +2685,11 @@ resumed there — under the <em>public</em> agent's model, tools and guard polic
 <p>Wrapping fixes that without a migration:</p>
 <div class="language-text highlight"><pre><span></span><code>internal = AGUIServer(
     registry,
-    conversation_store=ScopedConversationStore(store, scope=&quot;internal&quot;),
+    conversation_store=ScopedConversationStore(store, scope="internal"),
 )
 public = AGUIServer(
     registry,
-    conversation_store=ScopedConversationStore(store, scope=&quot;public&quot;),
+    conversation_store=ScopedConversationStore(store, scope="public"),
 )
 </code></pre></div>
 <p>The partition is a thread-id prefix, so this composes with any
@@ -3047,7 +3047,7 @@ users.</p>
 <p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class MyStore(ModelAttachmentStore):
     def _save(self, upload, owner_id):
-        row = MyAttachment.objects.create(owner_id=owner_id or &quot;&quot;, ...)
+        row = MyAttachment.objects.create(owner_id=owner_id or "", ...)
         row.file.save(row.attachment_id, upload, save=True)
         return AttachmentRef(id=row.attachment_id, name=..., mime=..., size=...)
     def _open(self, attachment_id, owner_id): ...

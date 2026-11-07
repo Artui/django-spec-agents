@@ -1513,8 +1513,8 @@ client-registered ones.</p>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">tool_guard</span><span class="o">=</span><span class="n">ToolGuardConfig</span><span class="p">(</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        <span class="n">exempt</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;send_receipt&quot;</span><span class="p">}),</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        <span class="n">require_approval</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;export_report&quot;</span><span class="p">}),</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        <span class="n">exempt</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">"send_receipt"</span><span class="p">}),</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        <span class="n">require_approval</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">"export_report"</span><span class="p">}),</span>
 </span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="p">),</span>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">)</span>
 </span></code></pre></div>
@@ -1601,7 +1601,7 @@ with it — along with the results of every other tool in the same round. One
 broken integration costs the whole answer.</p>
 <p><code>ToolFailurePolicy</code> changes what the failure stops, and nothing else. The call
 comes back to the model marked failed, naming the tool, and the run carries on:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;openai:gpt-4o&quot;</span><span class="p">)</span>  <span class="c1"># on by default</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">"openai:gpt-4o"</span><span class="p">)</span>  <span class="c1"># on by default</span>
 </span></code></pre></div>
 <p>Turn it off so a raising tool ends the run again, or opt into detail:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolFailureConfig</span>

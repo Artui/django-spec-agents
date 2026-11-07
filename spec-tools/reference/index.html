@@ -1865,8 +1865,8 @@ that compiles to one. Every read of it is the
 compiled spec's. Build it from a <code>name -&gt; spec</code> mapping and hand it to an
 <code>Agent</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>toolset = SpecToolset({
-    &quot;list_orders&quot;: orders_selector_spec,   # SelectorSpec -&gt; read-only tool
-    &quot;create_order&quot;: create_order_spec,     # ServiceSpec  -&gt; mutation tool
+    "list_orders": orders_selector_spec,   # SelectorSpec -&gt; read-only tool
+    "create_order": create_order_spec,     # ServiceSpec  -&gt; mutation tool
 })
 agent = Agent(model, deps_type=AgentDeps, toolsets=[toolset])
 </code></pre></div>
@@ -1900,6 +1900,14 @@ rows unless <code>max_page_size</code> lowers it, which is what the <code>page</
 <code>limit</code> arguments every list tool advertises promise. <code>hasNext</code> is what
 tells a model asking for a collection that more rows exist than it was
 shown.</p>
+<p><strong>Every other list result is an object too</strong>: the rows a service presents
+-- a <code>LIST</code> output re-read, a <code>many</code> call, a <code>returns_many</code> return --
+come back as <code>{"items": [...]}</code>, with no page around them, under a return
+schema saying so. <code>items</code> is the key a page holds its rows under, so a
+model reads a list's rows at one path whether the tool pages or not, and
+django-spec-mcp serves the same spec in the same shape. A list that
+presents nothing, a <code>many</code> or <code>returns_many</code> service declaring
+<code>allow_none</code> returning <code>None</code>, is <code>{"items": []}</code>.</p>
 <p><strong>Filtering needs no declaration here, and ordering belongs to the
 <code>filter_set</code>.</strong> A <code>SelectorSpec.filter_set</code>'s fields are already
 generated into the tool's input schema and flow through as ordinary
@@ -1915,7 +1923,7 @@ list travels under the argument <code>ServiceSpec.many_argument</code> names --
 <code>items</code> unless the spec names another -- and nothing may be sent beside it
 but the spec's own <code>reads</code>. An invalid item comes
 back as a <code>ModelRetry</code> keyed under that argument and then by the item's
-index. The result is the rendered list, advertised as an array.</p>
+index. The result is the rendered list under <code>items</code>, advertised so.</p>
 <p><strong>What a tool reads off HTTP is the spec's to declare</strong>, in its <code>reads</code>,
 where every transport and every mount reads the same answer; the toolset
 reads them off the compiled spec, so a spec arriving in a <code>SpecRegistry</code>
@@ -3114,8 +3122,8 @@ wrapping and attaching directly yield the same instructions, exactly once.</p>
     model,
     deps_type=AgentDeps,
     capabilities=[SpecCapability({
-        &quot;list_orders&quot;: orders_selector_spec,   # SelectorSpec -&gt; read-only tool
-        &quot;create_order&quot;: create_order_spec,     # ServiceSpec  -&gt; mutation tool
+        "list_orders": orders_selector_spec,   # SelectorSpec -&gt; read-only tool
+        "create_order": create_order_spec,     # ServiceSpec  -&gt; mutation tool
     })],
 )
 </code></pre></div>
@@ -3438,7 +3446,7 @@ string.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.base" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">base</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;The following tools call this application&#39;s services and selectors.</span><span class="se">\n</span><span class="s2">- A successful call returns the tool&#39;s data. A business-rule failure comes back as a failed call whose content is a sentence explaining why — that is a final answer, not a reason to retry; read it and report it, do not call the same tool the same way again. The sentence may end with `(code: &lt;name&gt;)`, naming the rule that refused; it is the same code an item&#39;s `affordances` answer carries when a tool advertised one.</span><span class="se">\n</span><span class="s2">- An invalid or missing argument comes back as a retry request naming the problem; correct the argument and call again.</span><span class="se">\n</span><span class="s2">- A permission error is final: the current user may not perform that call — do not retry it.</span><span class="se">\n</span><span class="s2">- Only pass documented parameters; unknown arguments are rejected.&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"The following tools call this application's services and selectors.</span><span class="se">\n</span><span class="s2">- A successful call returns the tool's data. A business-rule failure comes back as a failed call whose content is a sentence explaining why — that is a final answer, not a reason to retry; read it and report it, do not call the same tool the same way again. The sentence may end with `(code: &lt;name&gt;)`, naming the rule that refused; it is the same code an item's `affordances` answer carries when a tool advertised one.</span><span class="se">\n</span><span class="s2">- An invalid or missing argument comes back as a retry request naming the problem; correct the argument and call again.</span><span class="se">\n</span><span class="s2">- A permission error is final: the current user may not perform that call — do not retry it.</span><span class="se">\n</span><span class="s2">- Only pass documented parameters; unknown arguments are rejected."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3471,7 +3479,7 @@ act on, and the line is read on every step.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.pagination" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">pagination</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;- Read-only tools that return a collection always return one page, shaped </span><span class="si">{envelope}</span><span class="s2">. They accept optional `limit` (items per page, default </span><span class="si">{page_size}</span><span class="s2">) and `page` (1-based). When `hasNext` is true there are more items than you were shown: ask for the next `page`, or narrow the request with a filter — never answer as if the page were the whole collection.&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"- Read-only tools that return a collection always return one page, shaped </span><span class="si">{envelope}</span><span class="s2">. They accept optional `limit` (items per page, default </span><span class="si">{page_size}</span><span class="s2">) and `page` (1-based). When `hasNext` is true there are more items than you were shown: ask for the next `page`, or narrow the request with a filter — never answer as if the page were the whole collection."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3505,7 +3513,7 @@ the default says what it said before the placeholder existed, byte for byte.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.ordering" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ordering</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;- Some collection tools also accept </span><span class="si">{names}</span><span class="s2">. It takes exactly one of the values listed in that tool&#39;s schema (a sortable name, or the same name prefixed with `-` for descending) — not a comma-separated list, and not an arbitrary column.&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"- Some collection tools also accept </span><span class="si">{names}</span><span class="s2">. It takes exactly one of the values listed in that tool's schema (a sortable name, or the same name prefixed with `-` for descending) — not a comma-separated list, and not an arbitrary column."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3535,7 +3543,7 @@ carry tools whose sorts are declared under different names.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.handles" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">handles</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;- Some tools return opaque identifier fields, described as such in the tool&#39;s output. Pass them to other tools that ask for one; refer to records by their name in anything you say, never by the identifier.&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"- Some tools return opaque identifier fields, described as such in the tool's output. Pass them to other tools that ask for one; refer to records by their name in anything you say, never by the identifier."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3563,7 +3571,7 @@ carry tools whose sorts are declared under different names.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.read_shaping" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">read_shaping</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;- Some tools accept read-shaping parameters (</span><span class="si">{names}</span><span class="s2">) that adjust the shape of the returned data without filtering it.&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"- Some tools accept read-shaping parameters (</span><span class="si">{names}</span><span class="s2">) that adjust the shape of the returned data without filtering it."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3596,7 +3604,7 @@ that sentence continues this one.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.read_shaping_on_pages" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">read_shaping_on_pages</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;On a tool that returns a page, they apply to each item in `items`, never to the page itself.&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"On a tool that returns a page, they apply to each item in `items`, never to the page itself."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3627,7 +3635,7 @@ no key, and so says the same whether or not the page carries <code>total</code>.
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.unavailable_heading" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">unavailable_heading</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:"</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3658,7 +3666,7 @@ override as well, so it is the one block line that override does not replace.
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.handle_field_description" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">handle_field_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;An opaque identifier. Pass it to other tools that ask for one; refer to the record by its name in anything you say, never by this value.&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"An opaque identifier. Pass it to other tools that ask for one; refer to the record by its name in anything you say, never by this value."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3688,7 +3696,7 @@ do with an identifier depends on the reader. No placeholders.</p>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.query_param_on_pages" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">query_param_on_pages</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;On a paged result it applies to each item in `items`, never to the page envelope (</span><span class="si">{envelope}</span><span class="s2">).&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">"On a paged result it applies to each item in `items`, never to the page envelope (</span><span class="si">{envelope}</span><span class="s2">)."</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
 </span></code></pre></div>
 
@@ -3725,7 +3733,7 @@ that mistake into one retry.</p>
   </span>
 
 <a href="#django_spec_agents.spec_tools.AgentConventions.missing_arguments" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">missing_arguments</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;Missing required argument(s): </span><span class="si">{names}</span><span class="s1">.&#39;</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">missing_arguments</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'Missing required argument(s): </span><span class="si">{names}</span><span class="s1">.'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3784,13 +3792,13 @@ otherwise re-derive from the pydantic-ai docs.</p>
 package's top level rather than under <code>spec_tools</code>: a host-only install, with
 no <code>[specs]</code> extra and no Django REST Framework, can drive its own agents with
 these doubles. The package root never imports it.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentDeps</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool_calling_model</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">tool_calling_model</span><span class="p">(</span><span class="s2">&quot;list_widgets&quot;</span><span class="p">),</span> <span class="n">deps_type</span><span class="o">=</span><span class="n">AgentDeps</span><span class="p">,</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="n">toolset</span><span class="p">])</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;go&quot;</span><span class="p">,</span> <span class="n">deps</span><span class="o">=</span><span class="n">AgentDeps</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="django_spec_agents.testing--__span-0-1"><a id="django_spec_agents.testing--__codelineno-0-1" name="django_spec_agents.testing--__codelineno-0-1" href="#django_spec_agents.testing--__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
+</span><span id="django_spec_agents.testing--__span-0-2"><a id="django_spec_agents.testing--__codelineno-0-2" name="django_spec_agents.testing--__codelineno-0-2" href="#django_spec_agents.testing--__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentDeps</span>
+</span><span id="django_spec_agents.testing--__span-0-3"><a id="django_spec_agents.testing--__codelineno-0-3" name="django_spec_agents.testing--__codelineno-0-3" href="#django_spec_agents.testing--__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
+</span><span id="django_spec_agents.testing--__span-0-4"><a id="django_spec_agents.testing--__codelineno-0-4" name="django_spec_agents.testing--__codelineno-0-4" href="#django_spec_agents.testing--__codelineno-0-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool_calling_model</span>
+</span><span id="django_spec_agents.testing--__span-0-5"><a id="django_spec_agents.testing--__codelineno-0-5" name="django_spec_agents.testing--__codelineno-0-5" href="#django_spec_agents.testing--__codelineno-0-5"></a>
+</span><span id="django_spec_agents.testing--__span-0-6"><a id="django_spec_agents.testing--__codelineno-0-6" name="django_spec_agents.testing--__codelineno-0-6" href="#django_spec_agents.testing--__codelineno-0-6"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">tool_calling_model</span><span class="p">(</span><span class="s2">"list_widgets"</span><span class="p">),</span> <span class="n">deps_type</span><span class="o">=</span><span class="n">AgentDeps</span><span class="p">,</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="n">toolset</span><span class="p">])</span>
+</span><span id="django_spec_agents.testing--__span-0-7"><a id="django_spec_agents.testing--__codelineno-0-7" name="django_spec_agents.testing--__codelineno-0-7" href="#django_spec_agents.testing--__codelineno-0-7"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"go"</span><span class="p">,</span> <span class="n">deps</span><span class="o">=</span><span class="n">AgentDeps</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">))</span>
 </span></code></pre></div>
 
 
@@ -3826,7 +3834,7 @@ these doubles. The package root never imports it.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">args</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">retry_args</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">final_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;done&quot;</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">final_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"done"</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionModel</span>
 </span></code></pre></div>
 
@@ -3965,7 +3973,7 @@ end the run on the failed attempt. Below 2.60 the retry is a separate
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">args</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">retry_args</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">final_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;done&quot;</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">final_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"done"</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionModel</span>
 </span></code></pre></div>
 
@@ -3985,10 +3993,10 @@ failed", naming nothing.</p>
 <p>Both functions are supplied, which <code>FunctionModel</code> allows: the same double
 then serves a streamed run and a non-streamed one, so a test does not have to
 know which the transport under it chose.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">streaming_tool_calling_model</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># An AG-UI endpoint, driven end to end.</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">streaming_tool_calling_model</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;reference&quot;</span><span class="p">:</span> <span class="s2">&quot;ENC-1&quot;</span><span class="p">}))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="django_spec_agents.testing.streaming_tool_calling_model--__span-0-1"><a id="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-1" name="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-1" href="#django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">streaming_tool_calling_model</span>
+</span><span id="django_spec_agents.testing.streaming_tool_calling_model--__span-0-2"><a id="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-2" name="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-2" href="#django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-2"></a>
+</span><span id="django_spec_agents.testing.streaming_tool_calling_model--__span-0-3"><a id="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-3" name="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-3" href="#django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-3"></a><span class="c1"># An AG-UI endpoint, driven end to end.</span>
+</span><span id="django_spec_agents.testing.streaming_tool_calling_model--__span-0-4"><a id="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-4" name="django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-4" href="#django_spec_agents.testing.streaming_tool_calling_model--__codelineno-0-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">streaming_tool_calling_model</span><span class="p">(</span><span class="s2">"refund_order"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"reference"</span><span class="p">:</span> <span class="s2">"ENC-1"</span><span class="p">}))</span>
 </span></code></pre></div>
 
 
@@ -4005,7 +4013,7 @@ know which the transport under it chose.</p>
 
 <a href="#django_spec_agents.testing.instruction_capturing_model" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">instruction_capturing_model</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">captured</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">final_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;done&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">captured</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">final_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"done"</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionModel</span>
 </span></code></pre></div>
 
@@ -4017,10 +4025,10 @@ what the final request carried.</p>
 <p>The caller owns the dict rather than getting one back with the model,
 because the assertion happens after <code>agent.run</code> returns and a tuple return
 reads worse at every call site than a name that is already in scope:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">captured</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">instruction_capturing_model</span><span class="p">(</span><span class="n">captured</span><span class="p">),</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="n">toolset</span><span class="p">])</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;go&quot;</span><span class="p">,</span> <span class="n">deps</span><span class="o">=</span><span class="n">deps</span><span class="p">)</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">assert</span> <span class="s2">&quot;Sort with&quot;</span> <span class="ow">in</span> <span class="n">captured</span><span class="p">[</span><span class="s2">&quot;instructions&quot;</span><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="django_spec_agents.testing.instruction_capturing_model--__span-0-1"><a id="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-1" name="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-1" href="#django_spec_agents.testing.instruction_capturing_model--__codelineno-0-1"></a><span class="n">captured</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+</span><span id="django_spec_agents.testing.instruction_capturing_model--__span-0-2"><a id="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-2" name="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-2" href="#django_spec_agents.testing.instruction_capturing_model--__codelineno-0-2"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">instruction_capturing_model</span><span class="p">(</span><span class="n">captured</span><span class="p">),</span> <span class="n">toolsets</span><span class="o">=</span><span class="p">[</span><span class="n">toolset</span><span class="p">])</span>
+</span><span id="django_spec_agents.testing.instruction_capturing_model--__span-0-3"><a id="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-3" name="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-3" href="#django_spec_agents.testing.instruction_capturing_model--__codelineno-0-3"></a><span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"go"</span><span class="p">,</span> <span class="n">deps</span><span class="o">=</span><span class="n">deps</span><span class="p">)</span>
+</span><span id="django_spec_agents.testing.instruction_capturing_model--__span-0-4"><a id="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-4" name="django_spec_agents.testing.instruction_capturing_model--__codelineno-0-4" href="#django_spec_agents.testing.instruction_capturing_model--__codelineno-0-4"></a><span class="k">assert</span> <span class="s2">"Sort with"</span> <span class="ow">in</span> <span class="n">captured</span><span class="p">[</span><span class="s2">"instructions"</span><span class="p">]</span>
 </span></code></pre></div>
 <p>A toolset's <code>get_instructions</code> is collected by pydantic-ai rather than by
 anything here, so this is the only way to assert the conventions a
