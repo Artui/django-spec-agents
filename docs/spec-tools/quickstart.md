@@ -560,6 +560,18 @@ by name instead, as one of the spec's reads. What a call writes to its
 copy does not reach the next call, nor the run's dict, so two calls the model
 makes at once never see each other's `action`.
 
+**A service reads its actor from `user`, not from `request.user`.** A service
+declaring `request` is handed it the same way, so a run that put no request in
+its context, such as a worker's or a test's started with `AgentDeps(user=...)`
+alone, hands the service `request=None`. A service that records who acted from
+`request.user` then records no one, or raises reading `user` off `None`. The
+principal reaches every callable on every route as
+[`user`](https://artui.github.io/django-service-specs/declaring/#every-callable-declares-what-it-receives):
+here it is `deps.user`, or what `get_user` returns. Declare `user` and record
+the actor from it. Putting a request in the context to supply one would carry a
+second identity that the [permission checks](#what-a-permission-check-sees)
+never see.
+
 **Per-call seeds** come from
 [`call_seeds`](reference.md#django_spec_agents.spec_tools.SpecToolset.call_seeds),
 asked once per call with the live `RunContext` and the tool's name, and once

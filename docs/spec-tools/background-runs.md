@@ -104,7 +104,9 @@ toolset = SpecToolset(
       outer `atomic()` block in the task does **not** wrap work that ran on
       another thread.
     - You are not inside `pytest.mark.django_db` without `transaction=True`,
-      where the test's wrapping transaction is invisible to other threads.
+      where the test's wrapping transaction is invisible to other threads. That
+      holds under the default too: see
+      [a test whose tool writes](#a-test-whose-tool-writes-needs-transactiontrue).
 
     `executor=` is only consulted when `thread_sensitive` is `False` — that is
     asgiref's rule, not this package's. Setting it alone does nothing, silently.
@@ -214,6 +216,43 @@ attempt, and whether the toolset's instructions reached the model.
 
 If your worker code is sync, drive it with `agent.run_sync` inside
 `django_db(transaction=True)` — the same shape production uses.
+
+### A test whose tool writes needs `transaction=True`
+
+A plain `pytest.mark.django_db` test runs inside one transaction on its own
+connection and rolls it back at the end. Under the default
+`thread_sensitive=True` too, a tool call made by `await agent.run(...)` in an
+async test, or by `agent.run_sync(...)` in a sync one, runs on asgiref's shared
+thread. That thread has a connection of its own, in autocommit, and the test's
+transaction does not reach it:
+
+- **A write that succeeds commits.** It survives the test's rollback and lands
+  on whichever later test counts rows, which then fails for a reason nowhere
+  near itself. The next `transaction=True` test truncates every table at
+  teardown, so the evidence is gone by the end of the session.
+- **The tool cannot see the test's uncommitted rows.** On PostgreSQL a write
+  pointing at one fails its foreign key with `IntegrityError`, and a read
+  answers as though the rows were never made.
+- **On SQLite the test's lock answers first.** Once the test has written
+  anything, every tool write fails, whatever it points at: with
+  `database is locked` after the timeout when `TEST["NAME"]` makes the test
+  database a file, and at once with `database table is locked` on Django's
+  default in-memory one, where a read of a table the test wrote raises the same
+  error.
+- **The async ORM runs on that thread too.** Rows an async test makes with
+  `acreate`, `aget_or_create` and the rest are made on the shared thread,
+  outside the test's transaction. They commit and outlive the test, and the
+  connection that made them stays open, so PostgreSQL reports the test database
+  as "being accessed by other users" when the session drops it.
+
+A test whose tool writes, or reads rows the test made, uses
+`pytest.mark.django_db(transaction=True)`: its rows are committed, every
+connection sees them, and the tables are truncated afterwards. A test asserting
+only a refusal that reads nothing the test created can stay on the plain
+marker, provided it makes its rows with the sync ORM, in a fixture for an async
+test. Arguments the Validator rejects are such a refusal, and so is a
+permission check reading a field of the principal, such as `is_staff`;
+`user.has_perm(...)` is not, since it reads the permission tables.
 
 ## Progress, when there is no browser
 
