@@ -135,9 +135,12 @@ A service whose result is a list -- a `LIST` output re-read, a `many=True`
 call, a `returns_many=True` return -- is not paged, but it is not a bare array
 either: the model is handed its rows under `items`, as `{"items": [...]}`, and
 its `return_schema` is an object with that one required property holding the
-array. A model reads a list's rows at one path whether the tool pages or not,
-and django-spec-mcp serves the same spec in the same shape, so a list reads the
-same through `SpecToolset` and the [MCP bridge](../integrations.md#mcp-an-mcp-registry-as-a-toolset).
+array. The value decides, so any list or tuple a tool returns is wrapped the
+same way, a presenter-less service's and a `render_output` override's included.
+A model reads a list's rows at one path whether the tool pages or not, and
+django-spec-mcp serves the same spec in the same shape, so a list reads the same
+through `SpecToolset` and the
+[MCP bridge](../integrations.md#mcp-an-mcp-registry-as-a-toolset).
 
 Because the toolset takes `page` and `limit` out of a list tool's call to serve
 the page, a list selector taking a parameter of either name is refused with

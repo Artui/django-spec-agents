@@ -6880,6 +6880,25 @@ async def test_a_single_row_that_presents_nothing_is_still_none():
     assert await _returned_against_its_schema(spec) == (None, ["object", "null"])
 
 
+def test_a_service_with_no_presenter_that_returns_nothing_returns_none():
+    """Holds the ``schema is None`` guard in ``_unpaged_rows``: a service with no
+    presenter has no output schema to read ``type`` off, and its ``None`` is
+    handed on as it is."""
+    assert _dispatch(ServiceSpec(service=lambda: None, atomic=False), object(), {}) is None
+
+
+def test_a_service_with_no_presenter_returning_a_tuple_is_its_rows_under_items():
+    """Holds the ``list | tuple`` check in ``_unpaged_rows``: the value decides, as
+    in django-spec-mcp, so a tuple is wrapped as a list is, with no presenter."""
+
+    def rows():
+        return ({"a": 1},)
+
+    spec = ServiceSpec(service=rows, atomic=False)
+
+    assert _dispatch(spec, object(), {}) == {"items": [{"a": 1}]}
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=(
@@ -6895,6 +6914,25 @@ async def test_a_list_output_with_nothing_to_reread_refuses_a_single_row():
     """
     with pytest.raises(ImproperlyConfigured, match=r"archive_widget returned dict"):
         await _call(SpecToolset({"op": _presenting_a_list(archive_widget)}), "op", None)
+
+
+async def test_an_output_fragment_annotates_the_object_a_list_is_wrapped_in():
+    """The fragment is merged after the list is wrapped, so its keys annotate the
+    object the model is handed, as they annotate a list selector's page, and the
+    array keeps the type it had under ``items``. Merged before the wrap, the
+    ``description`` would land on the array and be lost with it.
+    """
+    spec = replace(
+        _presenting_a_list(touch_every_widget),
+        metadata={"json_schema": {"output": {"description": "X", "minItems": 1}}},
+    )
+
+    tools = await SpecToolset({"op": spec}).get_tools(None)
+    return_schema = tools["op"].tool_def.return_schema
+
+    assert return_schema is not None
+    assert return_schema["description"] == "X"
+    assert return_schema["properties"]["items"]["type"] == "array"
 
 
 def test_a_spec_with_no_presenter_advertises_nothing():

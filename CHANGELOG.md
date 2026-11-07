@@ -19,15 +19,19 @@ hands the model a scalar rather than its content blocks. A wire change for
   array.** A service presenting a list -- a `LIST` output re-read, a
   `many=True` call, a `returns_many=True` return -- now hands the model its rows
   under `items`, and its `return_schema` is an object with that one required
-  property holding the array. A `many` or `returns_many` service declaring
+  property holding the array. The value decides, as in django-spec-mcp, so any
+  list or tuple a tool returns is wrapped the same way, a presenter-less
+  service's and a `render_output` override's included. A `many` or `returns_many` service declaring
   `allow_none=True` that returns `None` is `{"items": []}`, so its schema no
   longer admits `null`. This is the shape django-spec-mcp 0.9.0 serves the same
   spec in, so one spec reads the same through `SpecToolset` and `MCPToolset`,
   and `items` is where a list selector's page already holds its rows. **A wire
   change**: a consumer reading such a tool's result as a list reads
-  `result["items"]` now. A list selector's page, and every result that is not a
-  list, is unchanged. A `metadata["json_schema"]["output"]` fragment on such a
-  spec now annotates the object, as it annotates a list selector's page.
+  `result["items"]` now. A list selector's page, and every result that is neither a
+  list nor a tuple, is unchanged. A `metadata["json_schema"]["output"]` fragment
+  on such a spec now annotates the object, as it annotates a list selector's
+  page, so a fragment that constrained the array (`minItems`, say) restates it
+  under `properties.items`.
 - **The `[mcp]` extra requires django-spec-mcp 0.9.0**, the release whose wire
   the bridge reads: a list under `items`, and a scalar with no
   `structuredContent`.
