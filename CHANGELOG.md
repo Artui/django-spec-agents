@@ -17,11 +17,15 @@ Two notes in the docs. No change to the package.
   `django_db(transaction=True)`.** Under the default `thread_sensitive=True` a
   tool call runs on asgiref's shared thread, whose connection the test's
   transaction does not reach. A write that succeeds commits and outlives the
-  test, a write pointing at a row the test created fails (`IntegrityError` on
-  PostgreSQL, `database is locked` on SQLite), and a read does not find the
-  test's rows. A test asserting only a refusal that reads nothing the test made
-  can keep the plain marker. The danger box on `thread_sensitive=False` now
-  points there, since the default behaves the same.
+  test. On PostgreSQL the tool cannot see the test's uncommitted rows, so a
+  write pointing at one fails with `IntegrityError` and a read misses them; on
+  SQLite, once the test has written, every tool write fails on the test's lock
+  (`database is locked`, or `database table is locked` on Django's default
+  in-memory test database). Rows an async test makes with the async ORM are
+  made on that same thread, so they commit too. A test asserting only a refusal
+  that reads nothing the test made, with its rows made by the sync ORM, can keep
+  the plain marker. The danger box on `thread_sensitive=False` now points there,
+  since the default behaves the same.
 - **The quickstart says a service reads its actor from `user`, not
   `request.user`.** A run that puts no request in its context, as a worker's
   or a test's started with `AgentDeps(user=...)` alone does, hands a service

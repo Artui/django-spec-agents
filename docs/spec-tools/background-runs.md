@@ -230,20 +230,29 @@ transaction does not reach it:
   on whichever later test counts rows, which then fails for a reason nowhere
   near itself. The next `transaction=True` test truncates every table at
   teardown, so the evidence is gone by the end of the session.
-- **A write pointing at a row the test created fails.** The tool's connection
-  cannot see the test's uncommitted rows. On PostgreSQL the foreign key fails
-  with `IntegrityError`; on SQLite the write waits on the test's lock and fails
-  with `OperationalError: database is locked`.
-- **A read does not find the test's rows** either, so a selector answers as
-  though they were never made.
+- **The tool cannot see the test's uncommitted rows.** On PostgreSQL a write
+  pointing at one fails its foreign key with `IntegrityError`, and a read
+  answers as though the rows were never made.
+- **On SQLite the test's lock answers first.** Once the test has written
+  anything, every tool write fails, whatever it points at: with
+  `database is locked` after the timeout when `TEST["NAME"]` makes the test
+  database a file, and at once with `database table is locked` on Django's
+  default in-memory one, where a read of a table the test wrote raises the same
+  error.
+- **The async ORM runs on that thread too.** Rows an async test makes with
+  `acreate`, `aget_or_create` and the rest are made on the shared thread,
+  outside the test's transaction. They commit and outlive the test, and the
+  connection that made them stays open, so PostgreSQL reports the test database
+  as "being accessed by other users" when the session drops it.
 
 A test whose tool writes, or reads rows the test made, uses
 `pytest.mark.django_db(transaction=True)`: its rows are committed, every
 connection sees them, and the tables are truncated afterwards. A test asserting
-only a refusal that reads nothing the test created, such as a permission check
-on the principal alone or arguments the Validator rejects, can stay on the
-plain marker. The connection a dispatch opens on the shared thread is closed
-after the call, so it does not hold the test database open at teardown.
+only a refusal that reads nothing the test created can stay on the plain
+marker, provided it makes its rows with the sync ORM, in a fixture for an async
+test. Arguments the Validator rejects are such a refusal, and so is a
+permission check reading a field of the principal, such as `is_staff`;
+`user.has_perm(...)` is not, since it reads the permission tables.
 
 ## Progress, when there is no browser
 
