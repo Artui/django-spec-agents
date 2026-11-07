@@ -2225,6 +2225,17 @@ value it would read off a view's captures or a request's query string it takes
 by name instead, as one of the spec's reads. What a call writes to its
 copy does not reach the next call, nor the run's dict, so two calls the model
 makes at once never see each other's <code>action</code>.</p>
+<p><strong>A service reads its actor from <code>user</code>, not from <code>request.user</code>.</strong> A service
+declaring <code>request</code> is handed it the same way, so a run that put no request in
+its context, such as a worker's or a test's started with <code>AgentDeps(user=...)</code>
+alone, hands the service <code>request=None</code>. A service that records who acted from
+<code>request.user</code> then records no one, or raises reading <code>user</code> off <code>None</code>. The
+principal reaches every callable on every route as
+<a href="https://artui.github.io/django-service-specs/declaring/#every-callable-declares-what-it-receives"><code>user</code></a>:
+here it is <code>deps.user</code>, or what <code>get_user</code> returns. Declare <code>user</code> and record
+the actor from it. Putting a request in the context to supply one would carry a
+second identity that the <a href="#what-a-permission-check-sees">permission checks</a>
+never see.</p>
 <p><strong>Per-call seeds</strong> come from
 <a href="../reference/#django_spec_agents.spec_tools.SpecToolset.call_seeds"><code>call_seeds</code></a>,
 asked once per call with the live <code>RunContext</code> and the tool's name, and once

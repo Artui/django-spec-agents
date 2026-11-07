@@ -1076,6 +1076,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Testing it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-test-whose-tool-writes-needs-transactiontrue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A test whose tool writes needs transaction=True
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1251,6 +1268,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Testing it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-test-whose-tool-writes-needs-transactiontrue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A test whose tool writes needs transaction=True
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1377,7 +1411,9 @@ and it is what you want — provided you have accounted for it:</p>
   outer <code>atomic()</code> block in the task does <strong>not</strong> wrap work that ran on
   another thread.</li>
 <li>You are not inside <code>pytest.mark.django_db</code> without <code>transaction=True</code>,
-  where the test's wrapping transaction is invisible to other threads.</li>
+  where the test's wrapping transaction is invisible to other threads. That
+  holds under the default too: see
+  <a href="#a-test-whose-tool-writes-needs-transactiontrue">a test whose tool writes</a>.</li>
 </ul>
 <p><code>executor=</code> is only consulted when <code>thread_sensitive</code> is <code>False</code> — that is
 asgiref's rule, not this package's. Setting it alone does nothing, silently.</p>
@@ -1487,6 +1523,41 @@ the tools execute in-process, whether a <code>ModelRetry</code> is fed back for 
 attempt, and whether the toolset's instructions reached the model.</p>
 <p>If your worker code is sync, drive it with <code>agent.run_sync</code> inside
 <code>django_db(transaction=True)</code> — the same shape production uses.</p>
+<h3 id="a-test-whose-tool-writes-needs-transactiontrue">A test whose tool writes needs <code>transaction=True</code><a class="headerlink" href="#a-test-whose-tool-writes-needs-transactiontrue" title="Permanent link">&para;</a></h3>
+<p>A plain <code>pytest.mark.django_db</code> test runs inside one transaction on its own
+connection and rolls it back at the end. Under the default
+<code>thread_sensitive=True</code> too, a tool call made by <code>await agent.run(...)</code> in an
+async test, or by <code>agent.run_sync(...)</code> in a sync one, runs on asgiref's shared
+thread. That thread has a connection of its own, in autocommit, and the test's
+transaction does not reach it:</p>
+<ul>
+<li><strong>A write that succeeds commits.</strong> It survives the test's rollback and lands
+  on whichever later test counts rows, which then fails for a reason nowhere
+  near itself. The next <code>transaction=True</code> test truncates every table at
+  teardown, so the evidence is gone by the end of the session.</li>
+<li><strong>The tool cannot see the test's uncommitted rows.</strong> On PostgreSQL a write
+  pointing at one fails its foreign key with <code>IntegrityError</code>, and a read
+  answers as though the rows were never made.</li>
+<li><strong>On SQLite the test's lock answers first.</strong> Once the test has written
+  anything, every tool write fails, whatever it points at: with
+  <code>database is locked</code> after the timeout when <code>TEST["NAME"]</code> makes the test
+  database a file, and at once with <code>database table is locked</code> on Django's
+  default in-memory one, where a read of a table the test wrote raises the same
+  error.</li>
+<li><strong>The async ORM runs on that thread too.</strong> Rows an async test makes with
+  <code>acreate</code>, <code>aget_or_create</code> and the rest are made on the shared thread,
+  outside the test's transaction. They commit and outlive the test, and the
+  connection that made them stays open, so PostgreSQL reports the test database
+  as "being accessed by other users" when the session drops it.</li>
+</ul>
+<p>A test whose tool writes, or reads rows the test made, uses
+<code>pytest.mark.django_db(transaction=True)</code>: its rows are committed, every
+connection sees them, and the tables are truncated afterwards. A test asserting
+only a refusal that reads nothing the test created can stay on the plain
+marker, provided it makes its rows with the sync ORM, in a fixture for an async
+test. Arguments the Validator rejects are such a refusal, and so is a
+permission check reading a field of the principal, such as <code>is_staff</code>;
+<code>user.has_perm(...)</code> is not, since it reads the permission tables.</p>
 <h2 id="progress-when-there-is-no-browser">Progress, when there is no browser<a class="headerlink" href="#progress-when-there-is-no-browser" title="Permanent link">&para;</a></h2>
 <p><code>AgentDeps.progress</code> takes a
 <a href="https://artui.github.io/django-service-specs/"><code>ProgressReporter</code></a>,
