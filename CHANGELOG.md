@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Two notes in the docs. No change to the package.
+
+### Added
+
+- **The page on running from a worker says a test whose tool writes needs
+  `django_db(transaction=True)`.** Under the default `thread_sensitive=True` a
+  tool call runs on asgiref's shared thread, whose connection the test's
+  transaction does not reach. A write that succeeds commits and outlives the
+  test, a write pointing at a row the test created fails (`IntegrityError` on
+  PostgreSQL, `database is locked` on SQLite), and a read does not find the
+  test's rows. A test asserting only a refusal that reads nothing the test made
+  can keep the plain marker. The danger box on `thread_sensitive=False` now
+  points there, since the default behaves the same.
+- **The quickstart says a service reads its actor from `user`, not
+  `request.user`.** A run that puts no request in its context, as a worker's
+  or a test's started with `AgentDeps(user=...)` alone does, hands a service
+  `request=None`, so a service recording its actor from `request.user` records
+  no one. The principal reaches every callable as the kernel's `user`.
+
 ## [0.10.0] — 2026-11-07
 
 A list reads the same on both routes, as `{"items": [...]}`, and the MCP bridge

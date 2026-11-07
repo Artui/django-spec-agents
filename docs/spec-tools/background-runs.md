@@ -104,7 +104,9 @@ toolset = SpecToolset(
       outer `atomic()` block in the task does **not** wrap work that ran on
       another thread.
     - You are not inside `pytest.mark.django_db` without `transaction=True`,
-      where the test's wrapping transaction is invisible to other threads.
+      where the test's wrapping transaction is invisible to other threads. That
+      holds under the default too: see
+      [a test whose tool writes](#a-test-whose-tool-writes-needs-transactiontrue).
 
     `executor=` is only consulted when `thread_sensitive` is `False` — that is
     asgiref's rule, not this package's. Setting it alone does nothing, silently.
@@ -214,6 +216,34 @@ attempt, and whether the toolset's instructions reached the model.
 
 If your worker code is sync, drive it with `agent.run_sync` inside
 `django_db(transaction=True)` — the same shape production uses.
+
+### A test whose tool writes needs `transaction=True`
+
+A plain `pytest.mark.django_db` test runs inside one transaction on its own
+connection and rolls it back at the end. Under the default
+`thread_sensitive=True` too, a tool call made by `await agent.run(...)` in an
+async test, or by `agent.run_sync(...)` in a sync one, runs on asgiref's shared
+thread. That thread has a connection of its own, in autocommit, and the test's
+transaction does not reach it:
+
+- **A write that succeeds commits.** It survives the test's rollback and lands
+  on whichever later test counts rows, which then fails for a reason nowhere
+  near itself. The next `transaction=True` test truncates every table at
+  teardown, so the evidence is gone by the end of the session.
+- **A write pointing at a row the test created fails.** The tool's connection
+  cannot see the test's uncommitted rows. On PostgreSQL the foreign key fails
+  with `IntegrityError`; on SQLite the write waits on the test's lock and fails
+  with `OperationalError: database is locked`.
+- **A read does not find the test's rows** either, so a selector answers as
+  though they were never made.
+
+A test whose tool writes, or reads rows the test made, uses
+`pytest.mark.django_db(transaction=True)`: its rows are committed, every
+connection sees them, and the tables are truncated afterwards. A test asserting
+only a refusal that reads nothing the test created, such as a permission check
+on the principal alone or arguments the Validator rejects, can stay on the
+plain marker. The connection a dispatch opens on the shared thread is closed
+after the call, so it does not hold the test database open at teardown.
 
 ## Progress, when there is no browser
 
