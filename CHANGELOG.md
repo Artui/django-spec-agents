@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-07
+
+A list reads the same on both routes, as `{"items": [...]}`, and the MCP bridge
+hands the model a scalar rather than its content blocks. A wire change for
+`[specs]` users, so a minor release.
+
 ### Changed
 
 - **A list result on the `[specs]` route is `{"items": [...]}`, not a bare
@@ -741,7 +747,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/django-spec-agents/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Artui/django-spec-agents/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Artui/django-spec-agents/compare/v0.7.0...v0.7.1
