@@ -129,7 +129,7 @@ def test_a_list_declaring_no_shape_keeps_every_required():
                 shapes=Parameters.of(_FIELDS),
                 permissions=allow(),
             ),
-            lambda schema: schema["items"],
+            lambda schema: schema["properties"]["items"]["items"],
             id="a-service-returning-an-array",
         ),
     ],
@@ -189,9 +189,10 @@ def test_a_service_presenting_a_shaped_list_keeps_each_row_s_affordances_require
 
     schema = _return_schema(spec)
 
-    assert schema["type"] == "array"
-    assert schema["items"]["required"] == ["affordances"]
-    assert _required_anywhere(schema["items"]["properties"]["name"]) == []
+    assert schema["type"] == "object"
+    row = schema["properties"]["items"]["items"]
+    assert row["required"] == ["affordances"]
+    assert _required_anywhere(row["properties"]["name"]) == []
 
 
 def test_a_shaped_spec_with_no_presenter_still_returns_none():

@@ -428,6 +428,15 @@ class SpecToolset(AbstractToolset[Any]):
     tells a model asking for a collection that more rows exist than it was
     shown.
 
+    **Every other list result is an object too**: the rows a service presents
+    -- a ``LIST`` output re-read, a ``many`` call, a ``returns_many`` return --
+    come back as ``{"items": [...]}``, with no page around them, under a return
+    schema saying so. ``items`` is the key a page holds its rows under, so a
+    model reads a list's rows at one path whether the tool pages or not, and
+    django-spec-mcp serves the same spec in the same shape. A list that
+    presents nothing, a ``many`` or ``returns_many`` service declaring
+    ``allow_none`` returning ``None``, is ``{"items": []}``.
+
     **Filtering needs no declaration here, and ordering belongs to the
     ``filter_set``.** A ``SelectorSpec.filter_set``'s fields are already
     generated into the tool's input schema and flow through as ordinary
@@ -444,7 +453,7 @@ class SpecToolset(AbstractToolset[Any]):
     ``items`` unless the spec names another -- and nothing may be sent beside it
     but the spec's own ``reads``. An invalid item comes
     back as a ``ModelRetry`` keyed under that argument and then by the item's
-    index. The result is the rendered list, advertised as an array.
+    index. The result is the rendered list under ``items``, advertised so.
 
     **What a tool reads off HTTP is the spec's to declare**, in its ``reads``,
     where every transport and every mount reads the same answer; the toolset
@@ -2268,11 +2277,13 @@ def _return_schema(
     nothing back and no reason why.
 
     ``paginate`` is ``_is_list_selector`` and not "the result is a list",
-    because it answers *does this toolset wrap the result*: the toolset pages
+    because it answers *does this toolset page the result*: the toolset pages
     list selectors only, so a service whose output is a list -- a ``LIST``
-    re-read, a ``many`` service, or one that ``returns_many`` -- is a bare array
-    here, and claiming the envelope for it would advertise a shape its payload
-    never has (``test_a_service_whose_output_is_a_list_is_an_array_not_an_envelope``).
+    re-read, a ``many`` service, or one that ``returns_many`` -- carries no page
+    envelope, and claiming one for it would advertise keys its payload never
+    has. Its rows are still held under ``items`` in an object
+    (``_rows_under_items``), as the payload is
+    (``test_a_service_whose_output_is_a_list_is_its_rows_under_items``).
     Where it admits ``null``, and the ``affordances`` object each item carries,
     are the kernel's answers too, so this schema and dispatch cannot disagree
     about either.
@@ -2319,9 +2330,60 @@ def _return_schema(
             "properties": {**derived["properties"], "total": _TOTAL_SCHEMA},
             "required": [*derived["required"], "total"],
         }
+    if derived is not None and not paginate and _is_a_list(derived):
+        derived = _rows_under_items(derived)
     if derived is None or fragment is None:
         return derived
     return {**derived, **fragment}
+
+
+def _is_a_list(schema: dict[str, Any]) -> bool:
+    """Whether the kernel describes what a spec presents as a list.
+
+    ``"array"`` for a ``LIST`` re-read, and ``["array", "null"]`` for a ``many``
+    or ``returns_many`` service that may present nothing, which the toolset
+    serves as no rows (``_unpaged_rows``).
+    """
+    return schema.get("type") in ("array", ["array", "null"])
+
+
+def _rows_under_items(array: dict[str, Any]) -> dict[str, Any]:
+    """An unpaged list's schema, held under ``items`` in an object.
+
+    What django-spec-mcp's ``outputSchema`` states for the same spec, so a list
+    reads the same on both routes: ``items`` is the key a page holds its rows
+    under, so the model reads a list's rows at one path whether the tool pages
+    or not. The ``"null"`` the kernel admits for a list that may present nothing
+    is dropped, since that ``None`` is served as the empty list; each row stays
+    as strict as declared. No ``additionalProperties``, as on the kernel's page
+    envelope
+    (``test_a_list_result_reads_the_same_through_both_routes``).
+    """
+    return {
+        "type": "object",
+        "properties": {"items": {**array, "type": "array"}},
+        "required": ["items"],
+    }
+
+
+def _unpaged_rows(spec: Spec, rendered: Any) -> Any:
+    """A rendered list as the object the model is handed: its rows under ``items``.
+
+    By the value, as django-spec-mcp decides it, so a ``render_output`` override
+    returning a list is held the same way; and a list-shaped spec's ``None`` --
+    a ``many`` or ``returns_many`` service declaring ``allow_none`` -- is no
+    rows (``test_a_list_that_presents_nothing_is_no_rows``). Any other payload,
+    one row's ``None`` among them, is handed on as rendered
+    (``test_a_single_row_that_presents_nothing_is_still_none``).
+    """
+    if rendered is None:
+        schema = spec_output_schema(spec)
+        if schema is None or schema.get("type") != ["array", "null"]:
+            return None
+        rendered = []
+    if isinstance(rendered, list | tuple):
+        return {"items": list(rendered)}
+    return rendered
 
 
 _TOTAL_SCHEMA: dict[str, Any] = {
@@ -2852,12 +2914,12 @@ def _call_spec(
                 ),
             )
         ) from exc
-    if page is not None:
-        # **After the render, never before.** The projection lands on the rows;
-        # ``items`` / ``page`` / ``totalPages`` / ``hasNext`` are the envelope's
-        # own keys and belong to no presenter, so a projection walking them
-        # would look for markings that cannot exist.
-        rendered = page.envelope(rendered)
+    # **After the render, never before.** The projection lands on the rows;
+    # ``items`` / ``page`` / ``totalPages`` / ``hasNext`` are the envelope's own
+    # keys and belong to no presenter, so a projection walking them would look
+    # for markings that cannot exist. A list a service presents carries no page
+    # but is still an object, its rows under ``items``, for the same reason here.
+    rendered = page.envelope(rendered) if page is not None else _unpaged_rows(spec, rendered)
     # Measured on the envelope, because the envelope is what is sent. It adds
     # three small scalars (four with ``include_total``) and the "there is more"
     # signal the model needs in order to act on a refusal that tells it to lower

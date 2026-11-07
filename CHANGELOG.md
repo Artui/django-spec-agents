@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-07
+
+A list reads the same on both routes, as `{"items": [...]}`, and the MCP bridge
+hands the model a scalar rather than its content blocks. A wire change for
+`[specs]` users, so a minor release.
+
+### Changed
+
+- **A list result on the `[specs]` route is `{"items": [...]}`, not a bare
+  array.** A service presenting a list -- a `LIST` output re-read, a
+  `many=True` call, a `returns_many=True` return -- now hands the model its rows
+  under `items`, and its `return_schema` is an object with that one required
+  property holding the array. The value decides, as in django-spec-mcp, so any
+  list or tuple a tool returns is wrapped the same way, a presenter-less
+  service's and a `render_output` override's included. A `many` or `returns_many` service declaring
+  `allow_none=True` that returns `None` is `{"items": []}`, so its schema no
+  longer admits `null`. This is the shape django-spec-mcp 0.9.0 serves the same
+  spec in, so one spec reads the same through `SpecToolset` and `MCPToolset`,
+  and `items` is where a list selector's page already holds its rows. **A wire
+  change**: a consumer reading such a tool's result as a list reads
+  `result["items"]` now. A list selector's page, and every result that is neither a
+  list nor a tuple, is unchanged. A `metadata["json_schema"]["output"]` fragment
+  on such a spec now annotates the object, as it annotates a list selector's
+  page, so a fragment that constrained the array (`minItems`, say) restates it
+  under `properties.items`.
+- **The `[mcp]` extra requires django-spec-mcp 0.9.0**, the release whose wire
+  the bridge reads: a list under `items`, and a scalar with no
+  `structuredContent`.
+
+### Fixed
+
+- **`MCPToolset` hands the model a scalar result, not its content blocks.**
+  django-spec-mcp 0.9.0 serves a scalar (a presenter-less service returning a
+  bool, number or string) as its JSON text block with no `structuredContent`,
+  and the bridge handed the model `[{"type": "text", "text": "3"}]` where it
+  meant `3`. A result without `structuredContent` is now read from its one text
+  block, parsed as JSON and kept as the raw text when it is not JSON; that
+  covers a tool registered with `include_structured_content=False` too, which
+  handed over the blocks the same way on every release. Content that is not one
+  text block, such as an image, is still handed on as its blocks.
+
 ## [0.9.0] — 2026-11-05
 
 The wording a toolset derives names `total` when its pages carry it, through a
@@ -710,7 +751,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/django-spec-agents/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Artui/django-spec-agents/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Artui/django-spec-agents/compare/v0.7.0...v0.7.1

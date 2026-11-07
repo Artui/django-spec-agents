@@ -125,6 +125,14 @@ reading `page` is refused at registration, as `[specs]` refuses it
 when the toolset is built, so one spec is served by both routes or refused by
 both.
 
+A call hands the model the result's `structuredContent`, which django-spec-mcp
+sends as an object: a list result as `{"items": [...]}`, as `[specs]` hands the
+same spec's rows. A result carrying none is read from its one text block,
+parsed as JSON: a scalar, which has no object form, so a tool counting rows
+hands the model `3`, and any result of a tool registered with
+`include_structured_content=False`. Text that is not JSON is handed on as it
+is, and content that is not one text block, such as an image, as its blocks.
+
 ### A tool that cannot run now
 
 A service's `affordances` can say when the operation is possible at all: a
