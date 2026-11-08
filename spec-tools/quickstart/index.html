@@ -2204,10 +2204,11 @@ being called is the <a href="#per-call-seeds-and-the-runs-context">per-call form
 <p>Two things reach every call beside its arguments, and neither is a request
 the toolset builds.</p>
 <p><strong>The run's context</strong> is <code>AgentDeps.call_context</code>, a plain <code>dict</code> the code
-starting the run fills. Each call is handed its own copy, with the tool's name
-under <code>action</code>, <code>"agent"</code> under <code>transport</code>, and <code>request</code>, <code>view</code> and <code>format</code>
-set to <code>None</code> where the run put none. <code>action</code> and <code>transport</code> replace any
-entry of the same name the run put there, so a callable reading
+starting the run fills. Each call is handed its own copy, built through the
+kernel's <code>build_call_context</code> with the run's dict as its <code>base</code>: the tool's
+name under <code>action</code>, <code>"agent"</code> under <code>transport</code>, and <code>request</code>, <code>view</code> and
+<code>format</code> set to <code>None</code> where the run put none. <code>action</code> and <code>transport</code> replace
+any entry of the same name the run put there, so a callable reading
 <code>call_context["transport"] == "agent"</code> knows an agent's tool call made it even
 when the run carries the HTTP request it arrived on. The run's entries reach
 every call as the same objects, so put the request the run arrived on there,
@@ -2225,6 +2226,25 @@ value it would read off a view's captures or a request's query string it takes
 by name instead, as one of the spec's reads. What a call writes to its
 copy does not reach the next call, nor the run's dict, so two calls the model
 makes at once never see each other's <code>action</code>.</p>
+<p><strong>Which transport a callable reads.</strong> <code>call_context["transport"]</code> is <code>"agent"</code>
+on every call this toolset makes, and <code>django_spec_agents.spec_tools</code> exports
+the same string as <code>AGENT_TRANSPORT</code>. A callable written for several transports
+compares the plain string and imports nothing; one written for agents alone may
+import the name. The kernel lists no transports: each package owns its value, and
+this one's is <code>"agent"</code>. The key is stamped on every context a callable can
+see, the call's and the listing's conditions' alike, so a tool listed on
+<code>call_context["transport"] == "agent"</code> is not refused at its call on another
+value, and a check, a Validator's <code>validate</code>, the service, the selector and the
+presenter of one call read the same value. A Validator's <code>parameters</code> reads it
+whenever it is handed the call's context; it is also asked with
+<code>call_context=None</code> when the tool's schema is built, so it must handle <code>None</code>.</p>
+<p>What you can override here is the run's <code>call_context</code> entries, which become the
+call's, and the per-call seeds
+<a href="#per-call-seeds-and-the-runs-context"><code>call_seeds</code></a> returns, <code>request</code> and
+<code>view</code> among them. A seed replaces what a callable <em>declaring</em> <code>request</code> or
+<code>view</code> is handed; the context's own <code>request</code> and <code>view</code> entries stay the
+run's. What you cannot is <code>action</code> and <code>transport</code>: the toolset
+writes them last, so a run's own entry of either never reaches a callable.</p>
 <p><strong>A service reads its actor from <code>user</code>, not from <code>request.user</code>.</strong> A service
 declaring <code>request</code> is handed it the same way, so a run that put no request in
 its context, such as a worker's or a test's started with <code>AgentDeps(user=...)</code>

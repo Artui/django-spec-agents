@@ -1240,15 +1240,15 @@ dependency. Reach for it on its own when you are:</p>
 <h2 id="specs-as-tools">Specs as tools<a class="headerlink" href="#specs-as-tools" title="Permanent link">&para;</a></h2>
 <p><code>SpecToolset</code> turns a <code>name -&gt; spec</code> mapping, or a spec registry, into
 Pydantic-AI tools, and <code>SpecCapability</code> wraps it as a capability.
-<code>django_spec_agents.spec_tools</code> exports those two and <code>AgentConventions</code>, and
-nothing else; the deps a run passes are the host's
+<code>django_spec_agents.spec_tools</code> exports those two, <code>AgentConventions</code> and the
+string <code>AGENT_TRANSPORT</code>, and nothing else; the deps a run passes are the host's
 <a href="reference/agent/#django_spec_agents.AgentDeps"><code>AgentDeps</code></a>.</p>
 <ul>
 <li><strong><a href="spec-tools/">Specs as tools</a></strong>: what the toolset routes through,
   and how it compares with an MCP server.</li>
 <li><strong><a href="spec-tools/quickstart/">Quickstart</a></strong>: specs, a toolset, an agent run.</li>
-<li><strong><a href="spec-tools/reference/">Reference</a></strong>: <code>SpecToolset</code>, <code>SpecCapability</code> and
-  <code>AgentConventions</code>.</li>
+<li><strong><a href="spec-tools/reference/">Reference</a></strong>: <code>SpecToolset</code>, <code>SpecCapability</code>,
+  <code>AgentConventions</code> and <code>AGENT_TRANSPORT</code>.</li>
 </ul>
 <h2 id="the-rule-that-shapes-everything">The rule that shapes everything<a class="headerlink" href="#the-rule-that-shapes-everything" title="Permanent link">&para;</a></h2>
 <p><strong>The package reads no Django settings of its own.</strong> There is no <code>DJANGO_*</code>

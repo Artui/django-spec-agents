@@ -1716,7 +1716,8 @@ sees:</p>
   now takes by name, as a read.</li>
 <li><strong>A callable that told the transport by <code>isinstance(view, OfflineServiceView)</code></strong>
   declares <code>call_context</code> and reads <code>call_context["transport"]</code>, which is
-  <code>"agent"</code> on every call the toolset makes. The request the run arrived on may
+  <code>"agent"</code> on every call the toolset makes (the string <code>AGENT_TRANSPORT</code>
+  exports, so nothing needs importing to compare it). The request the run arrived on may
   be in <code>call_context</code> too, so its presence says nothing about how the call
   came.</li>
 </ul>

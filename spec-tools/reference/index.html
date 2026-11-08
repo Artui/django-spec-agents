@@ -1326,6 +1326,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#agent_transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AGENT_TRANSPORT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.spec_tools.AGENT_TRANSPORT" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AGENT_TRANSPORT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#testing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1744,6 +1766,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#agent_transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AGENT_TRANSPORT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.spec_tools.AGENT_TRANSPORT" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AGENT_TRANSPORT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#testing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1830,8 +1874,8 @@
 
 
 <h1 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h1>
-<p><code>django_spec_agents.spec_tools</code> exports three symbols: <code>SpecToolset</code>,
-<code>SpecCapability</code> and <code>AgentConventions</code>. A django-service-specs spec declares
+<p><code>django_spec_agents.spec_tools</code> exports four symbols: <code>SpecToolset</code>,
+<code>SpecCapability</code>, <code>AgentConventions</code> and the string <code>AGENT_TRANSPORT</code>. A django-service-specs spec declares
 what it reads as <code>Parameter</code>s in its <code>reads</code> and <code>shapes</code>, documented with the
 kernel. The deps a run
 passes are the package's one
@@ -3756,6 +3800,37 @@ text.</p>
 
 
   </div>
+
+    </div>
+
+</div><h2 id="agent_transport"><code>AGENT_TRANSPORT</code><a class="headerlink" href="#agent_transport" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_spec_agents.spec_tools.AGENT_TRANSPORT" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">AGENT_TRANSPORT</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.spec_tools.AGENT_TRANSPORT" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">AGENT_TRANSPORT</span><span class="p">:</span> <span class="n">Final</span> <span class="o">=</span> <span class="s1">'agent'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The value of <code>call_context["transport"]</code> on every call a <code>SpecToolset</code> serves.</p>
+<p>This package's own spelling: the kernel lists no transports, so each transport
+package owns and exports its value. It is the plain string, so a spec callable
+written for several transports compares <code>call_context["transport"] == "agent"</code>
+with nothing imported, and one written for agents alone may import this name
+instead. The toolset stamps it last, through the kernel's <code>build_call_context</code>,
+over any <code>transport</code> entry the run's own context carries.</p>
 
     </div>
 
