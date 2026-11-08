@@ -54,8 +54,8 @@ The host was published as `django-pydantic-agent` and `spec_tools` as
 | `testing.py`, `utils.py`, `version.py` | the test doubles, the request and authorization helpers, the version |
 
 `django_spec_agents/__init__.py` re-exports the host's public surface and nothing
-of `spec_tools`. `spec_tools/__init__.py` has its own `__all__`, three names:
-`AgentConventions`, `SpecCapability` and `SpecToolset`. A consumer imports them
+of `spec_tools`. `spec_tools/__init__.py` has its own `__all__`, four names:
+`AGENT_TRANSPORT`, `AgentConventions`, `SpecCapability` and `SpecToolset`. A consumer imports them
 from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
 
 ## The boundary between the halves

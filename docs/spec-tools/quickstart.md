@@ -565,18 +565,21 @@ makes at once never see each other's `action`.
 on every call this toolset makes, and `django_spec_agents.spec_tools` exports
 the same string as `AGENT_TRANSPORT`. A callable written for several transports
 compares the plain string and imports nothing; one written for agents alone may
-import the name. The kernel lists no transports: each package owns its value, so
-`"agent"` is this package's and `"rest"` or `"mcp"` belong to theirs. The key is
-stamped on every context a callable can see, the call's and the listing's
-conditions' alike, so a tool listed on `call_context["transport"] == "agent"`
-is not refused at its call on another value, and a check, a Validator
-(`parameters(call_context=...)` and `validate`), the service, the selector and
-the presenter of one call read the same value.
+import the name. The kernel lists no transports: each package owns its value, and
+this one's is `"agent"`. The key is stamped on every context a callable can
+see, the call's and the listing's conditions' alike, so a tool listed on
+`call_context["transport"] == "agent"` is not refused at its call on another
+value, and a check, a Validator's `validate`, the service, the selector and the
+presenter of one call read the same value. A Validator's `parameters` reads it
+whenever it is handed the call's context; it is also asked with
+`call_context=None` when the tool's schema is built, so it must handle `None`.
 
 What you can override here is the run's `call_context` entries, which become the
 call's, and the per-call seeds
 [`call_seeds`](#per-call-seeds-and-the-runs-context) returns, `request` and
-`view` among them. What you cannot is `action` and `transport`: the toolset
+`view` among them. A seed replaces what a callable *declaring* `request` or
+`view` is handed; the context's own `request` and `view` entries stay the
+run's. What you cannot is `action` and `transport`: the toolset
 writes them last, so a run's own entry of either never reaches a callable.
 
 **A service reads its actor from `user`, not from `request.user`.** A service
