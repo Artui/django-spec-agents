@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`AGENT_TRANSPORT`, the value every call's context carries under
+  `transport`, is exported from `django_spec_agents.spec_tools`.** It is the
+  plain string `"agent"`, this package's own: the kernel lists no transports.
+  A callable written for several transports compares the string and imports
+  nothing; the quickstart now says what a callable reads here and which entries
+  of the run's context a consumer can and cannot override.
+
+### Changed
+
+- **The `[specs]` extra and the dev group floor `django-service-specs` at
+  0.29.0, up from 0.26.0.** Every call's context, and the one the listing asks
+  its conditions with, is built through the kernel's `build_call_context`, with
+  the run's `call_context` as its `base`, so the stamp is the last write.
+  Nothing a callable reads changes: `transport` is `"agent"` over any entry the
+  run carries, `action` is the tool's name, `request`, `view` and `format` are
+  `None` where the run put none, and each call is handed a fresh `dict`. A
+  project pinning `django-service-specs` below 0.29.0 must raise it with this
+  release. The floor on `django-spec-mcp` does not move.
+
 ## [0.10.1] — 2026-11-07
 
 Two notes in the docs. No change to the package.

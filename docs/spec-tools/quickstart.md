@@ -535,10 +535,11 @@ Two things reach every call beside its arguments, and neither is a request
 the toolset builds.
 
 **The run's context** is `AgentDeps.call_context`, a plain `dict` the code
-starting the run fills. Each call is handed its own copy, with the tool's name
-under `action`, `"agent"` under `transport`, and `request`, `view` and `format`
-set to `None` where the run put none. `action` and `transport` replace any
-entry of the same name the run put there, so a callable reading
+starting the run fills. Each call is handed its own copy, built through the
+kernel's `build_call_context` with the run's dict as its `base`: the tool's
+name under `action`, `"agent"` under `transport`, and `request`, `view` and
+`format` set to `None` where the run put none. `action` and `transport` replace
+any entry of the same name the run put there, so a callable reading
 `call_context["transport"] == "agent"` knows an agent's tool call made it even
 when the run carries the HTTP request it arrived on. The run's entries reach
 every call as the same objects, so put the request the run arrived on there,
@@ -559,6 +560,24 @@ value it would read off a view's captures or a request's query string it takes
 by name instead, as one of the spec's reads. What a call writes to its
 copy does not reach the next call, nor the run's dict, so two calls the model
 makes at once never see each other's `action`.
+
+**Which transport a callable reads.** `call_context["transport"]` is `"agent"`
+on every call this toolset makes, and `django_spec_agents.spec_tools` exports
+the same string as `AGENT_TRANSPORT`. A callable written for several transports
+compares the plain string and imports nothing; one written for agents alone may
+import the name. The kernel lists no transports: each package owns its value, so
+`"agent"` is this package's and `"rest"` or `"mcp"` belong to theirs. The key is
+stamped on every context a callable can see, the call's and the listing's
+conditions' alike, so a tool listed on `call_context["transport"] == "agent"`
+is not refused at its call on another value, and a check, a Validator
+(`parameters(call_context=...)` and `validate`), the service, the selector and
+the presenter of one call read the same value.
+
+What you can override here is the run's `call_context` entries, which become the
+call's, and the per-call seeds
+[`call_seeds`](#per-call-seeds-and-the-runs-context) returns, `request` and
+`view` among them. What you cannot is `action` and `transport`: the toolset
+writes them last, so a run's own entry of either never reaches a callable.
 
 **A service reads its actor from `user`, not from `request.user`.** A service
 declaring `request` is handed it the same way, so a run that put no request in

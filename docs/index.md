@@ -58,15 +58,15 @@ If you want an agent in a browser, start with
 
 `SpecToolset` turns a `name -> spec` mapping, or a spec registry, into
 Pydantic-AI tools, and `SpecCapability` wraps it as a capability.
-`django_spec_agents.spec_tools` exports those two and `AgentConventions`, and
-nothing else; the deps a run passes are the host's
+`django_spec_agents.spec_tools` exports those two, `AgentConventions` and the
+string `AGENT_TRANSPORT`, and nothing else; the deps a run passes are the host's
 [`AgentDeps`](reference/agent.md#django_spec_agents.AgentDeps).
 
 - **[Specs as tools](spec-tools/index.md)**: what the toolset routes through,
   and how it compares with an MCP server.
 - **[Quickstart](spec-tools/quickstart.md)**: specs, a toolset, an agent run.
-- **[Reference](spec-tools/reference.md)**: `SpecToolset`, `SpecCapability` and
-  `AgentConventions`.
+- **[Reference](spec-tools/reference.md)**: `SpecToolset`, `SpecCapability`,
+  `AgentConventions` and `AGENT_TRANSPORT`.
 
 ## The rule that shapes everything
 

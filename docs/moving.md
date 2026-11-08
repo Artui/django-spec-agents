@@ -237,7 +237,8 @@ sees:
   now takes by name, as a read.
 - **A callable that told the transport by `isinstance(view, OfflineServiceView)`**
   declares `call_context` and reads `call_context["transport"]`, which is
-  `"agent"` on every call the toolset makes. The request the run arrived on may
+  `"agent"` on every call the toolset makes (the string `AGENT_TRANSPORT`
+  exports, so nothing needs importing to compare it). The request the run arrived on may
   be in `call_context` too, so its presence says nothing about how the call
   came.
 

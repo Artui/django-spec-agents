@@ -1,7 +1,7 @@
 # Reference
 
-`django_spec_agents.spec_tools` exports three symbols: `SpecToolset`,
-`SpecCapability` and `AgentConventions`. A django-service-specs spec declares
+`django_spec_agents.spec_tools` exports four symbols: `SpecToolset`,
+`SpecCapability`, `AgentConventions` and the string `AGENT_TRANSPORT`. A django-service-specs spec declares
 what it reads as `Parameter`s in its `reads` and `shapes`, documented with the
 kernel. The deps a run
 passes are the package's one
@@ -48,6 +48,10 @@ minor release may rename one.
 ## `AgentConventions`
 
 ::: django_spec_agents.spec_tools.AgentConventions
+
+## `AGENT_TRANSPORT`
+
+::: django_spec_agents.spec_tools.AGENT_TRANSPORT
 
 ## `testing`
 

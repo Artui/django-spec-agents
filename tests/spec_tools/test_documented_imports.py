@@ -1,10 +1,11 @@
 """What ``django_spec_agents.spec_tools`` exports, and the import lines its pages teach.
 
-The package exports the toolset, the capability and the conventions, and
-nothing it does not own: the one ``AgentDeps`` is the host's, at the package
-root, and the spec, its parameters, its registry and its server arguments are
-the kernel's, imported from ``django_service_specs``. A second spelling of
-either is how a reader comes to believe there are two classes.
+The package exports the toolset, the capability, the conventions and the
+transport value it stamps, and nothing it does not own: the one ``AgentDeps``
+is the host's, at the package root, and the spec, its parameters, its registry
+and its server arguments are the kernel's, imported from
+``django_service_specs``. A second spelling of either is how a reader comes to
+believe there are two classes.
 
 The pages are checked by **reading them and running what they show**, this
 package's imports and the kernel's alike, as
@@ -59,7 +60,12 @@ def _documented_imports() -> list[tuple[str, str, str]]:
 
 
 def test_the_package_exports_what_it_owns():
-    assert sorted(spec_tools.__all__) == ["AgentConventions", "SpecCapability", "SpecToolset"]
+    assert sorted(spec_tools.__all__) == [
+        "AGENT_TRANSPORT",
+        "AgentConventions",
+        "SpecCapability",
+        "SpecToolset",
+    ]
 
 
 @pytest.mark.parametrize(
