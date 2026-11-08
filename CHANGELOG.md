@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-11-08
+
+Every call's context is built through the kernel's `build_call_context`, and the
+transport value it carries is exported. The floor on `django-service-specs` rises
+to 0.29.0, so a minor release.
+
 ### Added
 
 - **`AGENT_TRANSPORT`, the value every call's context carries under
@@ -797,7 +803,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/django-spec-agents/compare/v0.8.0...v0.9.0
