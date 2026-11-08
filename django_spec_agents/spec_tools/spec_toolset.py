@@ -72,6 +72,7 @@ from django_service_specs import (
     apply_server_arguments,
     audience_projection_for_spec,
     base_pool,
+    build_call_context,
     check_server_arguments,
     dispatch,
     kernel_spec,
@@ -92,6 +93,7 @@ from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_core import SchemaValidator, core_schema
 
 from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
+from django_spec_agents.spec_tools.types.agent_transport import AGENT_TRANSPORT
 
 # A spec of the kernel's, or a declaration that compiles to one, read through
 # ``kernel_spec`` wherever the toolset asks it anything.
@@ -3186,18 +3188,6 @@ def _pop_pagination(
     return _PageArgs(page=_coerce_positive_int(args.pop("page", None), "page"), limit=limit)
 
 
-_STANDARD_CONTEXT_KEYS = ("request", "view", "format")
-"""The entries every call's context carries, ``None`` where the run put none."""
-
-_TRANSPORT = "agent"
-"""What every call's context carries under ``transport``: the call came from an agent's tool call.
-
-A literal rather than an exported constant, so a spec's callable compares it
-without importing this package, as one written for several transports does.
-Its spelling is public, held by
-``test_the_three_standard_entries_are_none_where_the_run_put_none``.
-"""
-
 _CALL_SEEDS = frozenset({"request", "view"})
 """The seeds each call registers itself, from the call's context."""
 
@@ -3222,23 +3212,25 @@ def _call_context(ctx: RunContext[Any], tool_name: str) -> dict[str, Any]:
     where the run put none, so a callable reading one finds the key
     (``test_the_three_standard_entries_are_none_where_the_run_put_none``).
 
-    **``transport`` is ``"agent"`` on every call**, the run's own entry of
-    that name replaced as ``action`` is
+    **``transport`` is ``AGENT_TRANSPORT`` (``"agent"``) on every call**, the
+    kernel's ``build_call_context`` stamping it last, so the run's own entry of
+    that name is replaced as its ``action`` is
     (``test_every_call_says_it_came_through_an_agent_whatever_the_run_put_there``).
     A run carrying the request it arrived on leaves a callable reading
     ``request`` unable to tell an agent's call from one over HTTP, and the
     toolset is what serves the call, so the run cannot make it read as another
-    transport. The listing's conditions are asked with the same context
-    (``test_a_listing_hands_each_condition_the_transport_a_call_would``).
+    transport. The run's dict is the builder's ``base``, copied: the call's
+    context is a fresh ``dict`` and the run's is left as it was
+    (``test_a_calls_context_is_a_plain_dict_of_its_own_whatever_the_run_holds``).
+    The listing's conditions are asked with a context built the same way
+    (``test_a_listing_hands_each_condition_the_transport_a_call_would``), so a
+    condition and the call it gates read one value.
     """
-    context: dict[str, Any] = {
-        **(getattr(getattr(ctx, "deps", None), "call_context", None) or {}),
-        "action": tool_name,
-        "transport": _TRANSPORT,
-    }
-    for key in _STANDARD_CONTEXT_KEYS:
-        context.setdefault(key, None)
-    return context
+    return build_call_context(
+        AGENT_TRANSPORT,
+        base=getattr(getattr(ctx, "deps", None), "call_context", None),
+        action=tool_name,
+    )
 
 
 def _with_call_seeds(
