@@ -1482,6 +1482,13 @@ parsed as JSON: a scalar, which has no object form, so a tool counting rows
 hands the model <code>3</code>, and any result of a tool registered with
 <code>include_structured_content=False</code>. Text that is not JSON is handed on as it
 is, and content that is not one text block, such as an image, as its blocks.</p>
+<p>A call's <code>call_context</code> is built by django-spec-mcp, not by this package, so the
+transport a spec reads off it (<code>call_transport(call_context)</code>) is whatever the
+installed django-spec-mcp stamps. At this package's floor, 0.9.0, it stamps none,
+and a bridged call reads <code>None</code>; from 0.10.0 it stamps <code>"mcp"</code>, its <code>MCP_TRANSPORT</code>.
+It is never <code>"agent"</code>: that value, <code>AGENT_TRANSPORT</code>, is what <code>[specs]</code> stamps on a
+call it serves in process, so a spec written to branch on the transport sees a
+different one on each route.</p>
 <h3 id="a-tool-that-cannot-run-now">A tool that cannot run now<a class="headerlink" href="#a-tool-that-cannot-run-now" title="Permanent link">&para;</a></h3>
 <p>A service's <code>affordances</code> can say when the operation is possible at all: a
 condition written as a callable reads only the user and the request, never the

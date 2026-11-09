@@ -2195,7 +2195,8 @@ service parameter of that name stays the seed's. A Validator declaring
 <code>parameters(self, *, call_context=None)</code> is read as it declares itself to the
 call. A field the tool's schema offers that the call's declaration drops is
 answered by the seed, and the model's value is dropped rather than refused as
-unknown. A field declared only to the call is the model's to send.</p>
+unknown (under <code>REJECT</code>; <code>IGNORE</code> drops an unknown argument silently). A field
+declared only to the call is the model's to send.</p>
 <p>The registry applies to the whole toolset. A seed is ambient to the
 deployment, and what varies with the acting user belongs in the resolver,
 which declares <code>user</code> to receive it. What varies with the run or the tool
@@ -2235,9 +2236,37 @@ this one's is <code>"agent"</code>. The key is stamped on every context a callab
 see, the call's and the listing's conditions' alike, so a tool listed on
 <code>call_context["transport"] == "agent"</code> is not refused at its call on another
 value, and a check, a Validator's <code>validate</code>, the service, the selector and the
-presenter of one call read the same value. A Validator's <code>parameters</code> reads it
-whenever it is handed the call's context; it is also asked with
-<code>call_context=None</code> when the tool's schema is built, so it must handle <code>None</code>.</p>
+presenter of one call read the same value.</p>
+<p><strong>What a tool's schema reads.</strong> The schema is built once, when the toolset is
+constructed, with no run in hand. A Validator declaring
+<code>parameters(self, *, call_context=None)</code> is asked there with what
+<code>build_call_context(AGENT_TRANSPORT)</code> returns: <code>transport</code> is <code>"agent"</code>, and
+<code>request</code>, <code>view</code>, <code>format</code> and <code>action</code> are <code>None</code>. It says "a call through this
+transport", never "this caller". So:</p>
+<ul>
+<li>A field declared to the <code>"agent"</code> transport is offered, and required if it says
+  so, and a call sending it is served. One declared only to another transport is
+  not offered, and under <code>REJECT</code> a call sending it is refused as unknown (under
+  <code>IGNORE</code> its value is dropped).</li>
+<li>A field keyed on the run, on its <code>request</code> or any other entry of
+  <code>deps.call_context</code>, stays unoffered. A call sending it is still served, since
+  the call reads its own declaration, but the model is not told about it, so
+  a required one fails every call the model makes from the schema. Leave such a
+  field optional, or fill it from an <code>input_data=</code> provider, which can read a
+  <a href="#per-call-seeds-and-the-runs-context">per-call seed</a>; a seed alone fills the
+  service's parameter of its name, not the Validator's field, so a call leaving
+  the field out is still refused. A schema per run would ask
+  every Validator again on every model step.</li>
+<li>A Validator declaring <code>call_context</code> handles <code>None</code>, from the construction
+  checks, and guards <code>request</code>: reading <code>call_context["request"].user</code> raises when
+  the toolset is built. The error raised there is the Validator's own, and a note on
+  it names the tool. A field it declares only with no <code>request</code> is offered and
+  then, under <code>REJECT</code>, refused as unknown in a run that carries one, unless a
+  registered seed carries its name, which answers it.</li>
+<li>A clash only this declaration shows, such as a field sharing a target lookup's
+  read or named for a seat of the dispatcher, is refused when the toolset is
+  built, with <code>ImproperlyConfigured</code> naming the tool.</li>
+</ul>
 <p>What you can override here is the run's <code>call_context</code> entries, which become the
 call's, and the per-call seeds
 <a href="#per-call-seeds-and-the-runs-context"><code>call_seeds</code></a> returns, <code>request</code> and
