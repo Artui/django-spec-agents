@@ -10,6 +10,7 @@ last write and a callable reads one value wherever the kernel asks it.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -42,20 +43,9 @@ from tests.spec_tools.test_spec_toolset import ctx_for
 
 
 def test_the_package_exports_the_value_it_stamps():
-    """A callable written for several transports compares the plain string, and
-    one written for agents alone imports the name instead."""
-    exported = getattr(spec_tools, "AGENT_TRANSPORT", None)
-
-    assert exported == "agent"
-    assert type(exported) is str
-
-
-def test_the_name_is_exported_from_the_package_and_not_from_the_kernel():
-    """The kernel lists no transports: the value belongs to the package that stamps it."""
-    import django_service_specs
-
-    assert "AGENT_TRANSPORT" in spec_tools.__all__
-    assert not hasattr(django_service_specs, "AGENT_TRANSPORT")
+    """The value itself is held in ``tests/spec_tools/types/test_agent_transport.py``;
+    here is the one the toolset stamps, read off the package a consumer imports."""
+    assert spec_tools.AGENT_TRANSPORT == "agent"
 
 
 # --- built through the kernel's builder ------------------------------------------
@@ -189,6 +179,30 @@ async def test_a_calls_context_is_a_plain_dict_of_its_own_whatever_the_run_holds
     assert type(seen[0]) is dict
     assert seen[0] is not run
     assert run == {"carried": 1}
+
+
+async def test_a_run_that_is_a_read_only_mapping_is_the_base_and_the_stamp_still_lands():
+    """A run's context need not be a ``dict``: a ``MappingProxyType`` is read for its
+    entries, the stamp is written over a copy and the proxy is never mutated."""
+    seen: list[dict[str, Any]] = []
+
+    def record(call_context: dict[str, Any]) -> dict[str, bool]:
+        seen.append(call_context)
+        return {"ok": True}
+
+    run = MappingProxyType({"carried": 1, TRANSPORT_KEY: "http"})
+    deps = AgentDeps(user=User(username="u"))
+    deps.call_context = run  # ty: ignore[invalid-assignment]
+    toolset = SpecToolset({"do_it": ServiceSpec(service=record, atomic=False, permissions=allow())})
+    ctx = ctx_for(deps.user, deps=deps)
+
+    tools = await toolset.get_tools(ctx)
+    await toolset.call_tool("do_it", {}, ctx, tools["do_it"])
+
+    assert type(seen[0]) is dict
+    assert seen[0]["carried"] == 1
+    assert seen[0][TRANSPORT_KEY] == "agent"
+    assert dict(run) == {"carried": 1, TRANSPORT_KEY: "http"}
 
 
 # --- one value across the stages of a call ---------------------------------------
