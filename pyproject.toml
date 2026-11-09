@@ -111,6 +111,8 @@ specs = [
     # 0.31.0: a labelled filter, ``OrderingFilter`` among them, is advertised
     # as ``anyOf`` of ``const`` and ``title``, which the tests and the
     # checked-in schema dump assert; below it the schema is a bare ``enum``.
+    # The listing builds a conditioned tool's pool with ``seeded_pool``, which
+    # first exists there.
     "django-service-specs>=0.31.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):

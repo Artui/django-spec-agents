@@ -276,12 +276,15 @@ class TenantToolset(SpecToolset):
 ```
 
 A view `call_seeds` returns is asked as it is. django-spec-rest's
-`DRFPermissionCheck` fills `view.kwargs` from the call's `route_reads` only on
-the view it builds when the call carries none, so a permission class reading a
-route capture, `view.kwargs["project_pk"]` say, refuses on a returned view whose
-`kwargs` the override left empty. Return no view for such a spec: the view the
-check builds then carries the capture, and its `action` is the tool's name
-rather than a role the returned view set.
+`DRFPermissionCheck` fills `view.kwargs` only on the view it builds when the call
+carries none, and only with the call's arguments its `route_reads` names. So a
+permission class reading a route capture finds none on a returned view whose
+`kwargs` the override left empty: one reading `view.kwargs.get("project_pk")`
+refuses, and one subscripting it raises `KeyError`. Return no view for such a
+spec, and name the capture in the check,
+`DRFPermissionCheck([IsProjectMember], route_reads=["project_pk"])`: the view it
+builds then carries the capture, and its `action` is the tool's name rather than
+a role the returned view set.
 
 See [per-call seeds and the run's context](spec-tools/quickstart.md#per-call-seeds-and-the-runs-context).
 

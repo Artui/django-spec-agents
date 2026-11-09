@@ -3926,10 +3926,10 @@ async def test_a_view_call_seeds_returns_is_handed_over_with_no_route_read_fille
     A view ``call_seeds`` returns reaches the check as that object, its
     ``kwargs`` as the hook left them, although the call's arguments carry the
     read a route would have captured. ``DRFPermissionCheck`` asks a carried view
-    as it is, so a class reading ``view.kwargs["project_pk"]`` refuses there.
-    With no view returned, the check is handed none and the arguments holding
-    the read, which is what ``DRFPermissionCheck`` fills its own view's
-    ``kwargs`` from.
+    as it is, so a class reading ``view.kwargs["project_pk"]`` finds no capture
+    there. With no view returned, the check is handed none and the arguments
+    holding the read, which is what ``DRFPermissionCheck`` fills its own view's
+    ``kwargs`` from, for the reads its ``route_reads`` names.
     """
     carried = SimpleNamespace(action="do_it", kwargs={})
 
@@ -4195,7 +4195,7 @@ async def test_a_row_condition_is_listed_without_a_hop_or_a_pool(monkeypatch):
         descriptions={"cancel": "Cancel an order."},
     )
     monkeypatch.setattr(spec_toolset, "sync_to_async", no_hop)
-    monkeypatch.setattr(spec_toolset, "base_pool", no_pool)
+    monkeypatch.setattr(spec_toolset, "seeded_pool", no_pool)
 
     tools = await toolset.get_tools(ctx_for(User(username="u")))
 
@@ -4210,7 +4210,7 @@ async def test_a_toolset_declaring_no_condition_builds_no_pool_and_reads_no_user
     be expensive.
     """
     built: list[Any] = []
-    monkeypatch.setattr(spec_toolset, "base_pool", lambda **kw: built.append(kw))
+    monkeypatch.setattr(spec_toolset, "seeded_pool", lambda **kw: built.append(kw))
 
     def no_user(ctx: Any) -> Any:
         raise AssertionError("a toolset with no condition read the user to list")
@@ -4707,7 +4707,7 @@ async def test_a_condition_reading_a_registered_seed_is_asked_with_it(username, 
     """The listing and the call ask the condition against the same seeds.
 
     The listing's pool needs the registry twice over -- resolved into the pool
-    by ``base_pool(seeds=)``, and admitted into what the condition is shown by
+    by ``seeded_pool(seeds=)``, and admitted into what the condition is shown by
     ``unmet_operation_affordance(reserved=)`` -- and dropping either one makes
     the condition fail to bind here rather than answer. The call's own
     enforcement is the kernel's ``dispatch(pool_seeds=)``, asked for the user it
@@ -4726,6 +4726,33 @@ async def test_a_condition_reading_a_registered_seed_is_asked_with_it(username, 
     assert ("`approve`: The books are closed." in instructions) is not listed
     if listed:
         assert await toolset.call_tool("approve", {}, ctx, tools["approve"]) == {"approved": True}
+
+
+@pytest.mark.parametrize(
+    "books_open",
+    [
+        pytest.param(lambda call_context: call_context["action"] == "approve", id="call_context"),
+        pytest.param(lambda request: request is None, id="request"),
+    ],
+)
+async def test_a_condition_reading_a_seed_that_reads_the_call_is_listed_and_answers(books_open):
+    """A seed resolving from the call's context resolves in the listing's pool too.
+
+    The call's pool binds a seed's ``call_context`` and ``request`` to the
+    call's, so the listing's pool for a conditioned tool has to as well, or a
+    condition reading such a seed fails to bind there and the whole catalog
+    with it, while the call it stands in front of answers.
+    """
+    toolset = SpecToolset(
+        {"approve": _conditioned_spec(lambda books_open: books_open)},
+        pool_seeds=DEFAULT_POOL_SEEDS.extend(books_open=books_open),
+    )
+    ctx = ctx_for(User(username="u"))
+
+    tools = await toolset.get_tools(ctx)
+
+    assert "approve" in tools
+    assert await toolset.call_tool("approve", {}, ctx, tools["approve"]) == {"approved": True}
 
 
 async def test_a_seed_named_argument_a_spec_never_declares_is_refused():

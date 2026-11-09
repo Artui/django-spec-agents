@@ -71,7 +71,6 @@ from django_service_specs import (
     UnknownArguments,
     apply_server_arguments,
     audience_projection_for_spec,
-    base_pool,
     build_call_context,
     check_server_arguments,
     dispatch,
@@ -79,6 +78,7 @@ from django_service_specs import (
     operation_affordances,
     paginate_output,
     present_for_audience,
+    seeded_pool,
     spec_caller_input_schema,
     spec_output_schema,
     unmet_operation_affordance,
@@ -1159,7 +1159,11 @@ class SpecToolset(AbstractToolset[Any]):
         returns for the tool
         (``test_a_listing_asks_each_condition_with_its_own_tool_s_seeds``). The
         seeds are handed over twice, as the kernel asks: resolved into the pool
-        by ``base_pool(seeds=)``, and admitted into what the condition is shown
+        by ``seeded_pool(seeds=, call_context=)``, under the call's context as
+        the call's own pool is, so a seed reading ``call_context`` or ``request``
+        binds here too
+        (``test_a_condition_reading_a_seed_that_reads_the_call_is_listed_and_answers``),
+        and admitted into what the condition is shown
         by ``unmet_operation_affordance(reserved=)``, which hands a condition
         only the reserved names. Drop either and a condition reading a
         registered seed fails to bind here while the call, given the same seeds
@@ -1176,7 +1180,7 @@ class SpecToolset(AbstractToolset[Any]):
                 )
                 unmet = unmet_operation_affordance(
                     self._specs[name],
-                    base_pool(user=user, seeds=seeds),
+                    seeded_pool(user=user, seeds=seeds, call_context=call_context),
                     reserved=seeds.reserved,
                     call_context=call_context,
                 )

@@ -73,7 +73,7 @@ FIELDS = ("name", "description", "parameters_json_schema", "return_schema", "met
 
 
 class _SortedWidgets(django_filters.FilterSet):
-    """An ``ordering`` the kernel reads into the spec's reads, as an enum."""
+    """An ``ordering`` the kernel reads into the spec's reads, as its labelled choices."""
 
     ordering = django_filters.OrderingFilter(fields=(("price", "price"), ("name", "name")))
 
