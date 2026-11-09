@@ -22,14 +22,17 @@ to the agent transport is offered. The floor on `django-service-specs` rises to
   field declared only to the agent was accepted when sent and never advertised,
   so every call the model made from the schema was refused for leaving it out. A
   field declared only to another transport is not offered, and a Validator that
-  never opted in is described as before.
+  never opted in is described as before. A seed-named field the schema offers and
+  the call's declaration drops is answered by the seed, as any seed-named argument
+  is, and the model's value is dropped.
 - **A field keyed on the run stays unoffered**, on its `request` or another entry
   of `deps.call_context`, since no run is in hand when the schema is built. A
   call sending it is still served, and the quickstart says what such a field
   should do instead.
 - **A Validator declaring `call_context` is now read under the stamp when the
   toolset is built, so it guards `request`.** Reading
-  `call_context["request"].user` past a `None` check passed and now raises there. A
+  `call_context["request"].user` past a `None` check passed and now raises there, its
+  own error with a note naming the tool. A
   field declared only when handed `None` is no longer offered. A clash declared
   only to the agent is refused at the same point with `ImproperlyConfigured`
   naming the tool.

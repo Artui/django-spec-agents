@@ -522,7 +522,7 @@ service parameter of that name stays the seed's. A Validator declaring
 `parameters(self, *, call_context=None)` is read as it declares itself to the
 call. A field the tool's schema offers that the call's declaration drops is
 answered by the seed, and the model's value is dropped rather than refused as
-unknown. A field declared only to the call is the model's to send.
+unknown (under `REJECT`; `IGNORE` drops an unknown argument silently). A field declared only to the call is the model's to send.
 
 The registry applies to the whole toolset. A seed is ambient to the
 deployment, and what varies with the acting user belongs in the resolver,
@@ -581,18 +581,23 @@ transport", never "this caller". So:
 
 - A field declared to the `"agent"` transport is offered, and required if it says
   so, and a call sending it is served. One declared only to another transport is
-  not offered, and a call sending it is refused as unknown.
+  not offered, and under `REJECT` a call sending it is refused as unknown (under
+  `IGNORE` its value is dropped).
 - A field keyed on the run, on its `request` or any other entry of
   `deps.call_context`, stays unoffered. A call sending it is still served, since
   the call reads its own declaration, but the model is not told about it, so
   a required one fails every call the model makes from the schema. Leave such a
-  field optional, or fill the value from a
-  [per-call seed](#per-call-seeds-and-the-runs-context). A schema per run would ask
+  field optional, or fill it from an `input_data=` provider, which can read a
+  [per-call seed](#per-call-seeds-and-the-runs-context); a seed alone fills the
+  service's parameter of its name, not the Validator's field, so a call leaving
+  the field out is still refused. A schema per run would ask
   every Validator again on every model step.
 - A Validator declaring `call_context` handles `None`, from the construction
   checks, and guards `request`: reading `call_context["request"].user` raises when
-  the toolset is built. A field it declares only with no `request` is offered and
-  then refused as unknown in a run that carries one.
+  the toolset is built. The error raised there is the Validator's own, and a note on
+  it names the tool. A field it declares only with no `request` is offered and
+  then, under `REJECT`, refused as unknown in a run that carries one, unless a
+  registered seed carries its name, which answers it.
 - A clash only this declaration shows, such as a field sharing a target lookup's
   read or named for a seat of the dispatcher, is refused when the toolset is
   built, with `ImproperlyConfigured` naming the tool.
