@@ -41,8 +41,9 @@ to the agent transport is offered. The floor on `django-service-specs` rises to
   already exported from `django_spec_agents.spec_tools`, and nothing there changes.
 - **The `[mcp]` bridge's guide says what transport a bridged call carries**:
   whatever django-spec-mcp stamps, which is none at the 0.9.0 floor and `"mcp"` from
-  0.10.0. A test reads it off the installed release, and another runs a call whose
-  run is a `MappingProxyType`, which the stamp is written over without editing it.
+  0.10.0. A test holds each against the installed release, now that the lock names
+  0.10.0 and the floor job runs 0.9.0, and another runs a call whose run is a
+  `MappingProxyType`, which the stamp is written over without editing it.
 
 ## [0.11.0] — 2026-11-08
 

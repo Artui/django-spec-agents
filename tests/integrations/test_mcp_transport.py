@@ -2,8 +2,9 @@
 
 The bridge stamps nothing of its own: the context a bridged call carries is built
 by django-spec-mcp, so the transport is whatever that release stamps. Release 0.9.0,
-this package's floor, stamps none; 0.10.0 stamps ``"mcp"``. The test reads the value
-off the installed release, so it holds on either and says nothing about the other.
+this package's floor, stamps none, and a release naming ``MCP_TRANSPORT`` stamps
+``"mcp"``, the literal the bridge's guide names. Which half runs depends on the installed
+release: the lock holds the newest, the ``lowest declared versions`` job the floor.
 """
 
 from __future__ import annotations
@@ -41,5 +42,4 @@ async def test_a_bridged_calls_transport_is_whatever_django_spec_mcp_stamps():
 
     await MCPToolset(_server, request).call_tool("record", {}, None, None)  # ty: ignore[invalid-argument-type]
 
-    assert [getattr(django_spec_mcp, "MCP_TRANSPORT", None)] == _SEEN
-    assert _SEEN != ["agent"]
+    assert ["mcp" if hasattr(django_spec_mcp, "MCP_TRANSPORT") else None] == _SEEN

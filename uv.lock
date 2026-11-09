@@ -841,16 +841,16 @@ docs = [
 
 [[package]]
 name = "django-spec-mcp"
-version = "0.9.0"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "django-service-specs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b7/cd/cb6ae844e615a75f5c327c1d7618541e5af138e03cfcdda8f0c75476ace0/django_spec_mcp-0.9.0.tar.gz", hash = "sha256:ededaf4210f999ad3804f4a4416514ed807f930ec71c0ab4c077cb7b541d2dae", size = 991595, upload-time = "2026-11-05T09:01:01.024Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/28/d96073b4fcc826b280213fb873c1bc2ed3544afbc2dfa220b50de092d23b/django_spec_mcp-0.10.0.tar.gz", hash = "sha256:c146d9d39ddba74b83b510724f80da8dfc74f05b7c43f6dfa3d2a936fc464640", size = 1010674, upload-time = "2026-11-08T14:59:14.609Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a7/51/ecce9b76b08252e12f82d7a77822cb5389111bde8ef46ba75a0de2319eb7/django_spec_mcp-0.9.0-py3-none-any.whl", hash = "sha256:3f687798d3b268fe0c28f440e6a60e1e194b758bb4cb210db1ff7f0eb105296c", size = 412751, upload-time = "2026-11-05T09:00:59.165Z" },
+    { url = "https://files.pythonhosted.org/packages/60/60/4eccdd14c0c65b19f11c04cd488a647af86ee1ca048227c91096723819e9/django_spec_mcp-0.10.0-py3-none-any.whl", hash = "sha256:b0ad4c951710d81520cbf611c3974d0cca360d6159630a841ec2f69b13427d15", size = 419261, upload-time = "2026-11-08T14:59:13.029Z" },
 ]
 
 [[package]]
