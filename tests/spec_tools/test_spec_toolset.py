@@ -2886,7 +2886,7 @@ def test_an_ordering_outside_the_filters_choices_is_a_retry():
         _dispatch(_ordered_list_spec(), user, {"ordering": "price"})
 
 
-async def test_the_advertised_ordering_enum_is_the_filters_own_vocabulary():
+async def test_the_advertised_ordering_choices_are_the_filters_own_vocabulary():
     """The kernel's schema reads an ``OrderingFilter`` as the filter's widget
     reads it: an array of sort names, each one of the filter's public choices.
     The vocabulary reaching the model is the filter's public one, and it is the
@@ -2896,9 +2896,16 @@ async def test_the_advertised_ordering_enum_is_the_filters_own_vocabulary():
     tools = await toolset.get_tools(None)
     props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
     assert props["ordering"]["type"] == "array"
+    # Each choice is a ``const`` under the label ``OrderingFilter`` gives it, and
+    # nothing else is offered: no ``enum`` beside the ``anyOf`` to say otherwise.
     assert props["ordering"]["items"] == {
         "type": "string",
-        "enum": ["cost", "-cost", "title", "-title"],
+        "anyOf": [
+            {"const": "cost", "title": "Cost"},
+            {"const": "-cost", "title": "Cost (descending)"},
+            {"const": "title", "title": "Title"},
+            {"const": "-title", "title": "Title (descending)"},
+        ],
     }
     # The kernel's bound on how many sort keys one call may send.
     assert props["ordering"]["maxItems"] == 1000
@@ -2934,7 +2941,8 @@ def test_the_filters_vocabulary_survives_the_schema_merge_untouched():
     property that would notice.
     """
     props = _input_schema(_ordered_list_spec())["properties"]
-    assert props["ordering"]["items"]["enum"] == ["cost", "-cost", "title", "-title"]
+    choices = props["ordering"]["items"]["anyOf"]
+    assert [choice["const"] for choice in choices] == ["cost", "-cost", "title", "-title"]
     assert {"page", "limit"} <= set(props)
 
 
@@ -3901,6 +3909,51 @@ async def test_a_view_call_seeds_returns_carries_the_action_a_permission_class_r
 
     assert RecordingPermission.seen["view"].action == "retrieve"
     assert RecordingPermission.seen["action"] == "get_thing"
+
+
+_PROJECT_PK = Parameter("project_pk", "integer", required=True)
+
+
+def _in_project(user, project_pk):
+    """Do it in a project."""
+    return {"ok": True}
+
+
+@pytest.mark.django_db
+async def test_a_view_call_seeds_returns_is_handed_over_with_no_route_read_filled():
+    """What the moving guide tells a project whose permission reads a route capture.
+
+    A view ``call_seeds`` returns reaches the check as that object, its
+    ``kwargs`` as the hook left them, although the call's arguments carry the
+    read a route would have captured. ``DRFPermissionCheck`` asks a carried view
+    as it is, so a class reading ``view.kwargs["project_pk"]`` refuses there.
+    With no view returned, the check is handed none and the arguments holding
+    the read, which is what ``DRFPermissionCheck`` fills its own view's
+    ``kwargs`` from.
+    """
+    carried = SimpleNamespace(action="do_it", kwargs={})
+
+    class Carrying(SpecToolset):
+        def call_seeds(self, *, ctx, tool_name):
+            return {"view": lambda: carried}
+
+    def spec():
+        return ServiceSpec(
+            service=_in_project,
+            atomic=False,
+            reads=Parameters.of(_PROJECT_PK),
+            permissions=[RecordingPermission()],
+        )
+
+    for toolset_class, view in ((Carrying, carried), (SpecToolset, None)):
+        toolset = toolset_class({"do_it": spec()}, descriptions={"do_it": "Do it."})
+        RecordingPermission.seen = {}
+
+        await _call(toolset, "do_it", object(), {"project_pk": 7})
+
+        assert RecordingPermission.seen["view"] is view
+        assert RecordingPermission.seen["arguments"] == {"project_pk": 7}
+    assert carried.kwargs == {}
 
 
 async def _call_arrived(

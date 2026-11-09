@@ -973,15 +973,16 @@ class OrderFilterSet(django_filters.FilterSet):
 ```
 
 The kernel lists that filter in the tool's input schema as an array of its
-public choices, `{"type": "array", "items": {"type": "string", "enum":
-["created", "-created", "total", "-total"]}}`, as `OrderingFilter` takes a list
-of sort keys, so the model is told exactly what it may sort by, in the words the
-FilterSet uses. The choices' labels are not carried. A single key is sent as a
+public choices, each a `const` under the label `OrderingFilter` gives it:
+`{"type": "array", "items": {"type": "string", "anyOf": [{"const": "created",
+"title": "Created"}, {"const": "-created", "title": "Created (descending)"},
+...]}}`, as `OrderingFilter` takes a list of sort keys, so the model is told
+exactly what it may sort by, in the words the FilterSet uses. A single key is sent as a
 one-element list, `["-created"]`; one sent as a bare string is handed back as
 `ordering: Expected an array.` for the model to correct, rather than read as
 one key. At call time the value is handed to
 the FilterSet as filter data: it validates the choice, applies its own
-`param_map`, and a value outside the enum comes back as a `ModelRetry`. The
+`param_map`, and a value outside the choices comes back as a `ModelRetry`. The
 toolset contributes nothing and takes nothing away.
 
 One vocabulary, one declaration site, and the same ordering your HTTP views

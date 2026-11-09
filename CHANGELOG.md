@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-09
+
+The floor on `django-service-specs` rises to 0.31.0, so a minor release. Nothing
+the toolset serves changes but the schema of a labelled filter, which the kernel
+now writes.
+
+### Changed
+
+- **An `OrderingFilter`'s choices are advertised with their labels.** The kernel
+  writes a labelled filter as `anyOf` of `const` and `title` where it wrote an
+  `enum`, so the model reads `{"const": "-created", "title": "Created
+  (descending)"}` beside each value it may send. The values, and the `ModelRetry`
+  for one outside them, are unchanged. A project asserting the old `enum` on a
+  tool's schema changes its assertion.
+- **The moving guide says what a view `call_seeds` returns owes a permission
+  reading a route capture.** django-spec-rest's `DRFPermissionCheck` fills
+  `view.kwargs` from `route_reads` only on the view it builds when the call
+  carries none, so a returned view whose `kwargs` the override left empty is
+  refused. Returning no view is the answer, at the price of a role `action` the
+  view set.
+
 ## [0.12.0] — 2026-11-09
 
 A tool's schema is built under the agent's stamp, so a field a Validator declares
@@ -843,7 +864,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...v0.10.1

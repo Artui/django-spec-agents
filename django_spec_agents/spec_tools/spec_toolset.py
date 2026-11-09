@@ -445,7 +445,8 @@ class SpecToolset(AbstractToolset[Any]):
     ``params``, which the kernel hands the FilterSet as ``filter_data``.
     That includes ordering: a FilterSet carrying an ``OrderingFilter`` named
     ``ordering`` advertises the argument itself — the kernel derives the
-    filter's public choices into the schema as an enum — and the toolset keeps
+    filter's public choices into the schema, each a ``const`` under its
+    label — and the toolset keeps
     its hands off the value, which the FilterSet validates and applies through
     its own ``param_map``.
 
