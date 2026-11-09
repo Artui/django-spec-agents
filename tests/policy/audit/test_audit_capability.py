@@ -38,6 +38,7 @@ from pydantic_ai_harness import guardrails as harness_guardrails
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.policy.audit import audit_capability as audit_module
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 from django_spec_agents.policy.failure import tool_failure_policy as failure_policy_module
@@ -55,6 +56,36 @@ from tests.tool_retries import is_tool_retry
 # installed pydantic-ai's decision (every ``before`` / ``after`` / ``on_error``
 # hook runs inside ``wrap_tool_execute``), so a hand-driven hook would only
 # restate this file's assumption about it.
+
+
+class _Clock:
+    """The clock audit times a call with, moved only by the doubles below.
+
+    A double that makes a call slow calls ``pause`` where it would have slept,
+    so a record's ``duration_ms`` is exactly the pauses inside its span and
+    nothing else. Read from the wall clock, a case with no pause failed
+    a ``< 300`` bound whenever a loaded runner stalled it for 300 ms, and a
+    case that must span a pause could only be asserted at its lower bound.
+    """
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def perf_counter(self) -> float:
+        return self.now
+
+    def pause(self, seconds: float) -> None:
+        self.now += seconds
+
+
+_CLOCK = _Clock()
+
+
+@pytest.fixture(autouse=True)
+def _audit_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Time every call in this file by ``_CLOCK``, which starts at zero."""
+    _CLOCK.now = 0.0
+    monkeypatch.setattr(audit_module, "time", _CLOCK)
 
 
 class _RaisingLogger:
@@ -342,9 +373,9 @@ class _SlowHooks(AbstractCapability[Any]):
         args: dict[str, Any],
         handler: Callable[[dict[str, Any]], Any],
     ) -> Any:
-        await asyncio.sleep(0.3)
+        _CLOCK.pause(0.3)
         result = await handler(args)
-        await asyncio.sleep(0.3)
+        _CLOCK.pause(0.3)
         return result
 
     async def before_tool_execute(
@@ -355,7 +386,7 @@ class _SlowHooks(AbstractCapability[Any]):
         tool_def: ToolDefinition,
         args: dict[str, Any],
     ) -> dict[str, Any]:
-        await asyncio.sleep(0.3)
+        _CLOCK.pause(0.3)
         return args
 
     async def after_tool_execute(
@@ -367,7 +398,7 @@ class _SlowHooks(AbstractCapability[Any]):
         args: dict[str, Any],
         result: Any,
     ) -> Any:
-        await asyncio.sleep(0.3)
+        _CLOCK.pause(0.3)
         return result
 
 
@@ -614,7 +645,7 @@ class _SlowInnermostRewriteArgs(_InnermostRewriteArgs):
         tool_def: ToolDefinition,
         args: dict[str, Any],
     ) -> dict[str, Any]:
-        await asyncio.sleep(0.3)
+        _CLOCK.pause(0.3)
         return await super().before_tool_execute(ctx, call=call, tool_def=tool_def, args=args)
 
 
@@ -639,7 +670,7 @@ async def test_a_per_run_innermost_rewrite_does_not_reach_the_record() -> None:
 
     assert received == [7]
     assert _records(audit) == [("lookup", '{"n": 0}', True, None, 5)]
-    assert audit.events[0].duration_ms >= 300
+    assert audit.events[0].duration_ms == pytest.approx(300.0)
 
 
 class _OneThing(AbstractCapability[Any]):
@@ -706,7 +737,7 @@ class _OneThing(AbstractCapability[Any]):
         if self._behaviour == "after-rewrites-the-result":
             return "y" * 500
         if self._behaviour == "after-is-slow":
-            await asyncio.sleep(0.3)
+            _CLOCK.pause(0.3)
         return result
 
     async def wrap_tool_execute(
@@ -722,7 +753,7 @@ class _OneThing(AbstractCapability[Any]):
         if self._behaviour == "wrapper-rewrites-the-arguments":
             args = {**args, "n": 5}
         if self._behaviour == "wrapper-is-slow":
-            await asyncio.sleep(0.3)
+            _CLOCK.pause(0.3)
         try:
             result = await handler(args)
         except Exception as error:
@@ -753,7 +784,7 @@ class _OneThing(AbstractCapability[Any]):
         from, and the pause between the runs says whether its ``duration_ms``
         spans both.
         """
-        await asyncio.sleep(0.3)
+        _CLOCK.pause(0.3)
         return await handler({**args, "n": 5})
 
 
@@ -997,7 +1028,11 @@ async def test_a_capability_sorted_after_audit_reaches_the_record(
     assert ran == case.ran
     assert _records(audit) == expected
     assert min(event.duration_ms for event in audit.events) >= 0
-    assert (max(event.duration_ms for event in audit.events) >= 300) is slow
+    # Exactly the pause inside a record's span, on the audit's own clock: a
+    # slept case spans it, and every other case reads zero however long the
+    # runner stalls.
+    longest = max(event.duration_ms for event in audit.events)
+    assert longest == pytest.approx(300.0 if slow else 0.0)
 
 
 async def test_a_capability_composed_by_hand_after_audit_reaches_the_record_too() -> None:
@@ -1362,7 +1397,7 @@ async def test_a_rerun_sorted_after_audit_and_refused_ahead_of_it_mixes_two_runs
     refused = ("lookup", '{"n": 0}', False, "ModelRetry: not again", None)
     assert ran == [0, 0]
     assert _records(audit) == [refused, _FOUND_AGAIN]
-    assert audit.events[0].duration_ms >= 300
+    assert audit.events[0].duration_ms == pytest.approx(300.0)
 
 
 async def test_the_result_size_is_the_tools_own_result() -> None:
@@ -1381,13 +1416,13 @@ async def test_the_result_size_is_the_tools_own_result() -> None:
 
 def _sync_lookup(n: int) -> str:
     """Look a thing up, blocking."""
-    time.sleep(0.05)
+    _CLOCK.pause(0.05)
     return "found"
 
 
 async def _async_lookup(n: int) -> str:
     """Look a thing up."""
-    await asyncio.sleep(0.05)
+    _CLOCK.pause(0.05)
     return "found"
 
 
@@ -1398,7 +1433,10 @@ async def test_the_duration_is_the_tools_own(lookup: Callable[..., Any]) -> None
     await _agent(lookup, sink=audit, capabilities=[_SlowHooks()]).run("go", deps=_deps())
 
     assert _records(audit) == [(lookup.__name__, '{"n": 0}', True, None, 5)]
-    assert 50 <= audit.events[0].duration_ms < 300
+    assert audit.events[0].duration_ms == pytest.approx(50.0)
+    # The hooks did pause, 1.2 s in all, so the 50 ms above leaves them out
+    # rather than the hooks having stopped pausing.
+    assert _CLOCK.now == pytest.approx(1.25)
 
 
 class _Overlap:
