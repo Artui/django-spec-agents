@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-09
+
+The floor on `django-service-specs` rises to 0.31.0, so a minor release. Nothing
+the toolset serves changes but the schema of a labelled filter, which the kernel
+now writes.
+
+### Changed
+
+- **A labelled filter's choices, an `OrderingFilter`'s among them, carry their
+  labels into the tool's schema.** The kernel writes a labelled choice filter as
+  `anyOf` of `const` and `title` where it wrote an `enum`, so the schema carries
+  `{"const": "-created", "title": "Created (descending)"}` for each value the
+  model may send. What a provider passes on varies: pydantic-ai's OpenAI
+  transformer drops the titles and Google's turns the choices back into an
+  `enum`. The values, and the `ModelRetry` for one outside them, are unchanged. A
+  project asserting the old `enum` on a tool's schema changes its assertion.
+- **The moving guide says what a view `call_seeds` returns owes a permission
+  reading a route capture.** django-spec-rest's `DRFPermissionCheck` fills
+  `view.kwargs` only on the view it builds when the call carries none, with the
+  call's arguments its `route_reads` names. A returned view whose `kwargs` the
+  override left empty holds no capture, so a class reading one refuses or raises
+  `KeyError`. The answer is to return no view and name the capture in
+  `route_reads`, at the price of a role `action` the view set.
+
+### Fixed
+
+- **A tool whose condition reads a seed that reads the call is listed.** The
+  listing built each conditioned tool's pool without the call's context, so a
+  registered seed declaring `call_context` or `request` failed to bind there with
+  `TypeError`, and `get_tools` failed for the whole run, while the call itself
+  answered. The pool is now the kernel's `seeded_pool`, under the context the
+  call is built with.
+
 ## [0.12.0] — 2026-11-09
 
 A tool's schema is built under the agent's stamp, so a field a Validator declares
@@ -843,7 +876,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...v0.10.1

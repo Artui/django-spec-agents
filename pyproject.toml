@@ -108,7 +108,12 @@ specs = [
     # builds every call's context through; below it neither name exists.
     # 0.30.0: ``spec_caller_input_schema`` takes ``call_context=``, which the
     # tool's schema is built under; below it the keyword is refused.
-    "django-service-specs>=0.30.0",
+    # 0.31.0: a labelled filter, ``OrderingFilter`` among them, is advertised
+    # as ``anyOf`` of ``const`` and ``title``, which the tests and the
+    # checked-in schema dump assert; below it the schema is a bare ``enum``.
+    # The listing builds a conditioned tool's pool with ``seeded_pool``, which
+    # first exists there.
+    "django-service-specs>=0.31.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):
 # CodeMode batching, compaction, step persistence, sub-agents.
@@ -142,7 +147,7 @@ dev = [
     "django-spec-mcp>=0.9.0",
     # The [specs] extra's requirement, so ``spec_tools`` and its tests run in
     # dev, at the extra's floor.
-    "django-service-specs>=0.30.0",
+    "django-service-specs>=0.31.0",
     # For the filtered-selector tests: a ``filter_set`` is a django-filter
     # FilterSet, which the kernel derives the tool's filter arguments from.
     "django-filter>=23",
@@ -259,7 +264,7 @@ root = ["./django_spec_agents"]
 # django_spec_agents/version.py and promotes the CHANGELOG [Unreleased] block
 # under a new dated heading.
 [tool.bumpversion]
-current_version = "0.12.0"
+current_version = "0.13.0"
 allow_dirty = false
 commit = false
 tag = false

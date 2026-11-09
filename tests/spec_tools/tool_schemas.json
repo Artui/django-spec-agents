@@ -112,11 +112,23 @@
           },
           "ordering": {
             "items": {
-              "enum": [
-                "price",
-                "-price",
-                "name",
-                "-name"
+              "anyOf": [
+                {
+                  "const": "price",
+                  "title": "Price"
+                },
+                {
+                  "const": "-price",
+                  "title": "Price (descending)"
+                },
+                {
+                  "const": "name",
+                  "title": "Name"
+                },
+                {
+                  "const": "-name",
+                  "title": "Name (descending)"
+                }
               ],
               "type": "string"
             },
