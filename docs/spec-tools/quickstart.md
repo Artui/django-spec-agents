@@ -522,7 +522,8 @@ service parameter of that name stays the seed's. A Validator declaring
 `parameters(self, *, call_context=None)` is read as it declares itself to the
 call. A field the tool's schema offers that the call's declaration drops is
 answered by the seed, and the model's value is dropped rather than refused as
-unknown (under `REJECT`; `IGNORE` drops an unknown argument silently). A field declared only to the call is the model's to send.
+unknown (under `REJECT`; `IGNORE` drops an unknown argument silently). A field
+declared only to the call is the model's to send.
 
 The registry applies to the whole toolset. A seed is ambient to the
 deployment, and what varies with the acting user belongs in the resolver,

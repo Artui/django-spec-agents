@@ -31,11 +31,10 @@ to the agent transport is offered. The floor on `django-service-specs` rises to
   should do instead.
 - **A Validator declaring `call_context` is now read under the stamp when the
   toolset is built, so it guards `request`.** Reading
-  `call_context["request"].user` past a `None` check passed and now raises there, its
-  own error with a note naming the tool. A
-  field declared only when handed `None` is no longer offered. A clash declared
-  only to the agent is refused at the same point with `ImproperlyConfigured`
-  naming the tool.
+  `call_context["request"].user` past a `None` check passed and now raises there,
+  its own error with a note naming the tool. A field declared only when handed
+  `None` is no longer offered. A clash declared only to the agent is refused at
+  the same point with `ImproperlyConfigured` naming the tool.
 - **The `[specs]` extra and the dev group floor `django-service-specs` at 0.30.0,
   up from 0.29.0**, the release whose `spec_caller_input_schema` takes
   `call_context=`.
