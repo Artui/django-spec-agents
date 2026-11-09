@@ -1958,7 +1958,8 @@ generated into the tool's input schema and flow through as ordinary
 <code>params</code>, which the kernel hands the FilterSet as <code>filter_data</code>.
 That includes ordering: a FilterSet carrying an <code>OrderingFilter</code> named
 <code>ordering</code> advertises the argument itself — the kernel derives the
-filter's public choices into the schema as an enum — and the toolset keeps
+filter's public choices into the schema, each a <code>const</code> under its
+label — and the toolset keeps
 its hands off the value, which the FilterSet validates and applies through
 its own <code>param_map</code>.</p>
 <p><strong>A <code>many=True</code> service takes its list as one named argument.</strong> Its input

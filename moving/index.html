@@ -1747,6 +1747,16 @@ seed for a read the spec declares, or for a read or parameter
 </span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        <span class="n">tenant</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">tenant</span>
 </span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"tenant"</span><span class="p">:</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">tenant</span><span class="p">}</span>
 </span></code></pre></div>
+<p>A view <code>call_seeds</code> returns is asked as it is. django-spec-rest's
+<code>DRFPermissionCheck</code> fills <code>view.kwargs</code> only on the view it builds when the call
+carries none, and only with the call's arguments its <code>route_reads</code> names. So a
+permission class reading a route capture finds none on a returned view whose
+<code>kwargs</code> the override left empty: one reading <code>view.kwargs.get("project_pk")</code>
+refuses, and one subscripting it raises <code>KeyError</code>. Return no view for such a
+spec, and name the capture in the check,
+<code>DRFPermissionCheck([IsProjectMember], route_reads=["project_pk"])</code>: the view it
+builds then carries the capture, and its <code>action</code> is the tool's name rather than
+a role the returned view set.</p>
 <p>See <a href="../spec-tools/quickstart/#per-call-seeds-and-the-runs-context">per-call seeds and the run's context</a>.</p>
 <h3 id="rendering-and-paging">Rendering and paging<a class="headerlink" href="#rendering-and-paging" title="Permanent link">&para;</a></h3>
 <ul>

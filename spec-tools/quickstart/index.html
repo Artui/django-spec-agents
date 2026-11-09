@@ -2647,15 +2647,16 @@ named <code>ordering</code> on the selector's FilterSet and you are done:</p>
 </span><span id="__span-20-11"><a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"status"</span><span class="p">]</span>
 </span></code></pre></div>
 <p>The kernel lists that filter in the tool's input schema as an array of its
-public choices, <code>{"type": "array", "items": {"type": "string", "enum":
-["created", "-created", "total", "-total"]}}</code>, as <code>OrderingFilter</code> takes a list
-of sort keys, so the model is told exactly what it may sort by, in the words the
-FilterSet uses. The choices' labels are not carried. A single key is sent as a
+public choices, each a <code>const</code> under the label <code>OrderingFilter</code> gives it:
+<code>{"type": "array", "items": {"type": "string", "anyOf": [{"const": "created",
+"title": "Created"}, {"const": "-created", "title": "Created (descending)"},
+...]}}</code>, as <code>OrderingFilter</code> takes a list of sort keys, so the model is told
+exactly what it may sort by, in the words the FilterSet uses. A single key is sent as a
 one-element list, <code>["-created"]</code>; one sent as a bare string is handed back as
 <code>ordering: Expected an array.</code> for the model to correct, rather than read as
 one key. At call time the value is handed to
 the FilterSet as filter data: it validates the choice, applies its own
-<code>param_map</code>, and a value outside the enum comes back as a <code>ModelRetry</code>. The
+<code>param_map</code>, and a value outside the choices comes back as a <code>ModelRetry</code>. The
 toolset contributes nothing and takes nothing away.</p>
 <p>One vocabulary, one declaration site, and the same ordering your HTTP views
 already serve.</p>
