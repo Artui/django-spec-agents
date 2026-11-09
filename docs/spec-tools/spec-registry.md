@@ -295,7 +295,9 @@ would otherwise win over the server's value without a trace. A bound Validator
 field of the same name is not refused, here or on the mount: the field takes the
 bound value and the service parameter the seed.
 
-Those checks read the spec as described to no call, as the tool's schema does.
+Those checks read the spec as described to no call, where the tool's schema reads
+it [under the agent's stamp](quickstart.md#per-call-seeds-and-the-runs-context), so
+binding a field declared only to the agent is refused as undeclared.
 A Validator declaring `parameters(self, *, call_context=None)` can declare a
 bound field otherwise to a call, so every call checks the bound values again,
 against what the Validator declares to that call. One its declaration refuses

@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-09
+
+A tool's schema is built under the agent's stamp, so a field a Validator declares
+to the agent transport is offered. The floor on `django-service-specs` rises to
+0.30.0, so a minor release.
+
+### Changed
+
+- **A tool's schema is built under the agent's stamp, so a field a Validator
+  declares to the `"agent"` transport is offered and required.** The schema
+  passes `build_call_context(AGENT_TRANSPORT)` to the kernel's
+  `spec_caller_input_schema`, once, when the toolset is constructed. A required
+  field declared only to the agent was accepted when sent and never advertised,
+  so every call the model made from the schema was refused for leaving it out. A
+  field declared only to another transport is not offered, and a Validator that
+  never opted in is described as before. A seed-named field the schema offers and
+  the call's declaration drops is answered by the seed, as any seed-named argument
+  is, and the model's value is dropped.
+- **A field keyed on the run stays unoffered**, on its `request` or another entry
+  of `deps.call_context`, since no run is in hand when the schema is built. A
+  call sending it is still served, and the quickstart says what such a field
+  should do instead.
+- **A Validator declaring `call_context` is now read under the stamp when the
+  toolset is built, so it guards `request`.** Reading
+  `call_context["request"].user` past a `None` check passed and now raises there,
+  its own error with a note naming the tool. A field declared only when handed
+  `None` is no longer offered. A clash declared only to the agent is refused at
+  the same point with `ImproperlyConfigured` naming the tool.
+- **The `[specs]` extra and the dev group floor `django-service-specs` at 0.30.0,
+  up from 0.29.0**, the release whose `spec_caller_input_schema` takes
+  `call_context=`.
+- **`AGENT_TRANSPORT` is listed in `spec_tools.types`**, beside `AgentConventions`,
+  so the sub-package's `__all__` names every public value its modules define. It was
+  already exported from `django_spec_agents.spec_tools`, and nothing there changes.
+- **The `[mcp]` bridge's guide says what transport a bridged call carries**:
+  whatever django-spec-mcp stamps, which is none at the 0.9.0 floor and `"mcp"` from
+  0.10.0. A test holds each against the installed release, now that the lock names
+  0.10.0 and the floor job runs 0.9.0, and another runs a call whose run is a
+  `MappingProxyType`, which the stamp is written over without editing it.
+
 ## [0.11.0] — 2026-11-08
 
 Every call's context is built through the kernel's `build_call_context`, and the
@@ -803,7 +843,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/Artui/django-spec-agents/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Artui/django-spec-agents/compare/v0.9.0...v0.10.0

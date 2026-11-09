@@ -522,7 +522,8 @@ service parameter of that name stays the seed's. A Validator declaring
 `parameters(self, *, call_context=None)` is read as it declares itself to the
 call. A field the tool's schema offers that the call's declaration drops is
 answered by the seed, and the model's value is dropped rather than refused as
-unknown. A field declared only to the call is the model's to send.
+unknown (under `REJECT`; `IGNORE` drops an unknown argument silently). A field
+declared only to the call is the model's to send.
 
 The registry applies to the whole toolset. A seed is ambient to the
 deployment, and what varies with the acting user belongs in the resolver,
@@ -570,9 +571,37 @@ this one's is `"agent"`. The key is stamped on every context a callable can
 see, the call's and the listing's conditions' alike, so a tool listed on
 `call_context["transport"] == "agent"` is not refused at its call on another
 value, and a check, a Validator's `validate`, the service, the selector and the
-presenter of one call read the same value. A Validator's `parameters` reads it
-whenever it is handed the call's context; it is also asked with
-`call_context=None` when the tool's schema is built, so it must handle `None`.
+presenter of one call read the same value.
+
+**What a tool's schema reads.** The schema is built once, when the toolset is
+constructed, with no run in hand. A Validator declaring
+`parameters(self, *, call_context=None)` is asked there with what
+`build_call_context(AGENT_TRANSPORT)` returns: `transport` is `"agent"`, and
+`request`, `view`, `format` and `action` are `None`. It says "a call through this
+transport", never "this caller". So:
+
+- A field declared to the `"agent"` transport is offered, and required if it says
+  so, and a call sending it is served. One declared only to another transport is
+  not offered, and under `REJECT` a call sending it is refused as unknown (under
+  `IGNORE` its value is dropped).
+- A field keyed on the run, on its `request` or any other entry of
+  `deps.call_context`, stays unoffered. A call sending it is still served, since
+  the call reads its own declaration, but the model is not told about it, so
+  a required one fails every call the model makes from the schema. Leave such a
+  field optional, or fill it from an `input_data=` provider, which can read a
+  [per-call seed](#per-call-seeds-and-the-runs-context); a seed alone fills the
+  service's parameter of its name, not the Validator's field, so a call leaving
+  the field out is still refused. A schema per run would ask
+  every Validator again on every model step.
+- A Validator declaring `call_context` handles `None`, from the construction
+  checks, and guards `request`: reading `call_context["request"].user` raises when
+  the toolset is built. The error raised there is the Validator's own, and a note on
+  it names the tool. A field it declares only with no `request` is offered and
+  then, under `REJECT`, refused as unknown in a run that carries one, unless a
+  registered seed carries its name, which answers it.
+- A clash only this declaration shows, such as a field sharing a target lookup's
+  read or named for a seat of the dispatcher, is refused when the toolset is
+  built, with `ImproperlyConfigured` naming the tool.
 
 What you can override here is the run's `call_context` entries, which become the
 call's, and the per-call seeds

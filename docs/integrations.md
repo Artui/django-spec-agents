@@ -133,6 +133,14 @@ hands the model `3`, and any result of a tool registered with
 `include_structured_content=False`. Text that is not JSON is handed on as it
 is, and content that is not one text block, such as an image, as its blocks.
 
+A call's `call_context` is built by django-spec-mcp, not by this package, so the
+transport a spec reads off it (`call_transport(call_context)`) is whatever the
+installed django-spec-mcp stamps. At this package's floor, 0.9.0, it stamps none,
+and a bridged call reads `None`; from 0.10.0 it stamps `"mcp"`, its `MCP_TRANSPORT`.
+It is never `"agent"`: that value, `AGENT_TRANSPORT`, is what `[specs]` stamps on a
+call it serves in process, so a spec written to branch on the transport sees a
+different one on each route.
+
 ### A tool that cannot run now
 
 A service's `affordances` can say when the operation is possible at all: a
