@@ -19,7 +19,8 @@ tool per schema feature a definition carries, not one per test spec. Adding a
 feature to the definitions earns a tool here. It covers a service with a form's
 bounds, a retrieve, a list with a filter set and a read-shaping argument, a
 parameter with a default, a bound and a withheld server argument, a ``many``
-service, a spec with no presenter and an output field hidden from the audience.
+service, a spec with no presenter, an output field hidden from the audience and
+a Validator field declared only to the agent transport.
 It is one toolset: a feature that needs a toolset-level setting other than
 ``max_page_size``, ``descriptions`` and ``tool_server_arguments`` (an omitted
 tool, a pool seed, ``unknown_arguments``, conventions) is not in the dump.
@@ -39,6 +40,7 @@ import dataclasses
 import difflib
 import json
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -54,10 +56,12 @@ from django_service_specs import (
     ServerArguments,
     ServiceSpec,
     SpecRegistry,
+    ValidationContext,
+    Validator,
 )
 from pydantic_ai.tools import ToolDefinition
 
-from django_spec_agents.spec_tools import SpecToolset
+from django_spec_agents.spec_tools import AGENT_TRANSPORT, SpecToolset
 from tests.spec_tools.kernel_specs import RowPresenter, allow, widget_input, widget_presenter
 from tests.spec_tools.testapp.models import Widget
 from tests.spec_tools.wording_specs import run_context
@@ -105,6 +109,24 @@ def _create_widgets(*, items: list[dict[str, Any]]) -> list[Widget]:
 def _ping() -> dict[str, str]:
     """Check the service is up."""
     return {"status": "ok"}
+
+
+class _FieldToTheAgent(Validator):
+    """Declares ``title``, and a required ``channel`` to the agent transport alone."""
+
+    def parameters(self, *, call_context: dict[str, Any] | None = None) -> Parameters:
+        title = Parameter("title", "string", required=True)
+        if call_context is not None and call_context["transport"] == AGENT_TRANSPORT:
+            return Parameters.of(title, Parameter("channel", "string", required=True))
+        return Parameters.of(title)
+
+    def validate(self, arguments: Mapping[str, Any], context: ValidationContext) -> dict[str, Any]:
+        return dict(arguments)
+
+
+def _notify(*, data: dict[str, Any]) -> dict[str, Any]:
+    """Send a notification."""
+    return data
 
 
 def _toolset() -> SpecToolset:
@@ -182,6 +204,12 @@ def _toolset() -> SpecToolset:
     # No presenter: the spec declares no output, so ``return_schema`` is null.
     registry.register(
         "ping", SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_ping, permissions=allow())
+    )
+    # A Validator field declared only to this transport: offered and required,
+    # since the schema is built under the agent's stamp.
+    registry.register(
+        "notify",
+        ServiceSpec(service=_notify, validator=_FieldToTheAgent(), permissions=allow()),
     )
     return SpecToolset(
         registry,

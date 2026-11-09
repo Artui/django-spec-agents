@@ -283,6 +283,32 @@
         "type": "object"
       },
       "return_schema": null
+    },
+    {
+      "description": "Send a notification.",
+      "metadata": {
+        "annotations": {
+          "readOnlyHint": false
+        }
+      },
+      "name": "notify",
+      "parameters_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "channel"
+        ],
+        "type": "object"
+      },
+      "return_schema": null
     }
   ]
 }

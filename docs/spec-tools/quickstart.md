@@ -570,9 +570,32 @@ this one's is `"agent"`. The key is stamped on every context a callable can
 see, the call's and the listing's conditions' alike, so a tool listed on
 `call_context["transport"] == "agent"` is not refused at its call on another
 value, and a check, a Validator's `validate`, the service, the selector and the
-presenter of one call read the same value. A Validator's `parameters` reads it
-whenever it is handed the call's context; it is also asked with
-`call_context=None` when the tool's schema is built, so it must handle `None`.
+presenter of one call read the same value.
+
+**What a tool's schema reads.** The schema is built once, when the toolset is
+constructed, with no run in hand. A Validator declaring
+`parameters(self, *, call_context=None)` is asked there with what
+`build_call_context(AGENT_TRANSPORT)` returns: `transport` is `"agent"`, and
+`request`, `view`, `format` and `action` are `None`. It says "a call through this
+transport", never "this caller". So:
+
+- A field declared to the `"agent"` transport is offered, and required if it says
+  so, and a call sending it is served. One declared only to another transport is
+  not offered, and a call sending it is refused as unknown.
+- A field keyed on the run, on its `request` or any other entry of
+  `deps.call_context`, stays unoffered. A call sending it is still served, since
+  the call reads its own declaration, but the model is not told about it, so
+  a required one fails every call the model makes from the schema. Leave such a
+  field optional, or fill the value from a
+  [per-call seed](#per-call-seeds-and-the-runs-context). A schema per run would ask
+  every Validator again on every model step.
+- A Validator declaring `call_context` handles `None`, from the construction
+  checks, and guards `request`: reading `call_context["request"].user` raises when
+  the toolset is built. A field it declares only with no `request` is offered and
+  then refused as unknown in a run that carries one.
+- A clash only this declaration shows, such as a field sharing a target lookup's
+  read or named for a seat of the dispatcher, is refused when the toolset is
+  built, with `ImproperlyConfigured` naming the tool.
 
 What you can override here is the run's `call_context` entries, which become the
 call's, and the per-call seeds

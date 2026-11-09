@@ -64,11 +64,12 @@ def test_the_name_is_exported_from_the_package_and_not_from_the_kernel():
 async def test_every_context_is_built_through_the_kernels_builder_with_the_run_as_base(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """The call's context and the listing's are each ``build_call_context``'s result.
+    """The schema's stamp, the call's context and the listing's are each its result.
 
     The spy forwards to the real builder and records what it was handed: the
-    package's own value as the transport, the run's dict as ``base`` and the
-    tool's name as ``action``. The callables read the very dict it returned.
+    package's own value as the transport, and, once a run is in hand, the run's
+    dict as ``base`` and the tool's name as ``action``. The tool's schema is built
+    first, with no run. The callables read the very dict it returned.
     """
     built: list[tuple[str, Mapping[str, Any] | None, str | None]] = []
     returned: list[dict[str, Any]] = []
@@ -107,6 +108,7 @@ async def test_every_context_is_built_through_the_kernels_builder_with_the_run_a
     await toolset.call_tool("do_it", {}, ctx, tools["do_it"])
 
     assert [(transport, base, action) for transport, base, action in built] == [
+        ("agent", None, None),
         ("agent", run, "do_it"),
         ("agent", run, "do_it"),
     ]

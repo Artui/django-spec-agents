@@ -106,7 +106,9 @@ specs = [
     # is refused.
     # 0.29.0: ``build_call_context`` and ``TRANSPORT_KEY``, which the toolset
     # builds every call's context through; below it neither name exists.
-    "django-service-specs>=0.29.0",
+    # 0.30.0: ``spec_caller_input_schema`` takes ``call_context=``, which the
+    # tool's schema is built under; below it the keyword is refused.
+    "django-service-specs>=0.30.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):
 # CodeMode batching, compaction, step persistence, sub-agents.
@@ -140,7 +142,7 @@ dev = [
     "django-spec-mcp>=0.9.0",
     # The [specs] extra's requirement, so ``spec_tools`` and its tests run in
     # dev, at the extra's floor.
-    "django-service-specs>=0.29.0",
+    "django-service-specs>=0.30.0",
     # For the filtered-selector tests: a ``filter_set`` is a django-filter
     # FilterSet, which the kernel derives the tool's filter arguments from.
     "django-filter>=23",

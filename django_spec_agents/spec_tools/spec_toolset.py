@@ -799,22 +799,35 @@ class SpecToolset(AbstractToolset[Any]):
         # Schemas derive purely from the specs (no DB), so the tool defs are built
         # once up front. ``ToolDefinition`` defaults to ``kind="function"`` — the
         # in-process kind the run loop routes into ``call_tool``.
-        self._tool_defs: dict[str, ToolDefinition] = {
-            name: _build_tool_def(
-                name,
-                spec,
-                self._descriptions.get(name),
-                self._max_page_size,
-                include_total=include_total,
-                shapes=self._tool_shapes[name],
-                projection=self._projections[name],
-                pool_seeds=pool_seeds,
-                conventions=self._conventions,
-                server_names=self._server_names(name),
-                unknown_arguments=unknown_arguments,
-            )
-            for name, spec in self._specs.items()
-        }
+        #
+        # **Under the agent's stamp, with no run in hand.** A field a Validator
+        # declares to this transport is offered, as a call under the same stamp
+        # would take it. A field keyed on a run's own entries stays unoffered:
+        # ``get_tools`` runs once per model step, so a schema per run would be a
+        # Validator ask per spec per step
+        # (``test_a_seed_named_field_declared_only_to_the_call_is_the_model_s_to_send``).
+        # A stamp per tool, since a stage may write into its context
+        # (``test_each_tool_s_schema_is_asked_with_a_stamp_of_its_own``), and
+        # inside the wrapper, since this is the first read that sees a clash
+        # declared only to this transport
+        # (``test_a_clash_declared_only_to_the_agent_transport_is_refused_naming_the_tool``).
+        self._tool_defs: dict[str, ToolDefinition] = {}
+        for name, spec in self._specs.items():
+            with _refusals_name_the_tool(name):
+                self._tool_defs[name] = _build_tool_def(
+                    name,
+                    spec,
+                    self._descriptions.get(name),
+                    self._max_page_size,
+                    include_total=include_total,
+                    shapes=self._tool_shapes[name],
+                    projection=self._projections[name],
+                    pool_seeds=pool_seeds,
+                    conventions=self._conventions,
+                    server_names=self._server_names(name),
+                    unknown_arguments=unknown_arguments,
+                    call_context=build_call_context(AGENT_TRANSPORT),
+                )
         # The tools whose availability has to be *asked* each step: those with an
         # affordance answered without a row. Static, like everything above, so
         # the question "does anything here need asking?" costs a step nothing,
@@ -2225,6 +2238,7 @@ def _build_tool_def(
     server_names: frozenset[str] = frozenset(),
     shapes: frozenset[str] = frozenset(),
     unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
+    call_context: dict[str, Any] | None = None,
 ) -> ToolDefinition:
     """One tool definition: what the model may send, and what it gets back.
 
@@ -2250,6 +2264,7 @@ def _build_tool_def(
             server_names=server_names,
             shapes=shapes,
             unknown_arguments=unknown_arguments,
+            call_context=call_context,
         ),
         return_schema=_return_schema(
             spec, include_total=include_total, projection=projection, conventions=conventions
@@ -2411,6 +2426,7 @@ def _input_schema(
     server_names: frozenset[str] = frozenset(),
     shapes: frozenset[str] = frozenset(),
     unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
+    call_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The tool's parameter schema: what the spec takes, with a list selector's pagination.
 
@@ -2444,7 +2460,12 @@ def _input_schema(
     (``test_bound_and_withheld_names_leave_the_schema_and_its_required``,
     ``test_a_tool_with_no_channels_loses_the_bound_name_too``).
     """
-    schema = _caller_schema(spec, pool_seeds=pool_seeds, unknown_arguments=unknown_arguments)
+    schema = _caller_schema(
+        spec,
+        pool_seeds=pool_seeds,
+        unknown_arguments=unknown_arguments,
+        call_context=call_context,
+    )
     fragment = _schema_fragment(spec, "input")
     if fragment is not None:
         schema = {**schema, **fragment}
@@ -2516,6 +2537,7 @@ def _caller_schema(
     *,
     pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     unknown_arguments: UnknownArguments = UnknownArguments.REJECT,
+    call_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """What ``spec`` itself asks of the model, before this toolset's own arguments.
 
@@ -2553,9 +2575,23 @@ def _caller_schema(
     **A ``many`` spec's rows are read the same way**, by what ``input_data``
     reaches there, and the top level keeps the list and the reads required
     (``test_a_row_field_is_not_a_top_level_seat_on_a_many_spec``).
+
+    **``call_context`` is the agent's stamp where the tool's schema is built**,
+    so a field a Validator declares to this transport is offered and one
+    declared to another is not
+    (``test_a_required_field_declared_only_to_the_agent_transport_is_offered_and_required``,
+    ``test_a_field_declared_only_to_another_transport_is_not_offered``).
+    ``_required_arguments`` and ``_spec_ordering_argument`` hand none, and owe
+    none: they read reads, and a selector's schema, none of which a Validator
+    declares
+    (``test_the_required_reads_owe_no_context``,
+    ``test_a_list_selector_s_sort_owes_no_context``).
     """
     return spec_caller_input_schema(
-        kernel_spec(spec), pool_seeds=pool_seeds, unknown_arguments=unknown_arguments
+        kernel_spec(spec),
+        pool_seeds=pool_seeds,
+        unknown_arguments=unknown_arguments,
+        call_context=call_context,
     )
 
 
@@ -3333,9 +3369,9 @@ def _call_arguments(
     owned name the spec never declares is left for the kernel to answer
     (``test_a_seed_named_argument_a_spec_never_declares_is_refused``).
 
-    ``declared`` is the union of what the spec declares to no call, the names
-    the tool's schema offered the model, and what it declares to this call,
-    while ``owned`` reads the Validator as it declares itself to this call. So
+    ``declared`` is the union of what the spec declares to no call and what it
+    declares to this call, which carries the stamp the tool's schema was built
+    under, while ``owned`` reads the Validator as it declares itself to this call. So
     a seed-named field the advertised schema offers and the call's declaration
     drops is the seed's in that call: the model's value is dropped rather than
     refused as unknown

@@ -333,8 +333,9 @@ async def test_the_bound_value_outranks_the_one_the_model_sends(caplog):
     assert "project_pk" in record.getMessage()
     # The name, never the value: a binding is often an identifier the run is
     # scoped by, and a model's attempt at it is no business of the log's.
-    assert "99" not in record.getMessage()
-    assert "99" not in caplog.text
+    # Each record's message, not ``caplog.text``, whose ``file:line`` prefix can
+    # carry the digits.
+    assert not [r for r in caplog.records if "99" in r.getMessage()]
 
 
 @pytest.mark.django_db(transaction=True)

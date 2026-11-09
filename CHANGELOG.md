@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A tool's schema is built under the agent's stamp, so a field a Validator
+  declares to the `"agent"` transport is offered and required.** The schema
+  passes `build_call_context(AGENT_TRANSPORT)` to the kernel's
+  `spec_caller_input_schema`, once, when the toolset is constructed. A required
+  field declared only to the agent was accepted when sent and never advertised,
+  so every call the model made from the schema was refused for leaving it out. A
+  field declared only to another transport is not offered, and a Validator that
+  never opted in is described as before.
+- **A field keyed on the run stays unoffered**, on its `request` or another entry
+  of `deps.call_context`, since no run is in hand when the schema is built. A
+  call sending it is still served, and the quickstart says what such a field
+  should do instead.
+- **A Validator declaring `call_context` is now read under the stamp when the
+  toolset is built, so it guards `request`.** Reading
+  `call_context["request"].user` past a `None` check passed and now raises there. A
+  field declared only when handed `None` is no longer offered. A clash declared
+  only to the agent is refused at the same point with `ImproperlyConfigured`
+  naming the tool.
+- **The `[specs]` extra and the dev group floor `django-service-specs` at 0.30.0,
+  up from 0.29.0**, the release whose `spec_caller_input_schema` takes
+  `call_context=`.
+
 ## [0.11.0] — 2026-11-08
 
 Every call's context is built through the kernel's `build_call_context`, and the
