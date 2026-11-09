@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The `[specs]` extra and the dev group floor `django-service-specs` at 0.30.0,
   up from 0.29.0**, the release whose `spec_caller_input_schema` takes
   `call_context=`.
+- **`AGENT_TRANSPORT` is listed in `spec_tools.types`**, beside `AgentConventions`,
+  so the sub-package's `__all__` names every public value its modules define. It was
+  already exported from `django_spec_agents.spec_tools`, and nothing there changes.
+- **The `[mcp]` bridge's guide says what transport a bridged call carries**:
+  whatever django-spec-mcp stamps, which is none at the 0.9.0 floor and `"mcp"` from
+  0.10.0. A test reads it off the installed release, and another runs a call whose
+  run is a `MappingProxyType`, which the stamp is written over without editing it.
 
 ## [0.11.0] — 2026-11-08
 
