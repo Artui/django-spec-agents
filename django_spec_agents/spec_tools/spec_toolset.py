@@ -812,12 +812,12 @@ class SpecToolset(AbstractToolset[Any]):
         # declared only to this transport
         # (``test_a_clash_declared_only_to_the_agent_transport_is_refused_naming_the_tool``).
         #
-        # **The stamp's names are kept, one ask per tool.** The call weighs a
+        # **The stamp's names are kept, read once per tool.** The call weighs a
         # field against the names the schema offered the model, a third set beside
         # the declaration made to no call and the one made to the call, so a seed-named
         # field the schema offered and the call's declaration drops is the seed's
-        # rather than refused as unknown. They are read off the tool's one stamp, so
-        # a Validator is asked no more often
+        # rather than refused as unknown. They are read off the tool's one stamp when
+        # the toolset is built, one more ask of the Validator there and none on a run
         # (``test_a_seed_named_field_only_the_schema_offers_is_answered_by_the_seed``
         # fails when the call weighs the other two alone).
         self._tool_defs: dict[str, ToolDefinition] = {}
