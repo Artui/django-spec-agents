@@ -28,19 +28,7 @@ def build_attachment_toolset(
     *,
     inline: AttachmentInlineConfig | None = None,
 ) -> FunctionToolset[None]:
-    """Build a per-request toolset exposing ``read_attachment`` over ``store``.
-
-    The request is captured in a closure so ``store.open`` stays owner-scoped to
-    the acting user: the model can only read files that user uploaded, never
-    another's by id. Attachments therefore travel the wire as lightweight refs
-    and the bytes are reached here, server-side, only when the model asks.
-
-    ``inline`` decides which binary types come back as file content and how large
-    a file may be before it is described rather than attached; ``None`` takes the
-    [`AttachmentInlineConfig`][django_spec_agents.AttachmentInlineConfig]
-    defaults. Read its docstring before widening either — inlined bytes go to the
-    provider on every model request left in the run.
-    """
+    """Build a per-request toolset exposing ``read_attachment`` over ``store``."""
     resolved = AttachmentInlineConfig() if inline is None else inline
 
     async def read_attachment(attachment_id: str) -> str | ToolReturn:
@@ -64,23 +52,16 @@ def build_attachment_toolset(
             return f"No attachment with id {attachment_id!r} is available."
         return _render(opened, resolved)
 
-    # ``read_attachment`` takes no ``RunContext``, and pydantic-ai's
-    # ``FunctionToolset`` overloads only type the ctx-taking form.
     return FunctionToolset([cast("Any", read_attachment)], id="django-spec-agents-attachments")
 
 
 def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | ToolReturn:
     """Decoded text, else the bytes as file content, else a one-line manifest."""
     ref = opened.ref
-    # Read under a ``with`` so the streaming handle is always closed.
     with opened.content as handle:
         data = handle.read()
     text = _as_text(data, ref.mime)
     if text is not None:
-        # Capped on the same budget as the binary branch, for the reason
-        # ``AttachmentInlineConfig`` gives. Measured on the bytes read rather
-        # than the decoded string so one rule covers both branches and a
-        # multi-byte file is not judged by its character count.
         if len(data) > inline.max_bytes:
             return (
                 f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes), over the "
@@ -89,20 +70,7 @@ def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | T
             )
         return text
     if ref.mime in inline.media_types:
-        # Cap against the bytes in hand, not ``ref.size``: a store's declared
-        # size need not match what it hands back, and only bytes reach the
-        # provider.
         if len(data) <= inline.max_bytes:
-            # The two halves have different lifetimes, and only this one is
-            # guaranteed to survive the turn. ``return_value`` is what the
-            # transport streams and a client transcript keeps; the
-            # ``BinaryContent`` beside it does not travel the event stream at
-            # all, so a transport seeding later turns from that transcript --
-            # which is the ordinary case, not an exotic one -- replays this
-            # sentence with nothing attached to it. Said plainly, because the
-            # observed failure is a model reading "its contents are attached"
-            # in a later turn, finding nothing, and answering *about* the
-            # document rather than calling the tool again.
             return ToolReturn(
                 return_value=(
                     f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes); "

@@ -13,35 +13,7 @@ def build_tool_catalog(
     mcp_server: Any = None,
     service_specs: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """The agent's server-tool catalog for the frontend to label tool-call cards.
-
-    Server-side tools execute server-side, so their JSON Schema never reaches the
-    browser and a web component cannot read an ``x-summary`` off it. This catalog
-    is that channel: the component fetches it and maps tool name to label.
-
-    Each entry is ``{"name", "summary", "description"?}``. ``summary`` is always
-    present, resolved from ``@tool(summary=...)`` for registry tools and from
-    ``display_name`` then ``title`` for an MCP server's, falling back to a
-    prettified name. ``description`` is carried through when the source has one.
-
-    **The catalog covers these sources and no others.** A tool attached through
-    a transport's ``capabilities=`` / ``toolsets=`` is not listed and its card
-    falls back to a prettified name — a degraded label, not a broken call.
-    Enumerating those is not possible here: pydantic-ai exposes tool names only
-    through ``AbstractToolset.get_tools``, which is async and needs a
-    ``RunContext``, while this runs at configuration time with no run in sight.
-    Route spec tools through a transport's ``service_specs=`` to keep labels.
-
-    Args:
-        registry: The ``@tool`` registry, listed first; it wins name collisions.
-        mcp_server: A django-spec-mcp ``MCPServer`` whose registered tools are
-            appended.
-        service_specs: A ``name -> spec`` mapping whose tools are appended, each
-            described by its service or selector callable's docstring.
-
-    Returns:
-        One entry per tool, in that source order.
-    """
+    """The agent's server-tool catalog for the frontend to label tool-call cards."""
     catalog: list[dict[str, Any]] = []
     seen: set[str] = set()
     for binding in registry:
@@ -66,11 +38,7 @@ def build_tool_catalog(
 
 
 def _spec_description(spec: Any) -> str | None:
-    """A spec tool's blurb: the docstring of its service / selector callable.
-
-    Read through ``getattr`` rather than ``isinstance`` so this never imports the
-    kernel's spec classes; the ``[specs]`` extra stays optional.
-    """
+    """A spec tool's blurb: the docstring of its service / selector callable."""
     callable_ = getattr(spec, "service", None) or getattr(spec, "selector", None)
     return inspect.getdoc(callable_) if callable_ is not None else None
 
