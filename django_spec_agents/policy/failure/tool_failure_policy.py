@@ -39,7 +39,7 @@ class ToolFailurePolicy(AbstractCapability[Any]):
         error: Exception,
     ) -> Any:
         if isinstance(error, self._reraise):
-            # Not logged here: the error is on its way to the transport intact, and a traceback would lie.
+            # Not logged here: the error reaches the transport intact; a traceback would lie.
             raise error
         if isinstance(error, (ModelRetry, ToolFailed)):
             raise error

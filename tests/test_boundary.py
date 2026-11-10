@@ -17,7 +17,7 @@ extra, which installs the spec kernel. So:
 
 Both are checked in a fresh interpreter, under settings that list no spec test
 app. Inside the suite's own process the check would prove nothing: by collection
-time the suite has imported the kernel and django-spec-mcp. The CI job that installs the package with no extra runs this file alone.
+time the suite has imported the kernel and django-spec-mcp. The no-extra job runs this file alone.
 """
 
 from __future__ import annotations
@@ -155,10 +155,12 @@ def test_importing_spec_tools_loads_nothing_of_the_store() -> None:
 
 @pytest.mark.skipif(
     importlib.util.find_spec("django_spec_mcp") is None,
-    reason="the [mcp] bridge needs the [mcp] extra; the import scan below holds the rule without it",
+    reason=(
+        "the [mcp] bridge needs the [mcp] extra; the import scan below holds the rule without it"
+    ),
 )
 def test_importing_the_mcp_bridge_loads_no_drf() -> None:
-    # The ``[mcp]`` bridge and the server it bridges import without Django REST Framework, drf-services
+    # The ``[mcp]`` bridge and its server import without Django REST Framework, drf-services
     # or drf-mcp. A prefix rather than ``_is_or_under``: ``rest_framework_mcp``
     # and ``rest_framework_services`` are packages of their own.
     modules = _modules_after(

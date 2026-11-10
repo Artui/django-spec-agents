@@ -59,7 +59,8 @@ def _step(
 ) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
-        "DJANGO_SETTINGS_MODULE": f"tests.contrib.store.upgrade.settings_{'old' if side == 'old' else 'new'}",
+        "DJANGO_SETTINGS_MODULE": "tests.contrib.store.upgrade.settings_"
+        f"{'old' if side == 'old' else 'new'}",
         "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")])),
     }
     if sqlite or "STORE_UPGRADE_ENGINE" not in os.environ:

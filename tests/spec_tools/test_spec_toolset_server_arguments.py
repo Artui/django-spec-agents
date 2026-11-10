@@ -1,4 +1,4 @@
-"""``tool_server_arguments``: values the server supplies for a tool's arguments, and names it withholds.
+"""``tool_server_arguments``: values the server supplies for tool arguments, and names it withholds.
 
 Written against the public signatures only -- ``SpecToolset``, ``SpecCapability``,
 ``ServerArguments`` and a real ``Agent`` run -- so each test compiles against a

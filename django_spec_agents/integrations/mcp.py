@@ -247,7 +247,7 @@ class MCPToolset(AbstractToolset[Any]):
         )
         if isinstance(result, JsonRpcError):
             if result.code == JsonRpcErrorCode.INVALID_PARAMS:
-                # `-32602` is a call the service could not dispatch: an unknown tool or bad arguments.
+                # `-32602` is a call the service could not dispatch: an unknown tool or bad args.
                 raise ModelRetry(
                     _retry_message(
                         result.message,

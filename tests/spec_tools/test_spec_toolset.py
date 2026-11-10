@@ -1012,7 +1012,7 @@ def test_an_invalid_item_is_a_retry_keyed_under_the_argument_by_its_index():
 async def test_the_model_reads_an_item_error_as_argument_index_and_field():
     """What the retry prompt actually carries, read off a real run rather than off
     the exception: one line naming the argument, the item's index and the field,
-    then the field's own message -- text, not the repr of an error object. The model corrects the one item and the call goes through."""
+    then the field's own message, as text. The model fixes that item and the call goes through."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset({"create_widgets": bulk_spec()})
     agent = Agent(
@@ -1066,8 +1066,8 @@ def test_an_argument_beside_the_list_is_dropped_under_ignore():
 
 def test_a_malformed_schema_fragment_is_refused_naming_the_tool():
     """The toolset reads a spec's ``metadata["json_schema"]`` when it is built,
-    and refuses one that is not keyed by phase, in the spec's own terms (``SelectorSpec.metadata[...]``), prefixed with the tool as
-    a compile refusal is. Holds the mapping check in ``_schema_fragment``."""
+    and refuses one not keyed by phase, in the spec's own terms (``SelectorSpec.metadata[...]``),
+    prefixed with the tool as a compile refusal is. Checks the mapping in ``_schema_fragment``."""
     spec = list_spec(metadata={"json_schema": "not a mapping"})
 
     with pytest.raises(
@@ -1114,7 +1114,8 @@ def test_a_schema_fragment_wins_over_the_input_schema_key_by_key():
     [
         (
             {"inputs": {"title": "Widgets"}},
-            r"SelectorSpec\.metadata\['json_schema'\] declares 'inputs', which name no schema phase\.",
+            r"SelectorSpec\.metadata\['json_schema'\] declares 'inputs', "
+            r"which name no schema phase\.",
         ),
         (
             {"output": "Rows."},

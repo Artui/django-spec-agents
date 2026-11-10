@@ -42,7 +42,7 @@ class DefaultConversationStore(ModelConversationStore):
             defaults={**defaults, "title": derive_title(messages)},
         )
         if not created:
-            # ``.update()`` skips ``auto_now``, so bump ``updated_at`` by hand to keep recency order.
+            # ``.update()`` skips ``auto_now``, so bump ``updated_at`` by hand for recency order.
             StoredConversation.objects.filter(pk=row.pk).update(
                 **defaults, updated_at=timezone.now()
             )
