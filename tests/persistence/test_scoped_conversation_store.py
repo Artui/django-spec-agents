@@ -40,9 +40,7 @@ def request_() -> object:
 
 
 async def test_two_scopes_over_one_store_do_not_see_each_others_threads(request_) -> None:
-    """Without scoping, a thread started at /internal/agent would show up in
-    /public/agent's history drawer, and could be resumed there under the public
-    agent's model, tools and guard policy."""
+    """Unscoped, a thread from /internal/agent would show in /public/agent's history."""
     inner = _MemoryStore()
     internal = ScopedConversationStore(inner, scope="internal")
     public = ScopedConversationStore(inner, scope="public")
@@ -62,10 +60,10 @@ async def test_the_scope_never_reaches_the_client(request_) -> None:
 
     await scoped.save(Conversation(thread_id="t1", messages=[]), request=request_)
 
-    assert "internal:t1" in inner.rows  # prefixed at rest
+    assert "internal:t1" in inner.rows
     loaded = await scoped.load("t1", request=request_)
     assert loaded is not None
-    assert loaded.thread_id == "t1"  # unprefixed on the way out
+    assert loaded.thread_id == "t1"
     assert [m.thread_id for m in await scoped.list(request=request_)] == ["t1"]
 
 
@@ -87,33 +85,17 @@ async def test_delete_and_rename_are_scoped(request_) -> None:
 
 
 async def test_an_unprefixed_row_is_left_alone(request_) -> None:
-    """Rows written without a scope keep their own ids — the unkey is a strip,
-    not a slice."""
+    """Rows written without a scope keep their own ids — the unkey is a strip, not a slice."""
     inner = _MemoryStore()
     inner.rows["legacy"] = Conversation(thread_id="legacy", messages=[])
     scoped = ScopedConversationStore(inner, scope="internal")
 
-    # Not this scope's row, so it isn't listed...
     assert [m.thread_id for m in await scoped.list(request=request_)] == []
-    # ...and the id is untouched in the store.
     assert "legacy" in inner.rows
 
 
 async def test_a_scope_name_cannot_extend_another_scopes_name(request_) -> None:
-    """The reproduction, and the reason the separator is reserved.
-
-    Partition two mounts as ``admin`` and ``admin:readonly``. The readonly
-    mount's thread ``t1`` keys to ``admin:readonly:t1``, and the admin mount's
-    ``list()`` filters by ``startswith("admin:")`` — which matches it. ``_unkey``
-    strips only ``admin:`` and hands the client ``readonly:t1``, which keys
-    straight back and loads the readonly mount's messages under the admin
-    mount's policy. ``rename`` and ``delete`` resolve there too, and thread ids
-    are client-controlled, so the crossing works in both directions.
-
-    The prefix *is* the partition, so an ambiguous prefix is an ambiguous
-    partition. Rejected at construction rather than escaped at the key, because
-    escaping would rewrite the keys of every thread already stored.
-    """
+    """The reproduction, and the reason the separator is reserved."""
     inner = _MemoryStore()
     ScopedConversationStore(inner, scope="admin")
 
@@ -122,8 +104,7 @@ async def test_a_scope_name_cannot_extend_another_scopes_name(request_) -> None:
 
 
 async def test_the_partition_holds_for_a_scope_that_merely_shares_a_prefix(request_) -> None:
-    """``admin`` and ``administrators`` are still two scopes, not a hazard: the
-    separator ends the scope, so neither prefix matches the other's keys."""
+    """``admin`` and ``administrators`` are two scopes: the separator ends the scope."""
     inner = _MemoryStore()
     admin = ScopedConversationStore(inner, scope="admin")
     administrators = ScopedConversationStore(inner, scope="administrators")

@@ -31,12 +31,7 @@ def test_build_agent_returns_agent_with_registry_tools() -> None:
 
 
 def test_build_agent_puts_deferred_tool_requests_in_output_type() -> None:
-    # Turns on the tool-approval interrupt loop for *server-side* tools. The
-    # AG-UI adapter only augments ``output_type`` with ``DeferredToolRequests``
-    # when the run carries frontend tools, so a server-only gated tool would
-    # otherwise crash the run with a RUN_ERROR ("a deferred tool call was
-    # present, but DeferredToolRequests is not among output types"). Setting it
-    # on the Agent makes the approval path independent of frontend tools.
+    # Turns on the tool-approval interrupt loop for *server-side* tools.
     agent = build_agent(ToolRegistry(), AgentConfig(model=TestModel()))
     assert DeferredToolRequests in agent.output_type
 
@@ -73,8 +68,7 @@ async def aboom(label: str) -> str:
     raise RuntimeError("async kaboom")
 
 
-# The sync tools stay sync on purpose: registry dispatch of a plain function is
-# what the sync rows hold.
+# Plain functions stay sync: registry dispatch of a sync function is what the sync rows hold.
 @pytest.mark.parametrize(
     ("fn", "error"),
     [
@@ -93,9 +87,6 @@ async def test_an_audited_tool_records_its_outcome(
 
     audit = CapturingAuditLogger()
     agent = build_agent(reg, AgentConfig(model=TestModel(), audit_logger=audit))
-    # A raising tool does not end the run (the default tool-failure policy turns
-    # it into a failed result); the operator's record still names the tool and
-    # carries the real exception text.
     await agent.run("go")
 
     [event] = audit.events

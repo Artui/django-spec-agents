@@ -1,13 +1,3 @@
-"""The packaged test doubles, tested against a real run loop.
-
-A harness shipped in the wheel is API: it is what a consumer's suite will
-depend on, so its own contract needs pinning. In particular the branch order
-inside ``tool_calling_model`` -- retry before tool return -- is the part that
-reads as arbitrary and is not. A run that actually retries proves it against
-the installed pydantic-ai; a hand-built history proves it for the retry shape
-that pydantic-ai does not write.
-"""
-
 from __future__ import annotations
 
 import os
@@ -58,10 +48,7 @@ print(sorted(
 
 
 def test_the_doubles_import_without_the_specs_extra():
-    """No settings module, so the doubles must import on pydantic-ai alone: a
-    module importing ``spec_tools``, the kernel the ``[specs]`` extra installs,
-    the server the ``[mcp]`` extra installs, or Django REST Framework and drf-mcp,
-    which no extra installs, eagerly or lazily, would be listed. The root must not import them."""
+    """The doubles import on pydantic-ai alone, with no kernel or DRF import."""
     env = {key: value for key, value in os.environ.items() if key != "DJANGO_SETTINGS_MODULE"}
     completed = subprocess.run(
         [sys.executable, "-c", _IMPORTS_OF_THE_DOUBLES],
@@ -77,8 +64,7 @@ def test_the_doubles_import_without_the_specs_extra():
 
 
 def _toolset(service, name="t", **spec_kwargs):
-    # ``atomic=False`` because none of these services touch the ORM: the point
-    # here is the run loop, not dispatch.
+    # ``atomic=False`` because none of these services touch the ORM.
     return SpecToolset(
         {
             name: ServiceSpec(
@@ -124,16 +110,7 @@ _MODE = Parameters.of(Parameter("mode", "string", required=True))
 
 
 async def test_retry_args_default_to_repeating_the_first_arguments():
-    """Documented as fine for *did the retry arrive* and wrong for recovery.
-
-    Pinned because the default is the trap: a spec that rejected these arguments
-    once rejects them again, so a caller who wanted recovery and omitted
-    ``retry_args`` gets a run that exhausts its retries instead of settling.
-
-    The recovery path -- distinct ``retry_args``, run completes -- is covered by
-    ``test_agent_run_recovers_from_model_retry`` in the toolset suite, which is
-    where the retry contract itself belongs.
-    """
+    """Documented as fine for *did the retry arrive* and wrong for recovery."""
     calls: list[str] = []
 
     def always_retries(mode, user):
@@ -171,13 +148,7 @@ async def test_instruction_capturing_model_honours_final_text():
 
 
 async def test_the_streaming_double_serves_a_streamed_run() -> None:
-    """The reason this double exists: the other one cannot serve one at all.
-
-    ``FunctionModel`` built with ``function=`` alone raises on a streamed
-    request, and AG-UI always streams -- so a consumer testing what its browser
-    receives got a run that died before the toolset was touched, reported
-    through the transport's redaction as "The run failed", naming nothing.
-    """
+    """The reason this double exists: the other one cannot serve one at all."""
     agent = Agent(
         streaming_tool_calling_model("t"),
         deps_type=AgentDeps,
@@ -191,10 +162,7 @@ async def test_the_streaming_double_serves_a_streamed_run() -> None:
 
 
 async def test_the_streaming_double_still_serves_a_plain_run() -> None:
-    """Both functions are supplied, so one double covers either transport.
-
-    A test should not have to know whether the thing under it streams.
-    """
+    """Both functions are supplied, so one double covers either transport."""
     agent = Agent(
         streaming_tool_calling_model("t"),
         deps_type=AgentDeps,
@@ -207,14 +175,7 @@ async def test_the_streaming_double_still_serves_a_plain_run() -> None:
 
 
 async def test_the_streaming_double_retries_in_the_same_order() -> None:
-    """The branch order is shared with the non-streamed double, not copied.
-
-    A retry has to be read before a tool return, because from pydantic-ai 2.60
-    a retried call is a tool return marked ``outcome="retried"``, and reading
-    them the other way round ends the run on the failed attempt. This asserts
-    the streamed path has the same order -- the reason the decision lives in
-    one function.
-    """
+    """The branch order is shared with the non-streamed double, not copied."""
     attempts: list[str] = []
 
     def picky(mode, user):
@@ -238,18 +199,14 @@ async def test_the_streaming_double_retries_in_the_same_order() -> None:
 
 
 def _legacy_retry_prompt() -> RetryPromptPart:
-    # Deprecated from pydantic-ai 2.60, which no longer emits it. Built here
-    # because a consumer's own history, or a pydantic-ai below 2.60, still has it.
+    # Deprecated from pydantic-ai 2.60, which no longer emits it.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return RetryPromptPart(content="try again", tool_name="t", tool_call_id="c1")
 
 
 def _retried_tool_return() -> ToolReturnPart:
-    # What pydantic-ai 2.60 and later records for a tool's ``ModelRetry`` or a
-    # call whose arguments failed validation: the call's own return, marked.
-    # A dataclass does not enforce its ``Literal`` fields, so this builds on a
-    # pydantic-ai that predates the ``"retried"`` value too.
+    # pydantic-ai 2.60 and later records a retry or failed validation as the call's return.
     return ToolReturnPart(tool_name="t", content="try again", tool_call_id="c1", outcome="retried")
 
 
@@ -260,13 +217,7 @@ def _retried_tool_return() -> ToolReturnPart:
 )
 @pytest.mark.parametrize("double", [tool_calling_model, streaming_tool_calling_model])
 def test_a_retry_in_either_shape_gets_the_retry_args(retry: Any, double: Any) -> None:
-    """Whichever shape the installed pydantic-ai writes a retry in.
-
-    Driven with a hand-built history rather than a run, so the shape under test
-    does not depend on which pydantic-ai is installed: a run on 2.60 or later
-    only ever produces the second, and one below it only the first. Each case
-    holds one arm of the double's retry check.
-    """
+    """Whichever shape the installed pydantic-ai writes a retry in."""
     model = double("t", {"mode": "first"}, retry_args={"mode": "second"})
     history = [
         ModelRequest(parts=[UserPromptPart("go")]),

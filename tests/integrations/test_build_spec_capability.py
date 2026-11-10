@@ -24,14 +24,7 @@ def _ok(user: Any) -> dict[str, Any]:
 
 
 def test_an_unguarded_spec_is_refused_rather_than_exposed() -> None:
-    """The strict default reaches a consumer straight through this builder.
-
-    A spec declaring no ``permissions`` leaves its gate to whatever serves it,
-    but a capability dispatches off HTTP with no view to supply one, so the spec
-    would become callable by whatever the model decided to call. Asserted here
-    rather than only in ``SpecToolset``'s suite because this function is how
-    every consumer builds the capability.
-    """
+    """The strict default reaches a consumer straight through this builder."""
     with pytest.raises(ImproperlyConfigured, match="with no permissions"):
         build_spec_capability({"ping": ServiceSpec(service=_ok, atomic=False)})
 
@@ -45,17 +38,12 @@ def test_exclude_names_drops_the_names_the_registry_owns(as_registry: bool) -> N
         source.register("dup", open_spec())
 
     capability = build_spec_capability(source, exclude_names=frozenset({"dup"}))
-    # The registry-owned name is dropped (registry wins the collision); the
-    # capability's underlying toolset exposes only the surviving name.
+    # The registry's name wins the collision; the capability exposes only the surviving name.
     assert set(capability.get_toolset()._specs) == {"ping"}
 
 
 async def test_carries_the_spec_conventions_to_the_model() -> None:
-    # The conventions (the error contract, the list-tool pagination args) reach
-    # the system prompt from the *toolset*, not the capability.
-    # ``SpecToolset.get_instructions()`` carries them so they land whether a
-    # toolset is attached directly or wrapped here, and the capability returns
-    # None so pydantic-ai doesn't collect the same block twice.
+    # The conventions reach the system prompt from the toolset, not the capability.
     capability = build_spec_capability({"ping": open_spec()})
     assert capability.get_instructions() is None
 
@@ -65,8 +53,7 @@ async def test_carries_the_spec_conventions_to_the_model() -> None:
 
 
 async def test_binds_the_acting_user_from_the_run_deps() -> None:
-    """The user arrives on ``ctx.deps``, so nothing closes over a request and the
-    capability is request-independent."""
+    """The user arrives on ``ctx.deps``, so the capability is request-independent."""
     seen: dict[str, Any] = {}
 
     def ping(user: Any) -> dict[str, Any]:
@@ -129,15 +116,7 @@ def _capture_source(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
 
 
 class TestARegistryIsNotFlattened:
-    """The entry carries more than the spec, and only the entry carries it.
-
-    A registry entry holds the per-entry declarations an agent transport reads
-    -- its tags, and the ``OfflineContract`` saying what a caller with no HTTP
-    request has to be told. ``specs()`` returns ``name -> spec`` and drops all
-    of it, which is why this builder must pass the source through rather than
-    normalise it first. The failure is silent: the toolset is well-formed and
-    merely missing declarations nobody asked it for.
-    """
+    """The entry carries more than the spec, and only the entry carries it."""
 
     def test_the_registry_reaches_the_capability_as_a_registry(
         self, monkeypatch: pytest.MonkeyPatch
@@ -152,8 +131,7 @@ class TestARegistryIsNotFlattened:
 
         build_spec_capability(registry)
 
-        # ``specs()`` is what tells a registry from a mapping -- the same test
-        # ``resolve_spec_mapping`` uses -- and the entry is what survives.
+        # ``specs()`` tells a registry from a mapping, and the entry is what survives.
         (source,) = captured
         assert callable(getattr(source, "specs", None))
         assert source.get("ping").tags == frozenset({"read"})
@@ -188,12 +166,7 @@ class TestARegistryIsNotFlattened:
 
 
 async def test_a_specs_progress_reports_reach_the_runs_sink() -> None:
-    """The other half of what rides ``ctx.deps``.
-
-    ``SpecToolset`` reads its reporter off ``ctx.deps.progress`` exactly as it
-    reads the user off ``ctx.deps.user``. With no such field a long-running
-    spec would report into nothing, with no warning anywhere.
-    """
+    """The other half of what rides ``ctx.deps``."""
     reports: list[tuple[int, int | None, str | None]] = []
 
     def sink(
@@ -222,14 +195,7 @@ async def test_a_specs_progress_reports_reach_the_runs_sink() -> None:
 
 @pytest.mark.parametrize("name", ["get_row", "rename_row"])
 async def test_a_required_read_is_advertised_as_required(name: str) -> None:
-    """What the model reads: ``pk`` is advertised, and required.
-
-    ``SpecToolset`` lists a read declared ``required=True`` in the tool's
-    ``required``, and a single-item service advertises the reads of the lookup
-    its target is resolved through as well as its own. Without the second,
-    ``rename_row`` never mentions ``pk``, so a model has no reason to send the
-    one argument the call cannot run without.
-    """
+    """What the model reads: ``pk`` is advertised, and required."""
     ctx = run_context(AgentDeps(user=AnonymousUser()))
     tools = await build_spec_capability(LOOKUP_SPECS).get_toolset().get_tools(ctx)
     schema = tools[name].tool_def.parameters_json_schema
@@ -241,13 +207,7 @@ async def test_a_required_read_is_advertised_as_required(name: str) -> None:
 async def test_a_call_missing_a_selector_argument_is_one_retry_then_the_row(
     name: str, omitted: dict[str, Any], corrected: dict[str, Any], row: dict[str, Any]
 ) -> None:
-    """A call leaving ``pk`` out is a retry naming it, then the row.
-
-    ``SpecToolset`` raises ``ModelRetry`` for the omission itself, for the
-    selector's own read and for the target lookup's alike, rather than letting
-    the call fail over an argument the model could have supplied. Driven
-    through a real run, so the retry is what the model reads.
-    """
+    """A call leaving ``pk`` out is a retry naming it, then the row."""
     retries, returns = await run_omission_then_correction(
         name, omitted, corrected, capabilities=[build_spec_capability(LOOKUP_SPECS)]
     )

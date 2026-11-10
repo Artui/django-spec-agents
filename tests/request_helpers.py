@@ -1,5 +1,3 @@
-"""Requests carrying a stand-in user, for stores that read only ``is_authenticated`` and ``pk``."""
-
 from __future__ import annotations
 
 from types import SimpleNamespace

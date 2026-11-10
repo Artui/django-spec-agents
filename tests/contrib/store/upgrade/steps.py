@@ -1,23 +1,3 @@
-"""The two processes of the store upgrade, one per side.
-
-``python -m tests.contrib.store.upgrade.steps old [<migration>]`` runs under the old
-side's settings: it migrates django-pydantic-agent's store app, to its last
-migration or to the one named, and writes what an installed database holds: a
-conversation linked to an attachment, a memory row where the schema has one, the
-nine content types, a permission and a group granted it. It prints the content
-types' keys.
-
-``python -m tests.contrib.store.upgrade.steps new`` runs under the new side's
-settings: it runs ``migrate`` and prints what the database holds afterwards, read
-through this package's own models. ``alter``, after it, changes the type of the
-attachment's file column as a later migration might, and prints the column's
-``_like`` indexes.
-
-Each runs in its own interpreter, because a process has one set of installed apps
-and the upgrade is a change of exactly that. The Django imports sit inside the
-functions because they need ``django.setup()`` to have run.
-"""
-
 from __future__ import annotations
 
 import json
@@ -55,8 +35,7 @@ def install_old(target: str | None) -> dict[str, Any]:
         call_command("migrate", "contenttypes", verbosity=0)
         call_command("migrate", "auth", verbosity=0)
         call_command("migrate", OLD_LABEL, target, verbosity=0)
-    # The app has no models of its own, so its rows are written through the
-    # models its migrations describe, exactly as they stood.
+    # The app has no models, so its rows go through the models its migrations describe.
     old = MigrationLoader(connection).project_state().apps
     conversation = old.get_model(OLD_LABEL, "StoredConversation").objects.create(
         thread_id="t1", owner_id="7", title="Kept", messages=[{"kind": "request"}]
@@ -74,8 +53,6 @@ def install_old(target: str | None) -> dict[str, Any]:
         old.get_model(OLD_LABEL, "StoredMemory").objects.create(
             owner_id="7", path="/notes.md", content="remember", version="v1"
         )
-    # An installed app gets these from ``post_migrate``, which finds no models in
-    # the fixture app, so they are written here as the old install has them.
     content_types = {
         model: ContentType.objects.create(app_label=OLD_LABEL, model=model).pk for model in MODELS
     }
@@ -134,13 +111,7 @@ def upgrade() -> dict[str, Any]:
 
 
 def alter_the_file_column() -> list[str]:
-    """Turn ``StoredAttachment.file`` into a text column, and list its ``_like`` indexes.
-
-    A later migration altering the column's type is where a stale index name would
-    show: PostgreSQL's schema editor drops the column's ``_like`` index by the name
-    it computes from the table, rather than by asking the database, and creates a
-    new one for the new type.
-    """
+    """Turn ``StoredAttachment.file`` into a text column, and list its ``_like`` indexes."""
     from django.db import connection, models
 
     from django_spec_agents.contrib.store.models import StoredAttachment

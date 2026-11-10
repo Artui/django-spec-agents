@@ -1,5 +1,3 @@
-"""Rows the store tests share."""
-
 from __future__ import annotations
 
 from django.core.files.base import ContentFile

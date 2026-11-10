@@ -1,12 +1,3 @@
-"""What transport a call through the ``[mcp]`` bridge reads.
-
-The bridge stamps nothing of its own: the context a bridged call carries is built
-by django-spec-mcp, so the transport is whatever that release stamps. Release 0.9.0,
-this package's floor, stamps none, and a release naming ``MCP_TRANSPORT`` stamps
-``"mcp"``, the literal the bridge's guide names. Which half runs depends on the installed
-release: the lock holds the newest, the ``lowest declared versions`` job the floor.
-"""
-
 from __future__ import annotations
 
 from typing import Any

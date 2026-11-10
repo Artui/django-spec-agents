@@ -1,5 +1,3 @@
-"""A ``SpecRegistry`` is accepted wherever a ``name -> spec`` mapping is."""
-
 from __future__ import annotations
 
 from dataclasses import replace
@@ -87,8 +85,7 @@ class TestToolsetFromRegistry:
         assert sorted(toolset._tool_defs) == ["create_widget", "list_widgets"]
 
     def test_matches_the_equivalent_dict(self) -> None:
-        """``registry.specs()`` is the dict the toolset already accepted, so the
-        two construction paths must be indistinguishable."""
+        """``registry.specs()`` is the dict the toolset accepts, so both paths must match."""
         registry = _registry()
         from_registry = SpecToolset(registry)
         from_dict = SpecToolset(registry.specs())
@@ -152,12 +149,7 @@ def _native_registry() -> SpecRegistry:
 
 
 class _Variants:
-    """A declaration of several operations, chosen between per call.
-
-    It compiles to no one spec, so its ``as_kernel_spec`` refuses, as a
-    library's declaration of several specs does, and says what to register
-    instead.
-    """
+    """A declaration of several operations, chosen between per call."""
 
     def __init__(self, **specs: Any) -> None:
         self.specs = specs
@@ -170,10 +162,7 @@ class _Variants:
 
 
 class TestANativeSpecIsServed:
-    """A kernel spec is a tool however it reaches the toolset. The toolset reads
-    every spec through ``kernel_spec``, which a django-service-specs spec answers
-    with itself, and a declaration of another library's with what it compiles
-    to, so nothing in it asks which library declared the spec."""
+    """A kernel spec is a tool however it reaches the toolset."""
 
     @pytest.mark.django_db(transaction=True)
     @pytest.mark.parametrize(
@@ -214,9 +203,7 @@ class TestANativeSpecIsServed:
     async def test_a_native_read_s_null_is_a_value_where_it_is_nullable(
         self, sent: dict[str, Any], seen: Any
     ) -> None:
-        """A null is dropped as the model declining a read only where the read
-        cannot be null. A native read declared ``nullable`` admits it, so the
-        callable gets the ``None`` sent, never the default in its place."""
+        """A null is dropped as the model declining a read only where the read cannot be null."""
 
         def region_of(*, region: str | None = "unset") -> dict[str, Any]:
             """The region asked for."""
@@ -240,9 +227,7 @@ class TestANativeSpecIsServed:
         assert result == {"region": seen}
 
     def test_a_polymorphic_spec_is_refused_naming_its_variants(self) -> None:
-        """A declaration of several specs is refused by its own ``as_kernel_spec``,
-        which names the remedy: one tool per variant. The toolset adds the
-        tool's name."""
+        """A declaration of several specs is refused by ``as_kernel_spec``: one tool per variant."""
         moderate = _Variants(create=_create_spec())
 
         with pytest.raises(TypeError, match=r"^SpecToolset tool 'moderate': ") as raised:
@@ -251,8 +236,7 @@ class TestANativeSpecIsServed:
         assert "Register each variant from its `specs` mapping" in str(raised.value)
 
     def test_a_value_that_compiles_to_no_spec_is_refused_naming_the_tool(self) -> None:
-        # A registry entry is not a spec, though django-service-specs defines
-        # both: the kernel refuses it, and the toolset names the tool.
+        # A registry entry is not a spec: the kernel refuses it, and the toolset names the tool.
         entry = _native_registry().get("native_ping")
 
         with pytest.raises(
@@ -291,17 +275,7 @@ class TestCapabilityFromRegistry:
 
 
 class TestTheSpecsOwnReads:
-    """What a caller with no HTTP request has to be told, declared on the spec.
-
-    Over HTTP the URLconf supplies the route captures and the query string the
-    read-shaping arguments, so a spec mounted on a view is already complete.
-    Off HTTP nobody supplies them, and every agent transport needs the
-    *identical* answer -- which is why the declaration belongs to the spec
-    (``reads=``, ``shapes=`` and the markings on its presenter's output)
-    rather than to this toolset's constructor or an MCP server's registrar. A
-    registry and a bare mapping hand the toolset the same spec, so they serve
-    it alike.
-    """
+    """What a caller with no HTTP request has to be told, declared on the spec."""
 
     def _contract_registry(
         self,
@@ -338,9 +312,7 @@ class TestTheSpecsOwnReads:
         assert name in props
 
     def test_field_audiences_reach_the_projection(self) -> None:
-        # The audiences are part of the spec's own output declaration, so one
-        # spec projects the same field set whichever agent transport serves it,
-        # and the registry and a bare mapping project alike.
+        # Audiences belong to the spec's output: one field set per agent transport.
         registry = self._contract_registry()
 
         from_registry = SpecToolset(registry)._projections["list_widgets"]
@@ -351,11 +323,7 @@ class TestTheSpecsOwnReads:
             assert projection.label == "name"
 
     def test_a_field_audiences_clash_is_refused_when_the_toolset_is_built(self) -> None:
-        # ``name`` is already the output's label; claiming it for ``id`` as
-        # well leaves two, and a record has one name. The refusal is the
-        # kernel's, from the spec's own output declaration, and the toolset
-        # prefixes it with the tool: the kernel names the output, which a
-        # registry of many specs shares across tools.
+        # ``name`` is already the output's label; claiming it for ``id`` too leaves two.
         registry = self._contract_registry(
             presenter=_widget(FieldMarking.label(), FieldMarking.label(), None)
         )
@@ -366,7 +334,6 @@ class TestTheSpecsOwnReads:
         ) as raised:
             SpecToolset(registry)
 
-        # Re-raised, not replaced: the kernel's own refusal is the cause.
         assert isinstance(raised.value.__cause__, ImproperlyConfigured)
         assert str(raised.value.__cause__).startswith("Output: both 'id' and 'name'")
 
@@ -374,12 +341,7 @@ class TestTheSpecsOwnReads:
     async def test_each_source_advertises_the_spec_s_reads_and_routes_them(
         self, source: str
     ) -> None:
-        """The spec carries its ``reads`` and ``shapes``, which are parameters of
-        the compiled spec, so the kernel's schema the tool advertises lists them
-        whichever way the spec arrived, and a value sent under each reaches its
-        seat: a read the selector, as its argument, and a shape the presenter,
-        on the call's shapes.
-        """
+        """The spec carries its ``reads`` and ``shapes``, so the advertised schema lists them."""
         seen: dict[str, Any] = {}
 
         def in_tenant(*, tenant_pk: str) -> list[dict[str, Any]]:
@@ -484,8 +446,7 @@ class TestTheNativeExample:
         assert listed["items"] == [{"name": "gear", "price": 5}]
 
     async def test_a_spec_declaring_no_reads_takes_no_argument(self) -> None:
-        """A native spec reflects nothing off its callable, so one declaring no
-        reads advertises an empty schema and refuses whatever is sent."""
+        """A native spec reflects nothing off its callable: no reads means an empty schema."""
         bare = django_service_specs.SelectorSpec(
             kind=SelectorKind.LIST, selector=widgets_named, permissions=[SignedIn()]
         )

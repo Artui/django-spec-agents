@@ -1,13 +1,3 @@
-"""The return schema of a spec declaring ``shapes``, which promises no row field.
-
-What a shape does to a row is the presenter's: a ``fields`` selection leaves
-keys out, so no key of a row is present under every value the model may send.
-The kernel's ``spec_output_schema`` says so by requiring none, at any depth,
-while the paging envelope and the ``affordances`` answers, which are written
-whatever the shapes, stay required. These tests hold that the toolset
-advertises that schema as it stands, with no relaxation of its own.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -80,8 +70,7 @@ def _return_schema(spec: Any) -> dict[str, Any]:
 
 
 def test_a_shaped_list_requires_no_row_field_at_any_depth_and_keeps_its_envelope():
-    """The item, its nested object and its array's rows require nothing, and
-    the page envelope the toolset writes keeps its four keys required."""
+    """The item, its nested object and its array's rows require nothing."""
     schema = _return_schema(_selector(SelectorKind.LIST, shapes=Parameters.of(_FIELDS)))
 
     item = schema["properties"]["items"]["items"]
@@ -91,8 +80,7 @@ def test_a_shaped_list_requires_no_row_field_at_any_depth_and_keeps_its_envelope
 
 
 def test_a_list_declaring_no_shape_keeps_every_required():
-    """An unshaped spec's rows keep every promise their presenter makes: the
-    kernel relaxes a schema only for a spec declaring ``shapes``."""
+    """An unshaped spec's rows keep every promise their presenter makes."""
     schema = _return_schema(_selector(SelectorKind.LIST))
 
     item = schema["properties"]["items"]["items"]
@@ -143,9 +131,7 @@ def test_every_shaped_item_requires_nothing_wherever_it_sits(spec, item_of):
 
 
 def test_a_shaped_row_keeps_the_affordances_dispatch_adds_required():
-    """``affordances`` is written onto each row after the presenter runs, so a
-    shape cannot leave it out: it stays required, with its own schema whole,
-    while the presenter's fields are not."""
+    """``affordances`` is written after the presenter runs, so it stays required in a shape."""
     cancel = ServiceSpec(
         service=lambda **_: None,
         atomic=False,
@@ -166,8 +152,7 @@ def test_a_shaped_row_keeps_the_affordances_dispatch_adds_required():
 
 
 def test_a_service_presenting_a_shaped_list_keeps_each_row_s_affordances_required():
-    """A service whose output is a listed selector returns an array, and the
-    row inside it, not the array, is where ``affordances`` stays required."""
+    """A listed selector returns an array; ``affordances`` stays required on the row inside it."""
     cancel = ServiceSpec(
         service=lambda **_: None,
         atomic=False,
@@ -196,8 +181,7 @@ def test_a_service_presenting_a_shaped_list_keeps_each_row_s_affordances_require
 
 
 def test_a_shaped_spec_with_no_presenter_still_returns_none():
-    """A shape with nothing to present it declares no return schema, rather
-    than one relaxed out of nothing."""
+    """A shape with nothing to present declares no return schema, rather than a relaxed one."""
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
         selector=_rows,

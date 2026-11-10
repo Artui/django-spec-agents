@@ -129,8 +129,7 @@ async def test_exists_reflects_session_presence() -> None:
 async def test_list_orders_newest_first_and_applies_limit() -> None:
     store = DjangoSessionConversationStore()
     request = _request()
-    # Two saved threads carry ``updated_at``; an entry stored without one
-    # sorts last (exercises the ``updated_at is None`` sort branch).
+    # Two saved threads carry ``updated_at``; an entry without one sorts last.
     await store.save(Conversation(thread_id="t1"), request=request)
     await store.save(Conversation(thread_id="t2"), request=request)
     request.session["django_pydantic_agent_conversations"]["undated"] = {
@@ -140,5 +139,5 @@ async def test_list_orders_newest_first_and_applies_limit() -> None:
     request.session.modified = True
 
     metas = await store.list(request=request)
-    assert metas[-1].thread_id == "undated"  # no timestamp → last
+    assert metas[-1].thread_id == "undated"
     assert len(await store.list(request=request, limit=1)) == 1

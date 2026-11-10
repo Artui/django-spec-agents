@@ -1,12 +1,3 @@
-"""A service's Validator fields, beside its ``input_data=`` provider, in the advertised schema.
-
-``input_data`` is merged over the caller's arguments before the Validator runs,
-so a field it fills or may fill is not demanded of the caller by dispatch, and a
-schema that required it anyway told the model to send what the server supplies.
-Written against ``SpecToolset``'s public surface only: each test builds a toolset
-and reads the schema it advertises or the answer to a call.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -111,12 +102,7 @@ def _service(input_data: Any, **kwargs: Any) -> ServiceSpec:
 
 
 def test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_required():
-    """The provider may be what fills any Validator field, so the schema asks the
-    model for none of them, as it asks for no read an untyped ``kwargs=`` may
-    fill. Holds the untyped seat in the kernel's ``spec_caller_input_schema``:
-    leaving the fields as declared would keep ``name`` and ``owner`` required,
-    which is what it said before.
-    """
+    """The provider may fill any Validator field, so the schema asks for none of them."""
     toolset = SpecToolset({"t": _service(_fills_owner)})
 
     schema = _input_schema_of(toolset, "t")
@@ -126,8 +112,7 @@ def test_a_required_field_beside_an_untyped_input_data_is_advertised_and_not_req
 
 
 def test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required():
-    """Only the key the provider may decline is relaxed: ``name`` is nobody's but
-    the caller's: the Validator seat relaxes the declinable keys alone."""
+    """Only the key the provider may decline is relaxed; ``name`` is the caller's alone."""
     toolset = SpecToolset({"t": _service(_fills_owner_when_it_can)})
 
     schema = _input_schema_of(toolset, "t")
@@ -137,8 +122,7 @@ def test_a_field_a_typed_input_data_may_decline_is_advertised_and_not_required()
 
 
 def test_a_field_a_typed_input_data_always_fills_is_not_advertised():
-    """A guard: the key is the server's whatever the caller sends, so it leaves
-    the schema altogether and the seat has nothing to relax."""
+    """A guard: a server-owned key leaves the schema altogether."""
     toolset = SpecToolset({"t": _service(_always_fills_owner)})
 
     schema = _input_schema_of(toolset, "t")
@@ -161,12 +145,7 @@ async def test_a_call_leaving_out_a_field_the_provider_fills_is_served():
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("provider", [_fills_nothing, _declines_owner], ids=["untyped", "typed"])
 async def test_a_field_nobody_fills_is_handed_back_before_the_validator_runs(provider):
-    """What makes not requiring ``owner`` safe: dispatch does not demand it of the
-    caller, and when neither the provider nor the model fills it the kernel
-    refuses the call before the Validator runs, naming the field as it names a
-    read, and the model is handed that to send it next turn. The Validator never
-    sees the call, so the retry is the kernel's wording and not the Validator's
-    own, which is not the toolset's ``missing_arguments`` line either."""
+    """Not requiring ``owner`` is safe: the kernel refuses the call when nobody fills it."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset({"t": _service(provider)})
 
@@ -178,9 +157,7 @@ async def test_a_field_nobody_fills_is_handed_back_before_the_validator_runs(pro
 
 
 def test_a_read_is_still_required_beside_an_input_data_that_may_fill_a_field():
-    """``input_data`` reaches the Validator's fields and no read: the target lookup
-    still cannot run without its ``pk``, so only the fields are relaxed. Holds the
-    seat to its own names."""
+    """``input_data`` reaches the Validator's fields only; the lookup still needs ``pk``."""
     spec = _service(_fills_owner, instance_selector_spec=by_pk(get_any_widget))
     toolset = SpecToolset({"t": spec})
 
@@ -191,10 +168,7 @@ def test_a_read_is_still_required_beside_an_input_data_that_may_fill_a_field():
 
 
 def test_a_key_the_input_data_may_decline_relaxes_only_a_field_of_the_validator():
-    """``input_data`` reaches the Validator's fields only, so a key it may decline
-    that names a read in the target lookup's seat says nothing about that read.
-    Holds the Validator seat to its own names: relaxing every declinable key
-    would leave ``pk`` optional."""
+    """``input_data`` reaches only the Validator's fields, not a read in the lookup's seat."""
     toolset = SpecToolset(
         {"t": _service(_declines_pk, instance_selector_spec=by_pk(get_any_widget))}
     )
@@ -214,11 +188,7 @@ async def test_a_call_missing_a_read_beside_an_input_data_is_still_handed_back()
 
 
 def test_a_row_field_is_not_a_top_level_seat_on_a_many_spec():
-    """A ``many`` spec's Validator fields are each row's, so ``input_data`` relaxes
-    them inside every row and no top-level argument: a read sharing a row field's
-    name stays required, and so does the list. ``input_data`` runs once per call
-    and is merged over every row, so beside an untyped one a row requires
-    nothing, as dispatch demands nothing of it."""
+    """A ``many`` spec's Validator fields relax inside each row, not as top-level arguments."""
     spec = ServiceSpec(
         service=make_rows,
         validator=_Recording(Row),
@@ -239,9 +209,7 @@ def test_a_row_field_is_not_a_top_level_seat_on_a_many_spec():
 
 
 def test_a_row_field_a_typed_input_data_always_fills_is_not_offered_in_any_row():
-    """``input_data`` is merged over every row, and dispatch drops the caller's
-    value for a field it is annotated to fill, so no row offers that field. The
-    top level, the list, stays required."""
+    """``input_data`` is merged over every row; no row offers a field the provider fills."""
     spec = ServiceSpec(
         service=make_rows,
         validator=_Recording(Row),
@@ -261,8 +229,7 @@ def test_a_row_field_a_typed_input_data_always_fills_is_not_offered_in_any_row()
 
 
 def test_a_row_field_a_typed_input_data_may_decline_is_offered_and_not_required():
-    """A field ``input_data`` may decline stays the caller's to send in each row,
-    and is not demanded of it: ``name`` is still the row's own."""
+    """A declinable field stays the caller's to send in each row, and is not demanded."""
     spec = ServiceSpec(
         service=make_rows,
         validator=_Recording(Row),

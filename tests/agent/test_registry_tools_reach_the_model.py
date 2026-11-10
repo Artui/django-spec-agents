@@ -1,5 +1,3 @@
-"""What the model is offered for a registry tool, and what the guard gates it by."""
-
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -38,20 +36,14 @@ async def _offered(registry: ToolRegistry) -> dict[str, ToolDefinition]:
 
 
 async def _offered_as_bare_functions(*fns: Callable[..., Any]) -> dict[str, ToolDefinition]:
-    """What pydantic-ai offers for the same functions handed over undecorated.
-
-    That is how ``build_agent`` registered every tool before it passed a name,
-    so it is the baseline a tool with no override must still match.
-    """
+    """What pydantic-ai offers for the same functions handed over undecorated."""
     model, seen = _recorder()
     await Agent(model, tools=list(fns)).run("go")
     return {t.name: t for t in seen}
 
 
 async def test_a_destructive_tool_registered_under_a_name_is_deferred_for_approval() -> None:
-    # The guard collects destructive tools by the registered name, so the model
-    # has to be offered that name: offered the function's own, it would call a
-    # tool the guard never collected and the mutation would run unconfirmed.
+    # The guard keys destructive tools by registered name, so the model must see that name.
     ran: list[str] = []
     registry = ToolRegistry()
 
@@ -109,10 +101,7 @@ async def test_the_model_is_offered_an_overriding_description() -> None:
 
 
 async def test_an_override_equal_to_the_first_paragraph_is_not_told_apart_from_none() -> None:
-    # The known limit of reading the override off ``ToolSpec``: a description
-    # equal to the docstring's first paragraph is what no override derives, so
-    # the model gets pydantic-ai's own extraction (every paragraph before the
-    # Args section) for it. Pinned so a change to that is a decision.
+    # Equal to the docstring's first paragraph, a description derives no override.
     registry = ToolRegistry()
 
     @tool(registry, description="First.")
@@ -127,10 +116,7 @@ async def test_an_override_equal_to_the_first_paragraph_is_not_told_apart_from_n
 
 
 async def test_a_tool_with_no_override_is_offered_what_pydantic_ai_derives() -> None:
-    # Registering must not change what the model sees. ``ToolSpec.description``
-    # is the first paragraph, which differs from pydantic-ai's extraction for a
-    # multi-paragraph docstring and for no docstring at all (``None``, not
-    # ``""``), so passing it through unconditionally would alter both.
+    # Registering must not change what the model sees.
     registry = ToolRegistry()
 
     @tool(registry)
@@ -154,8 +140,6 @@ async def test_a_tool_with_no_override_is_offered_what_pydantic_ai_derives() -> 
 
     assert offered == await _offered_as_bare_functions(documented, bare)
 
-    # The literal text, so the comparison above cannot agree with a change in
-    # pydantic-ai's extraction that this package would then be passing on.
     assert offered["documented"].name == "documented"
     assert offered["documented"].description == (
         "Do a thing.\n\nContinues here with more detail.\nSecond line."

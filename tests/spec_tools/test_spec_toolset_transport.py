@@ -1,12 +1,3 @@
-"""The transport an agent's call carries: one public value, stamped on every context.
-
-``AGENT_TRANSPORT`` is this package's own spelling, read off
-``django_spec_agents.spec_tools`` rather than a kernel type. Every context the
-toolset builds, the call's and the listing's, is built through the kernel's
-``build_call_context`` with the run's entries as ``base``, so the stamp is the
-last write and a callable reads one value wherever the kernel asks it.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -43,8 +34,7 @@ from tests.spec_tools.test_spec_toolset import ctx_for
 
 
 def test_the_package_exports_the_value_it_stamps():
-    """The value itself is held in ``tests/spec_tools/types/test_agent_transport.py``;
-    here is the one the toolset stamps, read off the package a consumer imports."""
+    """The toolset stamps the value read off the package a consumer imports."""
     assert spec_tools.AGENT_TRANSPORT == "agent"
 
 
@@ -54,13 +44,7 @@ def test_the_package_exports_the_value_it_stamps():
 async def test_every_context_is_built_through_the_kernels_builder_with_the_run_as_base(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """The schema's stamp, the call's context and the listing's are each its result.
-
-    The spy forwards to the real builder and records what it was handed: the
-    package's own value as the transport, and, once a run is in hand, the run's
-    dict as ``base`` and the tool's name as ``action``. The tool's schema is built
-    first, with no run. The callables read the very dict it returned.
-    """
+    """The schema's stamp, the call's context and the listing's are each its result."""
     built: list[tuple[str, Mapping[str, Any] | None, str | None]] = []
     returned: list[dict[str, Any]] = []
 
@@ -130,9 +114,7 @@ async def test_the_stamp_is_last_even_over_a_run_that_carries_the_key():
 
 
 async def test_the_runs_request_view_and_format_reach_a_callable_as_the_run_put_them():
-    """The builder layers ``None`` defaults, then the run's entries: a run's
-    ``view`` and ``format`` are not turned back into ``None``, and the request
-    is the very object the run arrived on."""
+    """The builder layers ``None`` defaults, then the run's entries, which keep their values."""
     arrived = RequestFactory().get("/agent/")
     view = object()
     seen: dict[str, Any] = {}
@@ -182,8 +164,7 @@ async def test_a_calls_context_is_a_plain_dict_of_its_own_whatever_the_run_holds
 
 
 async def test_a_run_that_is_a_read_only_mapping_is_the_base_and_the_stamp_still_lands():
-    """A run's context need not be a ``dict``: a ``MappingProxyType`` is read for its
-    entries, the stamp is written over a copy and the proxy is never mutated."""
+    """A ``MappingProxyType`` context is read and the stamp written over a copy."""
     seen: list[dict[str, Any]] = []
 
     def record(call_context: dict[str, Any]) -> dict[str, bool]:
@@ -251,8 +232,7 @@ class _PresenterReads(RowPresenter):
 
 
 async def test_a_callable_reads_one_value_across_the_stages_of_a_call():
-    """The check, the validator (both of its seats), the service, the selector, the
-    kwargs provider and the presenter of a call each read ``"agent"``, and each ran."""
+    """Each of the call's seats reads ``agent``, and each ran."""
     seen: list[tuple[str, Any]] = []
 
     def write(call_context: dict[str, Any], *, data: dict[str, Any]) -> dict[str, bool]:
@@ -303,8 +283,7 @@ async def test_a_callable_reads_one_value_across_the_stages_of_a_call():
 
 
 async def test_a_listing_and_the_call_it_precedes_read_one_value():
-    """A condition asked at listing time and the same spec's check at the call read
-    the same transport, so a tool listed on it is not refused on another."""
+    """A tool listed on a transport is not refused on another at call time."""
     seen: list[tuple[str, Any]] = []
 
     def when(call_context: dict[str, Any]) -> bool:

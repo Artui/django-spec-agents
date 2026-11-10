@@ -1,5 +1,3 @@
-"""``build_input_schema`` under ``SchemaStrategy.PYDANTIC``, and choosing a strategy."""
-
 from __future__ import annotations
 
 import functools
@@ -76,8 +74,7 @@ def test_the_pydantic_strategy_returns_pydantic_s_schema() -> None:
         "title": "N",
         "type": "integer",
     }
-    # ``X | None`` is pydantic's ``anyOf`` with a ``null`` branch, not ``nullable``,
-    # and a default is advertised.
+    # ``X | None`` is pydantic's ``anyOf`` with a ``null`` branch, not ``nullable``.
     assert schema["properties"]["note"] == {
         "anyOf": [{"type": "string"}, {"type": "null"}],
         "default": None,
@@ -151,9 +148,7 @@ def _take(
 
 
 def test_a_field_given_as_the_default_under_each_derivation() -> None:
-    # The hand-built strategy agrees with the pydantic one: ``n`` has no
-    # default, so it is required, since ``ToolRegistry.call`` would otherwise
-    # hand the tool the ``FieldInfo``.
+    # The hand-built strategy agrees: ``n`` has no default, so it is required.
     for strategy in SchemaStrategy:
         schema = build_input_schema(_take, schema_strategy=strategy)
         assert schema["required"] == ["n"], strategy
@@ -162,8 +157,6 @@ def test_a_field_given_as_the_default_under_each_derivation() -> None:
         "n": {"description": "How many.", "minimum": 1, "title": "N", "type": "integer"},
         "m": {"default": 5, "maximum": 9, "title": "M", "type": "integer"},
     }
-    # Pydantic-ai's own schema, which the agent offers the model for an ``@tool``
-    # tool, carries the same keys but leaves ``n`` optional.
     offered = Tool(_take).tool_def.parameters_json_schema
     assert offered == {
         "additionalProperties": False,
@@ -184,8 +177,7 @@ def _echo(
 
 @pytest.mark.parametrize("strategy", list(SchemaStrategy))
 def test_a_field_alias_is_not_the_property_key(strategy: SchemaStrategy) -> None:
-    # ``ToolRegistry.call`` binds by parameter name, so the schema keys on it
-    # under either strategy, and the advertised payload is one the call takes.
+    # ``ToolRegistry.call`` binds by parameter name, so the schema keys on it.
     registry = ToolRegistry(schema_strategy=strategy)
     schema = registry.register(ToolSpec(name="echo", fn=_echo, description="d")).input_schema
     assert list(schema["properties"]) == ["s", "t"]
@@ -196,8 +188,7 @@ def test_a_field_alias_is_not_the_property_key(strategy: SchemaStrategy) -> None
 
 
 def test_a_nested_model_s_alias_is_not_its_property_key_either() -> None:
-    # ``by_alias=False`` reaches the whole schema; ``ToolRegistry.call`` hands
-    # the tool the nested object as sent.
+    # ``by_alias=False`` reaches the whole schema; ``call`` hands over the nested object as sent.
     def fn(order: _Order) -> None:
         del order
 

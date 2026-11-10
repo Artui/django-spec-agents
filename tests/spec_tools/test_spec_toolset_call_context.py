@@ -1,10 +1,3 @@
-"""What one tool call is dispatched with beyond its arguments: its seeds and its context.
-
-The run's context is ``AgentDeps.call_context``, copied per call with the
-tool's name under ``action``; the call's own seeds are what ``call_seeds``
-returns, over the mount's ``pool_seeds``.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
@@ -51,14 +44,7 @@ async def _call_each(toolset: SpecToolset, ctx: Any, *names: str) -> list[Any]:
 
 
 async def test_each_call_of_a_run_is_handed_its_own_copy_of_the_run_s_context():
-    """The tool's name is the call's ``action``, and a stage's write stays in its call.
-
-    Two calls of one run may run at once, so one dict shared by both could not
-    say which tool each is. Each is handed a copy of the run's: the run's
-    entries are the same objects in both, the name is each call's own, and
-    what the first call's service wrote is absent from the second's and from
-    the run's.
-    """
+    """The tool's name is the call's ``action``, and a stage's write stays in its call."""
     seen: list[dict[str, Any]] = []
 
     def record(call_context: dict[str, Any]) -> dict[str, bool]:
@@ -102,10 +88,7 @@ async def test_the_three_standard_entries_are_none_where_the_run_put_none():
 
 
 async def test_every_call_says_it_came_through_an_agent_whatever_the_run_put_there():
-    """``transport`` is ``"agent"`` on every call, the run's own entry of that
-    name replaced as its ``action`` is, so a provider, a selector or a presenter
-    reading ``call_context`` can tell an agent's call from one over HTTP when the
-    run carries the request it arrived on."""
+    """``transport`` is ``agent`` on every call, replacing the run's own entry of that name."""
     seen: list[Any] = []
 
     def record(call_context: dict[str, Any]) -> dict[str, bool]:
@@ -142,12 +125,7 @@ async def test_a_deps_type_without_the_field_gets_a_context_per_call():
 
 
 async def test_the_request_a_run_arrived_on_is_the_seed_a_callable_declares():
-    """The run's ``request`` entry is the ``request`` a spec callable is handed.
-
-    The kernel's pool has no ``request``; a spec callable written for HTTP
-    declares one, and off HTTP it is the request the run arrived on, which
-    whoever starts the run puts in the run's context.
-    """
+    """The run's ``request`` entry is the ``request`` a spec callable is handed."""
     arrived = RequestFactory().get("/agent/")
 
     def echo(request: Any) -> dict[str, bool]:
@@ -176,11 +154,7 @@ class _Tenanted(SpecToolset):
 
 
 async def test_a_seed_the_hook_returns_reaches_the_call_and_is_not_asked_of_the_model():
-    """The hook's seed fills a parameter with no default, so the model is never asked for it.
-
-    The required-arguments check reads the call's seeds, the hook's among
-    them; a hook answered after it would leave ``tenant`` refused as missing.
-    """
+    """The hook's seed fills a parameter with no default, so the model is never asked for it."""
 
     def where(tenant: str) -> dict[str, str]:
         """Say which tenant the call ran under."""
@@ -245,8 +219,7 @@ async def test_a_listing_asks_each_condition_with_its_own_tool_s_seeds():
 
 
 async def test_a_kwargs_provider_reads_the_transport_off_the_call_s_context():
-    """A provider that scopes differently for an agent's call declares
-    ``call_context`` and finds ``transport`` there, as a selector does."""
+    """An agent call's provider finds ``transport`` in ``call_context``, as a selector does."""
     seen: list[Any] = []
 
     def scope(call_context: dict[str, Any]) -> dict[str, Any]:
@@ -261,8 +234,7 @@ async def test_a_kwargs_provider_reads_the_transport_off_the_call_s_context():
 
 
 async def test_a_listing_hands_each_condition_the_transport_a_call_would():
-    """A condition is asked with the context its call would carry, ``transport``
-    included, so a tool gated on being reached by an agent is listed."""
+    """A condition sees the context its call would carry, ``transport`` included."""
     toolset = SpecToolset(
         {"approve": _conditioned(lambda call_context: call_context["transport"] == "agent")}
     )
@@ -323,10 +295,7 @@ async def _call_query(toolset: SpecToolset, args: dict[str, Any]) -> Any:
 
 
 async def test_a_read_the_selector_hands_on_reaches_the_presenter_of_a_page():
-    """The quickstart's recipe for one read both halves need: the selector takes
-    ``query`` as a read and writes it to the call's context, and the presenter
-    reads it there, on the page the toolset presents, which is handed the
-    dispatch's own context rather than a fresh one."""
+    """The quickstart recipe for a read both halves need, carried through the call context."""
     toolset = SpecToolset({"projects": _selecting_spec()})
 
     result = await _call_query(toolset, {"query": "name", "limit": 1})
@@ -351,9 +320,7 @@ class _Recording(RowPresenter):
 
 
 async def test_a_presenter_is_asked_for_the_rows_of_a_page_once_per_page_served():
-    """The toolset slices a list before it renders, so the kernel's one
-    ``presented_rows`` call per list result is one call per page, holding
-    exactly that page's rows and not the selector's whole answer."""
+    """The toolset slices a list before rendering, so one ``presented_rows`` call is one page."""
     presenter = _Recording(OutputField("name", "string"), OutputField("code", "string"))
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
@@ -374,9 +341,7 @@ async def test_a_presenter_is_asked_for_the_rows_of_a_page_once_per_page_served(
 
 
 async def test_a_selector_declaring_shapes_is_handed_the_shape_values_the_agent_sent():
-    """The kernel's reserved ``shapes`` seed reaches a callable through this
-    transport: the selector reads the call's shape values by declaring
-    ``shapes``, and the model is never asked for it."""
+    """The kernel's reserved ``shapes`` seed reaches a callable through this transport."""
     seen: list[Mapping[str, Any]] = []
 
     def projects(shapes: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -399,9 +364,6 @@ async def test_a_selector_declaring_shapes_is_handed_the_shape_values_the_agent_
     await toolset.call_tool("projects", {}, ctx, tools["projects"])
 
     assert [dict(shapes) for shapes in seen] == [{"fields": "name"}, {}]
-    # A shape the model leaves out, and declares no default for, is absent
-    # rather than ``None``, so a callable reads it with ``get``.
-    # The mapping is read-only: a callable cannot write through it.
     writable: Any = seen[0]
     with pytest.raises(TypeError):
         writable["fields"] = "code"
@@ -413,8 +375,7 @@ async def test_a_selector_declaring_shapes_is_handed_the_shape_values_the_agent_
 
 
 async def test_a_service_and_its_provider_declaring_shapes_are_handed_the_shape_values():
-    """The changelog's claim past the selector: a ``kwargs`` provider and the
-    service read the call's shape values the same way."""
+    """A ``kwargs`` provider and the service read the call's shape values the same way."""
     seen: list[tuple[str, dict[str, Any]]] = []
 
     def provider(shapes: Mapping[str, Any]) -> dict[str, Any]:
@@ -442,8 +403,7 @@ async def test_a_service_and_its_provider_declaring_shapes_are_handed_the_shape_
 
 
 async def test_a_selector_declaring_shapes_on_a_spec_with_none_is_handed_an_empty_mapping():
-    """The quickstart's claim that ``shapes`` is empty where the spec declares
-    no shape: the seed is always there to be read."""
+    """``shapes`` is never empty where the spec declares none: the seed is always there."""
     seen: list[dict[str, Any]] = []
 
     def projects(shapes: Mapping[str, Any]) -> list[dict[str, str]]:

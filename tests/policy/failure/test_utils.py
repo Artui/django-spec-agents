@@ -13,12 +13,7 @@ from django_spec_agents.policy.failure.utils import PolicyToolFailed
 
 
 def test_it_never_equals_a_plain_tool_failed_with_the_same_message() -> None:
-    """In either direction, while each class still compares by message.
-
-    ``ToolFailed.__eq__`` requires the other side to be an instance of its own
-    class, and Python tries the subclass's reflected comparison first, so the
-    plain one on the left is refused by the subclass's ``__eq__`` too.
-    """
+    """In either direction, while each class still compares by message."""
     assert ToolFailed("m") == ToolFailed("m")
     assert PolicyToolFailed("m") == PolicyToolFailed("m")
     assert PolicyToolFailed("m") != ToolFailed("m")

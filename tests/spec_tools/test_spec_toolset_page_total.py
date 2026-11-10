@@ -1,16 +1,3 @@
-"""``include_total``: a list tool's page also says how many rows match.
-
-The kernel's ``paginate_output`` counts every list before it slices it, since
-the clamp on ``page`` needs the number, and its envelope then leaves the count
-out, so a model asked "how many" can only read ``totalPages`` and multiply. The
-flag hands on the figure already computed: the same queries run with it on or
-off, and off the envelope and every advertised schema are what they were.
-
-The flag lives in the default ``shape_page``, which is also the seam a project
-overrides to decide per tool, and the seam the documented aggregates recipe
-uses. That recipe is read off the page and run here rather than restated.
-"""
-
 from __future__ import annotations
 
 import pathlib
@@ -94,12 +81,7 @@ def test_the_envelope_carries_no_total_by_default():
 
 @pytest.mark.django_db
 def test_include_total_reports_every_row_the_selector_matched_not_the_page_or_the_table():
-    """Against a real queryset count, with rows the selector filters out.
-
-    Five of the user's widgets and two of another's, served two at a time, so a
-    ``total`` read off the page (2) or off the table (7) cannot pass for the
-    count of what the selector matched (5).
-    """
+    """Against a real queryset count, with rows the selector filters out."""
     user = User.objects.create(username="u")
     other = User.objects.create(username="other")
     _widgets(user, 5)
@@ -128,12 +110,7 @@ def test_an_empty_list_reports_a_total_of_zero():
 @pytest.mark.django_db
 @pytest.mark.parametrize("include_total", [False, True])
 def test_the_total_costs_no_query_of_its_own(include_total):
-    """One ``COUNT`` and one page ``SELECT``, whichever way the flag is set.
-
-    The count is the one ``paginate_output`` takes before slicing; the flag
-    only hands it on. Rows on the page, since an empty slice skips its query
-    and the number would then hold by accident.
-    """
+    """One ``COUNT`` and one page ``SELECT``, whichever way the flag is set."""
     user = User.objects.create(username="u")
     _widgets(user, 3)
     toolset = SpecToolset({"list_widgets": _list_spec()}, include_total=include_total)
@@ -213,14 +190,7 @@ class _CountingPage(OutputPage):
 
 @pytest.mark.django_db
 def test_per_tool_is_the_flag_off_and_an_override_counting_the_chosen_tools():
-    """What every tool advertises agrees with what it is sent.
-
-    The return schema and the ``limit`` description are written from the flag
-    at construction, and an override changes only the payload. So the per-tool
-    route is the flag off and the override adding ``total``: no tool then
-    advertises a key its page lacks, which the flag on with an override
-    dropping ``total`` would do on every turn.
-    """
+    """What every tool advertises agrees with what it is sent."""
 
     class OnlyWidgetsCounted(SpecToolset):
         def shape_page(self, rows, *, ctx, page, limit, max_page_size):
@@ -252,8 +222,7 @@ def test_per_tool_is_the_flag_off_and_an_override_counting_the_chosen_tools():
 
 
 def test_a_list_with_no_presenter_still_advertises_no_return_schema():
-    """The kernel derives no schema without a presenter, and the flag adds
-    ``total`` to a derived envelope only: it never conjures one."""
+    """The flag adds ``total`` to a derived envelope only, never a schema it conjures."""
     spec = SelectorSpec(kind=SelectorKind.LIST, selector=list_widgets, permissions=allow())
 
     assert SpecToolset({"l": spec}, include_total=True)._tool_defs["l"].return_schema is None
@@ -272,8 +241,7 @@ def _documented_recipe() -> dict[str, Any]:
 
 @pytest.mark.django_db(transaction=True)
 async def test_the_documented_aggregates_recipe_runs_through_call_tool():
-    """The page's own code, over this suite's widgets: its ``LIST_AGGREGATES``
-    is swapped for one naming a ``Widget`` column, and nothing else is."""
+    """The page's own code over this suite's widgets; only its ``LIST_AGGREGATES`` is swapped."""
     recipe = _documented_recipe()
     recipe["LIST_AGGREGATES"] = {"list_widgets": {"price_total": Sum("price")}, "list_counted": {}}
     user = await sync_to_async(User.objects.create)(username="u")

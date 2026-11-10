@@ -1,9 +1,3 @@
-"""The ``[mcp]`` bridge, ``MCPToolset``, over django-spec-mcp servers of kernel specs.
-
-Nothing here imports Django REST Framework: the bridge, its fixtures and these
-tests hold on the kernel and django-spec-mcp alone.
-"""
-
 from __future__ import annotations
 
 import json
@@ -87,14 +81,11 @@ async def test_toolset_exposes_the_servers_tools_with_schemas() -> None:
     assert schema["type"] == "object"
     assert schema["additionalProperties"] is False
     assert sorted(schema["required"]) == ["a", "b"]
-    # An in-process function rather than a deferred `external` call, so
-    # pydantic-ai's run loop actually invokes our `call_tool`.
     assert tool_def.kind == "function"
 
 
 async def test_a_list_tools_schema_is_the_servers_verbatim() -> None:
-    # The pagination arguments a paged list tool takes are the server's, not
-    # re-derived here, so the model is asked for what the HTTP transport asks.
+    # The paging arguments are the server's, not re-derived, so the model is asked what HTTP asks.
     listed = paged_server.list_tools(None, user=AnonymousUser(), include_unavailable=True)
     assert not isinstance(listed, JsonRpcError)
     (tool,) = listed["tools"]
@@ -102,20 +93,17 @@ async def test_a_list_tools_schema_is_the_servers_verbatim() -> None:
     schema = tools["list_rows"].tool_def.parameters_json_schema
     assert schema == tool["inputSchema"]
     assert {"page", "fields"} <= set(schema["properties"])
-    # The output schema is carried too, so a code-mode stub is typed.
     assert tool["outputSchema"]
     tool_def = tools["list_rows"].tool_def
     assert tool_def.return_schema == tool["outputSchema"]
     assert tool_def.include_return_schema is True
-    # A tool the server lists without one says so, rather than carrying ``None`` as a schema.
     bare = await MCPToolset(bare_server, _request()).get_tools(None)  # type: ignore[arg-type]
     assert bare["close_the_books"].tool_def.return_schema is None
     assert bare["close_the_books"].tool_def.include_return_schema is False
 
 
 async def test_a_service_is_destructive_and_a_selector_is_not() -> None:
-    # django-spec-mcp marks a selector ``readOnlyHint: true`` and a service
-    # ``false``; the bridge carries the latter as the key ``ToolGuard`` reads.
+    # django-spec-mcp marks a selector ``readOnlyHint`` true and a service false.
     tools = await MCPToolset(lookup_server, _request()).get_tools(None)  # type: ignore[arg-type]
     assert tools["get_row"].tool_def.metadata is None
     assert tools["rename_row"].tool_def.metadata == {DESTRUCTIVE_METADATA_KEY: True}
@@ -133,9 +121,7 @@ async def _hinted_metadata(name: str) -> dict[str, Any] | None:
 
 
 def test_the_producer_publishes_the_override_under_the_keys_the_bridge_reads() -> None:
-    # The bridge's rule is only as true as the wire it reads: django-spec-mcp
-    # merges a registration's ``annotations=`` over its derived defaults, and
-    # keeps ``destructiveHint: true`` beside a read-only override.
+    # django-spec-mcp keeps ``destructiveHint: true`` beside a read-only override.
     assert _listed_annotations(hinted_server) == {
         "plain": {"readOnlyHint": False, "destructiveHint": True},
         "read_only": {"readOnlyHint": True, "destructiveHint": True},
@@ -150,8 +136,7 @@ async def test_a_read_only_override_is_not_destructive() -> None:
 
 
 async def test_a_non_destructive_override_is_not_destructive() -> None:
-    # A mutation registered ``annotations={"destructiveHint": False}`` is exempt,
-    # as the MCP spec reads it, and as django-spec-mcp documents the override.
+    # A ``destructiveHint: False`` registration is exempt, as the MCP spec reads it.
     assert await _hinted_metadata("non_destructive") is None
 
 
@@ -163,8 +148,7 @@ async def test_a_mutation_is_destructive_unless_it_says_otherwise() -> None:
 async def test_a_tool_listed_without_annotations_is_not_marked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Unchanged from before the rule: a tool that says nothing is not claimed to
-    # mutate, so an absent or empty ``annotations`` leaves it ungated.
+    # An absent or empty ``annotations`` leaves a tool ungated, as before.
     tools = [
         {"name": "absent", "inputSchema": {"type": "object"}},
         {"name": "empty", "inputSchema": {"type": "object"}, "annotations": {}},
@@ -178,9 +162,7 @@ async def test_a_tool_listed_without_annotations_is_not_marked(
 async def test_a_tool_that_leaves_read_only_unsaid_is_marked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # MCP defaults ``readOnlyHint`` to false, so annotations that speak but do
-    # not claim the tool reads (only a title, or only ``destructiveHint``) leave
-    # it a mutation unless ``destructiveHint`` is false.
+    # MCP defaults ``readOnlyHint`` to false, so a partial annotation still gates the tool.
     tools = [
         {"name": "titled", "inputSchema": {"type": "object"}, "annotations": {"title": "T"}},
         {
@@ -233,8 +215,7 @@ async def test_agent_run_recovers_from_model_retry() -> None:
 )
 @pytest.mark.django_db
 async def test_a_scalar_result_is_the_scalar(name: str, expected: object) -> None:
-    # django-spec-mcp serves a scalar as its JSON text block with no
-    # ``structuredContent``; the model is handed the scalar, not the block list.
+    # django-spec-mcp serves a scalar as its JSON text block, with no ``structuredContent``.
     result = await scalar_server.acall_tool(name, {}, user=AnonymousUser())
     assert isinstance(result, dict)
     assert "structuredContent" not in result
@@ -245,8 +226,7 @@ async def test_a_scalar_result_is_the_scalar(name: str, expected: object) -> Non
 
 @pytest.mark.django_db
 async def test_a_result_served_without_structured_content_is_its_text_parsed() -> None:
-    # A tool registered with ``include_structured_content=False`` carries its
-    # object in the text block alone.
+    # With ``include_structured_content=False`` the object rides in the text block alone.
     result = await bare_server.acall_tool("close_the_books", {}, user=AnonymousUser())
     assert isinstance(result, dict)
     assert "structuredContent" not in result
@@ -272,7 +252,6 @@ async def test_a_text_block_that_is_not_json_is_the_raw_text(
     [
         # A media tool carries no ``structuredContent`` and no text to parse.
         [{"type": "image", "data": "aGk=", "mimeType": "image/png"}],
-        # Two blocks are not one payload, even when both are text.
         [{"type": "text", "text": "1"}, {"type": "text", "text": "2"}],
         None,
     ],
@@ -294,9 +273,7 @@ async def test_content_that_is_not_one_text_block_is_passed_on_as_the_blocks(
 @pytest.mark.parametrize("name", list(LIST_SPECS))
 @pytest.mark.django_db
 async def test_a_list_result_reads_the_same_through_both_routes(name: str) -> None:
-    # django-spec-mcp serves every list result as ``{"items": [...]}`` under an
-    # object ``outputSchema``; the in-process route hands the model the same
-    # payload under the same schema, a list that presents nothing as no rows.
+    # Every list result is ``{"items": [...]}`` under an object ``outputSchema``.
     capability = build_spec_capability(LIST_SPECS)
     toolset = capability.get_toolset()
     ctx = run_context(AgentDeps(user=AnonymousUser()))
@@ -363,8 +340,7 @@ async def test_toolset_invokes_the_tool_as_acting_user() -> None:
 
 
 async def test_an_unknown_tool_is_retryable_not_fatal() -> None:
-    # django-spec-mcp answers an unknown tool with ``-32602``, a fault in the
-    # request the model produced and something it can change.
+    # An unknown tool gets ``-32602``, a fault in the request the model produced.
     with pytest.raises(ModelRetry, match="Unknown tool"):
         await MCPToolset(server, _request()).call_tool("nope", {}, None, None)
 
@@ -383,10 +359,7 @@ async def test_a_bad_name_retry_says_nothing_extra_when_the_cache_is_cold() -> N
 
 
 async def test_a_refusing_permission_raises_permission_denied() -> None:
-    # django-spec-mcp answers a permission check that refuses the principal with
-    # JSON-RPC ``-32006``. Django's ``PermissionDenied`` is the class a
-    # ``[specs]`` tool re-raises for a service refusing bare, and the one denial
-    # ``ToolFailurePolicy`` passes through whatever extras are installed.
+    # A refused permission check answers JSON-RPC ``-32006``.
     with pytest.raises(PermissionDenied) as caught:
         await MCPToolset(server, _request()).call_tool("forbidden", {"a": 1, "b": 2}, None, None)
     assert str(caught.value) == "MCP tool 'forbidden' failed: Insufficient permission"
@@ -404,9 +377,7 @@ def _calling_once(name: str, args: dict[str, Any]) -> FunctionModel:
 
 
 async def test_a_refusing_permission_ends_an_agent_run() -> None:
-    # Through ``build_agent``, so ``ToolFailurePolicy`` is in the chain, as it
-    # is behind every transport: a refusal it converted would leave the run
-    # alive and the model free to try the next id.
+    # Through ``build_agent``, so ``ToolFailurePolicy`` is in the chain.
     agent = build_agent(
         ToolRegistry(),
         AgentConfig(
@@ -419,8 +390,7 @@ async def test_a_refusing_permission_ends_an_agent_run() -> None:
 
 
 async def test_another_protocol_fault_is_a_failed_call_under_the_policy() -> None:
-    # The other side of the line: a ``RuntimeError`` is not a denial, so the
-    # policy converts it and the run finishes with the call failed.
+    # A ``RuntimeError`` is not a denial, so the policy converts it and the call fails.
     agent = build_agent(
         ToolRegistry(),
         AgentConfig(
@@ -441,9 +411,7 @@ async def test_a_refusing_permission_is_forbidden_on_the_wire() -> None:
 
 
 async def test_a_read_the_spec_does_not_declare_raises_runtime_error() -> None:
-    # A service asking for input its spec does not take could never be answered:
-    # django-spec-mcp refuses with JSON-RPC ``-32603`` rather than asking, and
-    # the bridge raises it, as it raises every protocol fault but a refusal.
+    # A service asking for input its spec lacks gets ``-32603``, which the bridge raises.
     with pytest.raises(RuntimeError, match="^MCP tool 'undeclared_input' failed: .*'reason'"):
         await MCPToolset(server, _request()).call_tool("undeclared_input", {}, None, None)
 
@@ -457,9 +425,7 @@ async def test_malformed_arguments_raise_model_retry_with_detail() -> None:
 
 
 async def test_invalid_params_error_raises_model_retry(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Payload-level twin of the ``-32602`` branch: on Python 3.11 the C tracer
-    # can drop the bridge frame across the server's executor hop, leaving the
-    # branch uncovered there even though it runs.
+    # Payload twin of the ``-32602`` branch; the C tracer can drop its frame on 3.11.
     async def fake_call(name: str, arguments: object = None, **_kwargs: object) -> JsonRpcError:
         return JsonRpcError(JsonRpcErrorCode.INVALID_PARAMS, "Invalid arguments")
 
@@ -515,8 +481,7 @@ async def test_a_refusal_carries_its_code() -> None:
 
 
 async def test_a_missing_row_fails_the_call() -> None:
-    # A selector's ``ObjectDoesNotExist`` is django-spec-mcp's ``not_found``,
-    # which the model reads and the run records as a failed call.
+    # A missing object is ``not_found``, which the run records as a failed call.
     with pytest.raises(ToolFailed) as excinfo:
         await MCPToolset(server, _request()).call_tool("missing_row", {"pk": 9}, None, None)
     assert excinfo.value.message == "missing_row: no matching instance found"
@@ -596,11 +561,7 @@ async def test_instructions_name_each_missing_tool_with_its_reason() -> None:
 
 
 async def test_the_missing_tools_heading_is_the_one_spec_tools_says() -> None:
-    # ``_MISSING`` is a literal this file owns, so it cannot notice the bridge's
-    # heading drifting from ``spec_tools``'; the default it teaches the model is
-    # read from ``AgentConventions`` here instead, so a change to either fails.
-    # The both-bridges test below compares the whole list, but its ``endswith``
-    # is met by the reason line alone, so it cannot say the heading is there.
+    # The default is read from ``AgentConventions``, so a change to either fails here.
     instructions = await MCPToolset(server, _request()).get_instructions(None)
     assert instructions is not None
     assert instructions.splitlines()[0] == AgentConventions().unavailable_heading
@@ -654,8 +615,7 @@ async def test_each_step_offers_and_explains_what_is_available_then(
 
 
 async def test_input_required_result_raises_model_retry() -> None:
-    # In process django-spec-mcp cannot ask anyone, so it degrades the request to
-    # an ``input_required`` result, which the bridge hands back as a retry.
+    # In process django-spec-mcp cannot ask anyone, so it degrades to ``input_required``.
     with pytest.raises(ModelRetry) as excinfo:
         await MCPToolset(server, _request()).call_tool("needs_input", {}, None, None)
     assert excinfo.value.message == (
@@ -665,15 +625,7 @@ async def test_input_required_result_raises_model_retry() -> None:
 
 
 async def test_a_selectors_request_for_input_diverges_between_the_routes() -> None:
-    """A selector's ``AdditionalInputRequired`` is a retry in process and a failure bridged.
-
-    This documents a divergence rather than a goal. django-spec-mcp builds no
-    input round for a selector (``tool_refusal_scene`` sets ``input_round`` to
-    ``None``), so it answers the request as a ``service_error`` result and the
-    bridge raises ``ToolFailed``; ``spec_tools`` maps the same exception, raised
-    in process, to ``ModelRetry``. A service's request agrees on both routes
-    (``test_input_required_result_raises_model_retry``).
-    """
+    """A selector's ``AdditionalInputRequired`` is a retry in process and a failure bridged."""
     capability = build_spec_capability({"selector_asks": SELECTOR_ASKS_SPEC})
     ctx = run_context(AgentDeps(user=AnonymousUser()))
     with pytest.raises(ModelRetry):
@@ -783,15 +735,13 @@ async def test_an_error_text_that_is_not_a_payload_falls_back_to_the_text(
 
 
 async def test_a_bare_dispatch_error_is_detailed_under_the_kernels_non_field_key() -> None:
-    # django-spec-mcp writes a bare ``DispatchError``'s sentence under the
-    # kernel's ``NON_FIELD_ERRORS``, the key the bridge treats as structure.
+    # A bare ``DispatchError`` sentence lands under the kernel's ``NON_FIELD_ERRORS`` key.
     result = await server.acall_tool("undispatchable", {}, user=AnonymousUser())
     assert _error_of(result) == {
         "type": "validation_error",
         "message": "Invalid arguments",
         "detail": {NON_FIELD_ERRORS: ["The call could not be dispatched."]},
     }
-    # The generic message quotes none of it, so the detail rides along whole.
     with pytest.raises(ModelRetry) as excinfo:
         await MCPToolset(server, _request()).call_tool("undispatchable", {}, None, None)
     assert str(excinfo.value) == (
@@ -800,9 +750,7 @@ async def test_a_bare_dispatch_error_is_detailed_under_the_kernels_non_field_key
 
 
 async def test_the_non_field_key_is_the_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
-    # A message quoting the reason under the kernel's non-field key says all the
-    # detail does, so the detail is dropped: the key is structure, not a field
-    # the message would have to name. Under any other key it would be a name.
+    # A message quoting the reason under the non-field key drops the detail.
     sentence = "Unexpected argument(s): 'notify_owner'."
     _serve_error(
         monkeypatch,
@@ -824,9 +772,7 @@ async def test_excluded_names_are_skipped_registry_wins() -> None:
 
 
 async def test_a_selection_refused_while_rendering_is_one_retry_then_the_page() -> None:
-    # django-spec-mcp answers a ``shapes`` value its presenter refuses with an
-    # ``isError`` ``validation_error`` result, and the bridge retries it. The
-    # selection is the likeliest wrong one on a paged tool: the envelope.
+    # A ``shapes`` value its presenter refuses comes back as an ``isError`` result, and retries.
     selections = iter(["items", "name"])
 
     def model_fn(messages: list, info: AgentInfo) -> ModelResponse:
@@ -840,8 +786,6 @@ async def test_a_selection_refused_while_rendering_is_one_retry_then_the_page() 
     result = await Agent(FunctionModel(model_fn), toolsets=[toolset]).run("list the rows")
 
     retries = [part.content for part in tool_retries(result.all_messages())]
-    # The detail, keyed by ``fields``, is left off: the message names it and
-    # quotes its reason.
     assert retries == [
         "`fields` was rejected while rendering the result: Unknown field `items`. "
         + PAGED_QUERY_PARAM_SCOPE
@@ -902,8 +846,7 @@ async def test_a_call_missing_a_required_read_is_one_retry_then_the_row(
     retries, returns = await run_omission_then_correction(
         name, omitted, corrected, toolsets=[MCPToolset(lookup_server, _request())]
     )
-    # The message names the one argument the detail is keyed by, so the detail
-    # is left off: the model reads the sentence once, as on the spec-tools route.
+    # The message names the argument its detail is keyed by, so the detail is left off.
     assert retries == ["Missing required argument(s): `pk`."]
     assert returns == [row]
 
@@ -940,12 +883,7 @@ def _recent_rows(*, page: int = 1) -> list[dict[str, Any]]:
 
 
 async def test_both_routes_refuse_a_list_selector_reading_page() -> None:
-    """One spec neither route can serve, refused by both before a call is made.
-
-    A list tool's ``page`` is its pagination argument, which both routes take
-    out of the call before the selector runs, so a read named ``page`` would
-    never receive the caller's value.
-    """
+    """One spec neither route can serve, refused by both before a call is made."""
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
         selector=_recent_rows,
@@ -971,8 +909,7 @@ def test_retry_message_without_detail_is_the_bare_message() -> None:
 
 
 def test_a_detail_the_message_already_names_is_dropped() -> None:
-    # The servers' missing-argument line names the argument its detail is keyed
-    # by, and that detail's only reason is "required", which the line says.
+    # The missing-argument line names the argument its ``required`` detail is keyed by.
     assert (
         _retry_message("Missing required argument(s): `pk`.", {"pk": ["This field is required."]})
         == "Missing required argument(s): `pk`."
@@ -980,12 +917,7 @@ def test_a_detail_the_message_already_names_is_dropped() -> None:
 
 
 def test_a_name_counts_only_as_a_whole_token() -> None:
-    """Holds the lookarounds: a name is matched as a token, never a substring.
-
-    ``a`` sits inside ``arguments``, so a substring match would drop the only
-    place the generic message's reason is written. A key ending in a non-word
-    character still matches, which ``\\b`` would refuse.
-    """
+    """Holds the lookarounds: a name matches as a token, never a substring."""
     detail = {"a": ["A valid integer is required."]}
     assert _retry_message("Invalid arguments", detail) == (
         'Invalid arguments: {"a": ["A valid integer is required."]}'
@@ -1007,15 +939,13 @@ def test_a_name_counts_only_as_a_whole_token() -> None:
     ],
 )
 def test_a_nested_key_is_a_name_the_message_must_carry(detail: Any) -> None:
-    # Every key counts, at any depth: naming ``items`` says nothing about which
-    # of its fields was refused.
+    # Every key counts, at any depth: naming ``items`` says nothing about its fields.
     assert _retry_message("Invalid `items`.", detail) == (f"Invalid `items`.: {json.dumps(detail)}")
     assert _retry_message("Invalid `name` in `items`.", detail) == "Invalid `name` in `items`."
 
 
 def test_a_detail_the_message_names_only_in_part_is_kept_whole() -> None:
-    # Every name, not any: the field the message leaves out is still in the
-    # detail, and the detail is never cut down to it.
+    # Every name counts, not any: the detail is never cut down to the field left out.
     detail = {"pk": ["This field is required."], "name": ["This field is required."]}
     assert _retry_message("Missing required argument(s): `pk`.", detail) == (
         f"Missing required argument(s): `pk`.: {json.dumps(detail)}"
@@ -1038,11 +968,7 @@ _UNEXPECTED = "Unexpected argument(s): 'notify_owner'."
     ],
 )
 def test_a_reason_under_no_field_counts_as_its_own_words(detail: Any) -> None:
-    """Holds the non-field branch: the non-field key is structure, not a name.
-
-    Its strings sit under no field, so they are what the message has to quote,
-    as a bare list or string's are; the key itself never counts as said.
-    """
+    """Holds the non-field branch: the non-field key is structure, not a name."""
     assert _retry_message(_UNEXPECTED, detail) == _UNEXPECTED
     assert _retry_message("Invalid arguments", detail) == (
         f"Invalid arguments: {json.dumps(detail)}"
@@ -1050,7 +976,6 @@ def test_a_reason_under_no_field_counts_as_its_own_words(detail: Any) -> None:
 
 
 def test_a_failure_is_suffixed_with_its_code_alone() -> None:
-    # ``failedStep`` named a drf-mcp chain step; django-spec-mcp has no chains
-    # and never sends it, so a key by that name is not labelled.
+    # ``failedStep`` named a drf-mcp chain step; django-spec-mcp has no chains.
     error = {"message": "The books are closed.", "code": "books_closed", "failedStep": "post"}
     assert _failure_message(error) == "The books are closed. (code: books_closed)"

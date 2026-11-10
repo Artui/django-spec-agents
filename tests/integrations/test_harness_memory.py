@@ -1,14 +1,3 @@
-"""The harness memory capability composed with this package, executed.
-
-Nothing here is a unit: the point is that ``pydantic_ai_harness.memory.Memory``,
-[`memory_namespace`][django_spec_agents.memory_namespace] and
-``DefaultMemoryStore`` compose into a run without any of the three knowing about
-the others, and that the two failure modes the store exists to close really are
-closed on the path a host would take. Both are asserted against a real
-``Agent.run`` rather than against the store alone, because both are failures *of
-the run*: one aborts it, the other reaches the model.
-"""
-
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -45,12 +34,7 @@ def _anon() -> HttpRequest:
 
 
 class _Capture:
-    """A ``FunctionModel`` function that records the injected memory blocks.
-
-    Only the non-``str`` user parts are collected: that is how the capability
-    delivers memory (a ``TextContent`` list on the newest request), which keeps
-    the assertions about the block itself rather than about the prompt.
-    """
+    """A ``FunctionModel`` function that records the injected memory blocks."""
 
     def __init__(self) -> None:
         self.blocks: list[str] = []
@@ -84,9 +68,7 @@ async def _remember(request: HttpRequest, content: str) -> None:
 
 
 async def test_the_capability_composes_with_build_agent_unchanged() -> None:
-    """Why this row adopts rather than builds: ``AgentConfig.capabilities``
-    already reaches ``Agent(capabilities=...)``, so a released upstream capability
-    needs no seam of ours — the four tools and the guidance arrive on their own."""
+    """Capabilities already reach ``Agent``, so a released upstream one needs no seam here."""
     request = authed_request()
     capture = _Capture()
     agent = _agent(capture, _memory(request))
@@ -119,15 +101,7 @@ async def test_one_users_memory_never_reaches_another_users_run() -> None:
 
 @override_settings(SESSION_ENGINE="django.contrib.sessions.backends.cache")
 async def test_the_owner_id_the_other_stores_use_aborts_an_anonymous_run() -> None:
-    """The defect, end to end and on the naive wiring.
-
-    Reusing ``resolve_owner_id`` — the id the conversation, attachment and step
-    stores all partition on — is the obvious way to scope memory per user, and it
-    turns every anonymous request into a 500. The raise happens in the
-    capability's ``for_run``, which is outside the store read that
-    ``injection_errors`` guards, so upstream's ``"ignore"`` default (in force
-    here, it is the default) never sees it.
-    """
+    """The defect, end to end and on the naive wiring."""
     request = _anon()
     capability = _memory(request, lambda ctx: resolve_owner_id(request, allow_anonymous=True))
 
@@ -145,11 +119,7 @@ async def test_an_anonymous_run_completes_with_the_memory_namespace_resolver() -
 
 
 async def test_hostile_memory_cannot_reach_the_model_outside_the_fence() -> None:
-    """The other half: not an abort, but text the model reads as its own operator's.
-
-    The store neutralised it on write, so the injected block has exactly one
-    closing tag — the one the harness itself appends — and nothing sits after it.
-    """
+    """The other half: not an abort, but text the model reads as its own operator's."""
     request = authed_request()
     await _remember(
         request,
@@ -167,14 +137,7 @@ async def test_hostile_memory_cannot_reach_the_model_outside_the_fence() -> None
 
 
 async def test_a_mount_time_capability_serves_every_user_from_one_store() -> None:
-    """The wiring every transport actually takes.
-
-    A capability list is resolved **once** — ``AGUIServer(capabilities=...)`` has
-    no request — so the store cannot be request-bound there. The namespace-scoped
-    store plus a resolver reading ``ctx.deps.user`` covers it: pydantic-ai clones
-    each capability per run and ``Memory`` re-resolves its scope in the clone, so
-    one agent built once serves every caller without cross-contamination.
-    """
+    """The wiring every transport actually takes."""
     store = DefaultMemoryStore()
     await store.write("u-7/main/MEMORY.md", "- Works in Berlin", expected_version=None)
     await store.write("u-8/main/MEMORY.md", "- Works in Lisbon", expected_version=None)

@@ -1,11 +1,3 @@
-"""The specs the two wording suites run against, defined once.
-
-``test_default_wording.py`` pins what each default says and
-``test_spec_toolset_conventions.py`` changes it one field at a time. Both need
-the same selectors, presenters and run context, so a line of wording lands on
-the same tool in each.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -68,11 +60,7 @@ def picky() -> RowPresenter:
 
 
 def rows() -> list[dict[str, str]]:
-    """Two plain rows, so the render runs without a database.
-
-    It takes no argument, so a ``fields`` the tool reads is a shape, which
-    reaches the presenter.
-    """
+    """Two plain rows, so the render runs without a database."""
     return [{"name": "a"}, {"name": "b"}]
 
 
@@ -87,11 +75,7 @@ def one(*, pk: int) -> Widget:
 
 
 def approve() -> dict[str, bool]:
-    """Approve the pending invoices.
-
-    Takes no arguments, so a ``fields`` the spec reads is one of its shapes
-    rather than this service's argument.
-    """
+    """Approve the pending invoices."""
     return {"approved": True}
 
 

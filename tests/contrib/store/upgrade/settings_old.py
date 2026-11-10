@@ -1,13 +1,3 @@
-"""The old side of the store upgrade: django-pydantic-agent's store app alone.
-
-It is there by its label and its five migrations.
-
-Both sides read one database, named by the test through the environment, so the
-second process migrates the database the first one left. It is a SQLite file
-unless ``STORE_UPGRADE_ENGINE`` names another backend, as the upgrade test's
-PostgreSQL run does.
-"""
-
 from __future__ import annotations
 
 import os

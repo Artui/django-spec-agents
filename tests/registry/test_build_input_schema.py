@@ -125,8 +125,7 @@ def test_union_types() -> None:
 
 
 def test_annotated_parameters_unwrap_to_their_first_argument() -> None:
-    # `eval_str=True` keeps `Annotated`; the underlying type shapes the schema
-    # and the metadata adds its keys, a plain string adding none.
+    # ``eval_str=True`` keeps ``Annotated``; the metadata adds its keys, a plain string none.
     def fn(
         n: Annotated[int, Field(description="How many.", ge=1)],
         tags: list[Annotated[str, "tag"]],
@@ -250,9 +249,7 @@ def test_every_value_carried_serialises_to_json() -> None:
 
 
 def test_a_non_finite_bound_or_example_is_left_out() -> None:
-    # ``json.dumps`` writes ``Infinity`` and ``NaN`` by default, which JSON does
-    # not have; ``allow_nan=False`` and strict parsers refuse them. The values
-    # are spelled out because the annotations evaluate in module globals.
+    # ``json.dumps`` writes ``NaN``, which JSON does not have; ``allow_nan=False`` refuses it.
     def fn(
         upper: Annotated[float, Field(le=float("inf"), gt=0)],
         lower: Annotated[float, Field(ge=-float("inf"), lt=float("nan"))],
@@ -260,7 +257,6 @@ def test_a_non_finite_bound_or_example_is_left_out() -> None:
         sample: Annotated[float, Field(examples=[1.5, float("nan")])],
         nested: Annotated[dict[str, Any], Field(examples=[{"x": [float("inf")]}])],
         fine: Annotated[float, Field(examples=[1.5])],
-        # An ``int`` past float range is finite, and JSON holds it.
         huge: Annotated[int, Field(le=10**400)],
     ) -> None:
         del upper, lower, stepped, sample, nested, fine, huge
@@ -288,14 +284,11 @@ def test_a_field_given_as_the_default_reads_as_one_inside_annotated() -> None:
 
     schema = build_input_schema(fn)
     props = schema["properties"]
-    # ``ToolRegistry.call`` binds the arguments as given, so an omitted ``n``
-    # would reach the tool as the ``FieldInfo`` itself: it is required.
+    # An omitted ``n`` would reach the tool as a ``FieldInfo``, as ``call`` binds as given.
     assert schema["required"] == ["n"]
     assert props["n"] == {"type": "integer", "minimum": 1, "description": "How many."}
     assert props["m"] == {"type": "integer", "maximum": 9, "default": 5}
-    # The default's metadata comes after the annotation's, so it wins, as in pydantic.
     assert props["k"] == {"type": "integer", "description": "K", "minimum": 0, "default": 3}
-    # A factory is not a default the schema can show, but it makes ``tags`` optional.
     assert props["tags"] == {"type": "array", "items": {"type": "string"}}
     assert props["note"] == {"type": "string", "nullable": True, "title": "Note", "default": None}
 
@@ -317,9 +310,7 @@ def test_a_field_default_that_is_not_json_is_left_out() -> None:
 
 
 def test_an_unresolvable_top_level_annotation_raises() -> None:
-    # Under ``from __future__ import annotations`` every annotation is a string,
-    # and `inspect.signature` evaluates the top level; only a nested reference
-    # falls back to an empty fragment.
+    # Under postponed annotations, only a nested reference falls back to an empty fragment.
     def fn(x: Nope) -> None:  # noqa: F821
         del x
 
@@ -345,8 +336,7 @@ def test_a_string_reference_nested_in_an_annotation_is_resolved() -> None:
 
 
 def test_a_reference_resolves_in_the_wrapped_function_s_globals() -> None:
-    # ``inner`` is defined in a namespace of its own, holding ``_Hidden``, which
-    # this module does not; ``wrapper``'s globals are this module's.
+    # ``inner`` lives in its own namespace, holding ``_Hidden``, which this module does not.
     namespace: dict[str, Any] = {"_Hidden": int}
     exec("def inner(ids: \"list['_Hidden']\") -> None: ...", namespace)
     inner = namespace["inner"]
@@ -360,8 +350,7 @@ def test_a_reference_resolves_in_the_wrapped_function_s_globals() -> None:
 
 
 def _wrapped_in_a_namespace_of_its_own(source: str) -> Callable[..., Any]:
-    # ``inner`` is defined where ``_Hidden`` is, which this module does not
-    # hold, and ``wrapper`` reads as ``inner`` only through ``__wrapped__``.
+    # ``wrapper`` reads as ``inner`` only through ``__wrapped__``.
     namespace: dict[str, Any] = {"_Hidden": int}
     exec(source, namespace)
     inner = namespace["inner"]
@@ -398,9 +387,7 @@ def test_a_reference_resolves_in_a_wrapped_call_method() -> None:
     ids=["callable instance", "partial"],
 )
 def test_a_reference_resolves_where_the_signature_does(fn: Any) -> None:
-    # Neither object has ``__globals__`` of its own: a nested reference resolves
-    # in the globals of the function `inspect.signature` reads, ``__call__`` or
-    # the partial's ``func``, as the top level does.
+    # A nested reference resolves in the globals ``inspect.signature`` reads, not the module's.
     props = build_input_schema(fn)["properties"]
     assert props["ids"] == {"type": "array", "items": {"type": "integer"}}
 
@@ -502,9 +489,7 @@ class TestTheRunContextParameterIsNotAToolArgument:
         assert build_input_schema(whoami)["properties"] == {}
 
     def test_only_the_first_parameter_is_treated_this_way(self) -> None:
-        """Pydantic-AI takes the context first or not at all, so a later
-        parameter of that type is an ordinary (unschematisable) argument rather
-        than a second hidden one."""
+        """A later parameter of the context type is an ordinary, unschematisable argument."""
 
         def odd(order_id: int, ctx: RunContext[AgentDeps]) -> None:
             del order_id, ctx

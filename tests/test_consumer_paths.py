@@ -1,16 +1,3 @@
-"""The module paths django-ag-ui imports from, each at its path.
-
-django-ag-ui reads this package by leaf module as often as by its root, and some of
-what it reads is not exported from the root at all: the request helpers in
-``utils``, the attachment toolset, the model builder, the owner helpers and the
-three integration modules, which need extras the root must not import. Those paths
-are as public as the root's names, so a move or rename of one fails here before it
-fails in django-ag-ui's sweep.
-
-The set is django-ag-ui's own imports, read off its default branch; the root
-names it re-exports are the root ``__all__``'s to hold.
-"""
-
 from __future__ import annotations
 
 import importlib
@@ -95,9 +82,7 @@ def test_the_path_holds_the_names(module: str, names: list[str]) -> None:
 
 
 def test_the_integrations_package_hands_out_the_builder_module() -> None:
-    # django-ag-ui's tests import the submodule by its package and patch an
-    # attribute on it, which works only while the package re-exports nothing: a
-    # re-export of the function would shadow the submodule of the same name.
+    # The package must re-export nothing, or a function would shadow the submodule.
     from django_spec_agents.integrations import build_spec_capability
 
     assert isinstance(build_spec_capability, types.ModuleType)

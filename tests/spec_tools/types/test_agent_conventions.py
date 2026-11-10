@@ -32,11 +32,7 @@ _ACCEPTED = {
 
 @pytest.mark.parametrize("name", _FIELDS)
 def test_no_default_names_the_framework_a_spec_was_written_in(name):
-    """The model is told what a tool does, never which library declared it.
-
-    Which framework a spec was written in is nothing a model can act on, and a
-    default naming one is text every step pays for.
-    """
+    """The model is told what a tool does, never which library declared it."""
     default = getattr(AgentConventions(), name)
 
     assert not _FRAMEWORK.search(default)
@@ -126,13 +122,7 @@ def test_a_placeholder_a_field_does_not_accept_is_refused_naming_the_field(name,
     ids=["unclosed", "unopened", "format-spec", "nested-field", "conversion", "not-a-string"],
 )
 def test_a_template_the_toolset_could_not_render_is_refused(name, template, says):
-    """Each case is the one step of ``_validate`` that answers it.
-
-    ``unclosed`` / ``unopened`` are refused by the parse; the next three name only
-    placeholders the field accepts, so the name check passes them and the trial
-    render is what refuses -- the negative assertion says the name check did not
-    answer first.
-    """
+    """Each case is the one step of ``_validate`` that answers it."""
     with pytest.raises(ImproperlyConfigured) as refused:
         AgentConventions(**{name: template})
 

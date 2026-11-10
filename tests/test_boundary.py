@@ -1,25 +1,3 @@
-"""The boundary between the agent host and ``spec_tools``, held in both directions.
-
-The package is two halves. The host, the root and everything outside
-``spec_tools``, needs pydantic-ai and Django only, and django-admin-agent ships it
-with no extra. ``spec_tools`` serves specs as agent tools and needs the ``[specs]``
-extra, which installs the spec kernel. So:
-
-- **The root never imports ``spec_tools``**, nor anything only ``[specs]`` or
-  ``[mcp]`` installs, nor Django REST Framework. A root that did would fail at
-  import on a host-only install, or, where an extra happens to be installed, load
-  the kernel into every project that never asked for it.
-- **``spec_tools`` imports nothing from the host but ``AgentDeps``, and never
-  ``contrib.store``.** The tool half reads the acting user off the deps it is
-  handed, and a project's own deps type works as long as it has a ``user``; a
-  dependency on the store's models would make the tool half need the host's
-  state, which a project serving specs to its own agent does not install.
-
-Both are checked in a fresh interpreter, under settings that list no spec test
-app. Inside the suite's own process the check would prove nothing: by collection
-time the suite has imported the kernel and django-spec-mcp. The no-extra job runs this file alone.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -65,33 +43,20 @@ STORE = "django_spec_agents.contrib.store"
 
 
 def _is_or_under(name: str, package: str) -> bool:
-    # Exact or dotted-prefix: a bare ``startswith`` would count
-    # ``rest_framework_services`` as ``rest_framework``.
+    # Exact or dotted-prefix: a bare ``startswith`` would count ``rest_framework_services``.
     return name == package or name.startswith(f"{package}.")
 
 
 def _modules_after(settings: str, script: str) -> set[str]:
-    """Run ``script`` in a fresh interpreter under ``settings``; read its ``sys.modules``.
-
-    The interpreter runs in a directory holding a copy of the settings module and
-    nothing else, with that directory alone on ``PYTHONPATH``, so the package it
-    imports is the one installed in the venv: the editable install of the source
-    tree in development, and the built package on the host-only install. The
-    source tree is never put on the path, which would shadow the latter.
-    """
+    """Run ``script`` in a fresh interpreter under ``settings``; read its ``sys.modules``."""
     with tempfile.TemporaryDirectory() as directory:
         shutil.copy(ROOT / "tests" / f"{settings}.py", directory)
         env = {
-            # Unmeasured: pytest-cov below 7 starts coverage in every subprocess
-            # from its COV_CORE_* variables, and here it would find none of the
-            # suite's configuration in the temporary directory, so it would write
-            # statement data the parent's branch data cannot be combined with.
             **{
                 key: value
                 for key, value in os.environ.items()
                 if not key.startswith(("COV_CORE_", "COVERAGE_"))
             },
-            # Overwritten, never inherited: pytest-django has set the suite's own.
             "DJANGO_SETTINGS_MODULE": settings,
             "PYTHONPATH": directory,
         }
@@ -106,8 +71,6 @@ def _modules_after(settings: str, script: str) -> set[str]:
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout.splitlines()[-1])
     if os.environ.get("HOST_ONLY_INSTALL"):
-        # On the host-only install the boundary is about what was installed, so
-        # the package the interpreter read is the venv's, never the source tree.
         package, site_packages = report["package"], report["site_packages"]
         assert pathlib.Path(package).is_relative_to(site_packages), (package, site_packages)
     return set(report["modules"])
@@ -129,8 +92,7 @@ _BARE_ROOT_IMPORT = "import django_spec_agents\nimport django\ndjango.setup()"
 def test_a_bare_root_import_loads_neither_spec_tools_nor_the_specs_extra(settings: str) -> None:
     modules = _modules_after(settings, _BARE_ROOT_IMPORT)
 
-    # The interpreter imported the host: an empty list of offenders cannot come
-    # from a process that never got as far as the package.
+    # An empty offender list cannot come from a process that never imported the host.
     assert {"django_spec_agents", "django_spec_agents.agent"} <= modules
     loaded = sorted(p for p in NOT_FROM_THE_ROOT if any(_is_or_under(m, p) for m in modules))
     assert loaded == []
@@ -141,10 +103,7 @@ def test_a_bare_root_import_loads_neither_spec_tools_nor_the_specs_extra(setting
     reason="spec_tools needs the [specs] extra; the import scan below holds the rule without it",
 )
 def test_importing_spec_tools_loads_nothing_of_the_store() -> None:
-    # The settings list no store app, so a ``spec_tools`` import of the store's
-    # models fails the import itself, and one of the package alone is read off
-    # ``sys.modules``. What a function-local import would reach only at call
-    # time, the scan below sees.
+    # The settings list no store app, so importing the store's models fails the import.
     modules = _modules_after(
         HOST_ONLY, "import django\ndjango.setup()\nimport django_spec_agents.spec_tools"
     )
@@ -160,9 +119,7 @@ def test_importing_spec_tools_loads_nothing_of_the_store() -> None:
     ),
 )
 def test_importing_the_mcp_bridge_loads_no_drf() -> None:
-    # The ``[mcp]`` bridge and its server import without Django REST Framework, drf-services
-    # or drf-mcp. A prefix rather than ``_is_or_under``: ``rest_framework_mcp``
-    # and ``rest_framework_services`` are packages of their own.
+    # The ``[mcp]`` bridge imports without Django REST Framework or its services.
     modules = _modules_after(
         HOST_ONLY,
         "import django\ndjango.setup()\nfrom django_spec_agents.integrations.mcp import MCPToolset",
@@ -173,19 +130,12 @@ def test_importing_the_mcp_bridge_loads_no_drf() -> None:
 
 
 def _package_imports(source: str) -> list[str]:
-    """Each name of this package ``source`` imports, anywhere in it, as a dotted path.
-
-    Every node is walked, not only the module's top level, so an import inside a
-    function or under a guard counts. ``from a.b import c`` reads as ``a.b.c``, so
-    ``from django_spec_agents.contrib import store`` names the store.
-    """
+    """Each name of this package ``source`` imports, anywhere in it, as a dotted path."""
     names: list[str] = []
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
             names.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            # ruff bans every relative form in the package, so a relative import
-            # here is one the scan could only place by guessing.
             assert node.level == 0, f"relative import at line {node.lineno}"
             names.extend(f"{node.module}.{alias.name}" for alias in node.names)
     return [name for name in names if _is_or_under(name, "django_spec_agents")]
@@ -201,8 +151,7 @@ def _host_imports(source: str) -> list[str]:
 
 
 def _spec_tools_files() -> list[pathlib.Path]:
-    # Found on disk, never by importing ``spec_tools``, which cannot import on a
-    # host-only install.
+    # Found on disk, never by importing ``spec_tools``, which cannot import on a host-only install.
     return sorted(SPEC_TOOLS.rglob("*.py"))
 
 
@@ -252,8 +201,7 @@ def _drf_imports() -> set[str]:
 
 
 def test_spec_tools_imports_neither_drf_nor_drf_services() -> None:
-    """Pinned as an empty set, so a new import of either package fails here,
-    naming the module and the name it imports."""
+    """Pinned as an empty set: a new import of either package fails here."""
     assert _drf_imports() == set()
 
 
@@ -297,8 +245,7 @@ def test_the_drf_scan_sees_a_guarded_import() -> None:
     ids=["from-leaf", "from-package", "import", "function-local", "guarded"],
 )
 def test_the_scan_sees_each_way_of_importing_the_store(source: str) -> None:
-    # The check above holds only if the scan sees each form an import can take,
-    # inside a function or a block as well as at the top.
+    # The scan must see each import form, including those inside functions and blocks.
     assert any(_is_or_under(name, STORE) for name in _host_imports(source))
 
 
@@ -327,12 +274,7 @@ def _host_files() -> list[pathlib.Path]:
 
 
 def test_the_host_reaches_spec_tools_in_one_module_and_testing_in_none() -> None:
-    # The fresh-interpreter test above sees only what importing the root loads, so
-    # an import inside a host function, run later, would pass it. This scan reads
-    # every host module for the two the root must never reach: ``spec_tools``
-    # outside the one module that bridges to it, and ``testing`` anywhere: its
-    # doubles are for a project's tests, and its module says the root never
-    # imports it.
+    # The fresh-interpreter test misses an import inside a host function run later.
     files = {path.relative_to(ROOT).as_posix(): path for path in _host_files()}
     assert {"django_spec_agents/__init__.py", *MAY_IMPORT_SPEC_TOOLS} <= files.keys()
 
@@ -355,7 +297,6 @@ def test_the_host_reaches_spec_tools_in_one_module_and_testing_in_none() -> None
         if _is_or_under(name, "django_spec_agents.testing")
     )
     assert testing == [], "a host module imports testing"
-    # The allowance is used, so the scan reads the import it permits.
     assert (
         "django_spec_agents/integrations/build_spec_capability.py",
         "django_spec_agents.spec_tools.SpecCapability",

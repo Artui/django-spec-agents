@@ -53,8 +53,7 @@ async def test_reads_textual_attachment_as_text() -> None:
 
 
 async def test_reads_non_text_mime_as_a_manifest() -> None:
-    # A PNG the client declared as a generic byte stream: the type is a hint, and
-    # a type outside the inline allowlist is described rather than attached.
+    # A PNG declared as a generic byte stream: an unlisted type is described, not attached.
     store = _FakeStore(_opened("application/octet-stream", b"\x89PNG\r\n", name="logo.png", size=6))
     read = _read_attachment(store, RequestFactory().get("/"))
     result = await read("a1")
@@ -156,14 +155,7 @@ async def test_a_zero_byte_inlineable_file_is_still_inlined() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_row_whose_blob_is_gone_reaches_the_graceful_branch() -> None:
-    """End to end, because the two halves are what used to disagree.
-
-    The toolset has always had a sentence ready for an unavailable attachment,
-    and the shipped store used to raise past it -- so the agent got an opaque
-    tool failure and was told not to retry, for a condition the tool could have
-    described. This asserts the halves now meet over a real store rather than a
-    fake that returns ``None`` by construction.
-    """
+    """End to end, because the two halves are what used to disagree."""
     store = DefaultAttachmentStore()
     ref = await sync_to_async(store._save)(
         SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain"), "7"
@@ -179,11 +171,7 @@ async def test_a_row_whose_blob_is_gone_reaches_the_graceful_branch() -> None:
 
 @pytest.mark.django_db
 async def test_a_text_file_over_the_cap_is_described_rather_than_returned() -> None:
-    """The cap bounds one request, and a decoded file costs what an inlined one does.
-
-    The asymmetry this closes: a 9 MiB CSV came back whole while a 5 MiB PDF was
-    refused, because the decode attempt ran ahead of every size check.
-    """
+    """The cap bounds one request, and a decoded file costs what an inlined one does."""
     inline = AttachmentInlineConfig(max_bytes=1024)
     store = _FakeStore(_opened("text/csv", b"a," * 2048, name="rows.csv", size=4096))
     read = _read_attachment(store, RequestFactory().get("/"), inline=inline)
@@ -206,13 +194,7 @@ async def test_a_text_file_under_the_cap_still_comes_back_whole() -> None:
 
 @pytest.mark.django_db
 async def test_the_attached_result_says_the_content_is_for_this_turn() -> None:
-    """The persisted half must not out-claim what actually persists.
-
-    ``return_value`` is streamed and kept in a client transcript; the
-    ``BinaryContent`` beside it never travels the event stream. A transport
-    seeding later turns from that transcript replays this sentence with nothing
-    attached, so the sentence has to say so.
-    """
+    """The persisted half must not out-claim what actually persists."""
     store = _FakeStore(_opened("application/pdf", b"%PDF-1.4", name="doc.pdf", size=8))
     read = _read_attachment(store, RequestFactory().get("/"))
 

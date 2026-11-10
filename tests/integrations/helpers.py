@@ -1,10 +1,3 @@
-"""What both integration routes' tests drive alike: a real run context, and a
-run in which a model leaves out an argument and then sends it.
-
-Both routes serve kernel specs: the spec capability's come from ``kernel_specs``,
-and the ``[mcp]`` bridge's from the server in ``mcp_server``, which registers the
-lookup specs declared there."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -28,14 +21,7 @@ from tests.tool_retries import is_tool_answer, tool_answers, tool_retries
 
 
 def run_context(deps: AgentDeps) -> RunContext[AgentDeps]:
-    """A real ``RunContext``, not a stand-in shaped like one.
-
-    A double carrying only ``deps`` agrees with the caller until the caller reads
-    one more field, and the spec tools do: they stamp run correlation on their
-    log lines from ``run_id`` / ``conversation_id`` / ``run_step`` /
-    ``tool_call_id``. This builds the genuine article and lets pydantic-ai own
-    its own defaults.
-    """
+    """A real ``RunContext``, not a stand-in shaped like one."""
     return RunContext(deps=deps, model=TestModel(), usage=RunUsage())
 
 
@@ -62,10 +48,7 @@ async def run_omission_then_correction(
     toolsets: list[Any] | None = None,
     capabilities: list[Any] | None = None,
 ) -> tuple[list[str], list[Any]]:
-    """Run ``name`` called with ``omitted``, then with ``corrected``.
-
-    Returns what the model was told to retry with, and the tool's returns.
-    """
+    """Run ``name`` called with ``omitted``, then with ``corrected``."""
     calls = iter([omitted, corrected])
 
     def model_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:

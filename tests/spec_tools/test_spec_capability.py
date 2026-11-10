@@ -75,8 +75,7 @@ def test_get_toolset_returns_a_spec_toolset_with_the_tools():
 
 
 def test_id_defaults_and_forwards():
-    # The default names what the tools are, not the library one of their specs
-    # was declared with, and the toolset built alone defaults to the same id.
+    # The default names the tools, not the library a spec was declared with.
     assert SpecCapability({"go": ping_spec()}).id == "spec-tools"
     assert SpecToolset({"go": ping_spec()}).id == "spec-tools"
     cap = SpecCapability({"go": ping_spec()}, id="orders")
@@ -85,9 +84,7 @@ def test_id_defaults_and_forwards():
 
 
 def test_passthrough_is_refused_when_the_capability_is_built():
-    """At ``SpecCapability(...)``, not at ``get_toolset()``: the capability is
-    what a project constructs at startup, and the refusal is only worth having
-    there."""
+    """At ``SpecCapability(...)``, where the project constructs it at startup."""
     with pytest.raises(ImproperlyConfigured, match=r"unknown_arguments='passthrough'"):
         SpecCapability({"go": ping_spec()}, unknown_arguments=UnknownArguments.PASSTHROUGH)
 
@@ -131,13 +128,7 @@ def test_defer_loading_defaults_off_and_is_settable():
 
 
 def test_a_description_reaches_the_deferred_catalog_entry():
-    """The line a deferred capability is chosen by.
-
-    Pydantic-AI's loader renders ``- {id}: {description}`` when a capability has
-    one and a bare ``- {id}`` when it does not, so a capability passing ``None`` leaves
-    every deferred spec capability advertising a name and nothing else -- the
-    guess-or-load-everything outcome deferring exists to avoid.
-    """
+    """The line a deferred capability is chosen by."""
     cap = SpecCapability(
         {"go": ping_spec()},
         id="orders",
@@ -177,10 +168,7 @@ def test_from_toolset_honours_defer_loading():
 
 
 async def test_pool_seeds_forward_to_the_built_toolset():
-    """Behaviour rather than signature: the forwarding tests below check that the
-    keyword exists on both, which a constructor accepting it and dropping it
-    would pass. Driven through a real run, so the seed is resolved against the
-    user the run carries."""
+    """A constructor that accepts then drops the keyword would pass a signature test."""
     seen = {}
 
     def stamp(tenant: str) -> dict[str, str]:
@@ -220,21 +208,12 @@ def test_the_capability_accepts_every_keyword_the_toolset_does():
 
     unreachable = sorted(set(toolset) - set(capability))
     assert not unreachable, f"SpecToolset keywords with no way in: {unreachable}"
-    # And nothing extra beyond the two keywords that are genuinely the
-    # capability's own — an addition here that the toolset knows nothing about
-    # would be accepted and then quietly dropped on the floor. ``description``
-    # earns its place for the same reason ``defer_loading`` does: it describes
-    # the capability's catalog entry, and a toolset has no catalog entry.
+    # Nothing beyond the two keywords that are the capability's own.
     assert set(capability) - set(toolset) == {"defer_loading", "description"}
 
 
 def test_a_shared_keyword_means_the_same_thing_on_both():
-    """Same name is not enough — same default and same type, or it is a trap.
-
-    A default that drifts is the worse half: ``SpecCapability(specs)`` and
-    ``SpecToolset(specs)`` would disagree about a security posture with nothing
-    at either call site to show it.
-    """
+    """Same name is not enough — same default and same type, or it is a trap."""
     toolset, capability = _params(SpecToolset.__init__), _params(SpecCapability.__init__)
 
     drifted = {
@@ -247,17 +226,13 @@ def test_a_shared_keyword_means_the_same_thing_on_both():
 
 
 def test_an_unguarded_spec_is_refused_through_the_capability_too():
-    """Worth asserting on the wrapper and not only the toolset: the refusal is the
-    entire security content of ``require_permissions``, and it travels through a
-    constructor that must forward it."""
+    """The refusal is the whole security content of ``require_permissions``."""
     with pytest.raises(ImproperlyConfigured, match="with no permissions"):
         SpecCapability({"list": names_spec(permissions=None)})
 
 
 def test_the_migration_escape_hatch_is_reachable_from_the_capability():
-    """``require_permissions=False``: a consumer with a large registry to migrate
-    downgrades to the warning through the capability, without dropping to
-    ``from_toolset``."""
+    """``require_permissions=False`` downgrades the refusal to a warning through the capability."""
     with pytest.warns(UnguardedSpecWarning):
         cap = SpecCapability({"list": names_spec(permissions=None)}, require_permissions=False)
 
@@ -265,15 +240,7 @@ def test_the_migration_escape_hatch_is_reachable_from_the_capability():
 
 
 async def test_a_bound_forwards_all_the_way_to_what_the_model_is_told():
-    """One end-to-end forwarding case, on the arguments the model actually sees.
-
-    ``max_page_size`` and the spec's ``query`` shape both change the
-    advertised schema — one narrows a property the toolset contributes, the other
-    adds one — so this
-    asserts the values survived the hop rather than that an attribute was
-    assigned somewhere. A bound a consumer only gets when they attach the toolset
-    directly is one the consumers composing through a capability never get.
-    """
+    """One end-to-end forwarding case, on the arguments the model actually sees."""
     cap = SpecCapability(
         shaping(
             {"list": names_spec()}, {"list": [Parameter("query", "string", help="field selection")]}
@@ -284,8 +251,6 @@ async def test_a_bound_forwards_all_the_way_to_what_the_model_is_told():
     schema = tools["list"].tool_def.parameters_json_schema["properties"]
 
     assert schema["limit"]["maximum"] == 50
-    # The declared text leads; a list tool appends what the param applies to on
-    # a page, which the toolset's own tests pin word for word.
     assert schema["query"]["description"].startswith("field selection ")
 
 

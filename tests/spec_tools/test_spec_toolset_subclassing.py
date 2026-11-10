@@ -1,13 +1,3 @@
-"""The subclass contract the reference page documents, held by a subclass.
-
-A project scoping an assistant to what one run may reach narrows the catalog
-in ``get_tools`` and wraps dispatch in ``call_tool``, both delegating to
-``super()``, and reads ``specs`` and ``id`` at configuration time. Each is
-asserted here through a real run loop, so a refactor moving dispatch off
-``call_tool`` or the catalog off ``get_tools`` fails here rather than in a
-consumer's assistant.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

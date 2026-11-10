@@ -1,11 +1,3 @@
-"""``conventions=``: each line of model-facing wording changed on its own.
-
-The fixture turns on every line the toolset can say, and ``_surfaces`` collects
-everything a model can read from it -- the instructions, every tool definition
-and the three retries -- so a test can say both where a field lands and that
-nothing else moved.
-"""
-
 from __future__ import annotations
 
 import json
@@ -94,8 +86,6 @@ def _every_line() -> dict[str, Any]:
         "scoped_widget": SelectorSpec(
             kind=SelectorKind.RETRIEVE,
             selector=one,
-            # A read the selector does not take, required of every call: the
-            # kernel's counterpart of a URL kwarg naming the row's parent.
             reads=Parameters.of(
                 Parameter("pk", "integer", required=True),
                 Parameter("project_pk", "integer", required=True),
@@ -206,7 +196,6 @@ async def test_a_field_changed_under_instructions_lands_in_the_same_places():
             old = getattr(_DEFAULTS, name).format(**values)
             where[surface] = default[surface].replace(old, _changed(name).format(**values))
         _assert_only(changed, default, where)
-    # The heading is the block line an override does not replace, so it is there.
     assert default["instructions"].startswith(f"House rules.\n{_DEFAULTS.unavailable_heading}")
 
 
@@ -227,7 +216,6 @@ async def test_a_field_changed_under_instructions_lands_in_the_same_places():
             f"{_DEFAULTS.read_shaping_on_pages}",
         ),
         ("read_shaping_on_pages", f" {_DEFAULTS.read_shaping_on_pages}"),
-        # The heading, and the list it introduces.
         ("unavailable_heading", f"\n{_DEFAULTS.unavailable_heading}{_UNAVAILABLE_ITEM}"),
     ],
     ids=[*_BLOCK, "unavailable_heading"],
@@ -283,11 +271,7 @@ async def test_none_drops_the_scope_sentence_from_the_param_and_the_retry():
     ids=["off", "include_total"],
 )
 async def test_the_envelope_placeholder_follows_the_flag(include_total, shape, keys):
-    """``{envelope}`` is the page as this toolset writes it, in every field that takes it.
-
-    A shape in the pagination line, its keys in the block's read-shaping sentence,
-    beside the read-shaping parameter and in its render retry.
-    """
+    """``{envelope}`` is the page as this toolset writes it, in every field that takes it."""
     surfaces = await _surfaces(
         conventions=AgentConventions(
             pagination="- Pages: {envelope}, {page_size} a page.",
@@ -307,11 +291,7 @@ async def test_the_envelope_placeholder_follows_the_flag(include_total, shape, k
 
 @pytest.mark.parametrize("include_total", [False, True], ids=["off", "include_total"])
 async def test_text_without_the_envelope_placeholder_renders_as_written(include_total):
-    """An override written before the placeholder says exactly what it said, flag or not.
-
-    It is the project's text, so it does not gain ``total`` either: the
-    placeholder is how it opts in.
-    """
+    """An override written before the placeholder says exactly what it said, flag or not."""
     surfaces = await _surfaces(
         conventions=AgentConventions(
             pagination='- Pages look like {{"items": [...]}}, {page_size} at a time.',
@@ -359,14 +339,7 @@ async def test_a_declared_param_description_keeps_its_place_ahead_of_a_changed_s
 
 
 async def test_a_doubled_brace_reaches_the_model_as_one():
-    """Every field is rendered as a template, placeholders or not, so ``{{`` means ``{``.
-
-    Each field taking no placeholder is set here, because those are the ones a
-    site could pass through unrendered and still say something: the base, the
-    handle and scope lines and the unavailable heading in the instructions, the
-    scope sentence in the list tool's schema and in its render retry, and the
-    handle's fallback description.
-    """
+    """Every field is rendered as a template, placeholders or not, so ``{{`` means ``{``."""
     surfaces = await _surfaces(
         conventions=AgentConventions(
             base="Tools {{base}}.",
@@ -428,13 +401,7 @@ async def test_an_overridden_line_still_appears_only_when_a_tool_can_act_on_it()
 
 
 async def test_an_overridden_line_follows_a_tool_a_condition_leaves_out():
-    """Re-derived per step, override and all.
-
-    The handle and the read-shaping param are on the conditioned tool only, so
-    their lines are there exactly while it is offered. The pagination line cannot
-    be shown this way: a ``SelectorSpec`` has no operation conditions, so a list
-    tool is never left out by one.
-    """
+    """Re-derived per step, override and all."""
     books = {"open": False}
     toolset = SpecToolset(
         shaping(
@@ -467,12 +434,7 @@ async def test_a_block_with_every_line_dropped_is_no_instructions_at_all():
 
 @pytest.mark.parametrize("route", ["toolsets", "capability", "capability_from_toolset"])
 async def test_an_agent_takes_no_instructions_from_a_toolset_that_says_nothing(route):
-    """``None`` from ``get_instructions`` adds nothing to the prompt, by every route.
-
-    Every line of the block dropped and nothing unavailable, so the toolset's own
-    answer is ``None``; a real ``Agent`` has to accept that and send the model
-    only its own instructions, with no blank line where the block would have been.
-    """
+    """``None`` from ``get_instructions`` adds nothing to the prompt, by every route."""
     options: dict[str, Any] = {
         "conventions": AgentConventions(**dict.fromkeys([*_BLOCK, "unavailable_heading"])),
     }

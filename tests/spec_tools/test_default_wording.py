@@ -1,14 +1,3 @@
-"""What the model reads by default, pinned as text, through the public surface only.
-
-Every line here is written out rather than imported: it is the text the model
-reads, and a test comparing a default to itself would pass whatever it said.
-Nothing in this file imports ``AgentConventions``, so the pins hold the bytes
-whatever the type that carries them does.
-
-The last test is the other half: the keyword through which the wording is
-changed, asserted on both constructors' public signatures.
-"""
-
 from __future__ import annotations
 
 import inspect
@@ -155,11 +144,7 @@ async def test_the_default_retries(include_total, pagination, scope):
 
 @pytest.mark.parametrize("constructor", [SpecToolset, SpecCapability])
 def test_the_wording_is_changed_through_one_keyword_on_both_constructors(constructor):
-    """``conventions=``, defaulting to ``None``: the default wording, with nothing to import.
-
-    Asserted on the public signature so it fails on its assertion, rather than at
-    import, against a tree that has no way to change the wording at all.
-    """
+    """``conventions=``, defaulting to ``None``: the default wording, with nothing to import."""
     parameters = inspect.signature(constructor.__init__).parameters
 
     assert "conventions" in parameters

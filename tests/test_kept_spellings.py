@@ -1,17 +1,3 @@
-"""The spellings that keep django-pydantic-agent's name, each against its literal.
-
-The package was renamed, and a name that lives only in Python followed it. These
-did not, because their value lives somewhere a rename cannot reach: a project's
-``STORAGES`` and ``LOGGING``, every live session, every stored file name, a
-deploy script, a browser reading a tool's schema, a model's prompt. A rename of
-any of them is silent where it matters: an attachment alias nothing names falls
-back to default storage, a session key nobody wrote returns no conversation, and
-a handler configured for a logger that no longer logs hears nothing.
-
-So each is asserted here against the literal, not against another name for the
-same value, and a blanket rewrite of the old prefix fails this file first.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -51,15 +37,13 @@ def test_the_failure_logger() -> None:
 
 
 def test_the_audit_loggers() -> None:
-    # The capability's fallback for a broken backend, and the reference logger's
-    # default: one name, configured once in a project's ``LOGGING``.
+    # The capability's fallback and the reference logger share one name.
     assert audit_capability._fallback_logger.name == "django_pydantic_agent.audit"
     assert LoggingAuditLogger()._logger.name == "django_pydantic_agent.audit"
 
 
 def test_the_upload_prefix() -> None:
-    # Part of every stored file's name, so stored files keep it whatever the
-    # package is called.
+    # Part of every stored file's name, so stored files keep it whatever the package is called.
     assert (
         StoredAttachment._meta.get_field("file").upload_to == "django_pydantic_agent/attachments/"
     )
@@ -94,9 +78,6 @@ def test_the_management_commands(command: str) -> None:
 
 
 def test_the_loggers_are_the_ones_the_caplog_filters_name() -> None:
-    # The caplog tests filter records by these literals and assert the list
-    # empty, which passes vacuously if the source logger is renamed and the
-    # filter is not. Each of them also asserts this identity, and this test
-    # states it once for the reader.
+    # The caplog filter asserts an empty list, which passes vacuously after a rename.
     assert logging.getLogger("django_pydantic_agent.failure") is tool_failure_policy._logger
     assert logging.getLogger("django_pydantic_agent.audit") is audit_capability._fallback_logger

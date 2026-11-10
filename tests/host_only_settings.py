@@ -1,15 +1,3 @@
-"""A project that installs the agent host and nothing else.
-
-The settings of a host-only install, as django-admin-agent's users run it: no
-app serving specs, so nothing here loads the ``[specs]`` half on the package's
-behalf. The boundary tests run under it in a fresh interpreter, where the suite's
-own process would have imported the kernel and that half already.
-
-It lists no store app either, as spec-twins does, so a ``spec_tools`` import of the
-store's models fails here as it would there: Django refuses a model whose app is
-not installed.
-"""
-
 from __future__ import annotations
 
 SECRET_KEY = "test"
