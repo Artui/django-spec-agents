@@ -195,11 +195,7 @@ class DefaultMemoryStore:
             return mutation
 
     def _list_paths(self, prefix: str, limit: int) -> list[str]:
-        # The prefix stands in for the path here, so in namespace mode an *empty*
-        # prefix resolves to an empty owner and matches nothing. That is the right
-        # way round: without a prefix there is no scope to answer for, and the
-        # alternative would be listing every namespace in the table. The harness
-        # always lists within a scope, so it never asks.
+        # An empty prefix means no scope to answer for, so it matches nothing in namespace mode.
         owner = self._owner(prefix)
         if owner is None:
             return []

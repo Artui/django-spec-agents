@@ -42,14 +42,10 @@ class DefaultConversationStore(ModelConversationStore):
             defaults={**defaults, "title": derive_title(messages)},
         )
         if not created:
-            # ``.update()`` preserves the title but bypasses the ``auto_now``
-            # field, so bump ``updated_at`` explicitly to keep the drawer ordered
-            # by recency.
+            # ``.update()`` skips ``auto_now``, so bump ``updated_at`` by hand to keep recency order.
             StoredConversation.objects.filter(pk=row.pk).update(
                 **defaults, updated_at=timezone.now()
             )
-        # Reconcile from the messages just stored: ``row.messages`` is a save
-        # behind on the update path.
         reconcile_conversation_attachments(row, messages)
 
     def _remove(self, thread_id: str, owner_id: str | None) -> None:

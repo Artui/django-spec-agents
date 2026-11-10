@@ -36,22 +36,7 @@ class StoredConversation(models.Model):
 
 
 class StoredAttachment(models.Model):
-    """The reference durable attachment row for a model-backed store.
-
-    ``attachment_id`` is the opaque handle the wire ref carries; ``file`` holds
-    the bytes via Django ``Storage``; ``name`` / ``mime`` / ``size`` are
-    denormalised so metadata is returned without reading the file back.
-    ``owner_id`` is the resolved owner and every query filters by it: it is the
-    security boundary. ``sha256`` is the chunked digest that lets a re-upload of
-    the same bytes reuse the blob already in storage, blank on rows predating the
-    column until ``agent_store_backfill_hashes`` fills them in.
-
-    ``thread_id`` is a loose label a project may set; the reference store leaves
-    it blank. Lifecycle runs on the ``ConversationAttachment`` relation, not
-    on this column, which is kept only because projects read it.
-
-    Used by ``DefaultAttachmentStore``.
-    """
+    """The reference durable attachment row for a model-backed store."""
 
     attachment_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
@@ -60,10 +45,7 @@ class StoredAttachment(models.Model):
     mime = models.CharField(max_length=255, blank=True, default="")
     size = models.PositiveBigIntegerField(default=0)
     sha256 = models.CharField(max_length=64, blank=True, default="")
-    # Indexed because deleting a row has to ask whether any other row still
-    # points at the same stored blob before removing the bytes. ``storage`` is a
-    # callable so the migration records which backend to ask for rather than the
-    # one a project happened to have configured when it was written.
+    # Indexed: deleting a row must ask whether another row still points at the same blob.
     file = models.FileField(
         upload_to="django_pydantic_agent/attachments/",
         storage=attachment_storage,

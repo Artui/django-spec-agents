@@ -28,9 +28,7 @@ class DefaultStepStore:
     """A durable, owner-scoped ``StepStore`` over the reference models."""
 
     def __init__(self, request: HttpRequest, *, allow_anonymous: bool = False) -> None:
-        """Pass ``allow_anonymous`` explicitly: this substrate reads no Django
-        settings, and the value should match the conversation store's, so two
-        endpoints sharing a persistence strategy agree on it."""
+        """Pass ``allow_anonymous`` explicitly: this substrate reads no Django settings."""
         self._request = request
         self._allow_anonymous: bool = allow_anonymous
 
@@ -162,11 +160,7 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return None
-        # Most recent by insertion order (largest pk), not by ``step_index`` —
-        # matching the harness stores' ``snaps[-1]`` semantics. The state filter
-        # is applied *after* ordering, mirroring the reference stores' walk back
-        # from the newest: the newest ``complete`` row wins, even when newer
-        # ``interrupted`` rows sit above it.
+        # Newest by insertion (largest pk), not by ``step_index``, then filtered by state.
         rows = StoredSnapshot.objects.filter(owner_id=owner, run_id=run_id).order_by("-id")
         if not include_interrupted:
             rows = rows.filter(state="complete")
@@ -233,8 +227,7 @@ class DefaultStepStore:
 
     @staticmethod
     def _event_from_row(row: StoredStepEvent) -> StepEvent:
-        # ``kind`` was written from the harness ``EventKind`` literal set, so the
-        # DB string is one of them — cast at the boundary rather than re-validate.
+        # ``kind`` came from the ``EventKind`` literal set, so it is cast, not re-validated.
         return StepEvent(
             run_id=row.run_id,
             kind=cast("EventKind", row.kind),

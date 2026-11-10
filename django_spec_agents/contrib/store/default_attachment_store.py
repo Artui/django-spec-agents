@@ -60,32 +60,10 @@ class DefaultAttachmentStore(ModelAttachmentStore):
         row = _owned_row(attachment_id, owner_id)
         if row is None:
             return None
-        # Hand back the open storage handle rather than reading the file: both
-        # ``FileResponse`` and the tool's ``with`` block stream and close it, so a
-        # large attachment never lands in memory whole.
+        # Hand back the open handle, not the bytes: a large file is never read into memory.
         try:
             content = row.file.open("rb")
         except (FileNotFoundError, ValueError):
-            # A row whose bytes are gone is an attachment this caller cannot have,
-            # which is what ``open`` already promises to report as ``None`` -- the
-            # contract exists so a caller has one branch for "unavailable" and
-            # cannot tell a missing file from another owner's. Raising here sends
-            # every caller down a path none of them writes: the toolset has a
-            # sentence ready for ``None`` and gets an opaque tool failure instead,
-            # and a ``FileResponse`` view returns a 500 where it means 404. Logged
-            # rather than swallowed, because a missing blob beside a live row is a
-            # storage fault worth someone's attention even though this request can
-            # do nothing with it.
-            #
-            # Two ways to have no readable bytes, and the contract draws no line
-            # between them: storage has lost the blob (``FileNotFoundError``), or
-            # the row never recorded a path for one (``ValueError``, from
-            # ``FieldFile``'s own empty-file guard).
-            #
-            # The owner is deliberately absent from the message. An anonymous
-            # store spells it ``anon:<session_key>``, which is the caller's live
-            # session credential, and application logs are the wrong place to put
-            # one. The attachment id finds the row on its own.
             logger.warning(
                 "Attachment %s has no readable stored file at %r; reporting it as unavailable.",
                 row.attachment_id,
