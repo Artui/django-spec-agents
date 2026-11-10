@@ -146,12 +146,7 @@ async def test_acall_get_user_awaits_a_native_async_hook() -> None:
 
 
 async def test_acall_get_user_awaits_a_plain_hook_that_returns_a_coroutine() -> None:
-    """An unmarked ``def`` hook handing back a coroutine is awaited, not leaked.
-
-    Nothing marks it, so it takes the ``sync_to_async`` branch and the coroutine
-    comes back from the thread; the awaitable fallback is what resolves it to the
-    user rather than returning it for ``request.user``.
-    """
+    """An unmarked ``def`` hook handing back a coroutine is awaited, not leaked."""
     user = object()
 
     async def lookup() -> object:
@@ -163,11 +158,7 @@ async def test_acall_get_user_awaits_a_plain_hook_that_returns_a_coroutine() -> 
     assert await acall_get_user(hook, RequestFactory().get("/")) is user
 
 
-# Two hooks that asgiref calls coroutine functions and ``inspect`` does not on
-# Python 3.11, where ``inspect.iscoroutinefunction`` ignores the marker:
-# ``sync_to_async(hook)`` and a plain function that ``markcoroutinefunction``
-# marks. Python 3.12+ agrees on both, so there the test passes either way and
-# only a 3.11 run can tell the two predicates apart.
+# On Python 3.11 ``inspect.iscoroutinefunction`` ignores the marker that asgiref reads.
 def _marked_hook(user: object) -> Callable[[HttpRequest], Any]:
     async def lookup() -> object:
         return user
@@ -190,14 +181,7 @@ async def test_acall_get_user_awaits_a_marked_hook_directly(
     make_hook: Callable[[object], Callable[[HttpRequest], Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A hook asgiref marks as a coroutine function is awaited, not wrapped again.
-
-    On 3.11 ``inspect`` would call it sync and hand it to ``sync_to_async``, which
-    refuses a marked hook or a ``sync_to_async`` wrapper with ``TypeError:
-    sync_to_async can only be applied to sync functions.`` That is the observable
-    there. On any Python, the spy delegates to the real ``sync_to_async`` and must
-    never be called, so an extra thread hop in front of the hook fails too.
-    """
+    """A hook asgiref marks as a coroutine function is awaited, not wrapped again."""
     user = object()
     hook = make_hook(user)
     wrapped: list[object] = []
@@ -217,12 +201,7 @@ def test_call_get_user_bridges_a_marked_hook_itself(
     make_hook: Callable[[object], Callable[[HttpRequest], Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The sync twin hands the marked hook itself to ``async_to_sync``.
-
-    Treated as sync it would be called directly and its awaitable bridged after
-    the fact, so ``async_to_sync`` would receive the internal ``_consume``
-    instead of the hook.
-    """
+    """The sync twin hands the marked hook itself to ``async_to_sync``."""
     user = object()
     hook = make_hook(user)
     bridged: list[object] = []

@@ -1,22 +1,3 @@
-"""The lock names no distribution this package replaces.
-
-``django-spec-agents`` carries ``django-pydantic-agent`` and
-``djangorestframework-pydantic-ai`` as one package, under its own import path. With
-either old distribution in the lock, its classes would sit in the same process as
-this package's under the same names, and a test importing the old path by mistake
-would test the old code and pass. ``djangorestframework-mcp-server`` went with the
-bridge over it, replaced by the ``[mcp]`` extra's django-spec-mcp; back in the lock
-it would bring Django REST Framework into a suite whose boundary tests hold that
-nothing here needs it. None is a dependency of anything this package installs, so
-the lock should name none, as a package or as any package's dependency.
-
-The lock is read as text rather than as TOML. Every place a lock names a
-distribution, a ``[[package]]`` entry, a dependency, an optional or dev dependency
-and the ``requires-dist`` metadata alike, spells it ``name = "<name>"``, so one
-pattern reads them all. Parsed, each of those is a different table to walk, and a
-place uv adds later would pass unseen; the pattern needs no list of places.
-"""
-
 from __future__ import annotations
 
 import pathlib
@@ -36,8 +17,7 @@ _NAME = re.compile(r'\bname = "([^"]+)"')
 
 
 def _normalise(name: str) -> str:
-    # PEP 503: the lock writes normalised names, and a hand edit or another tool
-    # need not, so a spelling with underscores is the same distribution.
+    # PEP 503: a spelling with underscores is the same distribution as the normalised name.
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
@@ -48,8 +28,7 @@ def _named_in(text: str) -> set[str]:
 def test_the_lock_names_no_replaced_distribution() -> None:
     names = _named_in(LOCK.read_text())
 
-    # The scan read the lock it was meant to: this package and its one required
-    # agent dependency are in it, so an empty set cannot pass for a clean one.
+    # The scan read the lock, so an empty set cannot mean it was never read.
     assert {"django-spec-agents", "pydantic-ai-slim"} <= names
     assert names.isdisjoint(REPLACED), sorted(names & REPLACED)
 
@@ -83,8 +62,7 @@ dependencies = [
 def test_the_scan_finds_a_replaced_distribution_injected_into_the_lock(
     tmp_path: pathlib.Path, injected: str, expected: str
 ) -> None:
-    # The check above holds only if the scan sees each form a lock can name a
-    # distribution in, so each is injected into a copy of the real lock.
+    # Each form a lock can name a distribution in is injected into a copy of the real lock.
     copy = tmp_path / "uv.lock"
     copy.write_text(LOCK.read_text() + injected)
 
