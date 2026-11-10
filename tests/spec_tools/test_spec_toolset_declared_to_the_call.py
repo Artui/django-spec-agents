@@ -157,7 +157,7 @@ async def test_a_seed_named_field_the_call_does_not_declare_is_answered_by_the_s
 
 
 async def test_a_seed_named_field_declared_only_to_the_call_is_the_model_s_to_send():
-    """The field the call declares is validated into ``data``; the service's ``tenant`` is the seed's.
+    """The call's declared field is validated into ``data``; the service's ``tenant`` is the seed's.
 
     Short of the run's entry the Validator has no ``tenant``, so the tool's schema
     does not offer it; the call's declaration does. The model's argument is

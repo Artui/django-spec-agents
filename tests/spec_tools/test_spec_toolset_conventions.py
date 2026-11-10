@@ -223,7 +223,8 @@ async def test_a_field_changed_under_instructions_lands_in_the_same_places():
         # The continuation goes with the line it continues.
         (
             "read_shaping",
-            f"\n{_DEFAULTS.read_shaping.format(names='`fields`')} {_DEFAULTS.read_shaping_on_pages}",
+            f"\n{_DEFAULTS.read_shaping.format(names='`fields`')} "
+            f"{_DEFAULTS.read_shaping_on_pages}",
         ),
         ("read_shaping_on_pages", f" {_DEFAULTS.read_shaping_on_pages}"),
         # The heading, and the list it introduces.

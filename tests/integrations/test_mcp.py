@@ -659,7 +659,8 @@ async def test_input_required_result_raises_model_retry() -> None:
     with pytest.raises(ModelRetry) as excinfo:
         await MCPToolset(server, _request()).call_tool("needs_input", {}, None, None)
     assert excinfo.value.message == (
-        "Say why the books are being closed. Call this tool again, additionally supplying: `reason`."
+        "Say why the books are being closed. Call this tool again, additionally supplying: "
+        "`reason`."
     )
 
 

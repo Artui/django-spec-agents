@@ -89,7 +89,10 @@ def test_the_spec_source_alias_stays_at_its_module_path():
 def test_a_parenthesised_import_yields_every_name_it_lists():
     """The pages import the kernel's names a block at a time, one per line, so
     a reader of the first line alone checks one name of several."""
-    block = "from django_service_specs import (\n    Parameter,\n    Parameters,\n    SpecRegistry,\n)\n"
+    block = (
+        "from django_service_specs import (\n    Parameter,\n    Parameters,\n"
+        "    SpecRegistry,\n)\n"
+    )
 
     assert _imports_in(block) == [
         ("django_service_specs", "Parameter"),

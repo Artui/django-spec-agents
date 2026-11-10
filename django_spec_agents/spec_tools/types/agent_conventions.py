@@ -39,7 +39,8 @@ class AgentConventions:
 
     pagination: str | None = (
         "- Read-only tools that return a collection always return one page, shaped "
-        "{envelope}. They accept optional `limit` (items per page, default {page_size}) and `page` (1-based). When "
+        "{envelope}. They accept optional `limit` (items per page, default {page_size}) and `page` "
+        "(1-based). When "
         "`hasNext` is true there are more items than you were shown: ask for the next `page`, "
         "or narrow the request with a filter — never answer as if the page were the whole "
         "collection."
@@ -87,7 +88,7 @@ class AgentConventions:
     A read-shaping parameter is one of the spec's ``shapes``, which no callable
     of the spec takes and its presenter reads instead; one a selector or
     provider takes, by name or through ``**kwargs``, is that callable's
-    argument and is not named here. ``{names}`` is every such name, sorted, each in backticks and joined with
+    argument and is not named here. ``{names}`` is every such name, sorted, backticked, joined with
     ``", "``. ``None`` drops the line and ``read_shaping_on_pages`` with it, since
     that sentence continues this one.
     """
