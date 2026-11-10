@@ -10,11 +10,7 @@ from django_spec_agents.types.tool_category import ToolCategory
 
 @dataclass(frozen=True)
 class ToolSpec:
-    """Canonical declaration of a server-side tool.
-
-    Bundles the callable with the metadata the registry needs to expose it to a
-    Pydantic-AI agent and to a frontend.
-    """
+    """Canonical declaration of a server-side tool."""
 
     name: str
     """Stable identifier exposed to the agent, unique within a
