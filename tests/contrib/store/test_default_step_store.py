@@ -81,15 +81,7 @@ async def test_register_run_overwrites_on_same_owner_and_run() -> None:
 
 
 async def test_list_runs_filters_and_orders_by_started_at() -> None:
-    """Ascending ``started_at`` is the harness protocol's order, so it is asserted.
-
-    Registered newest-first on purpose, so insertion order and instant order
-    disagree. Worth knowing what this still cannot catch: on SQLite the filter is
-    answered from the ``(owner_id, started_at)`` index, which hands back ascending
-    rows on its own, so deleting the ``order_by`` leaves this green. It pins the
-    contract, not the line — a backend returning rows in insertion order is where
-    it would bite.
-    """
+    """Ascending ``started_at`` is the harness protocol's order, so it is asserted."""
     store = _store()
     await store.register_run(
         RunRecord(
@@ -192,9 +184,7 @@ async def test_snapshot_state_round_trips() -> None:
 
 
 async def test_interrupted_snapshots_are_skipped_by_default() -> None:
-    # An interrupted snapshot is a mid-tool-cycle rescue point: pending calls may
-    # be re-executed or closed out with synthesized returns, so a plain resume
-    # must not land on one.
+    # A mid-tool-cycle snapshot can be re-executed, so a plain resume must not land on one.
     store = _store()
     await store.save_snapshot(
         ContinuableSnapshot(run_id="r1", step_index=1, messages=_messages(), state="interrupted")
@@ -203,8 +193,7 @@ async def test_interrupted_snapshots_are_skipped_by_default() -> None:
 
 
 async def test_newest_complete_wins_over_a_newer_interrupted() -> None:
-    # The state filter applies after ordering — walking back from the newest
-    # row, exactly as the harness reference stores do.
+    # The state filter applies after ordering, walking back from the newest row.
     store = _store()
     await store.save_snapshot(ContinuableSnapshot(run_id="r1", step_index=1, messages=_messages()))
     await store.save_snapshot(
@@ -286,7 +275,6 @@ async def test_runs_snapshots_and_effects_are_owner_scoped() -> None:
     assert await b.list_events(run_id="r1") == []
     assert await b.list_unresolved_tool_effects(run_id="r1") == []
 
-    # ...while A still sees its own.
     assert (await a.get_run(run_id="r1")) is not None
 
 
@@ -294,7 +282,7 @@ async def test_runs_snapshots_and_effects_are_owner_scoped() -> None:
 
 
 async def test_anonymous_disallowed_no_ops_every_method() -> None:
-    store = DefaultStepStore(anonymous_request())  # ALLOW_ANONYMOUS defaults off
+    store = DefaultStepStore(anonymous_request())
     await store.register_run(RunRecord(run_id="r1", started_at=_T0))
     await store.append_event(StepEvent(run_id="r1", kind="run_started", step_index=0))
     await store.save_snapshot(ContinuableSnapshot(run_id="r1", step_index=0, messages=[]))

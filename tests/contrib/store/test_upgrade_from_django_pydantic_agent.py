@@ -1,19 +1,3 @@
-"""An installed django-pydantic-agent store, upgraded by one ``migrate``.
-
-The first process migrates a SQLite file through django-pydantic-agent's own five
-migrations, under its label, and writes rows into it. The second, with this
-package's store app installed instead, runs ``migrate`` and reads the rows back.
-They are two processes because the upgrade is a change of installed apps, which a
-process sets once. The migration's rename path is measured for coverage by
-``tests/contrib/store/migrations/test_0001_initial.py``; this is the test that it
-renames the schema django-pydantic-agent actually shipped.
-
-It runs on SQLite. To run the first case on PostgreSQL, create an empty database
-and set ``STORE_UPGRADE_ENGINE=django.db.backends.postgresql``,
-``STORE_UPGRADE_DATABASE`` to its name and ``STORE_UPGRADE_HOST`` and
-``STORE_UPGRADE_USER`` as the server needs, with ``psycopg`` importable.
-"""
-
 from __future__ import annotations
 
 import importlib
@@ -89,8 +73,7 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
     assert [table for table in after["tables"] if table.startswith(OLD_LABEL)] == []
     assert len([table for table in after["tables"] if table.startswith(LABEL)]) == 9
     assert after["recorded"] == [[LABEL, "0001_initial"]]
-    # The same rows, moved rather than recreated, so whatever points at them by key
-    # still does.
+    # The same rows, moved rather than recreated, so whatever points at them by key still does.
     assert after["content_types"] == before["content_types"]
     assert after["old_content_types"] == 0
     assert after["view_permissions"] == 1
@@ -111,13 +94,8 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
         "django_spec_agents_memory_owner_operation_unique",
     } <= names
     stale = {name for name in names if name.startswith(("django_pyda", OLD_LABEL))}
-    # On SQLite a constraint changes only by remaking its table, which derives
-    # every name afresh, so not even the auto-named objects keep the old prefix.
     assert stale == (STALE_ON_POSTGRESQL if after["vendor"] == "postgresql" else set())
 
-    # A later change to the column's type drops its ``_like`` index by the name
-    # Django computes from the new table and creates one for the new type, so a
-    # ``_like`` index left under the old name would survive beside the new one.
     like = _ran(_step(database, "alter"))
     on_postgresql = after["vendor"] == "postgresql"
     assert like == (

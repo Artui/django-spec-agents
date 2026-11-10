@@ -61,12 +61,11 @@ def test_hash_file_matches_hashlib(content: bytes) -> None:
 
 
 def test_hash_file_reads_a_large_file_in_chunks() -> None:
-    content = bytes(range(256)) * 1024  # 256 KiB
+    content = bytes(range(256)) * 1024
     handle = _CountingFile(content)
 
     assert hash_file(handle) == hashlib.sha256(content).hexdigest()
-    # Four full chunks and the empty read that ends the loop — never the file
-    # as one 256 KiB string.
+    # Four full chunks and the empty read that ends the loop — never the file as one 256 KiB string.
     assert len(handle.reads) > 1
     assert max(handle.reads) == 64 * 1024
 

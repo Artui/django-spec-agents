@@ -24,14 +24,7 @@ def _upload(
 
 
 def _streamed_upload(content: bytes, name: str = "big.bin") -> UploadedFile:
-    """An upload whose ``chunks()`` really yields more than one chunk.
-
-    ``SimpleUploadedFile`` is an ``InMemoryUploadedFile``, and Django's override
-    there hands back the whole file as a single chunk — fine for a small
-    fixture, useless for showing that hashing a large upload streams. The plain
-    ``UploadedFile`` inherits ``File.chunks()``, which reads in fixed-size
-    pieces, so it is the shape a large upload actually arrives in.
-    """
+    """An upload whose ``chunks()`` really yields more than one chunk."""
     return UploadedFile(
         file=BytesIO(content),
         name=name,
@@ -45,12 +38,7 @@ def _stored_name(attachment_id: str) -> str:
 
 
 def _distinct_blobs() -> int:
-    """How many stored files the attachment rows point at between them.
-
-    Counted from the rows rather than by listing storage: the in-memory backend
-    is a process-wide singleton that outlives the per-test database rollback, so
-    its directory listing carries every other test's uploads too.
-    """
+    """How many stored files the attachment rows point at between them."""
     return StoredAttachment.objects.values("file").distinct().count()
 
 
@@ -157,7 +145,6 @@ def test_reuploading_the_same_bytes_reuses_the_blob() -> None:
     # A row each, because the name on the chip belongs to the upload...
     assert first.id != second.id
     assert second.name == "copy.txt"
-    # ...but one blob underneath, and no second write to storage.
     assert _stored_name(first.id) == _stored_name(second.id)
     assert _distinct_blobs() == 1
 
@@ -175,15 +162,14 @@ def test_deduplication_never_crosses_owners() -> None:
     store = DefaultAttachmentStore()
     mine = store._save(_upload(content=b"hello"), "7")
     theirs = store._save(_upload(content=b"hello"), "99")
-    # Identical bytes, two blobs on purpose: a cross-owner hit would disclose
-    # that another tenant holds this exact file.
+    # Identical bytes get two blobs: a cross-owner hit would disclose another tenant's file.
     assert _stored_name(mine.id) != _stored_name(theirs.id)
     assert _distinct_blobs() == 2
 
 
 def test_a_multi_chunk_upload_is_hashed_and_stored_whole() -> None:
     store = DefaultAttachmentStore()
-    content = bytes(range(256)) * 1024  # 256 KiB, four 64 KiB chunks
+    content = bytes(range(256)) * 1024
     ref = store._save(_streamed_upload(content), "7")
 
     row = StoredAttachment.objects.get(attachment_id=ref.id)
@@ -229,9 +215,7 @@ def test_open_reports_a_missing_blob_as_unavailable() -> None:
     ref = store._save(_upload(), "7")
     default_storage.delete(_stored_name(ref.id))
 
-    # ``None``, not ``FileNotFoundError``: the contract gives a caller one branch
-    # for "unavailable" and keeps a missing file indistinguishable from another
-    # owner's.
+    # ``None``, not ``FileNotFoundError``, so a missing file looks like another owner's.
     assert store._open(ref.id, "7") is None
 
 
@@ -244,8 +228,7 @@ def test_open_logs_the_missing_blob_it_reports(caplog: pytest.LogCaptureFixture)
     with caplog.at_level(logging.WARNING):
         assert store._open(ref.id, "7") is None
 
-    # Reported to the caller as unavailable, but a storage fault to whoever reads
-    # the logs -- the row is still there.
+    # Unavailable to the caller, but a storage fault to whoever reads the logs.
     assert name in caplog.text
 
 
@@ -255,8 +238,7 @@ def test_a_re_upload_repairs_an_owner_whose_blob_went_missing() -> None:
     dead = _stored_name(first.id)
     default_storage.delete(dead)
 
-    # The user's natural recovery. Identical bytes hash identically, so this is
-    # exactly the upload that would otherwise adopt the dead twin's path and write nothing.
+    # The user's natural recovery.
     second = store._save(_upload(content=b"hello"), "7")
 
     assert default_storage.exists(_stored_name(second.id))
@@ -266,10 +248,7 @@ def test_a_re_upload_repairs_an_owner_whose_blob_went_missing() -> None:
 def test_deduplication_still_skips_the_write_when_the_blob_is_there(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The guard costs one ``exists`` and must not cost the optimisation. Asserted
-    # against Storage rather than against the rows: code that wrote a blob and
-    # *then* adopted the twin's name would satisfy a row count while orphaning
-    # the bytes it had just written.
+    # The guard costs one ``exists`` and must not cost the optimisation.
     store = DefaultAttachmentStore()
     first = store._save(_upload(content=b"hello"), "7")
 
@@ -290,9 +269,6 @@ def test_deduplication_still_skips_the_write_when_the_blob_is_there(
 
 def test_dedup_survives_an_owner_whose_oldest_blob_died() -> None:
     # The healed owner holds a dead row and a live one for the same bytes.
-    # Consulting only the oldest would find the dead one every time and write a
-    # fresh copy on every upload after it -- dedup lost for good, storage growing
-    # without bound.
     store = DefaultAttachmentStore()
     first = store._save(_upload(content=b"hello"), "7")
     default_storage.delete(_stored_name(first.id))
@@ -310,9 +286,7 @@ def test_dedup_survives_an_owner_whose_oldest_blob_died() -> None:
 
 
 def test_open_reports_a_row_that_never_recorded_a_path() -> None:
-    # The other way to have no readable bytes. ``FieldFile`` guards an empty path
-    # with ``ValueError``, not ``FileNotFoundError``, and the contract draws no
-    # line between the two.
+    # The other way to have no readable bytes.
     StoredAttachment.objects.create(attachment_id="pathless", owner_id="7", file="")
     store = DefaultAttachmentStore()
 
@@ -320,9 +294,7 @@ def test_open_reports_a_row_that_never_recorded_a_path() -> None:
 
 
 def test_a_twin_carrying_no_path_is_not_adopted() -> None:
-    # A row can exist with no stored path at all, from a write that failed after
-    # the INSERT. It offers nothing to adopt, so the upload writes its own bytes
-    # rather than pointing at nowhere.
+    # A row can exist with no stored path at all, from a write that failed after the INSERT.
     store = DefaultAttachmentStore()
     digest = hashlib.sha256(b"hello").hexdigest()
     StoredAttachment.objects.create(attachment_id="orphan", owner_id="7", sha256=digest, file="")
@@ -336,11 +308,7 @@ def test_a_twin_carrying_no_path_is_not_adopted() -> None:
 def test_rows_sharing_one_dead_path_cost_a_single_existence_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Deduplication means many rows point at one blob. When that blob goes, the
-    # scan meets the same dead path once per row, and would ask the backend about
-    # each of them -- a HEAD apiece on the hot upload path -- without collapsing
-    # them first. A live twin short-circuits the scan, so this is the state that
-    # exercises the collapsing at all.
+    # Deduplication means many rows point at one blob.
     store = DefaultAttachmentStore()
     for _ in range(5):
         store._save(_upload(content=b"hello"), "7")
@@ -357,14 +325,11 @@ def test_rows_sharing_one_dead_path_cost_a_single_existence_check(
     monkeypatch.setattr(default_storage, "exists", _record)
     store._save(_upload(content=b"hello"), "7")
 
-    # Counted for the dead path alone: the write that follows asks about its own
-    # new name too, and that call is not what this is measuring.
     assert checked.count(dead) == 1
 
 
 def test_the_store_logs_under_its_module_path() -> None:
-    # Unlike the audit and failure loggers, nothing configures this one by name,
-    # so it follows the module path.
+    # Nothing configures this one by name, so it follows the module path.
     from django_spec_agents.contrib.store import default_attachment_store
 
     assert default_attachment_store.logger.name == (

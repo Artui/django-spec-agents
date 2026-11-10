@@ -55,8 +55,7 @@ def test_reads_the_same_id_from_several_messages_once() -> None:
 
 
 def test_reads_a_non_user_message_too() -> None:
-    # Deliberately permissive: under-reading would mark a file that is plainly
-    # in use as an orphan for the collector.
+    # Deliberately permissive: under-reading would mark a file in use as an orphan.
     stored_attachment("a1")
     conversation = _conversation()
 

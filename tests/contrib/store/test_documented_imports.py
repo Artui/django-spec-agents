@@ -1,16 +1,3 @@
-"""The import lines ``docs/storage.md`` teaches, executed.
-
-A page that named the three stores with no path at all, one line under an
-``INSTALLED_APPS`` snippet, would read as an invitation to
-``from django_spec_agents.contrib.store import DefaultConversationStore`` — a
-spelling that raises.
-
-Asserted by **reading the page and running what it shows**, rather than by
-importing the modules this test knows about. A test that imports the right thing
-passes just as happily while the docs teach the wrong thing, which is the failure
-this is here to prevent.
-"""
-
 from __future__ import annotations
 
 import pathlib
@@ -42,7 +29,6 @@ def _documented_imports() -> dict[str, str]:
     """Every ``name -> module`` pair the page's Python blocks import from us."""
     found: dict[str, str] = {}
     for block in _python_blocks(DOCS.read_text()):
-        # Join a parenthesised import's continuation lines before matching.
         flattened = re.sub(r"\(\s*\n\s*", "(", block).replace(",\n)", ")")
         for module, names in _IMPORT.findall(flattened):
             for name in (part.strip() for part in names.split(",")):
@@ -71,17 +57,7 @@ def test_the_import_the_page_shows_actually_works(store: str) -> None:
 
 @pytest.mark.parametrize("store", STORES)
 def test_the_page_does_not_teach_the_package_level_import(store: str) -> None:
-    """The shorter path cannot exist, and this pins the reason it stays that way.
-
-    A re-export in ``contrib/store/__init__.py`` would import models while Django
-    builds the app registry, raising ``AppRegistryNotReady`` at startup for every
-    project that installs the app. If someone adds one, this fails and the package
-    docstring explains why.
-
-    ``exec`` rather than ``importlib``, because the failure being pinned belongs to
-    the *statement* a reader would write: reaching the attribute through importlib
-    raises ``AttributeError``, which is not what anybody sees.
-    """
+    """The shorter path cannot exist, and this pins the reason it stays that way."""
     assert _documented_imports()[store] != "django_spec_agents.contrib.store"
 
     with pytest.raises(ImportError):

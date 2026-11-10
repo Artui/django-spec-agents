@@ -86,7 +86,7 @@ def test_resave_preserves_title_and_refreshes_preview() -> None:
     )
     (meta,) = store._list("7", None)
     assert meta.title == "book a flight"  # title frozen at first message
-    assert meta.preview == "actually, cancel it"  # preview follows the latest
+    assert meta.preview == "actually, cancel it"
 
 
 def test_rename_updates_title() -> None:

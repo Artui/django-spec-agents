@@ -1,12 +1,3 @@
-"""The store app's label, and every database name Django derives from it.
-
-Django keys installed state on the label: table names are ``<label>_<model>``,
-content types and migration rows are keyed on it, and the seven indexes declared
-without a name take theirs from the table. So these assertions are what the
-upgrade migration renames *to*; a change here is a schema change for every
-installed database.
-"""
-
 from __future__ import annotations
 
 from django.apps import apps
@@ -51,8 +42,7 @@ def test_the_seven_constraints_carry_the_packages_prefix() -> None:
 
 
 def test_the_seven_named_indexes_are_derived_from_the_new_tables() -> None:
-    # Django truncates the table name to its first eleven characters when it
-    # names an index, so ``django_spec_agents_store_...`` yields ``django_spec``.
+    # Django truncates an index name to its first eleven characters, so the name is ``django_spec``.
     names = [
         index.name
         for model in apps.get_app_config(LABEL).get_models()
