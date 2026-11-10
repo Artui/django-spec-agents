@@ -23,17 +23,7 @@ def owner_id_for(request: HttpRequest) -> str | None:
 
 
 def resolve_owner_id(request: HttpRequest, *, allow_anonymous: bool) -> str:
-    """The owner-scoping id a model-backed store persists under (never ``None``).
-
-    An authenticated request resolves to the user's pk. An anonymous one either
-    raises
-    [`AnonymousOperationError`][django_spec_agents.AnonymousOperationError],
-    or, with ``allow_anonymous``, gets a per-browser ``anon:<session_key>``
-    bucket, creating the session if the browser has none.
-
-    Call this **inside** a sync context — the model stores wrap it in
-    ``sync_to_async`` — because the anonymous branch may write a session row.
-    """
+    """The owner-scoping id a model-backed store persists under (never ``None``)."""
     owner_id = owner_id_for(request)
     if owner_id is not None:
         return owner_id
@@ -48,11 +38,7 @@ def resolve_owner_id(request: HttpRequest, *, allow_anonymous: bool) -> str:
 
 
 def session_key_for(request: HttpRequest) -> str:
-    """The request's session key, creating the session if the browser has none.
-
-    Writes a session row on that first call, so it belongs off the event loop
-    like ``resolve_owner_id``.
-    """
+    """The request's session key, creating the session if the browser has none."""
     session = request.session
     if session.session_key is None:
         session.create()
@@ -60,11 +46,7 @@ def session_key_for(request: HttpRequest) -> str:
 
 
 def derive_title(messages: list[Any]) -> str:
-    """A thread title: the first user message, collapsed and truncated.
-
-    Falls back to a generic label when there is no user text yet. A store that
-    records an explicit rename uses that instead of calling this.
-    """
+    """A thread title: the first user message, collapsed and truncated."""
     for message in messages:
         if message_field(message, "role") == "user":
             text = _clean(message_field(message, "content"))
@@ -83,12 +65,7 @@ def derive_preview(messages: list[Any]) -> str:
 
 
 def message_field(message: Any, name: str) -> Any:
-    """Read one field off a message record: mapping key or attribute.
-
-    The stored shape is JSON, but a transport may hand objects through, so both
-    work. Total rather than raising — a missing field, or a record that is
-    neither, answers ``None``, because callers read transport-owned shapes.
-    """
+    """Read one field off a message record: mapping key or attribute."""
     if isinstance(message, Mapping):
         return message.get(name)
     return getattr(message, name, None)
@@ -133,20 +110,8 @@ _NAMESPACE_HASH_CHARS = 40
 
 
 def safe_namespace_segment(prefix: str, identifier: str) -> str:
-    """``prefix`` + ``identifier``, or + a digest of it when that is not a valid segment.
-
-    Shared by the two memory namespace resolvers, which differ only in where they
-    read the identifier from. The prefix is inside the check rather than bolted on
-    afterwards, because whether the result fits the 200-character limit depends on
-    the prefix too.
-
-    **Digesting rather than sanitising is the point.** Stripping the offending
-    characters maps ``tenant/42`` and ``tenant-42`` onto one namespace, and two
-    users sharing a namespace is exactly what a per-user scope exists to prevent.
-    """
+    """``prefix`` + ``identifier``, or + a digest of it when that is not a valid segment."""
     candidate = f"{prefix}{identifier}"
-    # ``..`` is rejected by the harness independently of the character class, so a
-    # segment built from ``a..b`` matches the regex and is still refused.
     if _SAFE_SEGMENT_RE.fullmatch(candidate) and ".." not in candidate:
         return candidate
     return f"{prefix}{hashlib.sha256(identifier.encode()).hexdigest()[:_NAMESPACE_HASH_CHARS]}"

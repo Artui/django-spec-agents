@@ -12,33 +12,9 @@ from django_spec_agents.persistence.utils import resolve_owner_id
 
 
 class ModelAttachmentStore(ABC):
-    """Abstract base for a model-backed (or any sync) ``AttachmentStore``.
+    """Abstract base for a model-backed (or any sync) ``AttachmentStore``."""
 
-    The attachment twin of
-    [`ModelConversationStore`][django_spec_agents.ModelConversationStore]
-    — same async wrapping, same per-request owner scoping, same
-    ``allow_anonymous`` policy — over a subclass's own storage: a Django
-    ``Storage`` for the bytes, a model row for the metadata. The opt-in
-    ``django_spec_agents.contrib.store`` app supplies a concrete pair.
-
-    Each ``_save`` / ``_open`` / ``_remove`` receives the resolved ``owner_id``
-    (``None`` for anonymous) and **must** filter by it, so files never cross
-    users.
-
-    Example:
-
-        class MyStore(ModelAttachmentStore):
-            def _save(self, upload, owner_id):
-                row = MyAttachment.objects.create(owner_id=owner_id or "", ...)
-                row.file.save(row.attachment_id, upload, save=True)
-                return AttachmentRef(id=row.attachment_id, name=..., mime=..., size=...)
-            def _open(self, attachment_id, owner_id): ...
-            def _remove(self, attachment_id, owner_id): ...
-    """
-
-    # A class-level immutable default, so a subclass that overrides __init__ and
-    # forgets super() fails closed — refusing anonymous requests — rather than
-    # raising AttributeError at request time or defaulting open.
+    # A class-level default, so a subclass that skips super() refuses anonymous requests.
     _allow_anonymous: bool = False
 
     def __init__(self, *, allow_anonymous: bool = False) -> None:
@@ -54,9 +30,7 @@ class ModelAttachmentStore(ABC):
     async def delete(self, attachment_id: str, *, request: HttpRequest) -> None:
         await sync_to_async(self._remove_scoped)(attachment_id, request)
 
-    # Owner resolution and the sync op share one thread: ``resolve_owner_id`` may
-    # create a session row for the anonymous bucket, so it cannot run on the
-    # event loop. ``AnonymousOperationError`` propagates to the view as a 403.
+    # resolve_owner_id may create a session row, so this must not run on the event loop.
     def _save_scoped(self, upload: UploadedFile, request: HttpRequest) -> AttachmentRef:
         return self._save(upload, resolve_owner_id(request, allow_anonymous=self._allow_anonymous))
 
