@@ -78,10 +78,7 @@ async def test_acall_dispatches_sync_and_async() -> None:
 
 
 class TestDispatchingAToolThatTakesTheRunContext:
-    """``ctx: RunContext[...]`` is the only way a registry tool reaches the
-    acting user. Binding the model's arguments alone would leave such a tool
-    uncallable through the registry — ``sig.bind`` raises ``TypeError`` for the
-    missing ``ctx`` — so dispatch takes the caller's context."""
+    """``ctx: RunContext[...]`` is the only way a registry tool reaches the acting user."""
 
     def _registry(self, seen: list[Any]) -> ToolRegistry:
         reg = ToolRegistry()
@@ -121,9 +118,7 @@ class TestDispatchingAToolThatTakesTheRunContext:
         assert await self._registry(seen).acall("find_order", {"order_id": 1}, ctx=ctx) == "order 1"
 
     def test_omitting_the_context_says_so_instead_of_naming_a_missing_argument(self) -> None:
-        """Loud rather than ``ctx=None``: a tool that reads the acting user off a
-        context it was silently handed as ``None`` fails somewhere else, or does
-        not fail at all."""
+        """Loud rather than ``ctx=None``: a silent ``None`` fails somewhere else, or not at all."""
         with pytest.raises(TypeError, match="RunContext"):
             self._registry([]).call("find_order", {"order_id": 1})
 
@@ -132,8 +127,7 @@ class TestDispatchingAToolThatTakesTheRunContext:
             await self._registry([]).acall("afind_order", {"order_id": 1})
 
     def test_the_callers_context_wins_over_one_the_model_invented(self) -> None:
-        """``ctx`` is not in the schema, so a value for it is a value the model
-        made up. It must not be what the tool reads the acting user from."""
+        """``ctx`` is not in the schema, so a value for it is a value the model made up."""
         seen: list[Any] = []
         ctx = SimpleNamespace(deps=AgentDeps(user="alice"))
 
