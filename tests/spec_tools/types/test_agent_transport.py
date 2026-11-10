@@ -8,8 +8,7 @@ from django_spec_agents.spec_tools.types import agent_transport
 
 
 def test_the_value_is_the_plain_string_agent():
-    """A callable written for several transports compares the plain string, and
-    one written for agents alone imports the name instead."""
+    """A multi-transport callable compares the plain string, not an imported name."""
     assert agent_transport.AGENT_TRANSPORT == "agent"
     assert type(agent_transport.AGENT_TRANSPORT) is str
 

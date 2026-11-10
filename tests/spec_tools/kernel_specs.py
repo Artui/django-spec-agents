@@ -1,11 +1,3 @@
-"""Kernel-native building blocks the ``spec_tools`` suites declare their specs with.
-
-The toolset reads every spec through the kernel, so its suites declare the
-kernel's own ``ServiceSpec`` and ``SelectorSpec``: a ``Presenter`` that renders
-a row as the fields it declares, the permission that admits every caller, and
-the registry a test of a read builds its toolset from.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
@@ -33,12 +25,7 @@ def allow() -> list[Unrestricted]:
 
 
 class RowPresenter(Presenter):
-    """Renders a row, a mapping or an object, as the fields it declares.
-
-    ``refuse``, when given, is asked with the call's shapes before each row is
-    rendered and raises whatever it raises: the seat a presenter refusing a
-    read-shaping argument it cannot honour takes.
-    """
+    """Renders a row, a mapping or an object, as the fields it declares."""
 
     def __init__(
         self,
@@ -94,13 +81,7 @@ class DenyAll(PermissionCheck):
 
 
 def shaping(specs: Mapping[str, Any], shapes: Mapping[str, Sequence[Parameter]]) -> SpecRegistry:
-    """``specs`` as a ``SpecRegistry``, each tool ``shapes`` names declaring
-    those shapes on its spec, after any it declares already.
-
-    A toolset reads a tool's offline contract off its registry entry, so a test
-    of a read builds its toolset from this, as a project passing its registry
-    does.
-    """
+    """Each tool ``shapes`` names declares those shapes on its spec, after any it declares."""
     registry = SpecRegistry()
     for name, spec in specs.items():
         extra = tuple(shapes.get(name, ()))

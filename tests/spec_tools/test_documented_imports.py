@@ -1,19 +1,3 @@
-"""What ``django_spec_agents.spec_tools`` exports, and the import lines its pages teach.
-
-The package exports the toolset, the capability, the conventions and the
-transport value it stamps, and nothing it does not own: the one ``AgentDeps``
-is the host's, at the package root, and the spec, its parameters, its registry
-and its server arguments are the kernel's, imported from
-``django_service_specs``. A second spelling of either is how a reader comes to
-believe there are two classes.
-
-The pages are checked by **reading them and running what they show**, this
-package's imports and the kernel's alike, as
-``tests/contrib/store/test_documented_imports.py`` does for the store's page: a
-test importing the right names passes just as happily while a page teaches a
-spelling that raises.
-"""
-
 from __future__ import annotations
 
 import importlib
@@ -76,8 +60,7 @@ def test_a_name_another_package_owns_is_not_re_exported(name):
 
 
 def test_the_spec_source_alias_stays_at_its_module_path():
-    """A subclass annotating its ``specs`` argument imports the alias from
-    ``spec_toolset``, where it is defined, and no ``__all__`` exports it."""
+    """A subclass imports the alias from ``spec_toolset``, where it is defined."""
     import django_spec_agents
     from django_spec_agents.spec_tools import spec_toolset
 
@@ -87,8 +70,7 @@ def test_the_spec_source_alias_stays_at_its_module_path():
 
 
 def test_a_parenthesised_import_yields_every_name_it_lists():
-    """The pages import the kernel's names a block at a time, one per line, so
-    a reader of the first line alone checks one name of several."""
+    """The pages import kernel names a block at a time, one per line."""
     block = (
         "from django_service_specs import (\n    Parameter,\n    Parameters,\n"
         "    SpecRegistry,\n)\n"

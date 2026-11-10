@@ -177,21 +177,12 @@ def _dispatch(
     shapes: Sequence[Parameter] = (),
     **kwargs: Any,
 ) -> Any:
-    """Run one spec through the toolset's dispatch pipeline.
-
-    Calls ``SpecToolset._call_spec`` rather than the module-level function, so
-    these tests exercise the same seam ``call_tool`` goes through — including
-    the ``call_seeds`` / ``translate_exception`` overrides bound to the run.
-    ``reads`` and ``shapes`` are declared on the spec's own, after any it
-    declares already: the toolset reads each off the spec.
-    """
+    """Run one spec through the toolset's dispatch pipeline."""
     toolset_kwargs = toolset_kwargs or {}
     if reads:
         spec = replace(spec, reads=Parameters.of(*spec.reads, *reads))
     if shapes:
         spec = replace(spec, shapes=Parameters.of(*spec.shapes, *shapes))
-    # A throwaway toolset per call; construction validation has its own
-    # tests, so its warnings are noise here.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         toolset = SpecToolset({"t": spec}, require_permissions=False, **toolset_kwargs)
@@ -268,14 +259,7 @@ def ctx_for(user=None, *, deps=None, **overrides):
 
 
 def reading(specs, reads):
-    """``specs`` as a ``SpecRegistry``, each tool ``reads`` names declaring those
-    reads on its spec, after any it declares already.
-
-    A toolset reads a tool's offline contract off its registry entry, so a test
-    of a read builds its toolset from this, as a project passing its registry
-    does; the schema is the spec's from either source. ``shaping`` in
-    ``kernel_specs`` is the same for a spec's shapes.
-    """
+    """Each tool ``reads`` names declares those reads on its spec, after any it declares."""
     registry = SpecRegistry()
     for name, spec in specs.items():
         extra = tuple(reads.get(name, ()))
@@ -286,15 +270,7 @@ def reading(specs, reads):
 
 
 def _rows(result: Any) -> list[Any]:
-    """The rows out of a list tool's page envelope.
-
-    Every list-selector result is a page, so the
-    tests that are about *what the rows are* unwrap it here rather than each
-    re-deriving the wrapper. Asserting the four keys on the way through is what
-    keeps this from hiding a regression in the envelope itself: a result that
-    stopped being a page would fail here rather than reading as a row that
-    happens to lack a ``name``. The envelope's own values have their own tests.
-    """
+    """The rows out of a list tool's page envelope."""
     assert set(result) == {"items", "page", "totalPages", "hasNext"}
     return result["items"]
 
@@ -309,20 +285,12 @@ async def test_instructions_carry_the_error_contract():
     instr = await SpecToolset({"go": create_spec()}).get_instructions(None)
     assert instr is not None
     assert _DEFAULTS.base in instr
-    # The block has to describe the shape the toolset actually produces: every
-    # terminal arm raises ``ToolFailed``, so an ``{"error": …}`` payload would tell
-    # the model to look for a key that is never sent. The wording is asserted here
-    # rather than only in the constant.
+    # Every terminal arm raises ``ToolFailed``; no ``{"error"}`` payload exists.
     assert '{"error"' not in instr
     assert "comes back as a failed call" in instr
     assert "unknown arguments are rejected" in instr
-    # A refusal's sentence ends with the rule's code, and the block says so in
-    # the shape the call produces: the label as it appears, and the key the same
-    # code was advertised under. Both halves, because an instruction naming only
-    # the suffix leaves the model to guess what the name refers to.
     assert "`(code: <name>)`" in instr
     assert "`affordances`" in instr
-    # A refusal is still final, code or no code.
     assert "that is a final answer, not a reason to retry" in instr
 
 
@@ -334,15 +302,13 @@ async def test_pagination_line_present_only_with_a_list_selector():
     retrieve_only = await SpecToolset({"get": retrieve_spec()}).get_instructions(None)
     assert _pagination_line(DEFAULT_PAGE_SIZE) not in retrieve_only
 
-    # A service spec is not a SelectorSpec at all — no pagination line.
     service_only = await SpecToolset({"go": create_spec()}).get_instructions(None)
     assert _pagination_line(DEFAULT_PAGE_SIZE) not in service_only
 
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 async def test_read_shaping_line_lists_declared_shapes_sorted(source):
-    """The line names the compiled spec's shapes, so a tool built from a bare
-    mapping is told about the same arguments as one built from a registry."""
+    """The compiled spec's shapes, so a mapping-built tool advertises the same arguments."""
     specs = {
         "list": replace(
             list_spec(),
@@ -393,8 +359,7 @@ async def test_get_tools_builds_function_tools():
     toolset = SpecToolset({"list_widgets": list_spec(), "create_widget": create_spec()})
     tools = await toolset.get_tools(None)
     assert set(tools) == {"list_widgets", "create_widget"}
-    # "function" is the in-process kind — the run loop invokes call_tool rather
-    # than deferring the call to the client.
+    # The in-process kind: the run loop invokes ``call_tool``, not a client-deferred call.
     assert all(tool.tool_def.kind == "function" for tool in tools.values())
 
 
@@ -409,8 +374,7 @@ async def test_list_selector_tool_advertises_pagination_args():
     tools = await toolset.get_tools(None)
     props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
     assert {"page", "limit"} <= set(props)
-    # ``ordering`` comes from the spec, never from the toolset: this one
-    # declares no sort of its own, so none is advertised.
+    # ``ordering`` comes from the spec, never the toolset; this one declares none.
     assert "ordering" not in props
 
 
@@ -443,22 +407,14 @@ async def test_selector_without_docstring_has_no_description():
 
 
 class _SelectorlessDeclaration:
-    """A declaration of another library's whose ``as_kernel_spec`` refuses it.
-
-    Stands in for a library refusing, where it compiles one, a declaration that
-    names no selector to run.
-    """
+    """A declaration of another library's whose ``as_kernel_spec`` refuses it."""
 
     def as_kernel_spec(self) -> SelectorSpec:
         raise ImproperlyConfigured("SelectorSpec declares no selector")
 
 
 def test_a_selector_spec_with_no_selector_is_refused_when_the_toolset_is_built():
-    """A library refuses a declaration it cannot compile wherever it compiles
-    one, and the toolset compiles every spec while it is built. Such a spec
-    could never be dispatched, so the mount fails at startup with the library's
-    own refusal, prefixed with the tool it is about -- a mapping of many specs
-    otherwise leaves the reader to find which one."""
+    """A library refuses a declaration it cannot compile, and the toolset compiles while built."""
     with pytest.raises(
         ImproperlyConfigured, match=r"^SpecToolset tool 'empty': SelectorSpec declares no selector"
     ):
@@ -532,9 +488,7 @@ def test_list_selector_renders_owned_widgets():
     ids=["limits-the-page", "second-page"],
 )
 def test_list_selector_pages(args, rows, envelope):
-    """A sort is the spec's to declare, so this fixture — which declares none —
-    is about the slice alone. Ordering *through* pagination is asserted against
-    the filter-owned specs further down, where a sort actually exists."""
+    """A sort is the spec's to declare, so this fixture is about the slice alone."""
     user = User.objects.create(username="u")
     for name, price in [("a", 3), ("b", 1), ("c", 2)]:
         Widget.objects.create(name=name, price=price, owner=user)
@@ -573,11 +527,7 @@ _MISSING_ROW_SELECTORS = pytest.mark.parametrize(
 @pytest.mark.django_db
 @_MISSING_ROW_SELECTORS
 def test_retrieve_selector_not_found_fails_the_call(selector):
-    """An unresolved target is ``ToolFailed``, carrying the wording unchanged.
-
-    The message is what the model reads, and the tool return is marked
-    ``outcome="failed"`` -- see ``test_a_business_failure_marks_the_tool_return_failed``,
-    which reads that marking off a real run."""
+    """An unresolved target is ``ToolFailed``, carrying the wording unchanged."""
     user = User.objects.create(username="u")
     with pytest.raises(ToolFailed) as caught:
         _dispatch(retrieve_spec(selector=selector), user, {"pk": 999})
@@ -592,9 +542,7 @@ def _list_raising_http404(user):
 @pytest.mark.django_db
 @pytest.mark.parametrize("allow_none", [False, True], ids=["strict", "allow-none"])
 def test_a_list_selector_that_raises_http404_fails_the_call(allow_none):
-    """A list has no single row to be missing, so ``allow_none`` does not turn
-    its ``Http404`` into ``None`` (nor into an empty page): it is the same
-    ``ToolFailed`` as a read's, whichever way the flag is set."""
+    """A list has no single row, so ``allow_none`` leaves its ``Http404`` a ``ToolFailed``."""
     user = User.objects.create(username="u")
     spec = list_spec(selector=_list_raising_http404, allow_none=allow_none)
     with pytest.raises(ToolFailed) as caught:
@@ -604,9 +552,7 @@ def test_a_list_selector_that_raises_http404_fails_the_call(allow_none):
 
 @pytest.mark.django_db
 def test_an_http404_exception_map_entry_is_not_consulted_for_a_selector():
-    """The kernel answers a selector's ``Http404`` before it can reach the
-    map, so a consumer's entry for it is redundant: the call is the same
-    ``ToolFailed`` and the handler never runs."""
+    """The kernel answers a selector's ``Http404`` first, so a consumer's entry is redundant."""
     user = User.objects.create(username="u")
     seen: list[BaseException] = []
 
@@ -628,8 +574,7 @@ def test_an_http404_exception_map_entry_is_not_consulted_for_a_selector():
 @pytest.mark.django_db
 @_MISSING_ROW_SELECTORS
 def test_a_write_whose_instance_selector_finds_nothing_fails_the_call(selector):
-    """The write never runs: the instance selector is what resolves its target,
-    and a missing one is the same ``ToolFailed`` a read gets."""
+    """The write never runs; a missing target is the same ``ToolFailed`` a read gets."""
     user = User.objects.create(username="u")
     spec = ServiceSpec(
         service=update_widget,
@@ -646,8 +591,7 @@ def test_a_write_whose_instance_selector_finds_nothing_fails_the_call(selector):
 @pytest.mark.django_db
 @_MISSING_ROW_SELECTORS
 def test_a_nullable_retrieve_that_finds_nothing_returns_none(selector):
-    """Not the presenter's blank row, which would read to the model as a widget
-    with an empty name: the kernel presents a single ``None`` as ``None``."""
+    """Not a blank row, which would read as a widget with an empty name."""
     user = User.objects.create(username="u")
     spec = retrieve_spec(allow_none=True, selector=selector)
 
@@ -708,35 +652,28 @@ def needs_something_unnamed(**_):
 
 
 def test_a_request_for_input_is_a_retry_not_a_dead_end():
-    """A model *is* the thing that can answer, and ``ModelRetry`` is already
-    the "here is what to fix, call me again" channel — so no elicitation surface
-    or second result type is needed on this transport."""
+    """A model can answer, and ``ModelRetry`` is already the channel to fix and call again."""
     with pytest.raises(ModelRetry) as caught:
         _dispatch(ServiceSpec(service=needs_confirmation, atomic=False), object(), {})
     assert "9412 rows match" in str(caught.value)
 
 
 def test_the_retry_names_the_arguments_to_add() -> None:
-    """The keys of ``schema`` are input names, and the model is about to call the
-    same tool again — so the names are the actionable part."""
+    """The keys of ``schema`` are input names, the actionable part of the retry."""
     with pytest.raises(ModelRetry) as caught:
         _dispatch(ServiceSpec(service=needs_confirmation, atomic=False), object(), {})
     assert "`confirmed`" in str(caught.value)
 
 
 def test_a_bare_message_still_retries() -> None:
-    """``schema`` is optional upstream. A message alone is less actionable but
-    still better as a retry than as a terminal error."""
+    """``schema`` is optional upstream."""
     with pytest.raises(ModelRetry) as caught:
         _dispatch(ServiceSpec(service=needs_something_unnamed, atomic=False), object(), {})
     assert str(caught.value) == "This needs something I cannot describe."
 
 
 def test_it_is_not_swallowed_by_the_generic_service_error_arm() -> None:
-    """The ordering trap: ``AdditionalInputRequired``
-    subclasses ``ServiceError``, so a handler for the parent catches it first
-    unless the specific arm precedes it — which would report a request for input
-    as a terminal failure."""
+    """``AdditionalInputRequired`` subclasses ``ServiceError``: its arm must come first."""
     with pytest.raises(ToolFailed, match="nope"):
         _dispatch(ServiceSpec(service=boom, atomic=False), object(), {})
     with pytest.raises(ModelRetry):
@@ -753,10 +690,7 @@ def test_denied_permission_raises():
 
 @pytest.mark.django_db(transaction=True)
 async def test_with_the_knob_off_only_an_unguarded_spec_runs_unchecked():
-    """``require_permissions=False`` keeps its meaning: the spec it warned about
-    is called, while a spec that does declare a check is still asked it. The
-    grant for the unguarded call is the spec's own and nobody else's, so one
-    granting every call is refused by the second assertion."""
+    """``require_permissions=False`` still asks a spec that declares a check."""
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="mine", owner=user)
     with warnings.catch_warnings():
@@ -778,21 +712,14 @@ async def test_with_the_knob_off_only_an_unguarded_spec_runs_unchecked():
 
 @pytest.mark.django_db
 def test_a_malformed_call_is_handed_back_before_it_is_authorized():
-    """The arguments' shape is checked before the permission check, so a call
-    the model got wrong is a retry even where the check would deny it: the
-    model is told what it can correct, and learns nothing a schema it was
-    already shown does not say."""
+    """Argument shape is checked before permissions, so a wrong call is a retry, not a denial."""
     with pytest.raises(ModelRetry, match=r"^name: This field is required\.$"):
         _dispatch(create_spec(permissions=[DenyAll()]), object(), {"price": 1})
 
 
 @pytest.mark.parametrize("name", ["request", "view"])
 def test_a_mount_registering_a_seed_the_call_supplies_is_refused(name):
-    """Each call registers ``request`` and ``view`` from the call's context, so
-    a mount registering either would have its resolver silently replaced or the
-    call refused with a message about registering twice. Said as the
-    configuration error it is, naming the registration to remove and where the
-    value goes instead."""
+    """A mount registering ``request`` or ``view`` would have it silently replaced."""
     seeds = DEFAULT_POOL_SEEDS.extend(**{name: lambda: None})
 
     with pytest.raises(
@@ -806,8 +733,7 @@ def test_a_mount_registering_a_seed_the_call_supplies_is_refused(name):
 
 
 def test_shape_list_returns_a_page_rather_than_a_bare_slice():
-    """``page`` / ``limit`` are advertised on every list tool, so the shaper
-    answers with a total and a clamp, and says whether more rows exist."""
+    """The shaper answers with a total and a clamp, and says whether more rows exist."""
     page = _shape_list([1, 2, 3, 4, 5], page=2, limit=2, max_page_size=None)
     assert page.items == [3, 4]
     assert (page.page, page.limit, page.total) == (2, 2, 5)
@@ -825,8 +751,7 @@ def test_shape_list_bounds_a_limitless_call_to_one_default_page():
 
 
 def test_shape_list_clamps_the_limit_to_max_page_size():
-    """The clamp is applied on the slice, so the ``totalPages`` reported is
-    computed from the limit actually applied."""
+    """The clamp applies to the slice, so ``totalPages`` uses the limit actually applied."""
     page = _shape_list([1, 2, 3, 4], page=None, limit=3, max_page_size=2)
     assert page.items == [1, 2]
     assert page.limit == 2
@@ -875,10 +800,7 @@ _ITEM = {"name": "a", "price": 1}
 
 
 def test_a_many_service_spec_builds_a_tool():
-    """Nothing a model sends is the array it validates, so the list travels under
-    one argument and the spec builds. The selector beside it is there because a ``SelectorSpec``
-    has no ``many`` to read, so the checks asking which tools take a list have to
-    pass over it rather than fail on it."""
+    """The list travels under one argument, which is what the spec validates."""
     toolset = SpecToolset({"create_widgets": bulk_spec(), "list_widgets": list_spec()})
 
     assert set(toolset.specs) == {"create_widgets", "list_widgets"}
@@ -897,8 +819,7 @@ async def test_a_many_tool_takes_its_list_as_one_argument():
 
 
 async def test_declared_channels_are_advertised_beside_the_list_argument():
-    """``additionalProperties: false`` survives the merge and stays true: it forbids
-    an *undeclared* argument, and a read or a shape is declared."""
+    """``additionalProperties: false`` survives the merge and forbids undeclared arguments."""
     reads = reading(
         {"create_widgets": bulk_spec()},
         {"create_widgets": [Parameter("project_pk", "string", required=True)]},
@@ -910,15 +831,13 @@ async def test_declared_channels_are_advertised_beside_the_list_argument():
     schema = tools["create_widgets"].tool_def.parameters_json_schema
 
     assert set(schema["properties"]) == {"items", "fields", "project_pk"}
-    # The kernel lists the spec's reads before the list it takes.
     assert schema["required"] == ["project_pk", "items"]
     assert schema["additionalProperties"] is False
 
 
 @pytest.mark.django_db
 def test_declared_channels_beside_the_list_are_not_unexpected_arguments():
-    """Both are declared, a read and a shape, which is what keeps the refusal
-    of any argument beside the list from reaching them."""
+    """Both are declared, which keeps the refusal of any argument beside the list off them."""
     user = User.objects.create(username="u")
 
     result = _dispatch(
@@ -957,12 +876,7 @@ async def test_a_model_calls_a_many_tool_through_the_run_loop():
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_many_tool_advertises_the_rows_it_returns():
-    """The two halves generated from one spec, compared against each other.
-
-    A ``many=True`` spec renders its list through an ``output_selector_spec``
-    declared ``RETRIEVE``, the kind describing one row, so a return schema read
-    off that kind would advertise one row while every payload is a list of them.
-    """
+    """The two halves generated from one spec, compared against each other."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset({"create_widgets": bulk_spec()})
 
@@ -994,8 +908,7 @@ async def test_a_spec_naming_its_list_argument_is_advertised_and_called_by_that_
 
 @pytest.mark.django_db
 def test_an_invalid_item_is_a_retry_keyed_under_the_argument_by_its_index():
-    """Only the invalid item is named, by index: the kernel keys a ``many``
-    spec's errors under the list argument by each row's index."""
+    """Only the invalid item is named, by index, under the list argument."""
     user = User.objects.create(username="u")
 
     with pytest.raises(ModelRetry) as retry:
@@ -1010,9 +923,7 @@ def test_an_invalid_item_is_a_retry_keyed_under_the_argument_by_its_index():
 
 @pytest.mark.django_db(transaction=True)
 async def test_the_model_reads_an_item_error_as_argument_index_and_field():
-    """What the retry prompt actually carries, read off a real run rather than off
-    the exception: one line naming the argument, the item's index and the field,
-    then the field's own message, as text. The model fixes that item and the call goes through."""
+    """The retry prompt names the argument, the item's index and field, then the message."""
     user = await User.objects.acreate(username="u")
     toolset = SpecToolset({"create_widgets": bulk_spec()})
     agent = Agent(
@@ -1036,8 +947,7 @@ async def test_the_model_reads_an_item_error_as_argument_index_and_field():
 
 @pytest.mark.django_db
 def test_an_argument_beside_the_list_is_refused_under_reject():
-    """The service receives only the list, so the argument has nowhere to go,
-    and ``REJECT`` hands it back in the kernel's words before anything runs."""
+    """The service takes only the list, so ``REJECT`` refuses the argument before any run."""
     user = User.objects.create(username="u")
 
     with pytest.raises(ModelRetry, match=r"^note: Unknown argument\.$"):
@@ -1048,10 +958,7 @@ def test_an_argument_beside_the_list_is_refused_under_reject():
 
 @pytest.mark.django_db
 def test_an_argument_beside_the_list_is_dropped_under_ignore():
-    """``IGNORE`` means what it means for any undeclared key: the argument is
-    dropped without a word and the list is served. ``PASSTHROUGH``, the one
-    policy left, is refused when the toolset is built
-    (``test_passthrough_is_refused_when_the_toolset_is_built``)."""
+    """``IGNORE`` drops an undeclared argument without a word and serves the list."""
     user = User.objects.create(username="u")
 
     _dispatch(
@@ -1065,9 +972,7 @@ def test_an_argument_beside_the_list_is_dropped_under_ignore():
 
 
 def test_a_malformed_schema_fragment_is_refused_naming_the_tool():
-    """The toolset reads a spec's ``metadata["json_schema"]`` when it is built,
-    and refuses one not keyed by phase, in the spec's own terms (``SelectorSpec.metadata[...]``),
-    prefixed with the tool as a compile refusal is. Checks the mapping in ``_schema_fragment``."""
+    """The toolset reads a spec's json_schema metadata at build time, keyed by phase."""
     spec = list_spec(metadata={"json_schema": "not a mapping"})
 
     with pytest.raises(
@@ -1078,9 +983,7 @@ def test_a_malformed_schema_fragment_is_refused_naming_the_tool():
 
 
 def test_a_schema_fragment_reaches_the_tool_s_input_schema():
-    """A spec's ``metadata["json_schema"]["input"]`` is merged over the schema
-    of what it takes, so a description or a keyword the declaration cannot
-    spell reaches the model."""
+    """A spec's input fragment is merged over the schema of what it takes."""
     spec = list_spec(metadata={"json_schema": {"input": {"description": "Widgets."}}})
 
     assert (
@@ -1090,10 +993,7 @@ def test_a_schema_fragment_reaches_the_tool_s_input_schema():
 
 
 def test_a_schema_fragment_wins_over_the_input_schema_key_by_key():
-    """The input fragment is merged over the derived schema one top-level key
-    at a time: a key the fragment names replaces the
-    derived one, here the ``additionalProperties: false`` the toolset states
-    under ``REJECT``, and a key it does not name stays as derived."""
+    """The input fragment merges over the derived schema one top-level key at a time."""
     spec = list_spec(metadata={"json_schema": {"input": {"additionalProperties": True}}})
     derived = _input_schema_of(
         SpecToolset({"list_widgets": list_spec()}, unknown_arguments=UnknownArguments.REJECT),
@@ -1126,20 +1026,13 @@ def test_a_schema_fragment_wins_over_the_input_schema_key_by_key():
     ids=["unknown-phase", "phase-not-a-mapping"],
 )
 def test_a_malformed_phase_is_refused_naming_the_tool(declared, refusal):
-    """The rest of the reading: a key naming no phase,
-    which is the misplaced fragment the shape invites, and a phase that is not
-    a mapping, the ``output`` one included, though nothing reads it on the way
-    to the input schema. Holds the unknown-key and the phase-mapping checks in
-    ``_schema_fragment``."""
+    """A key naming no phase, or a phase that is not a mapping, is refused at build."""
     with pytest.raises(ImproperlyConfigured, match=rf"^SpecToolset tool 'rows': {refusal}"):
         SpecToolset({"rows": list_spec(metadata={"json_schema": declared})})
 
 
 def test_a_schema_fragment_reaches_the_return_schema_and_wins_key_by_key():
-    """The ``output`` phase is merged over the kernel's return schema as the
-    ``input`` one is over the parameters, shallowly: a key the fragment names
-    is the fragment's whole, and the rest stay derived. Neither phase reaches
-    the other's schema."""
+    """The output fragment merges over the return schema shallowly, as input does."""
     spec = list_spec(
         metadata={
             "json_schema": {
@@ -1159,9 +1052,7 @@ def test_a_schema_fragment_reaches_the_return_schema_and_wins_key_by_key():
 
 
 def test_an_output_fragment_never_conjures_a_return_schema():
-    """A spec declaring no output has no return schema, and an ``output``
-    fragment annotates a derived schema rather than authoring one, so it stays
-    ``None``. Holds the ``None`` check before the merge in ``_return_schema``."""
+    """A spec declaring no output has no return schema, so an output fragment stays ``None``."""
     spec = ServiceSpec(
         service=stamp_approval,
         permissions=allow(),
@@ -1189,9 +1080,7 @@ def _count_items(*, data):
 
 @pytest.mark.django_db
 def test_a_list_declared_as_a_validator_field_still_arrives():
-    """The shape for a tool that takes arguments beside its list, which ``many=True``
-    refuses: the list arrives, and an invalid item is sent back for a retry naming
-    its index."""
+    """The shape for a tool taking arguments beside its list, which ``many=True`` refuses."""
     user = User.objects.create(username="u")
     spec = ServiceSpec(
         service=_count_items,
@@ -1278,18 +1167,7 @@ async def test_toolset_threads_the_unknown_arguments_knob():
     ids=["member", "raw-value", "drop"],
 )
 def test_passthrough_is_refused_when_the_toolset_is_built(policy, spelled):
-    """A model's tool call is a flat object, and the kernel hands a callable
-    only what its spec declares, so an argument outside that set has no channel
-    to reach it. The kernel's dispatch raises ``ValueError`` for ``PASSTHROUGH``
-    on every call, so the toolset refuses it at build and the mount fails at
-    startup.
-
-    The raw value as well as the member, because ``UnknownArguments`` is a
-    ``str`` enum and the guard admits the accepted values rather than excluding
-    ``PASSTHROUGH``: a string spelling of it must not slip past. ``"drop"``,
-    which names no policy at all, is refused the same way, so a misspelt setting
-    fails at startup rather than reaching the kernel on the first call.
-    """
+    """A flat model call reaches only the arguments the spec declares."""
     with pytest.raises(
         ImproperlyConfigured,
         match=(
@@ -1304,8 +1182,7 @@ def test_passthrough_is_refused_when_the_toolset_is_built(policy, spelled):
 
 @pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
 def test_reject_and_ignore_still_build(policy):
-    """The two accepted policies, each on its own, so an allow-list narrowed to
-    either one fails here rather than in whichever test happens to use it."""
+    """Both accepted policies, each on its own, so a narrowed allow-list fails here."""
     toolset = SpecToolset({"list_widgets": list_spec()}, unknown_arguments=policy)
 
     assert toolset._unknown_arguments is policy
@@ -1364,8 +1241,7 @@ def test_object_permission_denies_cross_user_mutation():
         permissions=[IsOwner()],
         atomic=False,
     )
-    # A denial aborts the run (NotPermitted) — not a ModelRetry — before the
-    # service mutates the row, exactly as it would over HTTP.
+    # A denial aborts the run (``NotPermitted``), not a ``ModelRetry``, before any write.
     with pytest.raises(NotPermitted):
         _dispatch(spec, other, {"pk": widget.pk, "name": "hacked", "price": 9})
     widget.refresh_from_db()
@@ -1376,11 +1252,7 @@ def test_object_permission_denies_cross_user_mutation():
 
 
 class _FieldsEcho(Presenter):
-    """Reflects a read-shaping ``fields`` back, proving it reached the presenter.
-
-    Stands in for a presenter that branches on what the caller asked of the
-    rendering, which the kernel hands it on ``PresentationContext.shapes``.
-    """
+    """Reflects a read-shaping ``fields`` back, proving it reached the presenter."""
 
     def output(self) -> Output:
         return Output(
@@ -1406,8 +1278,7 @@ def _echo_list_spec(**kwargs):
 
 
 async def test_a_query_param_read_is_told_what_it_applies_to_only_on_a_page():
-    """Both tools carry the param; only the one returning a page is told that it
-    applies to each item rather than to the envelope, after the declared text."""
+    """Only the tool returning a page is told the param applies to each item, not the envelope."""
     fields = Parameter("fields", "string", help="restql field selection")
     toolset = SpecToolset(
         shaping(
@@ -1453,10 +1324,7 @@ async def test_a_read_default_appears_in_schema(declare):
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 def test_a_reserved_read_name_is_rejected(source):
-    # A shape is the presenter's, and nothing sorts by it: advertised as the
-    # tool's ``ordering``, it would be the sort the model is offered and never
-    # applied. Refused from a bare mapping as from a registry, since the check
-    # reads the spec.
+    # Nothing sorts by a shape; advertised as ordering, it would never apply.
     registry = shaping(
         {"list_widgets": list_spec()}, {"list_widgets": [Parameter("ordering", "string")]}
     )
@@ -1468,9 +1336,7 @@ def test_a_reserved_read_name_is_rejected(source):
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 def test_a_retrieve_tool_s_shape_may_not_be_named_page(source):
-    """A shape is the presenter's, whatever the tool's kind, so ``page`` is
-    refused on a retrieve tool too, which takes no pagination of its own: the
-    name is reserved for every tool alike."""
+    """A shape is the presenter's on every tool, so ``page`` is refused on a retrieve tool too."""
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=one_entry,
@@ -1490,9 +1356,7 @@ def one_entry():
 
 @pytest.mark.parametrize("name", ["page", "limit"])
 def test_a_retrieve_tool_s_route_capture_may_be_named_page_or_limit(name):
-    """Only a list tool paginates, so on a retrieve tool a read named
-    ``page`` or ``limit`` takes nothing from the toolset: it builds from a
-    registry, is advertised, and reaches the permission check as sent."""
+    """Only list tools paginate; on a retrieve tool, ``page`` reaches the permission check."""
     read = Parameter(name, "string")
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
@@ -1508,12 +1372,7 @@ def test_a_retrieve_tool_s_route_capture_may_be_named_page_or_limit(name):
 
 
 def test_a_route_capture_named_ordering_is_an_argument_like_any_other():
-    """A read is what the call carries to the permission check and the
-    lookup, not a shape, so ``ordering`` is not the toolset's to take from it:
-    the tool advertises it and leaves it in the call, as it leaves a
-    selector's own ``ordering``. Holds the shapes-only half of the reserved
-    check: checked over every declared read, this tool would be refused.
-    """
+    """A read goes to permissions and the lookup, so the toolset does not take ``ordering``."""
     toolset = SpecToolset(
         reading({"list_widgets": list_spec()}, {"list_widgets": [Parameter("ordering", "string")]})
     )
@@ -1535,11 +1394,7 @@ def recent_entries(*, page: int = 1, limit: int = 10):
 
 
 def test_a_list_selector_parameter_named_page_is_refused():
-    """A list tool's ``page`` and ``limit`` are its pagination arguments, popped
-    before dispatch, so a selector parameter of either name never receives what
-    the model sent. Advertised as required, every call would die on a
-    ``TypeError`` naming the argument the model had just sent.
-    """
+    """``page`` and ``limit`` are popped before dispatch on list tools only."""
     with pytest.raises(ImproperlyConfigured, match=r"tool 'log'.*parameter\(s\) \['page'\]"):
         SpecToolset(
             {
@@ -1551,10 +1406,7 @@ def test_a_list_selector_parameter_named_page_is_refused():
 
 
 def test_a_defaulted_page_parameter_is_refused_too():
-    """The shape that would pass silently: each call would run on the selector's defaults,
-    ``page=1, limit=10``, whatever page and size the model asked for. Both names
-    are listed, in one refusal.
-    """
+    """Each call would run on the selector's defaults, whatever page the model asked for."""
     with pytest.raises(
         ImproperlyConfigured, match=r"parameter\(s\) \['limit', 'page'\].*pagination"
     ):
@@ -1577,10 +1429,7 @@ def entry_on_page(*, page: int):
 
 
 def test_a_retrieve_selector_keeps_a_parameter_named_page():
-    """Only a list tool paginates, so a retrieve selector's ``page`` is the model's
-    to send and reaches it. Holds the list-selector condition of the refusal:
-    without it this tool would be refused for a name nothing takes away.
-    """
+    """Only a list tool paginates, so a retrieve selector's ``page`` is the model's to send."""
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=entry_on_page,
@@ -1602,12 +1451,7 @@ def tasks_by_status(*, status: str = "open"):
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("args", [{"status": "done"}, {}], ids=["sent", "omitted"])
 async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both_routes(args):
-    """A spec's read of a name its selector takes is the declaration of where
-    that parameter comes from. Neither route makes it a separate argument: the
-    parameter is advertised once, and its value stays in the call, which hands
-    it to the selector and the permission check both, and an omitted one leaves
-    the selector its own default.
-    """
+    """A read of a selector parameter's name declares where that parameter comes from."""
     registry = SpecRegistry()
     registry.register(
         "tasks",
@@ -1625,21 +1469,12 @@ async def test_a_spec_read_naming_a_selector_parameter_is_served_alike_from_both
     seen_from_registry = RecordingPermission.seen["arguments"]
     expected = await _call(from_mapping, "tasks", AnonymousUser(), dict(args))
     assert _rows(served) == _rows(expected) == [{"name": args.get("status", "open")}]
-    # And the permission check is handed the value too, on both routes alike.
     assert seen_from_registry == RecordingPermission.seen["arguments"]
     assert seen_from_registry == ({"status": "done"} if args else {})
 
 
 class RecordingPermission(PermissionCheck):
-    """Allows everything, and records what it was shown.
-
-    A kernel ``PermissionCheck``, so a spec takes an instance,
-    ``permissions=[RecordingPermission()]``. ``seen`` holds the call's
-    ``action`` (the tool's name, off the call's context), the ``view`` seed
-    the call carries, its ``arguments`` as the check is handed them, the
-    ``user`` it was asked about, and the ``marker`` header of the ``request``
-    seed the call carries.
-    """
+    """Allows everything, and records what it was shown."""
 
     seen: dict[str, Any] = {}
 
@@ -1649,17 +1484,14 @@ class RecordingPermission(PermissionCheck):
             "view": view,
             "arguments": dict(arguments or {}),
             "user": principal,
-            # A header only the request a run arrived on carries, so a call
-            # built around some other request reads ``None`` here.
+            # A header only the run's request carries, so another request reads ``None``.
             "marker": request.META.get("HTTP_X_MARKER") if request is not None else None,
         }
         return True
 
 
 def test_a_read_may_share_a_selector_parameters_name():
-    """A read under a selector parameter's name is that parameter's argument,
-    the way a spec declares an argument the selector reads, so the refusal of
-    a shape under a reserved name leaves it alone."""
+    """A read under a selector parameter's name takes that parameter's argument."""
     toolset = SpecToolset(
         reading(
             {"tasks": _name_list_spec(tasks_by_status)},
@@ -1681,8 +1513,7 @@ def test_a_read_may_share_a_selector_parameters_name():
     ids=["sent", "default-seeded-when-omitted", "omitted-without-default-seeds-nothing"],
 )
 def test_a_shape_reaches_the_presenter_under_its_default_when_left_out(args, declared, seen):
-    """A shape reaches the presenter on ``PresentationContext.shapes``, under its
-    declared default where the model left it out."""
+    """A shape reaches the presenter on ``PresentationContext.shapes``, at its default."""
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
     result = _dispatch(_echo_list_spec(), user, args, shapes=(declared,))
@@ -1696,8 +1527,7 @@ def list_widgets_selecting(user, fields=None):
 
 @pytest.mark.django_db
 def test_a_read_a_callable_takes_is_its_argument_and_never_the_presenter_s():
-    """A read the selector takes by name is the selector's argument, not one of
-    the spec's shapes, so the shapes the presenter reads never carry it."""
+    """A read the selector takes by name is its argument, not one of the spec's shapes."""
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
     spec = replace(_echo_list_spec(), selector=list_widgets_selecting)
@@ -1742,13 +1572,7 @@ def _ceiling_from_fields(fields=None):
 
 @pytest.mark.django_db
 async def test_a_read_a_kwargs_selector_takes_is_its_argument_with_its_default():
-    """A read a ``**kwargs`` selector takes is the selector's argument rather
-    than one of the spec's shapes, so the tool advertises it as a plain
-    argument -- not told it applies to each item -- and the default it
-    advertises is the one the selector is handed when the model omits it.
-
-    Field selection by the presenter is what such a read gives up: the shapes
-    the presenter reads never carry it."""
+    """A read taken by a ``**kwargs`` selector is a plain argument, not a per-item shape."""
     _TAKEN.clear()
     spec = replace(_echo_list_spec(), selector=list_widgets_filtered)
     fields = Parameter("fields", "string", default="id", help="Fields to return.")
@@ -1783,10 +1607,7 @@ async def test_a_read_a_kwargs_selector_takes_is_its_argument_with_its_default()
 async def test_an_explicit_null_for_a_read_a_callable_takes_is_treated_as_omitted(
     spec_kwargs, taken
 ):
-    """``{"fields": null}`` is the model declining to fill the read, as for a
-    shape, whichever callable takes it: dropped, so the callable is handed what
-    an omitted read is, the read's advertised default, rather than the call
-    being refused as a null the parameter does not admit."""
+    """A ``null`` sent for a read is the model declining it, dropped as an omitted read is."""
     _TAKEN.clear()
     spec = _name_list_spec(**spec_kwargs)
     toolset = SpecToolset(
@@ -1801,9 +1622,7 @@ async def test_an_explicit_null_for_a_read_a_callable_takes_is_treated_as_omitte
 
 @pytest.mark.django_db
 async def test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advertises():
-    """The read's declaration stands for the parameter of its name, so the tool
-    advertises the read's default, and a call leaving the read out has to be
-    handed that default rather than the parameter's own."""
+    """The read's declaration stands for its parameter, so a call omitting it gets the default."""
     _TAKEN.clear()
     toolset = SpecToolset(
         reading(
@@ -1820,9 +1639,7 @@ async def test_a_read_a_selector_parameter_takes_is_handed_the_default_it_advert
 
 @pytest.mark.django_db
 async def test_a_read_s_default_never_replaces_a_value_the_model_sent():
-    """The default stands in for a value left out, never for one sent: a call
-    sending ``fields`` hands the selector the model's value. Holds the
-    ``name not in args`` in ``_fill_reads``."""
+    """A default stands in for a value left out, never for one sent."""
     _TAKEN.clear()
     toolset = SpecToolset(
         reading(
@@ -1844,8 +1661,7 @@ async def test_a_read_s_default_never_replaces_a_value_the_model_sent():
     ids=["default applies", "no default"],
 )
 def test_an_explicit_null_shape_is_treated_as_omitted(declared, seen):
-    """``{"fields": null}`` is a model declining to fill the param. It must not
-    reach the presenter as the string ``"None"``, and a default still applies."""
+    """``{\"fields\": null}`` is a model declining to fill the param."""
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
     result = _dispatch(
@@ -1860,8 +1676,7 @@ def test_an_explicit_null_shape_is_treated_as_omitted(declared, seen):
 
 @pytest.mark.django_db
 def test_a_declared_shape_is_no_unknown_argument_under_reject():
-    # A closed-input list selector under REJECT: an undeclared arg would raise
-    # ModelRetry. A declared shape is part of the argument set, so this passes.
+    # A closed-input list selector under REJECT: an undeclared arg would raise ModelRetry.
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
     result = _dispatch(
@@ -1893,8 +1708,7 @@ async def test_agent_run_executes_spec_tool_in_process():
 
 
 async def test_toolset_instructions_reach_the_model_when_attached_directly():
-    # A plain Agent adding SpecToolset to ``toolsets=`` (no capability) gets the
-    # conventions: Pydantic-AI collects the toolset's ``get_instructions``.
+    # A plain Agent with SpecToolset in ``toolsets=`` gets the conventions too.
     captured: dict[str, Any] = {}
     agent = Agent(
         instruction_capturing_model(captured),
@@ -1975,28 +1789,16 @@ async def _run_one_tool(
 
 
 async def test_a_business_failure_marks_the_tool_return_failed():
-    """A ``ServiceError`` reaches the wire as a failed call, never as a
-    *successful* one whose payload happens to read like a refusal."""
+    """A ``ServiceError`` reaches the wire as a failed call, never a successful one."""
     result = await _run_one_tool(ServiceSpec(service=boom, permissions=allow(), atomic=False))
     part = _tool_return(result)
     assert part.outcome == "failed"
-    # The message the model reads is unchanged by the marking.
     assert part.content == "nope"
-    # And the run survived it, which is what separates ``ToolFailed`` from an
-    # ordinary exception: the model got to answer.
     assert result.output == "done"
 
 
 async def test_a_refused_call_marks_the_tool_return_failed_and_carries_its_code():
-    """What reaches the wire for an ``ActionUnavailable``: the same ``failed``
-    marking as any business error, and content that is the reason followed by the
-    code. ``content`` is what a transport forwards as the tool result, so this is
-    the text a browser rendering the call shows as well as what the model reads.
-
-    The books close *while the model is answering*: the step that offered
-    ``close_books`` asked its condition and found it met, and the call that
-    followed is refused. That is the one way a run reaches this refusal through
-    a listing, since an unmet condition leaves the tool out of the catalog."""
+    """An ``ActionUnavailable`` goes on the wire marked failed, like any business error."""
     books = {"open": True}
     spec = ServiceSpec(
         service=_refusing_service,
@@ -2055,8 +1857,7 @@ async def test_a_dispatch_past_its_deadline_marks_the_tool_return_failed():
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_result_over_the_ceiling_marks_the_tool_return_failed():
-    """The dispatch succeeded and the *result* was refused. ``failed`` is still
-    the truthful marking: nothing usable reached the model."""
+    """The dispatch succeeded and the *result* was refused."""
     user = await sync_to_async(User.objects.create)(username="alice")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
 
@@ -2067,11 +1868,7 @@ async def test_a_result_over_the_ceiling_marks_the_tool_return_failed():
 
 
 async def test_an_exception_map_handler_that_returns_a_value_still_succeeds():
-    """``exception_map`` is documented as returning *the tool's result*, and a
-    returned value is what pydantic-ai marks ``"success"``. A project using the
-    seam to turn an exception into an ordinary answer -- a "nothing matched" it
-    would rather express as an empty payload than as a refusal -- keeps getting
-    a successful call, not a failed one wearing its payload."""
+    """``exception_map`` returns *the tool's result*, which pydantic-ai marks ``success``."""
     result = await _run_one_tool(
         ServiceSpec(service=boom, permissions=allow(), atomic=False),
         exception_map={ServiceError: lambda exc: {"matches": []}},
@@ -2103,8 +1900,7 @@ def _filtered_list_spec():
 
 
 async def test_filter_set_fields_are_auto_exposed_as_tool_args():
-    # A filter_set selector's fields land in the tool schema via
-    # the kernel's spec_input_schema, with no read declared for them.
+    # A ``filter_set`` selector's fields reach the schema via the kernel, with no read declared.
     toolset = SpecToolset({"list_widgets": _filtered_list_spec()})
     tools = await toolset.get_tools(None)
     assert "min_price" in tools["list_widgets"].tool_def.parameters_json_schema["properties"]
@@ -2115,20 +1911,14 @@ def test_filter_set_filters_via_ordinary_params_not_query_params():
     user = User.objects.create(username="u")
     Widget.objects.create(name="cheap", price=1, owner=user)
     Widget.objects.create(name="pricey", price=10, owner=user)
-    # The filter value is an ordinary tool arg: a filter_set selector's declared
-    # set is open (REJECT doesn't flag it), and dispatch hands it to the FilterSet
-    # as filter_data. No read is declared for it.
+    # A ``filter_set``'s declared set is open, so dispatch hands the value to the FilterSet.
     result = _dispatch(_filtered_list_spec(), user, {"min_price": "5"})
     assert [w["name"] for w in _rows(result)] == ["pricey"]
 
 
 @pytest.mark.django_db
 def test_reject_refuses_a_key_outside_a_filter_sets_surface():
-    """A ``filter_set``'s filters are declared names like a parameter is, so the
-    set they make is closed: a key outside the filters and the selector's own
-    parameters is refused under ``REJECT`` like any invented key. Holds the
-    ``unknown_arguments`` docstring and the quickstart to calling that set
-    closed."""
+    """A ``filter_set``'s filters are declared names: an unknown key is refused under REJECT."""
     with pytest.raises(ModelRetry, match=r"^colour: Unknown argument\.$"):
         _dispatch(_filtered_list_spec(), User(username="u"), {"colour": "red"})
 
@@ -2153,8 +1943,7 @@ def _open_list_spec() -> SelectorSpec:
 
 @pytest.mark.django_db
 def test_a_bare_kwargs_selector_is_handed_nothing_undeclared():
-    """Under ``IGNORE`` a key no parameter declares is dropped, and a bare
-    ``**kwargs`` declares none, so the callable is not handed it."""
+    """Under ``IGNORE`` a key no parameter declares is dropped, not handed to the callable."""
     _OPEN_SELECTOR_CALLS.clear()
 
     result = _dispatch(
@@ -2171,9 +1960,7 @@ def test_a_bare_kwargs_selector_is_handed_nothing_undeclared():
 
 @pytest.mark.django_db
 def test_a_bare_kwargs_selector_declares_no_name_so_reject_refuses_every_key():
-    """The kernel closes the argument set at the spec's declared parameters, and a
-    bare ``**kwargs`` declares none, so under ``REJECT`` a key sent to it is
-    refused like any other undeclared one."""
+    """The kernel closes the argument set at the declared parameters, not a bare ``**kwargs``."""
     _OPEN_SELECTOR_CALLS.clear()
 
     with pytest.raises(ModelRetry, match=r"^colour: Unknown argument\.$"):
@@ -2213,12 +2000,7 @@ async def test_a_read_applies_to_the_tool_whose_spec_declares_it():
 
 
 def _ceiling_from_project(project_pk=None):
-    """Scoping provider: derive a price ceiling from the call's ``project_pk``.
-
-    Stands in for a consumer's scoping provider that reads a route capture. It
-    takes the value by name, as an argument: off HTTP there is no view whose
-    ``kwargs`` carry it.
-    """
+    """Scoping provider: derive a price ceiling from the call's ``project_pk``."""
     return {"ceiling": int(project_pk) if project_pk is not None else 0}
 
 
@@ -2228,8 +2010,7 @@ def list_under_ceiling(user, ceiling):
 
 
 def _provider_scoped_spec():
-    # ``project_pk`` is consumed by the provider, by name -- the selector never
-    # declares it, so it is a pure provider-read (not a selector argument).
+    # ``project_pk`` is consumed by the provider by name; the selector never declares it.
     return SelectorSpec(
         kind=SelectorKind.LIST,
         selector=list_under_ceiling,
@@ -2259,9 +2040,7 @@ def test_a_read_reaches_a_scoping_provider_by_name(args, declared, names):
 
 @pytest.mark.django_db
 def test_a_read_only_a_provider_takes_is_no_unknown_argument_under_reject():
-    # The selector takes no ``project_pk``; under REJECT an argument nothing
-    # declares would raise. The read is what declares it, so the provider reads
-    # it and REJECT does not.
+    # The selector takes no ``project_pk``; under REJECT an argument nothing declares would raise.
     user = User.objects.create(username="u")
     Widget.objects.create(name="cheap", price=5, owner=user)
     result = _dispatch(
@@ -2286,12 +2065,7 @@ def list_in_project(user, **extras: Unpack[_ProjectExtras]):
 
 
 def _dual_declared_spec():
-    """A list over ``list_in_project``, whose ``project_pk`` is the selector's own.
-
-    The read is marked ``reflected``, as a library compiling a spec marks a
-    read it takes off the selector's signature (here its ``Unpack`` extras): a
-    test replacing ``reads`` declares the same name itself.
-    """
+    """A list over ``list_in_project``, whose ``project_pk`` is the selector's own."""
     return SelectorSpec(
         kind=SelectorKind.LIST,
         selector=list_in_project,
@@ -2303,12 +2077,7 @@ def _dual_declared_spec():
 
 @pytest.mark.django_db
 def test_a_reflected_extras_key_reaches_a_provider_naming_it_too():
-    """A provider reading a name by argument needs no read of its own to be handed it.
-
-    A key reflected from the selector's ``Unpack`` extras is delivered as an
-    argument, and a scoping ``spec.kwargs`` provider taking the same name is
-    handed that argument as well: the value is read by name.
-    """
+    """A provider reading a name by argument needs no read of its own to be handed it."""
     seen = {}
 
     def scope_provider(project_pk=None):
@@ -2318,10 +2087,9 @@ def test_a_reflected_extras_key_reaches_a_provider_naming_it_too():
     user = User.objects.create(username="u")
     Widget.objects.create(name="cheap", price=5, owner=user)
     spec = replace(_dual_declared_spec(), kwargs=scope_provider)
-    # Supplied as an ordinary argument, with no read declared beside the reflected one.
     result = _dispatch(spec, user, {"project_pk": 10})
-    assert [w["name"] for w in _rows(result)] == ["cheap"]  # the selector did get it
-    assert seen == {"project_pk": 10}  # and so did the provider
+    assert [w["name"] for w in _rows(result)] == ["cheap"]
+    assert seen == {"project_pk": 10}
 
 
 @pytest.mark.django_db
@@ -2329,9 +2097,7 @@ def test_a_declared_read_reaches_the_selector_s_extras():
     user = User.objects.create(username="u")
     Widget.objects.create(name="cheap", price=5, owner=user)
     Widget.objects.create(name="dear", price=15, owner=user)
-    # Declared on the spec, the read is an argument typed by its own
-    # declaration, which dispatch hands to the selector, where the Unpack
-    # extras read it.
+    # Declared on the spec, the read is typed by its own declaration and reaches the selector.
     result = _dispatch(
         replace(_dual_declared_spec(), reads=Parameters.of(Parameter("project_pk", "integer"))),
         user,
@@ -2356,8 +2122,7 @@ async def test_a_required_read_is_advertised_as_required():
 
 
 def test_a_required_read_is_required_from_a_bare_mapping_too():
-    """The schema is the spec's, so a tool built from a mapping requires the
-    read its spec declares required, as one built from the registry does."""
+    """The schema is the spec's, so a mapping-built tool requires what its spec requires."""
     spec = replace(
         list_spec(), reads=Parameters.of(Parameter("project_pk", "integer", required=True))
     )
@@ -2368,8 +2133,7 @@ def test_a_required_read_is_required_from_a_bare_mapping_too():
 
 
 def test_omitting_a_required_read_raises_model_retry():
-    # Schema ``required`` is a hint models routinely ignore, so the runtime has
-    # to give the model a way back: ModelRetry naming the argument, not a crash.
+    # Models ignore ``required``, so a missing argument gets a ``ModelRetry`` naming it.
     with pytest.raises(ModelRetry, match="project_pk"):
         _dispatch(list_spec(), None, {}, reads=[Parameter("project_pk", "string", required=True)])
 
@@ -2393,10 +2157,7 @@ def by_label(*, label: str):
 
 
 def test_a_call_wrong_in_two_places_is_told_both_at_once():
-    """The kernel checks the lookup's argument and the input together, so a
-    service call sending a mistyped lookup value and leaving out a field is
-    handed one retry naming both, a line each, and the model fixes the call in
-    one turn rather than two."""
+    """A mistyped lookup value and a missing field get one retry naming both."""
     spec = _update_spec(
         instance_selector_spec=SelectorSpec(
             kind=SelectorKind.RETRIEVE,
@@ -2413,14 +2174,9 @@ def test_a_call_wrong_in_two_places_is_told_both_at_once():
 
 @pytest.mark.django_db
 def test_a_required_read_with_a_default_is_served_under_its_default():
-    """The kernel's reading of a required read that declares a default: an
-    absent value is not refused, the default is it. The toolset builds such a
-    tool and fills the default into an omitted call, rather than refusing a
-    declaration the spec compiled.
-    """
+    """An absent value of a required read with a default is not refused: the default is it."""
     read = Parameter("project_pk", "string", default="P1", required=True)
     spec = list_spec(permissions=[RecordingPermission()])
-    # A registry builds it as a mapping does.
     SpecToolset(reading({"list_widgets": spec}, {"list_widgets": [read]}))
 
     _dispatch(spec, None, {}, reads=[read])
@@ -2428,10 +2184,7 @@ def test_a_required_read_with_a_default_is_served_under_its_default():
     assert RecordingPermission.seen["arguments"] == {"project_pk": "P1"}
 
 
-# Wording for refusals of a mount's channel declarations that the toolset does not
-# make: a spec cannot make any of these declarations unrefused, so the toolset
-# carries no check for them. Each case below is refused one layer down, and must
-# not be answered in these words.
+# Wording for refusals of channel declarations the toolset does not make.
 def _STRING(name: str) -> Parameter:  # noqa: N802 - reads as the declaration it builds
     return Parameter(name, "string")
 
@@ -2490,10 +2243,7 @@ _REFUSALS_THE_TOOLSET_DOES_NOT_MAKE = (
     ],
 )
 def test_a_read_no_spec_can_declare_is_refused_before_the_toolset_checks_it(build, refusal):
-    """The kernel refuses each of these declarations when the spec is built,
-    and a required read withheld by ``tool_server_arguments`` when the toolset
-    binds it, so a toolset never serves one: the reason the toolset carries no
-    check of its own for them."""
+    """The kernel refuses each of these declarations at build, so a toolset never serves one."""
     with pytest.raises(ImproperlyConfigured, match=refusal) as raised:
         build()
 
@@ -2504,11 +2254,7 @@ def test_a_read_no_spec_can_declare_is_refused_before_the_toolset_checks_it(buil
 
 
 class _Fileish(Presenter):
-    """Renders a file's URL absolute against the call's ``request``, relative without one.
-
-    The branch a file field's rendering takes: the request is read off the
-    call's context, where the toolset puts the one the run arrived on.
-    """
+    """Renders a file's URL absolute against the call's ``request``, relative without one."""
 
     def output(self) -> Output:
         return Output(
@@ -2556,12 +2302,7 @@ def fileish_spec():
     ids=["its-host-makes-file-urls-absolute", "its-scheme-too", "without-one-they-stay-relative"],
 )
 async def test_the_request_a_run_arrived_on_decides_whether_file_urls_are_absolute(arrived, url):
-    """The host a URL is made absolute against is the request the run arrived on.
-
-    Put in the run's ``call_context`` under ``request``, it is the request a
-    presenter reads off the call's context; a run that arrived on none renders
-    a relative URL, as a presenter handed no request does.
-    """
+    """The host a URL is made absolute against is the request the run arrived on."""
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
     deps = AgentDeps(user=user)
@@ -2588,12 +2329,7 @@ def _unguarded_list_spec():
 
 
 def test_an_unguarded_spec_is_refused_by_default():
-    """Over HTTP ``None`` means *inherit*; off HTTP there is nothing to inherit.
-
-    A spec guarded behind a viewset, with passing HTTP tests, is callable by
-    whatever the model decides to call the moment it reaches a toolset. There is
-    no signal anywhere, which is why this has to fire at construction.
-    """
+    """Over HTTP ``None`` means *inherit*; off HTTP there is nothing to inherit."""
     with pytest.raises(ImproperlyConfigured) as excinfo:
         SpecToolset({"list_widgets": _unguarded_list_spec()})
 
@@ -2623,10 +2359,7 @@ def test_a_guarded_spec_says_nothing(recwarn):
 
 
 def test_an_explicitly_unrestricted_spec_is_neither_refused_nor_warned_about(recwarn):
-    """``permissions=[Unrestricted()]`` is a declaration that anyone may call;
-    only a spec declaring no permissions at all is the absence the toolset
-    refuses. The kernel's own ``unguarded_specs`` would flag this spec, which
-    is why the toolset asks the spec's ``permissions`` rather than it."""
+    """``Unrestricted()`` declares anyone may call; no permissions at all is refused."""
     SpecToolset({"list_widgets": list_spec(permissions=[Unrestricted()])})
 
     assert [w for w in recwarn.list if issubclass(w.category, UnguardedSpecWarning)] == []
@@ -2671,16 +2404,13 @@ def test_a_whitespace_only_description_counts_as_none():
     "ordering", ["name", ["price"]], ids=["a-string", "a-non-string-is-refused-the-same-way"]
 )
 def test_ordering_on_a_tool_that_declares_none_says_so(ordering):
-    """The tool schema is advisory and the args validator is a no-op, so a value
-    of any shape reaches the pop untyped. Nothing here inspects it: the tool
-    advertises no sort, so what it *is* cannot matter."""
+    """The tool schema is advisory, so a value of any shape reaches the pop untyped."""
     with pytest.raises(ModelRetry, match="does not accept an `ordering` argument"):
         _dispatch(list_spec(), object(), {"ordering": ordering})
 
 
 async def test_the_ordering_instruction_is_absent_when_no_tool_advertises_a_sort():
-    """Advice a model cannot act on is not free — it is prompt budget spent
-    teaching it about an argument that will be rejected."""
+    """Advice a model cannot act on spends prompt budget on an argument it will be refused."""
     without = await SpecToolset({"list_widgets": list_spec()}).get_instructions(None)
     assert "accept `ordering`" not in without
 
@@ -2695,12 +2425,7 @@ async def test_the_ordering_instruction_is_absent_when_no_tool_advertises_a_sort
 
 
 class _OrderedWidgetFilterSet(django_filters.FilterSet):
-    """Public sort names that are *not* the ORM paths they resolve to.
-
-    ``cost`` / ``title`` map to ``price`` / ``name`` through the filter's own
-    ``param_map``, which is why raw ORM paths are not interchangeable with these
-    and why the filter has to be the one applying them.
-    """
+    """Public sort names that are *not* the ORM paths they resolve to."""
 
     min_price = django_filters.NumberFilter(field_name="price", lookup_expr="gte")
     ordering = django_filters.OrderingFilter(fields=(("price", "cost"), ("name", "title")))
@@ -2721,12 +2446,7 @@ def _ordered_list_spec():
 
 
 class _SortingWidgetFilterSet(django_filters.FilterSet):
-    """The same sort, declared under a name that is not ``ordering``.
-
-    Nothing requires the name. The docs suggest ``ordering``, and a project
-    following that to the letter is fine, but the name is the project's to
-    choose and django-filter has no opinion about it.
-    """
+    """The same sort, declared under a name that is not ``ordering``."""
 
     sorting = django_filters.OrderingFilter(fields=(("price", "cost"), ("name", "title")))
 
@@ -2752,18 +2472,12 @@ def _three_widgets(user):
 
 
 def test_the_sort_argument_is_found_under_whatever_name_it_was_declared():
-    """The name is the project's to choose, and nothing requires ``ordering``.
-
-    A check of the literal string would read a FilterSet declaring ``sorting``
-    as "owns no ordering" -- dropping the usage instruction and, more quietly,
-    leaving the value in the callable's kwarg pool.
-    """
+    """The name is the project's to choose, and nothing requires ``ordering``."""
     assert _spec_ordering_argument(_sorting_list_spec()) == "sorting"
 
 
 def test_a_plain_filter_is_not_mistaken_for_a_sort():
-    # min_price is a NumberFilter. Only OrderingFilter defines
-    # ``get_ordering_value``, which is what makes the duck-type specific.
+    # min_price is a NumberFilter.
     assert _spec_ordering_argument(_filtered_list_spec()) is None
 
 
@@ -2780,13 +2494,7 @@ _FILTER_VALUES_REACH_KWARGS = pytest.mark.xfail(
 @_FILTER_VALUES_REACH_KWARGS
 @pytest.mark.django_db
 def test_a_renamed_sort_is_popped_out_of_the_callables_kwargs():
-    """Popped, not merely applied.
-
-    The FilterSet reads ``params`` either way, so the rows would come back sorted
-    even with the value left in the selector's kwarg pool, where a selector
-    declaring ``**kwargs`` would receive a read-shaping argument it never asked
-    for: the hazard the expected failure's reason names, for a renamed sort.
-    """
+    """Popped, not merely applied."""
     seen: dict[str, object] = {}
 
     def recording_selector(**kwargs):
@@ -2810,11 +2518,7 @@ def test_a_renamed_sort_is_popped_out_of_the_callables_kwargs():
 
 
 def test_the_instruction_names_the_argument_that_actually_exists():
-    """A hard-coded name in the prose is a second copy of the same assumption.
-
-    An instruction naming an argument the schema does not carry is worse than no
-    instruction: the model is told to send something that will be rejected.
-    """
+    """A hard-coded name in the prose is a second copy of the same assumption."""
     instructions = _derive_instructions({"list_widgets": _sorting_list_spec()}, {})
 
     assert "`sorting`" in instructions
@@ -2843,11 +2547,7 @@ def test_the_instruction_names_every_live_sort_argument():
     ids=["actually-orders-the-rows", "descends", "a-renamed-sort-still-orders-the-rows"],
 )
 def test_filter_owned_ordering_orders_the_rows(build, args, names):
-    """The FilterSet advertises its sort, so the value has to reach it and the
-    rows have to come back sorted. Asserting the order rather than "no error" is
-    the point — the failure being guarded against is a tool that answers
-    cheerfully with rows in the wrong order.
-    """
+    """The FilterSet advertises its sort, so the value must reach it and sort the rows."""
     user = User.objects.create(username="u")
     _three_widgets(user)
     result = _dispatch(build(), user, args)
@@ -2856,10 +2556,7 @@ def test_filter_owned_ordering_orders_the_rows(build, args, names):
 
 @pytest.mark.django_db
 def test_filter_owned_ordering_composes_with_the_other_filters():
-    """``filter_data`` *replaces* ``params`` as the filter source rather than
-    adding to it, so routing ``ordering`` through it has to carry the rest of the
-    filter args along — otherwise ordering a filtered list silently unfilters it.
-    """
+    """``filter_data`` replaces ``params`` as the filter source, so other args must follow."""
     user = User.objects.create(username="u")
     _three_widgets(user)
     result = _dispatch(_ordered_list_spec(), user, {"min_price": "2", "ordering": ["cost"]})
@@ -2876,11 +2573,7 @@ def test_filter_owned_tool_still_works_with_no_ordering_supplied():
 
 @pytest.mark.django_db
 def test_an_ordering_outside_the_filters_choices_is_a_retry():
-    """The FilterSet validates it — including against the raw ORM path behind one
-    of its own public choices, which is not itself a choice. The kernel raises
-    that as invalid arguments, which is already the ``ModelRetry`` arm;
-    the toolset adds no second validation of its own.
-    """
+    """The FilterSet validates the sort, including a raw ORM path behind a public choice."""
     user = User.objects.create(username="u")
     _three_widgets(user)
     with pytest.raises(ModelRetry, match="ordering"):
@@ -2888,17 +2581,11 @@ def test_an_ordering_outside_the_filters_choices_is_a_retry():
 
 
 async def test_the_advertised_ordering_choices_are_the_filters_own_vocabulary():
-    """The kernel's schema reads an ``OrderingFilter`` as the filter's widget
-    reads it: an array of sort names, each one of the filter's public choices.
-    The vocabulary reaching the model is the filter's public one, and it is the
-    only one there is.
-    """
+    """The kernel reads an ``OrderingFilter`` as an array of its public choices."""
     toolset = SpecToolset({"list_widgets": _ordered_list_spec()})
     tools = await toolset.get_tools(None)
     props = tools["list_widgets"].tool_def.parameters_json_schema["properties"]
     assert props["ordering"]["type"] == "array"
-    # Each choice is a ``const`` under the label ``OrderingFilter`` gives it, and
-    # nothing else is offered: no ``enum`` beside the ``anyOf`` to say otherwise.
     assert props["ordering"]["items"] == {
         "type": "string",
         "anyOf": [
@@ -2908,15 +2595,12 @@ async def test_the_advertised_ordering_choices_are_the_filters_own_vocabulary():
             {"const": "-title", "title": "Title (descending)"},
         ],
     }
-    # The kernel's bound on how many sort keys one call may send.
     assert props["ordering"]["maxItems"] == 1000
 
 
 @pytest.mark.django_db
 def test_a_sort_sent_as_one_string_is_handed_back_as_a_retry():
-    """The schema advertises the sort as an array, and the kernel's shape check
-    refuses anything else, so a string is the model's mistake to correct rather
-    than a value read for it: the toolset no longer splits one on commas."""
+    """The schema advertises an array, so a string is the model's mistake to correct."""
     user = User.objects.create(username="u")
     _three_widgets(user)
 
@@ -2928,19 +2612,13 @@ def test_spec_owns_ordering_reads_the_reflected_schema():
     assert _spec_ordering_argument(_ordered_list_spec()) == "ordering"
     assert _spec_ordering_argument(_filtered_list_spec()) is None
     assert _spec_ordering_argument(list_spec()) is None
-    # Only a list selector can contest the argument: nothing else is ever offered
-    # one, so a service with an `ordering` input field is not a clash.
+    # Only a list selector can contest the argument, so an ``ordering`` input field is no clash.
     assert _spec_ordering_argument(retrieve_spec()) is None
     assert _spec_ordering_argument(create_spec()) is None
 
 
 def test_the_filters_vocabulary_survives_the_schema_merge_untouched():
-    """``_input_schema`` adds the transport's ``page`` and ``limit`` beside the
-    spec's own properties, so anything it wrote under a name the filter already
-    advertised would silently replace the filter's public choices. It writes
-    those two and nothing else, and this is the assertion that says so at the
-    property that would notice.
-    """
+    """Written under a filter's name, a schema entry would silently replace ``page``."""
     props = _input_schema(_ordered_list_spec())["properties"]
     choices = props["ordering"]["items"]["anyOf"]
     assert [choice["const"] for choice in choices] == ["cost", "-cost", "title", "-title"]
@@ -2948,20 +2626,14 @@ def test_the_filters_vocabulary_survives_the_schema_merge_untouched():
 
 
 async def test_the_ordering_instruction_is_emitted_for_a_filter_owned_tool():
-    """The tool whose sort is a set of labelled options — the one that most needs
-    to be told exactly one of them is picked, not a comma-separated list."""
+    """The tool whose sort is a set of labelled options must be told to pick exactly one."""
     instructions = await SpecToolset({"list_widgets": _ordered_list_spec()}).get_instructions(None)
     assert "accept `ordering`" in instructions
 
 
 @pytest.mark.django_db
 def test_filter_owned_ordering_survives_pagination():
-    """Sort and slice are owned by different layers — the FilterSet orders the
-    lazy queryset, ``paginate_output`` slices it afterwards — so the pair has to
-    be asserted together. Sorted by ``cost`` the rows are b, c, a; the second
-    page of two is therefore the *largest*, which no unsorted result produces
-    reliably.
-    """
+    """Sort and slice are owned by different layers, so the pair is asserted together."""
     user = User.objects.create(username="u")
     _three_widgets(user)
     result = _dispatch(_ordered_list_spec(), user, {"ordering": ["cost"], "page": 2, "limit": 2})
@@ -2970,11 +2642,7 @@ def test_filter_owned_ordering_survives_pagination():
 
 
 class _BogusTargetFilterSet(django_filters.FilterSet):
-    """A sort whose public choice maps to something that is not a column.
-
-    An author's error that cannot be caught at construction: knowing whether a
-    ``param_map`` target is real means asking a queryset that does not exist yet.
-    """
+    """A sort whose public choice maps to something that is not a column."""
 
     ordering = django_filters.OrderingFilter(fields=(("nope", "broken"),))
 
@@ -2985,13 +2653,7 @@ class _BogusTargetFilterSet(django_filters.FilterSet):
 
 @pytest.mark.django_db
 def test_a_sort_target_that_is_not_a_column_raises_rather_than_retrying():
-    """Pinned because it is easy to assume the opposite.
-
-    Django validates a plain-string ``order_by`` eagerly, so the FilterSet raises
-    inside the kernel's ``dispatch`` and no arm turns the ``FieldError`` into a
-    ``ModelRetry`` -- which is arguably right, since the model cannot correct a
-    mis-declared ``param_map`` by choosing a different sort.
-    """
+    """Pinned because it is easy to assume the opposite."""
     spec = SelectorSpec(
         kind=SelectorKind.LIST,
         selector=list_widgets,
@@ -3039,13 +2701,7 @@ class _RecordingFilterSet(django_filters.FilterSet):
 @_FILTER_VALUES_REACH_KWARGS
 @pytest.mark.django_db
 def test_the_transport_args_never_reach_a_kwargs_selector():
-    """``page`` / ``limit`` / ``ordering`` are the transport's, whoever consumes them.
-
-    A selector declaring ``**kwargs`` receives the whole dispatch pool, so this is
-    the test that catches a transport arg being left in ``params`` — including the
-    filter-owned ``ordering``, which reaches the FilterSet through ``filter_data``
-    precisely so that it does *not* reach the callable.
-    """
+    """``page`` / ``limit`` / ``ordering`` are the transport's, whoever consumes them."""
     _KWARGS_SEEN.clear()
     _FILTER_DATA_SEEN.clear()
     user = User.objects.create(username="u")
@@ -3064,12 +2720,8 @@ def test_the_transport_args_never_reach_a_kwargs_selector():
     assert "page" not in seen
     assert "limit" not in seen
     assert "ordering" not in seen
-    # The selector's own filter arg is untouched — only the transport's are taken.
     assert seen["min_price"] == "1"
 
-    # The FilterSet gets the filter args plus ordering, and *not* the pagination
-    # args: ``filter_data`` is built after ``page`` / ``limit`` have been popped,
-    # so routing ``ordering`` there does not widen what the FilterSet sees.
     assert _FILTER_DATA_SEEN[-1] == {"min_price": "1", "ordering": "cost"}
 
 
@@ -3144,15 +2796,7 @@ _HOUSE_ORDER_FILLERS = pytest.mark.parametrize(
 @_HOUSE_ORDER_FILLERS
 @pytest.mark.django_db(transaction=True)
 async def test_an_ordering_the_toolset_fills_is_refused_from_the_model(spec_kwargs, toolset_kwargs):
-    """The schema drops a name the toolset fills, and the call agrees with it: a
-    sort the model sends anyway is refused like any other the tool does not
-    advertise, instead of being passed on to a selector that is handed the
-    deployment's sort whatever the model asked for.
-
-    ``_spec_ordering_argument`` reads the reflection with the names the toolset
-    fills, so it agrees with the schema that ``ordering`` is gone. The
-    pool-seed case holds ``pool_seeds`` reaching it from ``_pop_pagination``.
-    """
+    """The schema drops a name the toolset fills, and the call refuses a sort sent anyway."""
     user = await User.objects.acreate(username="u")
     await sync_to_async(_three_widgets)(user)
     toolset = SpecToolset({"list_widgets": _house_ordered_spec(**spec_kwargs)}, **toolset_kwargs)
@@ -3171,10 +2815,7 @@ async def test_an_ordering_the_toolset_fills_is_refused_from_the_model(spec_kwar
 async def test_an_ordering_the_toolset_fills_gets_no_usage_line(
     spec_kwargs, toolset_kwargs, books_open
 ):
-    """No line teaching the model a sort argument no tool lets it send, in the
-    block for a step offering every tool and in the one for a step leaving a tool
-    out, which are derived separately. The pool-seed case holds ``pool_seeds``
-    reaching ``_spec_ordering_argument`` from each."""
+    """No line teaches a sort argument no tool lets the model send."""
     toolset = SpecToolset(
         {
             "list_widgets": _house_ordered_spec(**spec_kwargs),
@@ -3220,12 +2861,7 @@ def reporting_spec():
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_reporter_on_the_deps_reaches_the_service():
-    """The caller supplies the sink; the toolset only carries it.
-
-    A toolset that *constructed* one — "write progress to the logger" — would
-    have picked a transport it does not own, which is the thing this package
-    exists not to do.
-    """
+    """The caller supplies the sink; the toolset only carries it."""
     user = await sync_to_async(User.objects.create)(username="u")
     sink = _RecordingProgress()
     toolset = SpecToolset({"create_widget": reporting_spec()})
@@ -3276,12 +2912,7 @@ async def test_a_call_is_timed_at_debug(caplog):
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_denial_is_logged_at_warning_and_still_raises(caplog):
-    """The one failure with no other trace.
-
-    A retry reaches the model and a failed call reaches its answer, but a
-    denial aborts the run and is absorbed by whatever is driving it — so over
-    HTTP this is a `403` in the access log and here it would be nothing at all.
-    """
+    """The one failure with no other trace."""
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = SpecToolset({"list_widgets": list_spec(permissions=[DenyAll()])})
     tools = await toolset.get_tools(None)
@@ -3297,8 +2928,7 @@ async def test_a_denial_is_logged_at_warning_and_still_raises(caplog):
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_refusal_the_service_raises_is_logged_as_a_denial(caplog):
-    """The kernel's ``NotPermitted``, raised bare by the service itself rather
-    than by a permission check, is answered by the denial arm all the same."""
+    """A bare ``NotPermitted`` raised by the service is answered by the denial arm too."""
 
     def refuse(user):
         """Refuse."""
@@ -3324,8 +2954,7 @@ async def test_a_refusal_the_service_raises_is_logged_as_a_denial(caplog):
 
 @pytest.mark.django_db(transaction=True)
 async def test_djangos_permission_denied_is_logged_as_a_denial(caplog):
-    """A service may raise Django's own ``PermissionDenied`` bare; it is the
-    same refusal, reaches the run untouched and is logged naming the tool."""
+    """A bare Django ``PermissionDenied`` is the same refusal, logged naming the tool."""
 
     def refuse(user):
         """Refuse."""
@@ -3351,9 +2980,7 @@ async def test_djangos_permission_denied_is_logged_as_a_denial(caplog):
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_deactivated_principal_is_logged_as_a_denial(caplog):
-    """The kernel refuses a deactivated principal before any permission check,
-    with ``PrincipalUnavailable`` rather than ``NotPermitted``; it is still a denial,
-    and still the one failure with no other trace."""
+    """A deactivated principal gets ``PrincipalUnavailable``, still a denial."""
     user = await sync_to_async(User.objects.create)(username="u", is_active=False)
     toolset = SpecToolset({"list_widgets": list_spec()})
 
@@ -3371,12 +2998,7 @@ async def test_a_deactivated_principal_is_logged_as_a_denial(caplog):
 
 @pytest.mark.django_db(transaction=True)
 async def test_an_over_budget_result_fails_rather_than_truncating():
-    """A partial payload looks complete.
-
-    A list cut at the byte ceiling is indistinguishable from a list that had
-    that many rows, so a model would answer confidently from data it does not
-    know is missing. Refusing costs a turn; truncating costs correctness.
-    """
+    """A partial payload looks complete."""
     user = await sync_to_async(User.objects.create)(username="u")
     for n in range(5):
         await sync_to_async(Widget.objects.create)(name=f"w{n}", price=n, owner=user)
@@ -3439,17 +3061,12 @@ def test_the_page_ceiling_is_clamped_as_well_as_advertised():
 
 @pytest.mark.django_db
 def test_an_omitted_limit_becomes_the_ceiling():
-    """The unbounded read is the one that hurts, and it is the one a model
-    produces by simply not thinking about pagination."""
+    """The unbounded read hurts most, and a model produces it by not thinking about pages."""
     user = User.objects.create(username="u")
     for n in range(5):
         Widget.objects.create(name=f"w{n}", price=n, owner=user)
 
     assert len(_rows(_dispatch(list_spec(), user, {}, max_page_size=3))) == 3
-    # With no ceiling configured, an omitted limit is the default page size --
-    # not "everything", which would make an unremarked truncation possible.
-    # Five rows fit inside one default page, so
-    # they all come back, and ``hasNext`` says there is no more.
     page = _dispatch(list_spec(), user, {})
     assert len(_rows(page)) == 5
     assert page["hasNext"] is False
@@ -3506,13 +3123,7 @@ def test_an_unmapped_exception_still_aborts_the_run():
 
 
 def test_exception_map_turns_an_unknown_exception_into_a_result():
-    """The motivating case: Django's ``ValidationError``, not the kernel's
-    ``ServiceValidationError``.
-
-    Raised by ``full_clean`` and any custom model validator, absent from the
-    translated set, and so fatal to the run where the kernel's twin would have
-    been a retry. Broadening the built-in set fixes that one; a map fixes the class.
-    """
+    """The motivating case: Django's ``ValidationError``, not the kernel's."""
     boom = _raising(DjangoValidationError("that name is taken"))
 
     result = _dispatch(
@@ -3565,12 +3176,7 @@ def test_the_most_specific_registration_wins():
 
 
 def test_the_map_overrides_a_built_in_arm():
-    """Deliberate: the built-ins are this package's guess, not a law.
-
-    A ``ServiceError`` normally fails the call. A project that would
-    rather the model retry must be able to say so, or the map is only half a
-    seam.
-    """
+    """Deliberate: the built-ins are this package's guess, not a law."""
     boom = _raising(ServiceError("nope"))
 
     with pytest.raises(ModelRetry):
@@ -3609,10 +3215,7 @@ def test_no_request_arrives_unless_the_run_put_one():
 
 @pytest.mark.django_db
 def test_a_provider_declaring_view_is_handed_none_on_a_run_with_no_view():
-    """There is no view off HTTP: a ``kwargs=`` provider written for one, which
-    declares ``view``, is handed the call's ``view`` entry, ``None`` where the
-    run put none, rather than a stand-in whose ``kwargs`` would carry captures
-    by a second route."""
+    """No view exists off HTTP: a ``kwargs=`` provider gets ``None`` for ``view``."""
     seen: dict[str, Any] = {}
 
     def scope(view):
@@ -3626,12 +3229,7 @@ def test_a_provider_declaring_view_is_handed_none_on_a_run_with_no_view():
 
 @pytest.mark.django_db
 def test_a_request_call_seeds_returns_stands_over_the_one_the_run_put():
-    """A subclass reaches dispatch with the run's typed deps in hand.
-
-    The tenant is per-run, so it cannot be baked into the toolset at
-    construction: the override reads it off ``ctx.deps``, and the request it
-    returns is the call's ``request`` over the one the run arrived on.
-    """
+    """A subclass reaches dispatch with the run's typed deps in hand."""
     peek, seen = _tenant_peek()
 
     class TenantToolset(SpecToolset):
@@ -3671,13 +3269,7 @@ def test_translate_exception_is_overridable_without_a_map():
 
 
 def test_specs_is_readable_without_a_run():
-    """``get_tools`` is async and needs a ``RunContext``, so it cannot answer here.
-
-    A caller composing this toolset into a name-dedup pass or a tool catalog does
-    so at configuration time, with no run in sight. Without a public answer they
-    reach for ``_specs``, and a private becomes load-bearing across a package
-    boundary.
-    """
+    """``get_tools`` is async and needs a ``RunContext``, so it cannot answer here."""
     a, b = list_spec(), retrieve_spec()
     toolset = SpecToolset({"list": a, "get": b})
 
@@ -3704,10 +3296,7 @@ def test_specs_reflects_a_registry_source_resolved():
 
 
 class _AgentWidget(RowPresenter):
-    """A widget marked for an agent: its handle, its label, a hidden price, a spoken status.
-
-    Every widget is in stock here, so ``status`` is the one value it renders.
-    """
+    """A widget marked for an agent: its handle, its label, a hidden price, a spoken status."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -3746,23 +3335,7 @@ def test_hidden_fields_leave_the_payload_and_choices_are_spoken():
     assert _rows(rows) == [{"id": 1, "name": "Sprocket", "status": "In stock"}]
 
 
-# ``transaction=True`` because neither write below can be rolled back. ``acreate``
-# reaches the ORM through ``sync_to_async``, which in an async test with no
-# synchronous frame above the loop lands on asgiref's shared thread -- a different
-# thread, so a different connection, in autocommit -- while pytest-django's
-# rollback wraps this thread's connection and nothing else. Both rows would commit
-# and outlive the test, to be read by whichever later test counts rows, which then
-# fails for a reason nowhere near itself.
-#
-# Creating them on the test's own thread instead is the cheaper-looking fix and it
-# does not work: the dispatch under test runs on that same shared thread, and from
-# there rows still uncommitted in this thread's transaction are not visible at all
-# -- measured, not assumed. The assertion is about exactly those rows, so it would
-# read back an empty page.
-#
-# The cost is a flush of every table at teardown rather than a rollback. The two
-# other tests in this file that write from a dispatch thread pay it for the same
-# reason.
+# ``transaction=True`` because neither write below can be rolled back.
 @pytest.mark.django_db(transaction=True)
 async def test_call_tool_uses_the_projection_built_at_construction():
     user = await User.objects.acreate(username="u2")
@@ -3771,9 +3344,6 @@ async def test_call_tool_uses_the_projection_built_at_construction():
 
     rows = await toolset.call_tool("widgets", {}, ctx_for(user), None)
 
-    # ``widget.pk`` rather than a literal 1: a rolled-back test always starts from
-    # an empty table, but a truncating one only restarts the ids on backends that
-    # reuse them, and what this asserts is the projection, not the numbering.
     assert _rows(rows) == [{"id": widget.pk, "name": "Sprocket", "status": "In stock"}]
 
 
@@ -3799,13 +3369,7 @@ def _declaring(*reads: Parameter, shapes: Sequence[Parameter] = ()):
 
 @pytest.mark.parametrize("no_default", [None, UNSET])
 def test_a_read_or_shape_declaring_no_default_contributes_nothing(no_default: Any) -> None:
-    """Both sentinels for "no default", ``None`` and ``UNSET``, read as absent,
-    for a shape and an advertised read alike.
-
-    ``UNSET`` is the "no default" that lets ``default=None`` mean an explicit
-    null, and a check of only ``is not None`` reads it as a real value and hands
-    the sentinel object to the spec as an argument.
-    """
+    """Both sentinels for no default, ``None`` and ``UNSET``, read as absent."""
     args: dict[str, Any] = {}
     _fill_reads(
         _declaring(
@@ -3831,9 +3395,7 @@ def test_a_real_default_still_reaches_the_spec() -> None:
 
 
 def test_a_reflected_read_s_default_is_its_callable_s_to_apply() -> None:
-    """A read marked ``reflected``, which a library compiling a spec takes off a
-    callable's signature, carries the callable's own default, which the
-    callable applies; only a declared read's default is the toolset's to fill."""
+    """A ``reflected`` read carries the callable's own default, which the callable applies."""
     args: dict[str, Any] = {}
     _fill_reads(_declaring(Parameter("region", "string", default="all", reflected=True)), args)
     assert args == {}
@@ -3859,14 +3421,7 @@ async def _call(toolset: SpecToolset, name: str, user: Any, args: dict[str, Any]
 
 @pytest.mark.django_db
 async def test_the_tool_name_is_the_action_a_permission_check_reads():
-    """The call's ``action`` is the tool name, never ``None``.
-
-    A permission check branching on the action -- strict for the actions it
-    knows, permissive otherwise -- would take the permissive arm on every call
-    given ``None``, so the same spec behind the same class would be gated one way
-    over HTTP and another way through an agent. The tool name is the identity the model
-    called, and it is what the MCP transport reports for the same spec.
-    """
+    """The call's ``action`` is the tool name, never ``None``."""
     toolset = SpecToolset(
         {
             "suspend_account": ServiceSpec(
@@ -3884,12 +3439,7 @@ async def test_the_tool_name_is_the_action_a_permission_check_reads():
 
 @pytest.mark.django_db
 async def test_a_view_call_seeds_returns_carries_the_action_a_permission_class_reads():
-    """The tool's name is the call's ``action``, and a view is how to say another.
-
-    A project whose permission check branches on viewset action names returns
-    a view carrying one of those from ``call_seeds``, which the check reads as
-    its ``view`` seed, where the run put none.
-    """
+    """The tool's name is the call's ``action``, and a view is how to say another."""
 
     class RetrieveShaped(SpecToolset):
         def call_seeds(self, *, ctx, tool_name):
@@ -3922,16 +3472,7 @@ def _in_project(user, project_pk):
 
 @pytest.mark.django_db
 async def test_a_view_call_seeds_returns_is_handed_over_with_no_route_read_filled():
-    """What the moving guide tells a project whose permission reads a route capture.
-
-    A view ``call_seeds`` returns reaches the check as that object, its
-    ``kwargs`` as the hook left them, although the call's arguments carry the
-    read a route would have captured. ``DRFPermissionCheck`` asks a carried view
-    as it is, so a class reading ``view.kwargs["project_pk"]`` finds no capture
-    there. With no view returned, the check is handed none and the arguments
-    holding the read, which is what ``DRFPermissionCheck`` fills its own view's
-    ``kwargs`` from, for the reads its ``route_reads`` names.
-    """
+    """What the moving guide tells a project whose permission reads a route capture."""
     carried = SimpleNamespace(action="do_it", kwargs={})
 
     class Carrying(SpecToolset):
@@ -3982,11 +3523,7 @@ _ECHOED: list[tuple[Any, Any, Any]] = []
 
 
 class _SlowEcho(Presenter):
-    """Reads its call's ``fields`` shape either side of a pause.
-
-    The pause is what lets a second call, run concurrently, rewrite a context
-    the two shared before the first reads it again.
-    """
+    """Reads its call's ``fields`` shape either side of a pause."""
 
     def output(self) -> Output:
         return Output((OutputField("name", "string"), OutputField("fields", "string")))
@@ -4004,11 +3541,7 @@ class _SlowEcho(Presenter):
 
 @pytest.mark.django_db(transaction=True)
 async def test_two_concurrent_calls_built_around_one_arrived_on_request_each_read_their_own():
-    """The request a run arrived on is one object for the whole run, and every
-    call of the run is built around it, concurrently where the model asks for
-    several at once. Each call's presenter reads the call's own ``fields``
-    throughout its render, never the other call's, and the arrived-on request
-    keeps its own query string."""
+    """One request object serves the whole run, and every call of the run is built around it."""
     _ECHOED.clear()
     user = await sync_to_async(User.objects.create)(username="u")
     await sync_to_async(Widget.objects.create)(name="a", price=1, owner=user)
@@ -4042,14 +3575,7 @@ async def test_two_concurrent_calls_built_around_one_arrived_on_request_each_rea
 
 @pytest.mark.django_db
 async def test_a_dispatch_leaves_the_arrived_on_request_untouched():
-    """The second half: the request the run arrived on survives the call unchanged.
-
-    A project serving that request must be able to keep reading it afterwards
-    -- a later permission check, an audit hook, a ``request.method`` branch.
-    A dispatch that forced ``method`` to ``POST``, replaced ``GET`` or
-    reassigned ``user`` on that very object would have effects that outlived
-    the call.
-    """
+    """The second half: the request the run arrived on survives the call unchanged."""
     ambient = RequestFactory().get("/agent/?fields=original", HTTP_X_MARKER="arrived")
     ambient.user = "the-operator"
     toolset = SpecToolset(
@@ -4067,8 +3593,6 @@ async def test_a_dispatch_leaves_the_arrived_on_request_untouched():
 
     await _call_arrived(toolset, "do_it", ambient, {"fields": "id,name"})
 
-    # The call was built around this request, so what follows is about a
-    # request the dispatch had in hand, not one it never saw.
     assert RecordingPermission.seen["marker"] == "arrived"
     assert ambient.method == "GET"
     assert ambient.GET.dict() == {"fields": "original"}
@@ -4079,12 +3603,7 @@ async def test_a_dispatch_leaves_the_arrived_on_request_untouched():
 
 
 async def test_every_tool_is_listed_by_default():
-    """The documented posture: listing discloses, ``permission_classes`` gate.
-
-    A permission whose answer depends on the arguments has none to read at
-    listing time, so filtering by default would hide tools the caller can
-    actually invoke.
-    """
+    """The documented posture: listing discloses, ``permission_classes`` gate."""
     toolset = SpecToolset({"list_widgets": list_spec(), "make": create_spec()})
 
     tools = await toolset.get_tools(ctx_for(object()))
@@ -4106,12 +3625,7 @@ async def test_is_tool_listed_can_narrow_the_catalog_for_one_run():
 
 
 async def test_a_hidden_tool_is_still_callable_and_still_gated():
-    """Hiding is a disclosure decision, never an authorization one.
-
-    Nothing routes tool calls through the catalog's absence, so an override that
-    hides the wrong tool must not become the only thing standing between a model
-    and a spec.
-    """
+    """Hiding is a disclosure decision, never an authorization one."""
 
     class HideEverything(SpecToolset):
         async def is_tool_listed(self, name, ctx):
@@ -4120,8 +3634,6 @@ async def test_a_hidden_tool_is_still_callable_and_still_gated():
     toolset = HideEverything({"denied": create_spec(permissions=[DenyAll()])})
 
     assert await toolset.get_tools(ctx_for(object())) == {}
-    # Well-formed arguments, because the shape check answers before the
-    # permission check does: the call has to reach the gate to show it holds.
     with pytest.raises(NotPermitted):
         await toolset.call_tool("denied", {"name": "x", "price": 1}, ctx_for(object()), None)
 
@@ -4135,11 +3647,7 @@ async def test_a_hidden_tool_is_still_callable_and_still_gated():
 
 
 def _approve() -> dict[str, bool]:
-    """Approve the pending invoices.
-
-    Takes no arguments, so a ``fields`` the spec declares is one of its shapes
-    rather than this service's argument.
-    """
+    """Approve the pending invoices."""
     return {"approved": True}
 
 
@@ -4173,14 +3681,7 @@ async def test_an_operation_is_listed_only_while_its_condition_is_met(username, 
 
 
 async def test_a_row_condition_is_listed_without_a_hop_or_a_pool(monkeypatch):
-    """There is no row at listing time, so a condition on one is never asked here.
-
-    Unmet on every row -- ``pk__in=[]`` matches nothing -- and listed anyway,
-    because it is answered per object at the call. A hop or a pool here would be
-    the cost of asking a question with no answer; stubbing both to fail proves
-    neither happens, and with no hop no query can have run either: the ORM is
-    closed to the event loop.
-    """
+    """There is no row at listing time, so a condition on one is never asked here."""
 
     def no_hop(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("listing a row-conditioned spec hopped to a thread")
@@ -4204,12 +3705,7 @@ async def test_a_row_condition_is_listed_without_a_hop_or_a_pool(monkeypatch):
 
 
 async def test_a_toolset_declaring_no_condition_builds_no_pool_and_reads_no_user(monkeypatch):
-    """The ordinary toolset pays nothing: no pool, no hop, not even the user.
-
-    ``get_user`` raising is the sharpest probe of "nothing is built": the user
-    is the first thing a pool needs, and the extractor is project code that may
-    be expensive.
-    """
+    """The ordinary toolset pays nothing: no pool, no hop, not even the user."""
     built: list[Any] = []
     monkeypatch.setattr(spec_toolset, "seeded_pool", lambda **kw: built.append(kw))
 
@@ -4227,8 +3723,7 @@ async def test_a_toolset_declaring_no_condition_builds_no_pool_and_reads_no_user
 
 
 async def test_is_tool_listed_returning_true_does_not_relist_an_unavailable_tool():
-    """The omission is not inside the overridable default, so an override that
-    lists everything -- and never calls ``super()`` -- cannot switch it off."""
+    """The omission is outside the overridable default, so an override cannot switch it off."""
 
     class ListEverything(SpecToolset):
         async def is_tool_listed(self, name, ctx):
@@ -4242,14 +3737,7 @@ async def test_is_tool_listed_returning_true_does_not_relist_an_unavailable_tool
 
 
 async def test_the_instructions_name_an_unavailable_operation_and_describe_only_the_rest():
-    """Everything describing the omitted tool goes, and its name and reason arrive.
-
-    ``approve`` is the only tool declaring the ``fields`` read-shaping param, so
-    the line naming ``fields`` is present exactly when ``approve`` is offered --
-    which is what shows the block is derived from the tools this step offers
-    rather than from all of them. ``ping`` has a condition that holds, and is
-    named nowhere: the instructions list what is missing, never what is there.
-    """
+    """Everything describing the omitted tool goes, and its name and reason arrive."""
     books = {"open": False}
     toolset = SpecToolset(
         shaping(
@@ -4296,13 +3784,7 @@ async def test_an_instructions_override_is_kept_and_the_unavailable_operations_f
 
 
 async def test_one_toolset_serving_two_users_gives_each_their_own_answer():
-    """A shared instance, interleaved runs, conditions answering differently.
-
-    A toolset is typically a module-level singleton serving every run in the
-    process, so nothing it remembers may carry one caller's availability into
-    another's catalog or instructions. Same ``run_id`` and ``run_step`` on
-    both contexts on purpose: a memo keyed on those would be the leak.
-    """
+    """A shared instance, interleaved runs, conditions answering differently."""
     toolset = SpecToolset(
         {"list_widgets": list_spec(), "approve": _conditioned_spec(_books_open_for)}
     )
@@ -4317,12 +3799,7 @@ async def test_one_toolset_serving_two_users_gives_each_their_own_answer():
 
 
 async def test_the_derived_block_is_memoised_by_which_tools_are_left_out(monkeypatch):
-    """A step pays the derivation only for a combination the toolset has not seen.
-
-    Two different users both missing ``approve`` share one derivation, because
-    the block is a function of which tools are offered and nothing else -- the
-    reason lines, which are, are rendered per step outside the memo.
-    """
+    """A step pays the derivation only for a combination the toolset has not seen."""
     calls: list[frozenset[str]] = []
     derive = spec_toolset._derive_instructions
 
@@ -4343,11 +3820,7 @@ async def test_the_derived_block_is_memoised_by_which_tools_are_left_out(monkeyp
 
 @pytest.mark.django_db
 async def test_a_condition_that_queries_runs_off_the_event_loop():
-    """Django raises ``SynchronousOnlyOperation`` for ORM access on the loop.
-
-    A condition is user code and ``Period.current().is_open`` is the ordinary
-    shape of one, so listing has to hop exactly as a dispatch does.
-    """
+    """Django raises ``SynchronousOnlyOperation`` for ORM access on the loop."""
     toolset = SpecToolset({"approve": _conditioned_spec(lambda: Widget.objects.exists())})
 
     tools = await toolset.get_tools(ctx_for(User(username="u")))
@@ -4361,13 +3834,7 @@ async def test_a_condition_that_queries_runs_off_the_event_loop():
     ids=["no request", "the request the run arrived on"],
 )
 async def test_a_condition_sees_the_request_and_user_its_call_would(arrived):
-    """Asked at listing time, then again by the call's own enforcement.
-
-    The two must see the same object under ``request`` -- the one the run
-    arrived on, or ``None`` for a run that arrived on none -- or a condition
-    reading it answers one way when the catalog is built and another when the
-    call is refused, and the listing stops predicting the call.
-    """
+    """Asked at listing time, then again by the call's own enforcement."""
     seen: list[tuple[Any, Any]] = []
 
     def records(request: Any, user: Any) -> bool:
@@ -4390,12 +3857,7 @@ async def test_a_condition_sees_the_request_and_user_its_call_would(arrived):
 
 
 async def test_a_call_seeds_override_reaches_a_condition_at_listing_time():
-    """The listing asks a condition with the seeds the call would register.
-
-    A project registering per-run state -- a tenant read off ``ctx.deps`` -- has
-    conditions that read it. Asked any other way, the listing would answer them
-    against seeds the call never uses.
-    """
+    """The listing asks a condition with the seeds the call would register."""
 
     class Tenanted(SpecToolset):
         def call_seeds(self, *, ctx, tool_name):
@@ -4408,11 +3870,7 @@ async def test_a_call_seeds_override_reaches_a_condition_at_listing_time():
 
 
 async def test_a_condition_is_asked_on_the_toolsets_own_dispatch_thread():
-    """``thread_sensitive`` and ``executor`` govern the listing as they do the call.
-
-    A condition stands in front of the call it gates, so a deployment that moves
-    dispatch off asgiref's shared thread moves its conditions with it.
-    """
+    """``thread_sensitive`` and ``executor`` govern the listing as they do the call."""
     threads: list[str] = []
 
     def records_thread() -> bool:
@@ -4432,14 +3890,7 @@ async def test_a_condition_is_asked_on_the_toolsets_own_dispatch_thread():
 
 @pytest.mark.django_db
 async def test_a_listing_time_condition_closes_the_connection_it_opened() -> None:
-    """The dispatch's connection cleanup, owed by the listing's hop as well.
-
-    A condition that queries opens a connection on asgiref's shared thread,
-    and off HTTP nothing closes it. Left open, it would also disarm the
-    dispatch's own cleanup: that closes only what *it* opened, and a connection
-    already open when a dispatch starts reads as someone else's. So this lists,
-    checks, then dispatches and checks again.
-    """
+    """The dispatch's connection cleanup, owed by the listing's hop as well."""
     _assert_a_close_is_observable()
     asked_on: dict[str, int] = {}
 
@@ -4490,11 +3941,7 @@ async def test_an_omitted_tool_is_absent_from_what_the_model_is_offered():
 
 
 async def test_a_model_calling_an_omitted_tool_gets_the_unknown_tool_retry():
-    """Nothing new on the call path: an omitted name is simply not a tool.
-
-    pydantic-ai answers it with a retry naming the tools that do exist, and the
-    service never runs.
-    """
+    """Nothing new on the call path: an omitted name is simply not a tool."""
     ran: list[bool] = []
     retries: list[str] = []
 
@@ -4571,17 +4018,7 @@ async def test_a_registered_seed_reaches_a_service_called_through_the_toolset():
 
 
 async def test_a_registered_seed_outranks_a_model_argument_of_the_same_name():
-    """On a selector nothing validates the spread, so reservation is the guard.
-
-    The model names ``tenant`` itself and gets the project's value back: the
-    registry is what tells dispatch the name is the transport's, and it reaches
-    dispatch only if the toolset hands it over. Without it the model's
-    ``globex`` is what the selector reads -- a caller choosing the tenant it is
-    scoped to. What becomes of the argument where the spec does not declare
-    the name cannot be shown here, since this selector declares ``tenant``;
-    ``test_a_seed_named_argument_a_spec_never_declares_is_refused``
-    holds that half.
-    """
+    """On a selector nothing validates the spread, so reservation is the guard."""
 
     def tenant_rows(tenant: str) -> list[dict[str, str]]:
         """The caller's tenant, as a one-row collection."""
@@ -4592,9 +4029,6 @@ async def test_a_registered_seed_outranks_a_model_argument_of_the_same_name():
             "rows": SelectorSpec(
                 kind=SelectorKind.LIST,
                 selector=tenant_rows,
-                # Taken off the selector's signature, as a library compiling the
-                # spec marks it: a reflected read named like a registered seed is
-                # the seed's to fill.
                 reads=Parameters.of(Parameter("tenant", "string", reflected=True)),
                 presenter=RowPresenter(OutputField("tenant", "string")),
                 permissions=allow(),
@@ -4606,22 +4040,13 @@ async def test_a_registered_seed_outranks_a_model_argument_of_the_same_name():
     result = await _call(toolset, "rows", User(username="acme"), {"tenant": "globex"})
 
     assert _rows(result) == [{"tenant": "tenant-of-acme"}]
-    # Not advertised either: a reflected read a registered seed fills is the
-    # server's, so the model is never offered an argument it cannot set.
-    # Holds the registered half of ``pool_seeds.reserved`` in the
-    # ``server_owned_keys`` ``_caller_schema`` takes out.
     schema = toolset._tool_defs["rows"].parameters_json_schema
     assert "tenant" not in schema.get("properties", {})
     assert "tenant" not in schema.get("required", [])
 
 
 def test_a_shape_a_schema_fragment_drops_is_told_nothing():
-    """A ``metadata["json_schema"]["input"]`` fragment wins key by key, so one
-    carrying its own ``properties`` can leave a declared shape out of the
-    schema, and the scope sentence a list tool adds to its shapes is not
-    written for a property that is not there. Holds the
-    ``shapes & properties.keys()`` in ``_with_scope``: scoping every shape
-    would fail building this tool on a ``fields`` it no longer lists."""
+    """An input fragment wins key by key, so its own ``properties`` can drop a shape."""
     spec = list_spec(
         shapes=Parameters.of(Parameter("fields", "string")),
         metadata={"json_schema": {"input": {"properties": {}}}},
@@ -4633,13 +4058,7 @@ def test_a_shape_a_schema_fragment_drops_is_told_nothing():
 
 
 async def test_a_validator_field_named_like_a_seed_is_the_model_s_to_send():
-    """The field is validated into ``data``; the service's ``tenant`` stays the seed's.
-
-    Stripping every seed-named argument the spec declares would drop the
-    model's value before the Validator saw it, and the required field would
-    then refuse the call. The field's value and the seed's differ here, so the
-    result shows each reached its own seat.
-    """
+    """The field is validated into ``data``; the service's ``tenant`` stays the seed's."""
 
     def move(data: _TenantRow, tenant: str) -> dict[str, str]:
         """Move a row to the tenant the caller names."""
@@ -4705,15 +4124,7 @@ def _books_seeds() -> PoolSeeds:
 
 @pytest.mark.parametrize(("username", "listed"), [("open", True), ("closed", False)])
 async def test_a_condition_reading_a_registered_seed_is_asked_with_it(username, listed):
-    """The listing and the call ask the condition against the same seeds.
-
-    The listing's pool needs the registry twice over -- resolved into the pool
-    by ``seeded_pool(seeds=)``, and admitted into what the condition is shown by
-    ``unmet_operation_affordance(reserved=)`` -- and dropping either one makes
-    the condition fail to bind here rather than answer. The call's own
-    enforcement is the kernel's ``dispatch(pool_seeds=)``, asked for the user it
-    lists.
-    """
+    """The listing and the call ask the condition against the same seeds."""
     toolset = SpecToolset(
         {"approve": _conditioned_spec(lambda books_open: books_open)},
         pool_seeds=_books_seeds(),
@@ -4737,13 +4148,7 @@ async def test_a_condition_reading_a_registered_seed_is_asked_with_it(username, 
     ],
 )
 async def test_a_condition_reading_a_seed_that_reads_the_call_is_listed_and_answers(books_open):
-    """A seed resolving from the call's context resolves in the listing's pool too.
-
-    The call's pool binds a seed's ``call_context`` and ``request`` to the
-    call's, so the listing's pool for a conditioned tool has to as well, or a
-    condition reading such a seed fails to bind there and the whole catalog
-    with it, while the call it stands in front of answers.
-    """
+    """A seed resolving from the call's context resolves in the listing's pool too."""
     toolset = SpecToolset(
         {"approve": _conditioned_spec(lambda books_open: books_open)},
         pool_seeds=DEFAULT_POOL_SEEDS.extend(books_open=books_open),
@@ -4757,13 +4162,7 @@ async def test_a_condition_reading_a_seed_that_reads_the_call_is_listed_and_answ
 
 
 async def test_a_seed_named_argument_a_spec_never_declares_is_refused():
-    """A registered seed's name is not an argument of a spec that never reads it.
-
-    The toolset drops the model's value of a seed's name only where the spec
-    declares the name, so the seed answers in its place. Here nothing declares
-    it, so under the default ``REJECT`` the kernel refuses it as it refuses any
-    undeclared key, registry or no registry.
-    """
+    """A registered seed's name is not an argument of a spec that never reads it."""
 
     def ping() -> dict[str, bool]:
         """Ping."""
@@ -4789,12 +4188,7 @@ async def test_a_seed_named_argument_a_spec_never_declares_is_refused():
     ids=["reject", "ignore"],
 )
 async def test_a_dispatcher_name_the_model_sends_is_refused_or_dropped(policy, served):
-    """``user`` is the dispatcher's, so a selector reading it is never handed the model's.
-
-    No schema advertises it, and the kernel declares no parameter of its name,
-    so a model sending it anyway sends an undeclared key: ``REJECT`` refuses
-    it, and ``IGNORE`` drops it and the selector still reads the caller.
-    """
+    """``user`` is the dispatcher's, so a selector reading it is never handed the model's."""
 
     def mine(user: Any) -> dict[str, str]:
         """Who is asking."""
@@ -4850,13 +4244,7 @@ def _note_spec(
 
 @pytest.mark.parametrize("policy", [UnknownArguments.REJECT, UnknownArguments.IGNORE])
 def test_a_field_the_validator_calls_unsendable_is_refused_naming_the_tool(policy):
-    """A Validator's ``unsendable`` names the required fields it declares no
-    parameter for, so the kernel refuses the model's value for one as an
-    unknown argument under ``REJECT`` and drops it under ``IGNORE``, and the
-    Validator then fails the call for the missing field. So the toolset refuses
-    the spec when it is built, under either policy, naming the tool and the
-    field. Read duck-typed, naming no package, so any Validator answering it is
-    read alike."""
+    """A Validator's ``unsendable`` fields are refused as unknown arguments under ``REJECT``."""
     with pytest.raises(
         ImproperlyConfigured,
         match=(
@@ -4870,8 +4258,7 @@ def test_a_field_the_validator_calls_unsendable_is_refused_naming_the_tool(polic
 
 
 async def test_a_validator_that_does_not_answer_unsendable_builds_and_serves():
-    """A Validator without the attribute names no field, so the tool builds
-    and serves: the attribute is optional, and its absence is "none"."""
+    """A Validator without the attribute names no field, and its absence means none."""
     toolset = SpecToolset({"note": _note_spec(django_service_specs.DataclassValidator(_NoteInput))})
 
     assert await _call(toolset, "note", User(username="u"), {"text": "hi"}) == {"text": "hi"}
@@ -4889,11 +4276,7 @@ async def test_an_empty_answer_builds_and_serves():
 
 
 def test_a_partial_service_is_not_refused_for_an_unsendable_field():
-    """A partial call may leave any field out, so a field no call can send is
-    left out as any other is and the tool builds. The attribute names the field
-    whether or not the spec is partial, so the toolset reads the compiled
-    spec's ``partial`` itself. Holds the ``partial`` arm of
-    ``_refuse_unsendable_fields``."""
+    """A partial call may leave any field out, so an unsendable field still builds."""
     toolset = SpecToolset(
         {"note": _note_spec(_PartialUnsendableValidator(_NoteInput), partial=True)}
     )
@@ -4903,12 +4286,7 @@ def test_a_partial_service_is_not_refused_for_an_unsendable_field():
 
 @pytest.mark.parametrize("declare", [shaping, reading], ids=["shape", "read"])
 def test_a_channel_named_after_a_registered_seed_is_refused(declare):
-    """A registered seed is reserved like a built-in one, so a channel cannot name it.
-
-    Accepted, the tool would build and be advertised, and the kernel would
-    refuse every call to it, sent or not, for an argument meeting a seed in one
-    pool.
-    """
+    """A registered seed is reserved like a built-in one, so a channel cannot name it."""
     with pytest.raises(ImproperlyConfigured, match="tenant"):
         SpecToolset(
             declare({"list": list_spec()}, {"list": [Parameter("tenant", "string")]}),
@@ -4918,10 +4296,7 @@ def test_a_channel_named_after_a_registered_seed_is_refused(declare):
 
 @pytest.mark.parametrize("seat", ["reads", "shapes"])
 def test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build(seat):
-    """What a registry-built tool is refused at build
-    (``test_a_channel_named_after_a_registered_seed_is_refused``), a tool built
-    from a bare mapping is refused too: the check reads the compiled spec's own
-    reads and shapes, which a mapping's spec carries as a registry's does."""
+    """A mapping-built tool is refused the same collisions as a registry-built one."""
     spec = replace(list_spec(), **{seat: Parameters.of(Parameter("tenant", "string"))})
 
     with pytest.raises(ImproperlyConfigured, match=r"^SpecToolset tool 'list': .*'tenant'"):
@@ -4929,9 +4304,7 @@ def test_a_mapping_read_named_after_a_registered_seed_is_refused_at_build(seat):
 
 
 def test_a_lookup_read_named_after_a_registered_seed_is_refused_at_build():
-    """A read the target lookup takes is declared on the lookup's reads, not the
-    service's, and is checked there too: the kernel refuses it on every call
-    as it does a top-level one."""
+    """A read the target lookup takes is declared on the lookup, and checked there too."""
 
     def get_by_tenant(*, tenant: str):
         """The row of one tenant."""
@@ -4958,11 +4331,7 @@ def _seeds_named(name: str) -> PoolSeeds:
 
 @pytest.mark.parametrize("seed", ["items", "request", "view"])
 def test_a_many_list_named_after_a_seed_is_refused_at_build(seed):
-    """A seed the mount registers, or each call registers itself, fills the name
-    the list travels under, and the kernel refuses every call for an argument
-    meeting a seed in one pool. The caller's schema still offers the list as
-    required, so the tool would build and serve nothing; refused when the
-    toolset is built, naming the tool and the list."""
+    """A seed of the list's name makes the kernel refuse every call sending it."""
     spec = bulk_spec(many_argument=seed)
 
     with pytest.raises(ImproperlyConfigured, match=rf"^SpecToolset tool 'bulk': .*'{seed}'"):
@@ -4976,8 +4345,7 @@ def test_a_many_list_beside_a_seed_of_another_name_builds():
 
 
 def test_a_seed_named_like_the_default_list_does_not_touch_a_spec_with_no_list():
-    """Only a ``many`` service has a list to collide: a single-item service and a
-    selector, whose ``many_argument`` is the unused default ``items``, build."""
+    """Only a ``many`` service has a list to collide; a selector's ``items`` default is unused."""
     toolset = SpecToolset(
         {"create": create_spec(), "list": list_spec()}, pool_seeds=_seeds_named("items")
     )
@@ -4995,11 +4363,7 @@ def test_a_seed_named_like_the_default_list_does_not_touch_a_spec_with_no_list()
 
 
 class _NameSerializer(RowPresenter):
-    """A row as its ``name``: the presenter every name-only spec here renders with.
-
-    A kernel ``Presenter``, kept under the name the other suites import it by;
-    a spec takes an instance, ``presenter=_NameSerializer()``.
-    """
+    """A row as its ``name``: the presenter every name-only spec here renders with."""
 
     def __init__(self) -> None:
         super().__init__(OutputField("name", "string"))
@@ -5031,8 +4395,7 @@ def _update_spec(**kwargs: Any) -> ServiceSpec:
 
 
 def test_a_selector_parameter_without_a_default_is_required():
-    """``get_widget(user, pk)`` cannot run without ``pk``, which its spec declares
-    as a required read, and only the model sends it."""
+    """``get_widget(user, pk)`` cannot run without ``pk``, which only the model sends."""
     schema = _input_schema_of(SpecToolset({"get": retrieve_spec()}), "get")
 
     assert schema["properties"] == {"pk": {"type": "integer"}}
@@ -5046,12 +4409,7 @@ def recent_names(user, progress, newest_first: bool = True):
 
 
 async def test_a_dispatcher_seed_is_neither_advertised_nor_required():
-    """``progress`` is the dispatcher's own: always in the pool, never the model's.
-
-    The selector takes it with no default, and the spec declares no read of
-    it, since the kernel refuses a read of a name dispatch seeds: the pool
-    hands it over, and the model is neither shown it nor asked for it.
-    """
+    """``progress`` is the dispatcher's own: always in the pool, never the model's."""
     toolset = SpecToolset(
         {
             "recent": _name_list_spec(
@@ -5066,10 +4424,7 @@ async def test_a_dispatcher_seed_is_neither_advertised_nor_required():
 
     assert "progress" not in schema["properties"]
     assert "progress" not in schema.get("required", [])
-    # The kernel states a declared default, so the model reads what an omitted
-    # value means.
     assert schema["properties"]["newest_first"] == {"type": "boolean", "default": True}
-    # ``newest_first`` has a default, so nothing is required at all.
     assert "required" not in schema
     assert _rows(result) == [{"name": "newer"}, {"name": "older"}]
 
@@ -5080,13 +4435,7 @@ def names_for_tenant(tenant):
 
 
 async def test_a_seed_parameter_the_model_leaves_out_is_not_refused():
-    """A registered seed has no default, and the model is never asked for it,
-    because the pool always carries it.
-
-    Holds ``pool_seeds`` reaching ``_required_arguments`` from ``_call_spec``:
-    told only the dispatcher's own seeds, the check would require ``tenant`` of a
-    model that was never shown it, and refuse this call.
-    """
+    """A registered seed has no default, and the model is never asked for it."""
     toolset = SpecToolset({"names": _name_list_spec(names_for_tenant)}, pool_seeds=_tenant_seeds())
 
     result = await _call(toolset, "names", User(username="acme"))
@@ -5101,14 +4450,7 @@ def names_in_project(user, project_pk):
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 async def test_a_read_s_default_answers_for_the_parameter_it_fills(source):
-    """A read with a default fills the parameter whenever the model leaves it
-    out, so the model is not asked for it, from a registry and from a bare
-    mapping alike.
-
-    Holds the declaration ``_caller_schema`` reads, and the reads ``_call_spec``
-    hands ``_fill_reads``: the kernel hands a callable nothing it was not sent,
-    so nothing else applies the default.
-    """
+    """A read with a default fills the parameter when the model leaves it out."""
     reads = {"in_project": [Parameter("project_pk", "integer", default=7)]}
     specs = {"in_project": _name_list_spec(names_in_project)}
     toolset = SpecToolset(
@@ -5129,8 +4471,7 @@ async def test_a_read_s_default_answers_for_the_parameter_it_fills(source):
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 async def test_a_read_s_default_never_replaces_the_value_sent_from_either_source(source):
-    """The call applies a read's default only where the model sent nothing,
-    whichever way the spec arrived."""
+    """The call applies a read's default only where the model sent nothing."""
     reads = {"in_project": [Parameter("project_pk", "integer", default=7)]}
     specs = {"in_project": _name_list_spec(names_in_project)}
     toolset = SpecToolset(
@@ -5148,9 +4489,7 @@ async def test_a_read_s_default_never_replaces_the_value_sent_from_either_source
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 async def test_a_null_under_a_read_is_the_model_declining_it(source):
-    """A ``null`` sent under a read is the model declining to fill it, as under
-    a shape, so the read's default answers, from a registry as from a mapping:
-    both hand the toolset the same read."""
+    """A ``null`` under a read is the model declining it, so the default answers."""
     reads = {"in_project": [Parameter("project_pk", "integer", default=7)]}
     specs = {"in_project": _name_list_spec(names_in_project)}
     toolset = SpecToolset(
@@ -5168,11 +4507,7 @@ async def test_a_null_under_a_read_is_the_model_declining_it(source):
 
 @pytest.mark.parametrize("source", ["registry", "mapping"])
 async def test_a_null_under_a_required_read_is_retried_alike_from_either_source(source):
-    """A required read sent as ``null`` is the model declining a value
-    it must send, so the kernel's check retries it, in the kernel's words,
-    whichever way the spec arrived: neither source pops the read off the call
-    before the kernel sees it. The guide's ``spec-registry`` page states the
-    wording."""
+    """A required read sent as ``null`` is refused by the kernel, in its own words."""
     reads = {"in_project": [Parameter("project_pk", "integer", required=True)]}
     specs = {"in_project": _name_list_spec(names_in_project)}
     toolset = SpecToolset(
@@ -5188,15 +4523,7 @@ async def test_a_null_under_a_required_read_is_retried_alike_from_either_source(
 
 
 async def test_a_required_read_with_no_default_is_handed_back_when_left_out():
-    """With no default the value reaches the selector only when the model sends
-    it, so a read declared required is required of the model, and a call
-    without it is handed back rather than reaching the selector as a
-    ``TypeError``.
-
-    Holds ``_required_arguments``' reading of the schema's ``required``: a
-    pre-check blind to it would hand the call to the selector without
-    ``project_pk``.
-    """
+    """With no default, the value reaches the selector only when the model sends it."""
     toolset = SpecToolset(
         reading(
             {"in_project": _name_list_spec(names_in_project)},
@@ -5224,13 +4551,7 @@ class _ProjectScopedToolset(SpecToolset):
 
 
 async def test_a_name_only_a_call_seeds_override_fills_is_asked_of_the_model():
-    """An override is code the schema cannot read, so the name it fills, a read
-    taken off the selector's signature, is a parameter without a default like
-    any other, advertised as required. The
-    call itself is served: the override is asked before the arguments are
-    checked, so a call leaving the name out reaches the seed, and one sending it
-    is served the seed's value over its own, told nothing. Leaving the name
-    out of the reads is the remedy, which the next test holds."""
+    """An override is code the schema cannot read, so its name is advertised as required."""
     toolset = _ProjectScopedToolset({"in_project": _in_project_reflecting()})
 
     schema = _input_schema_of(toolset, "in_project")
@@ -5243,8 +4564,7 @@ async def test_a_name_only_a_call_seeds_override_fills_is_asked_of_the_model():
 
 
 def _in_project_reflecting() -> SelectorSpec:
-    """``names_in_project``, its ``project_pk`` read as a library compiling it
-    reflects a parameter with no default off the signature."""
+    """``names_in_project`` reflects its ``project_pk`` as a parameter with no default."""
     return _name_list_spec(
         names_in_project,
         reads=Parameters.of(Parameter("project_pk", "integer", required=True, reflected=True)),
@@ -5257,14 +4577,7 @@ def names_in_hidden_project(user, project_pk: int):
 
 
 async def test_a_name_a_call_seeds_override_fills_is_kept_from_the_model():
-    """What ``call_seeds``' docstring tells an override to do first: leave the
-    name out of the spec's reads. It is then out of the schema and out of the
-    input set a call is checked against, so the model is never told about
-    ``project_pk``, a call leaving it out reaches the override, which fills
-    it, and a call sending it anyway is handed back as an unexpected argument,
-    rather than served another project's rows in silence as a declared
-    parameter is in the test before.
-    """
+    """An override is told first to leave the name out of the spec's reads."""
     toolset = _ProjectScopedToolset({"in_project": _name_list_spec(names_in_hidden_project)})
 
     schema = _input_schema_of(toolset, "in_project")
@@ -5284,10 +4597,7 @@ def names_in_hidden_project_or_filtered(user, project_pk: int, **filters: Any):
 
 
 async def test_a_value_the_model_sends_for_an_undeclared_name_never_reaches_the_selector():
-    """Under ``IGNORE`` the undeclared name is not refused, and the model's value
-    is dropped before the selector reads its arguments, so the override's is the
-    one served.
-    """
+    """Under ``IGNORE`` the model's value for an undeclared name is dropped."""
     toolset = _ProjectScopedToolset(
         {"in_project": _name_list_spec(names_in_hidden_project)},
         unknown_arguments=UnknownArguments.IGNORE,
@@ -5299,9 +4609,7 @@ async def test_a_value_the_model_sends_for_an_undeclared_name_never_reaches_the_
 
 
 async def test_a_marked_name_sent_to_an_open_selector_is_refused():
-    """A selector's bare ``**filters`` does not open the argument set: the kernel
-    closes it at the declared parameters, and an undeclared name is not one, so under
-    ``REJECT`` the model's value is refused as on a closed selector."""
+    """A bare ``**filters`` does not open the argument set under ``REJECT``."""
     toolset = _ProjectScopedToolset(
         {"in_project": _name_list_spec(names_in_hidden_project_or_filtered)}
     )
@@ -5313,10 +4621,7 @@ async def test_a_marked_name_sent_to_an_open_selector_is_refused():
 
 
 async def test_a_name_a_call_seeds_override_fills_is_declared_to_the_toolset():
-    """The declaration to the toolset that keeps a name out of the schema too: a
-    seed the mount registers, which the tool's schema reads, where an override's
-    is code it cannot. The name is not advertised, a call leaving it out is
-    filled by the resolver, and a value the model sends is not passed on."""
+    """A seed registered by the mount keeps a name out of the schema, where an override cannot."""
     toolset = SpecToolset(
         {"in_project": _in_project_reflecting()},
         pool_seeds=DEFAULT_POOL_SEEDS.extend(project_pk=lambda: 7),
@@ -5332,10 +4637,7 @@ async def test_a_name_a_call_seeds_override_fills_is_declared_to_the_toolset():
 
 
 async def test_a_seed_an_override_returns_for_a_declared_read_is_refused():
-    """A declared read is one the model sends, and a seed of its name would
-    stand over the model's value in silence -- a model asking for project 5
-    served project 42's rows. The kernel refuses an argument meeting a seed in
-    one pool, so the call fails as the configuration error it is."""
+    """A seed over a declared read would serve the wrong row silently: project 42 for project 5."""
     toolset = _ProjectScopedToolset(
         reading(
             {"in_project": _name_list_spec(names_in_project)},
@@ -5384,8 +4686,7 @@ def _typed_ceiling(project_pk=None) -> _Ceiling:
 
 
 async def test_a_name_a_typed_provider_returns_is_not_asked_for():
-    """The kernel reads a provider's ``TypedDict`` return annotation as the keys
-    it fills, so a provider annotated with one says which parameters it fills."""
+    """A ``TypedDict`` return annotation tells the kernel which parameters a provider fills."""
     toolset = SpecToolset(
         reading(
             {"under": _under(kwargs=_typed_ceiling)},
@@ -5402,11 +4703,7 @@ async def test_a_name_a_typed_provider_returns_is_not_asked_for():
 
 
 async def test_an_optional_read_beside_an_untyped_provider_stays_the_model_s_to_send():
-    """A provider returning an undeclared ``dict`` may fill any parameter, so the
-    toolset drops none of the reads beside it: ``ceiling``, declared optional,
-    stays advertised, since the model may still be the one to send it, and a
-    call leaving it out reaches the provider, which fills it.
-    """
+    """A provider returning an undeclared ``dict`` may fill any parameter, so no read is dropped."""
     toolset = SpecToolset(
         reading(
             {"under": _under(kwargs=_ceiling_from_project, ceiling=_OPEN_CEILING)},
@@ -5433,16 +4730,7 @@ _FLOOR = Parameter("floor", "integer", required=True)
 
 
 def test_a_marked_parameter_beside_an_untyped_provider_is_advertised_and_not_required():
-    """A read declared required beside a provider whose keys cannot be read is
-    advertised for the model to send and not required of it, as a key a typed
-    provider may decline is: the provider may be what fills it, so dispatch does
-    not demand it of the caller, and the kernel's ``server_owned_keys`` tells a
-    transport to ask for neither.
-
-    Holds the untyped seat in the kernel's ``spec_caller_input_schema``, which
-    ``_caller_schema`` advertises: leaving it as declared would keep ``floor``
-    required, which is what the schema said before.
-    """
+    """A required read beside an unreadable provider is advertised, not required of the model."""
     toolset = SpecToolset(
         {
             "band": _under(
@@ -5463,11 +4751,7 @@ def _untyped_band(view):
 
 
 async def test_an_untyped_provider_filling_a_marked_parameter_is_not_refused():
-    """A call leaving out ``floor`` is served, since the provider may be what
-    fills it, as it is here, and only the assembled pool can say, which the
-    kernel checks the declaration against. The schema does not require it either,
-    so what the call is refused for and what the model was told agree.
-    """
+    """A call leaving out ``floor`` is served, since the provider may fill it."""
     toolset = SpecToolset(
         {"band": _under(names_in_band, _FLOOR, kwargs=_untyped_band, ceiling=_OPEN_CEILING)}
     )
@@ -5478,11 +4762,7 @@ async def test_an_untyped_provider_filling_a_marked_parameter_is_not_refused():
 
 
 async def test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed_back():
-    """What makes not requiring ``floor`` safe: when neither the provider nor
-    the model fills it, the kernel refuses the call at the assembled pool, and
-    the model is handed the refusal to send ``floor`` on its next turn, rather
-    than the selector raising ``TypeError`` out of the run.
-    """
+    """Not requiring ``floor`` is safe: the kernel refuses the call at the assembled pool."""
     toolset = SpecToolset(
         {"band": _under(names_in_band, _FLOOR, kwargs=_ceiling_from_project, ceiling=_OPEN_CEILING)}
     )
@@ -5494,10 +4774,7 @@ async def test_an_untyped_provider_leaving_a_marked_parameter_unfilled_is_handed
 
 
 def test_a_required_read_its_default_fills_is_not_required_beside_an_untyped_provider():
-    """The declaration requires ``floor``, and its default fills it on every
-    call, so the model is not asked for it: what the declaration requires is
-    kept only where the toolset does not fill the name.
-    """
+    """The declaration requires ``floor``, and its default fills it on every call."""
     floor = Parameter("floor", "integer", required=True, default=2)
     toolset = SpecToolset(
         {"band": _under(names_in_band, floor, kwargs=_untyped_band, ceiling=_OPEN_CEILING)}
@@ -5512,10 +4789,7 @@ def _unresolvable_ceiling(project_pk=None) -> _NotDeclaredAnywhere:  # noqa: F82
 
 
 def test_a_provider_whose_annotation_cannot_be_resolved_counts_as_untyped():
-    """An annotation that cannot be read says nothing about the keys, so the
-    provider may fill anything, as an unannotated one may: ``ceiling`` is not
-    dropped as filled, and, declared optional as beside any provider that may
-    fill it, the toolset requires nothing."""
+    """An unreadable annotation says nothing about the keys, so nothing is dropped as filled."""
     toolset = SpecToolset(
         {"under": _under(kwargs=_unresolvable_ceiling, ceiling=_OPEN_CEILING)},
     )
@@ -5534,11 +4808,7 @@ class _ScopeExtras(TypedDict, total=False):
 
 
 class _Scope(_ScopeExtras):
-    """``ceiling`` always, ``currency`` when the provider has one.
-
-    Totality rather than ``NotRequired``, which this module's postponed
-    annotations hide from the ``TypedDict`` machinery.
-    """
+    """``ceiling`` always, ``currency`` when the provider has one."""
 
     ceiling: int
 
@@ -5561,12 +4831,7 @@ def _scope_as_a_dict(view) -> dict[str, int]:
 
 
 class _ScopeOrDecline(TypedDict):
-    """``currency`` always, ``ceiling`` or ``UNSET`` to leave it to the caller.
-
-    ``currency`` is a union as well, ``str | None``, so that a key whose
-    annotation merely has arguments is told apart from one that admits
-    ``UnsetType``: both are unions, and only ``ceiling`` may be declined.
-    """
+    """``currency`` always, ``ceiling`` or ``UNSET`` to leave it to the caller."""
 
     ceiling: int | UnsetType
     currency: str | None
@@ -5585,8 +4850,7 @@ def _scope_with_an_unresolvable_key(view) -> _ScopeWithAnUnresolvableKey:
 
 
 def _scope_for_an_unresolvable_view(view: _NotDeclaredAnywhere) -> _Scope:  # noqa: F821
-    """A readable return annotation beside a parameter annotation that is not,
-    as an import made only under ``TYPE_CHECKING`` leaves one."""
+    """A readable return annotation beside a ``TYPE_CHECKING``-only parameter annotation."""
     return _Scope(ceiling=10)
 
 
@@ -5617,10 +4881,7 @@ def ceiling_name(user, ceiling):
 
 
 def test_a_schema_whose_every_read_may_be_declined_requires_nothing():
-    """Relaxing the one required read a provider may decline leaves no
-    ``required`` at all, as the kernel writes none for a spec requiring
-    nothing, rather than an empty list, as the kernel's
-    ``spec_caller_input_schema`` does."""
+    """With nothing left required, the kernel writes no ``required`` key at all."""
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=ceiling_name,
@@ -5672,31 +4933,7 @@ def test_a_schema_whose_every_read_may_be_declined_requires_nothing():
 def test_a_providers_return_annotation_decides_what_the_model_is_asked_for(
     provider, asked, required
 ):
-    """A spec with no provider fills nothing, which is not the "cannot tell" of
-    one whose keys are not declared: the first leaves every read without a
-    default required, the second none, its reads declared as a reflecting
-    compile leaves them beside such a provider, and the toolset adds no
-    requiredness of its own. A typed provider's keys are dropped from the
-    schema, since it fills them. A ``NotRequired`` key is the provider's
-    as much as a required one, and a parameterised ``TypedDict`` keeps its keys
-    on its origin, where an alias does not relay them.
-
-    A key annotated to admit ``UNSET`` may be declined, which leaves the caller's
-    value through, so it stays advertised and is not required, while the same
-    provider's other keys are still not asked for, ``currency: str | None``
-    included: a union is not a decline.
-
-    One annotation that does not resolve costs only what it names. A key whose
-    own annotation does not resolve might be one the provider declines, so
-    ``ceiling`` stays offered beside ``_scope_with_an_unresolvable_key`` while
-    the parameters nothing fills stay required; a parameter's annotation says
-    nothing about the keys, so ``_scope_for_an_unresolvable_view`` reads as
-    ``_scope`` does. Neither row reads the whole provider as untyped, which
-    would offer every name and require none.
-
-    The reader is the kernel's ``provider_keys``; this holds what the toolset
-    makes of its answer, on the schema the model reads.
-    """
+    """A spec with no provider fills nothing, unlike a provider whose keys are undeclared."""
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=name_in_scope,
@@ -5725,9 +4962,7 @@ def get_invoice(*, pk: int, tenant: str) -> dict:
 
 
 def _reflected(selector: Any) -> Parameters:
-    """``selector``'s keyword parameters as a library compiling it reflects them:
-    each required, since none has a default, and typed loosely, since only the
-    names are under test."""
+    """Keyword parameters reflect as required, since none has a default."""
     names = [name for name in inspect.signature(selector).parameters if name != "user"]
     return Parameters.of(
         *(Parameter(name, "string", required=True, reflected=True) for name in names)
@@ -5763,14 +4998,7 @@ def list_invoices(*, pk: int, tenant: str, regions: list, labels: dict) -> dict:
 
 
 async def test_a_key_holding_unset_inside_a_container_is_not_offered_to_the_model():
-    """A provider cannot return ``UNSET`` for a key whose value is a list or a dict,
-    so ``regions`` and ``labels`` are always filled, and the provider's value would
-    replace whatever the model sent for them. The key is the provider's, and the
-    tool does not ask for it.
-
-    Read as declinable because ``UnsetType`` appears somewhere inside the
-    annotation, both were advertised.
-    """
+    """A list or dict key can never be ``UNSET``, so the provider always fills it."""
     toolset = SpecToolset({"read": _invoice_spec(list_invoices, _region_scope)})
 
     assert await _advertised(toolset, "read") == (["pk"], ["pk"])
@@ -5805,15 +5033,7 @@ def _scope_with_a_hidden_value(*, request: Any) -> _GroupScope:
 async def test_an_annotation_imported_only_for_type_checking_leaves_the_keys_readable(
     provider, advertised
 ):
-    """Neither annotation hides which keys the provider returns, so ``pk``, which
-    nothing fills, stays required. A parameter's type says nothing about the
-    keys, and ``tenant`` is filled. A key whose own value does not resolve might
-    be one the provider declines, so ``tenant`` stays offered, optional.
-
-    One unresolvable annotation does not make the whole provider untyped, which
-    would offer the model ``tenant`` beside the first and require ``pk`` of
-    neither.
-    """
+    """Neither annotation hides which keys the provider returns, so ``pk`` stays required."""
     toolset = SpecToolset({"read": _invoice_spec(get_invoice, provider)})
 
     assert await _advertised(toolset, "read") == advertised
@@ -5844,13 +5064,7 @@ def _declining_through_a_parameter() -> _GenericTenant[str | UnsetType]:
     ids=["written-out", "generic"],
 )
 async def test_a_generic_typed_dict_declines_what_its_binding_declines(provider):
-    """``-> _GenericTenant[str | UnsetType]`` says what the written-out
-    ``tenant: str | UnsetType`` says, so the model is offered ``tenant`` for the
-    calls the provider declines it on.
-
-    Read as the bare type variable, ``tenant`` counted as filled through the
-    generic, and a decline left the call without it.
-    """
+    """``_GenericTenant[str | UnsetType]`` says the same as the written-out annotation."""
     toolset = SpecToolset({"read": _invoice_spec(get_invoice, provider)})
 
     assert await _advertised(toolset, "read") == (["pk", "tenant"], ["pk"])
@@ -5874,17 +5088,7 @@ def _ceiling_inside_a_project(project_pk=None) -> _CeilingOrDecline:
     ids=["filled", "declined"],
 )
 async def test_a_key_the_provider_may_decline_stays_the_models_to_send(args, rows):
-    """The kernel drops a provider key returned as ``UNSET`` from the pool,
-    which lets the caller's value through, so a key annotated to allow that is
-    not one the toolset fills. It stays advertised, since the model may be the
-    one to send it, and optional, since the provider may fill it instead.
-
-    Counted as filled, it would be dropped from the schema, so a model never
-    told about ``ceiling`` would leave it out and a decline would reach the
-    selector as ``TypeError``. Holds the declinable keys in the kernel's
-    ``spec_caller_input_schema``: left required as declared, the ``filled``
-    call would be refused for ``ceiling``.
-    """
+    """A key the kernel drops when returned as ``UNSET`` is not one the toolset fills."""
     toolset = SpecToolset(
         reading(
             {"under": _under(kwargs=_ceiling_inside_a_project)},
@@ -5913,22 +5117,7 @@ def names_under_a_default_ceiling(user, ceiling=10):
     "provider", [_ceiling_inside_a_project, _nothing_in_scope], ids=["declined", "untyped"]
 )
 async def test_a_parameter_neither_the_provider_nor_the_model_fills_is_asked_for(provider):
-    """What the quickstart and the changelog say happens when a provider that may
-    fill a parameter does not, by declining it with ``UNSET`` or, untyped, by
-    leaving it out, and the model has not sent it either. The toolset does not
-    check such a parameter before the call, since only the assembled pool can say
-    whether it arrived, and the kernel checks that pool: the caller's value for
-    a declined read stays beneath the provider's answer, so the model could have
-    filled ``ceiling``, and the call comes back as a retry naming it rather than
-    reaching the selector, in the kernel's words for a missing field,
-    ``ceiling: This field is required.``.
-
-    The retry, not the selector's ``TypeError`` out of the run, is what a model
-    can act on: a resend carrying ``ceiling`` is served, and a default still answers the
-    call without one.
-    """
-    # A provider annotated to decline ``ceiling`` relaxes the required read; an
-    # untyped one cannot be read, so its author declares the read optional.
+    """What the docs promise when a provider declines a parameter, and the model must send it."""
     ceiling = _CEILING if provider is _ceiling_inside_a_project else _OPEN_CEILING
     project_pk = Parameter("project_pk", "string")
     toolset = SpecToolset(
@@ -5940,10 +5129,6 @@ async def test_a_parameter_neither_the_provider_nor_the_model_fills_is_asked_for
         }
     )
 
-    # The kernel's own refusal, keyed by the name, not the toolset's
-    # ``missing_arguments`` sentence: only the pool the kernel assembles can
-    # say the parameter went unfilled, so the toolset's pre-dispatch check never
-    # sees it. The negative assertion holds which of the two answered.
     with pytest.raises(ModelRetry, match=r"^ceiling: This field is required\.$") as raised:
         await _call(toolset, "under", User(username="u"))
     assert "Missing required argument" not in str(raised.value)
@@ -5960,12 +5145,7 @@ def scoped_widget(tenant, pk):
 
 
 def test_a_service_tool_advertises_its_target_lookup():
-    """The model was told about ``name`` and ``price`` and never about ``pk``, the
-    one argument saying which row to change. The kernel hands the instance
-    selector its reads from the same arguments, so they are advertised beside
-    the Validator's fields, with the names the toolset fills left out: the
-    ``tenant`` read the registered seed answers.
-    """
+    """The model was told about ``name`` and ``price``, never about ``pk``, the row's key."""
     lookup = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=scoped_widget,
@@ -5997,10 +5177,7 @@ def stamp_approval():
     ids=["reject", "ignore"],
 )
 def test_the_schema_closes_the_argument_set_only_where_the_call_does(policy, closed):
-    """``additionalProperties: false`` says an undeclared argument is refused,
-    which is true under ``REJECT`` and false under ``IGNORE``, where the call
-    drops one and is served. So the schema states it under the toolset's own
-    policy, at the top and on each row of a list alike."""
+    """``additionalProperties: false`` holds only under ``REJECT``, not ``IGNORE``."""
     toolset = SpecToolset(
         {"list_widgets": list_spec(), "create_widgets": bulk_spec()}, unknown_arguments=policy
     )
@@ -6014,10 +5191,7 @@ def test_the_schema_closes_the_argument_set_only_where_the_call_does(policy, clo
 
 
 def test_a_service_without_a_lookup_advertises_the_kernel_s_schema_as_it_is():
-    """No lookup and nothing the server fills: a service's schema is the
-    kernel's schema of the compiled spec, byte for byte, down to a service whose
-    callable takes nothing from the model advertising an object that admits no
-    argument at all."""
+    """A service with no lookup or server-filled field has the kernel's schema byte for byte."""
     bare = ServiceSpec(service=stamp_approval, permissions=allow(), atomic=False)
     toolset = SpecToolset({"approve": bare, "make": create_spec()})
 
@@ -6035,10 +5209,7 @@ def widget_named(name):
 
 
 def test_a_field_sharing_a_lookup_parameter_s_name_is_refused_naming_the_tool():
-    """The kernel reads a Validator field and a target lookup's read of one name
-    as one argument declared twice, and refuses the spec when its argument set
-    is assembled. That is while the toolset is built, so the refusal names the
-    tool, rather than at the tool's first call."""
+    """The kernel refuses a Validator field and a lookup read of one name as declared twice."""
     spec = _update_spec(
         instance_selector_spec=SelectorSpec(
             kind=SelectorKind.RETRIEVE,
@@ -6068,9 +5239,7 @@ class _PartialWidgetForm(forms.Form):
 
 
 def test_a_lookup_that_can_run_without_arguments_requires_none():
-    """A lookup read declared optional is advertised and left optional, and a
-    Validator whose fields are all optional requires nothing either, so the
-    tool requires nothing."""
+    """A lookup read declared optional stays optional, so the tool requires nothing."""
     spec = _update_spec(
         validator=FormValidator(_PartialWidgetForm),
         instance_selector_spec=SelectorSpec(
@@ -6140,12 +5309,7 @@ def test_a_collection_lookup_is_advertised_as_an_instance_lookup_is():
     ],
 )
 def test_a_lookup_dispatch_never_calls_cannot_reach_the_toolset(lookups, refusal):
-    """The kernel refuses a target lookup dispatch would never call when the
-    spec is built: an instance lookup beside a collection one, and any lookup
-    beside ``many=True``. ``_required_arguments`` relies on it, and so has no
-    precedence between the two lookups and no ``many`` arm: neither spec reaches
-    a toolset to be asked about.
-    """
+    """The kernel refuses, at build, a target lookup dispatch would never call."""
     with pytest.raises(ImproperlyConfigured, match=refusal):
         ServiceSpec(
             service=reprice,
@@ -6163,12 +5327,7 @@ def stamp_widget(*, instance, note: str = ""):
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_validator_less_service_advertises_what_dispatch_admits():
-    """A service with no Validator is dispatched under the toolset's
-    argument binding, ``AUTO``, which binds a service ``BUNDLE``: ``REJECT``
-    admits its target lookup's keys and none of its own parameters. The schema
-    is read under the same binding, so it lists ``pk`` and not ``note``, which a
-    ``SPREAD_*`` reading would list and this dispatch refuses.
-    """
+    """Without a Validator, ``AUTO`` binds as ``BUNDLE``: ``REJECT`` admits the lookup's keys."""
     owner = await User.objects.acreate(username="owner")
     widget = await Widget.objects.acreate(owner=owner, name="old", price=1)
     spec = ServiceSpec(
@@ -6210,10 +5369,7 @@ def names_in_range(user, low, high):
     ids=["one", "several"],
 )
 async def test_a_selector_call_missing_a_required_argument_is_handed_back(spec, args, missing):
-    """Handed back, not passed to the selector to raise ``TypeError`` out of the run.
-
-    A retry naming every missing argument, so one turn fixes them all.
-    """
+    """Handed back, not passed to the selector to raise ``TypeError`` out of the run."""
     toolset = SpecToolset({"tool": spec})
 
     with pytest.raises(ModelRetry) as raised:
@@ -6248,15 +5404,7 @@ def approve_widget(pk):
 
 
 async def test_a_key_one_seat_may_decline_is_still_required_by_another():
-    """A provider's values reach its own callable's seat only, so a key the
-    service's ``kwargs=`` may decline says nothing about the target lookup
-    reading the same name: the lookup cannot run without ``pk`` from the caller,
-    so the schema requires it and a call leaving it out is handed back.
-
-    Holds the seats in the kernel's ``spec_caller_input_schema``: relaxing
-    every key a provider may decline, whatever its seat, would leave ``pk``
-    optional.
-    """
+    """A provider's values reach only its own callable's seat, not the lookup's."""
     toolset = SpecToolset(
         {
             "approve": ServiceSpec(
@@ -6281,14 +5429,7 @@ def _untyped_nothing(view):
 
 
 async def test_a_read_an_untyped_provider_may_fill_is_still_required_by_another_seat():
-    """An untyped provider may fill any read in its own seat and none in
-    another, so the service's untyped ``kwargs=`` says nothing about the target
-    lookup reading ``pk``: the schema still requires it and a call leaving it out
-    is handed back.
-
-    Holds the seats in the kernel's ``spec_caller_input_schema``: relaxing
-    every read once any provider is untyped would leave ``pk`` optional.
-    """
+    """An untyped provider fills no read in another seat, so ``pk`` stays advertised."""
     toolset = SpecToolset(
         {
             "approve": ServiceSpec(
@@ -6309,10 +5450,7 @@ async def test_a_read_an_untyped_provider_may_fill_is_still_required_by_another_
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_service_call_missing_its_lookup_and_its_fields_hears_about_each_in_turn():
-    """The check before the call names the lookup's reads, not the Validator's
-    fields, which the Validator reports once the call runs. So a
-    call missing both is told about ``pk`` alone, and about the fields on the
-    turn after, which is what the docs and the class docstring say."""
+    """The check before the call names the lookup's reads, not the Validator's fields."""
     owner = await User.objects.acreate(username="owner")
     widget = await Widget.objects.acreate(owner=owner, name="old", price=1)
     toolset = SpecToolset({"rename": _update_spec()})
@@ -6328,8 +5466,7 @@ async def test_a_service_call_missing_its_lookup_and_its_fields_hears_about_each
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_model_that_leaves_out_the_lookup_is_told_and_corrects_itself():
-    """What the retry is for: a run that reaches the row on the second call
-    rather than aborting on the first."""
+    """The retry lets a run reach the row on the second call, not abort on the first."""
     owner = await User.objects.acreate(username="owner")
     widget = await Widget.objects.acreate(owner=owner, name="old", price=1)
     agent = Agent(
@@ -6373,16 +5510,7 @@ def names_filed_under(user, *, status: str):
     ids=["sent", "left-out"],
 )
 async def test_a_query_param_a_typed_provider_hands_the_selector_is_served(args, rows):
-    """A ``kwargs=`` provider declaring that it fills ``status``, from a read it
-    takes by name, is the ordinary way to route a caller's argument to a
-    selector under another name, and nothing is lost: the model's value reaches the
-    provider as an argument and the provider hands it to the selector. The
-    provider owns ``status``, so the model is not offered it as the selector's.
-
-    The two names differ on purpose. A provider filling the very name it reads
-    is never handed the model's value of it: a key a typed provider fills is
-    the provider's, so the model's is dropped, and the provider's default answers.
-    """
+    """A ``kwargs=`` provider can route a caller's argument to a selector under another name."""
     toolset = SpecToolset(
         reading(
             {"filed": _name_list_spec(names_filed_under, kwargs=_status_from_the_query)},
@@ -6403,9 +5531,7 @@ def _status_from_itself(status: str = "open") -> _Status:
 
 
 async def test_a_provider_filling_the_name_it_reads_is_not_handed_the_model_s_value():
-    """The limit of reading by name, held so a change to it is seen: the model's
-    ``status`` is dropped as a key the provider owns, so the provider is handed
-    its own default, and the call serves ``open`` whatever the model sent."""
+    """A model's ``status`` is dropped as a key the provider owns, so its own default is served."""
     toolset = SpecToolset(
         reading(
             {"filed": _name_list_spec(names_filed_under, kwargs=_status_from_itself)},
@@ -6419,9 +5545,7 @@ async def test_a_provider_filling_the_name_it_reads_is_not_handed_the_model_s_va
 
 
 def test_a_read_the_provider_fills_is_not_advertised():
-    """The schema says what the call above does: ``status`` is a key the typed
-    provider fills, so the kernel's ``server_owned_keys`` names it and the model
-    is not offered an argument whose value is dropped."""
+    """The schema matches: ``status`` is server-owned, so the model is not offered it."""
     toolset = SpecToolset(
         reading(
             {"filed": _name_list_spec(names_filed_under, kwargs=_status_from_itself)},
@@ -6458,10 +5582,7 @@ async def test_a_list_result_is_a_page_not_a_bare_list():
 
 @pytest.mark.django_db
 def test_a_truncated_page_says_that_it_was_truncated():
-    """``limit`` rows and nothing at all about the rest would have a model answer
-    "there are 2 widgets" from a page of 2 out of 5 -- confidently, and with no
-    way to find out otherwise.
-    """
+    """Reporting ``limit`` rows with nothing about the rest invites a wrong total."""
     user = User.objects.create(username="u")
     for n in range(5):
         Widget.objects.create(name=f"w{n}", price=n, owner=user)
@@ -6489,11 +5610,7 @@ def test_the_last_page_reports_no_next():
 
 @pytest.mark.django_db
 def test_a_page_past_the_end_is_clamped_and_says_which_page_it_served():
-    """The kernel clamps rather than serving an empty page at a huge OFFSET.
-
-    The clamp is the part that has to be visible: a model asking for page 99 and
-    silently receiving page 2 would read the rows as the ninety-ninth page.
-    """
+    """The kernel clamps rather than serving an empty page at a huge OFFSET."""
     user = User.objects.create(username="u")
     for n in range(3):
         Widget.objects.create(name=f"w{n}", price=n, owner=user)
@@ -6507,8 +5624,7 @@ def test_a_page_past_the_end_is_clamped_and_says_which_page_it_served():
 
 @pytest.mark.django_db
 def test_an_empty_collection_is_one_empty_page():
-    """Not zero pages: ``page`` is 1-based and the page served is 1, so reporting
-    zero would describe the page the caller was just handed as not existing."""
+    """``page`` is 1-based, so reporting zero pages would describe the page served as absent."""
     user = User.objects.create(username="u")
 
     result = _dispatch(list_spec(), user, {})
@@ -6518,9 +5634,7 @@ def test_an_empty_collection_is_one_empty_page():
 
 @pytest.mark.django_db
 def test_the_envelope_carries_projected_rows_and_is_not_itself_projected():
-    """The projection lands on the rows; the envelope's keys belong to no
-    presenter, so a projection walking them would look for markings that cannot
-    exist."""
+    """The projection lands on the rows; envelope keys belong to no presenter."""
     user = User.objects.create(username="u")
     widget = Widget.objects.create(name="Sprocket", price=100, owner=user)
 
@@ -6532,8 +5646,7 @@ def test_the_envelope_carries_projected_rows_and_is_not_itself_projected():
 
 @pytest.mark.django_db
 def test_the_byte_ceiling_is_measured_on_the_envelope():
-    """What is sent is what is measured. The envelope is small, but a ceiling
-    computed on the unwrapped rows would be a bound on something else."""
+    """What is sent is what is measured."""
     user = User.objects.create(username="u")
     Widget.objects.create(name="a", price=1, owner=user)
 
@@ -6544,8 +5657,7 @@ def test_the_byte_ceiling_is_measured_on_the_envelope():
 
 
 async def test_the_pagination_instruction_teaches_the_envelope():
-    """A model told to send ``limit`` and not told what comes back reads
-    ``items`` as the whole collection."""
+    """Told to send ``limit``, a model reads ``items`` as the whole collection."""
     instructions = await SpecToolset({"list": list_spec()}).get_instructions(None)
 
     assert instructions is not None
@@ -6554,8 +5666,7 @@ async def test_the_pagination_instruction_teaches_the_envelope():
 
 
 async def test_the_page_argument_no_longer_claims_to_require_limit():
-    """It never did anything on its own before, because an omitted ``limit``
-    meant "everything" and the slice was skipped. Now every call is a page."""
+    """Alone, it did nothing before: an omitted ``limit`` skipped the slice."""
     tools = await SpecToolset({"list": list_spec()}).get_tools(None)
     props = tools["list"].tool_def.parameters_json_schema["properties"]
 
@@ -6572,13 +5683,7 @@ def _stated_default(description: str) -> int:
 
 @pytest.mark.django_db(transaction=True)
 async def test_the_limit_description_states_the_default_a_call_is_served():
-    """Read off the schema, then checked against what a call with no ``limit`` gets.
-
-    The description was a module-level string formatted with
-    ``DEFAULT_PAGE_SIZE``, so a toolset with ``max_page_size=3`` told the model
-    "Defaults to 100" beside ``maximum: 3`` while serving three rows -- a
-    default the tool could not serve, next to a ceiling contradicting it.
-    """
+    """Read off the schema, then checked against what a call with no ``limit`` gets."""
     user = await User.objects.acreate(username="u")
     for n in range(5):
         await Widget.objects.acreate(name=f"w{n}", price=n, owner=user)
@@ -6586,8 +5691,6 @@ async def test_the_limit_description_states_the_default_a_call_is_served():
     tools = await toolset.get_tools(ctx_for(user))
     limit = tools["list"].tool_def.parameters_json_schema["properties"]["limit"]
 
-    # One toolset answers both questions, through ``call_tool``: the ceiling
-    # reaches the slice from the constructor, as it does in a run.
     served = _rows(await _call(toolset, "list", user))
 
     assert limit["maximum"] == 3
@@ -6595,13 +5698,7 @@ async def test_the_limit_description_states_the_default_a_call_is_served():
 
 
 async def test_a_ceiling_above_the_default_page_size_leaves_the_stated_default_alone():
-    """The served default is the smaller of the two, not the ceiling.
-
-    ``paginate_output`` clamps an omitted ``limit`` *down* to the ceiling and
-    never raises it, so a toolset allowing 500 rows a page still serves 100
-    to a call naming none. Stating the ceiling as the default would be the same
-    defect in the other direction.
-    """
+    """The served default is the smaller of the two, not the ceiling."""
     ceiling = DEFAULT_PAGE_SIZE * 5
     toolset = SpecToolset({"list": list_spec()}, max_page_size=ceiling)
 
@@ -6616,12 +5713,7 @@ async def test_a_ceiling_above_the_default_page_size_leaves_the_stated_default_a
 
 
 async def test_the_pagination_instruction_states_the_default_a_ceiling_serves():
-    """The conventions block carried the same module-level number.
-
-    It is the toolset-wide statement of the same contract, and a model reading
-    "default 100" in its instructions and "Defaults to 3" on the tool has been
-    told two things.
-    """
+    """The conventions block carried the same module-level number."""
     instructions = await SpecToolset({"list": list_spec()}, max_page_size=3).get_instructions(None)
 
     assert instructions is not None
@@ -6630,12 +5722,7 @@ async def test_the_pagination_instruction_states_the_default_a_ceiling_serves():
 
 
 async def test_a_step_leaving_a_tool_out_states_the_same_default():
-    """The per-step block is derived on its own path, so it needs the ceiling too.
-
-    A step whose catalog omits an operation rebuilds the conventions from the
-    tools it does offer, and that derivation is a second call site that could
-    fall back to ``DEFAULT_PAGE_SIZE`` while the cached full block did not.
-    """
+    """The per-step block is derived on its own path, so it needs the ceiling too."""
     toolset = SpecToolset(
         {"list": list_spec(), "approve": _conditioned_spec(lambda: False)}, max_page_size=3
     )
@@ -6664,11 +5751,7 @@ async def test_a_list_tool_advertises_the_envelope_it_returns():
 
 @pytest.mark.django_db(transaction=True)
 async def test_the_return_schema_and_the_payload_agree_for_a_list_tool():
-    """The two halves generated from one spec, compared against each other.
-
-    This is the assertion the release exists for: the schema claimed a
-    pagination envelope and the payload was a bare list.
-    """
+    """The two halves generated from one spec, compared against each other."""
     user = await User.objects.acreate(username="u")
     await Widget.objects.acreate(name="a", price=1, owner=user)
     toolset = SpecToolset({"list_widgets": list_spec()})
@@ -6685,8 +5768,7 @@ async def test_the_return_schema_and_the_payload_agree_for_a_list_tool():
 
 
 async def test_a_retrieve_tool_advertises_the_bare_item():
-    """``paginate`` asks *does this toolset wrap the result*, and for anything
-    but a list selector the answer is no."""
+    """``paginate`` asks whether this toolset wraps the result; only a list selector does."""
     tools = await SpecToolset({"get": retrieve_spec()}).get_tools(None)
     return_schema = tools["get"].tool_def.return_schema
 
@@ -6698,12 +5780,7 @@ async def test_a_retrieve_tool_advertises_the_bare_item():
     ("allow_none", "root_type"), [(True, ["object", "null"]), (False, "object")]
 )
 async def test_a_retrieve_tool_says_whether_it_can_return_null(allow_none, root_type):
-    """An ``allow_none`` retrieve that finds nothing returns ``None``, which a
-    schema declaring an object alone would deny.
-
-    The ``False`` case holds ``spec.allow_none`` in ``_return_schema``: passed
-    unconditionally, every retrieve tool would admit a ``null`` it never returns.
-    """
+    """An ``allow_none`` retrieve returns ``None`` when empty; an object schema denies it."""
     tools = await SpecToolset({"get": retrieve_spec(allow_none=allow_none)}).get_tools(None)
     return_schema = tools["get"].tool_def.return_schema
 
@@ -6737,9 +5814,7 @@ def _optional_field_spec() -> ServiceSpec:
 
 @pytest.mark.parametrize("spec", [_nullable_read_spec, _optional_field_spec])
 async def test_an_input_that_admits_none_is_one_node_listing_null_beside_its_type(spec):
-    """A nullable read, and a Validator field annotated ``str | None``, are each
-    advertised as a single schema node whose ``type`` lists ``"null"`` beside its
-    own type, not as a choice (``anyOf``) between two nodes."""
+    """A nullable read is one schema node whose ``type`` lists ``null`` beside its own type."""
     tools = await SpecToolset({"get": spec()}).get_tools(None)
     properties = tools["get"].tool_def.parameters_json_schema["properties"]
 
@@ -6773,10 +5848,7 @@ async def _returned_against_its_schema(spec: ServiceSpec) -> tuple[Any, Any]:
 
 
 async def test_a_service_whose_reread_can_find_no_row_admits_null():
-    """dispatch materializes the re-read with ``.first()``, so a re-read that
-    filters the row out hands the model ``None``, which an object schema with
-    required fields refused. No declaration is needed: the re-read is one.
-    """
+    """A re-read filtering the row out hands the model ``None``, which required fields refuse."""
     spec = ServiceSpec(
         service=archive_widget,
         atomic=False,
@@ -6790,9 +5862,7 @@ async def test_a_service_whose_reread_can_find_no_row_admits_null():
 
 
 async def test_a_service_declaring_allow_none_admits_null():
-    """With nothing to re-read, dispatch presents the service's own return, a
-    ``None`` included. ``ServiceSpec(allow_none=True)`` is the declaration that it
-    may, and the schema states it."""
+    """With nothing to re-read, dispatch presents the service's own return, a ``None`` included."""
     spec = ServiceSpec(
         service=touch_widgets,
         atomic=False,
@@ -6805,12 +5875,7 @@ async def test_a_service_declaring_allow_none_admits_null():
 
 
 async def test_an_undeclared_none_is_handed_to_the_model_against_an_object_schema():
-    """What the quickstart and the changelog say of a service that returns
-    ``None`` with nothing to re-read and no ``allow_none=True``: dispatch still
-    presents it, so the model is handed ``None``, and the schema, which states
-    only what the spec declares, does not admit ``null``. The declaration is
-    what admits it (``test_a_service_declaring_allow_none_admits_null``).
-    """
+    """Without ``allow_none``, a ``None`` return is still presented to the model."""
     spec = ServiceSpec(
         service=touch_widgets,
         atomic=False,
@@ -6851,8 +5916,6 @@ def _making(output: SelectorSpec, **kwargs: Any) -> ServiceSpec:
             "object",
             id="list-reread",
         ),
-        # A service presenting its own list hands back a ``None`` it returns
-        # as ``None``, as a ``many`` service does, so ``allow_none`` admits it.
         pytest.param(
             ServiceSpec(
                 service=touch_widgets,
@@ -6865,21 +5928,11 @@ def _making(output: SelectorSpec, **kwargs: Any) -> ServiceSpec:
             "object",
             id="returns-many",
         ),
-        # The kernel presents a ``many`` service's ``None`` return as ``None``,
-        # which the toolset serves as no rows, so the object admits no ``null``.
         pytest.param(bulk_spec(allow_none=True), "object", id="many"),
     ],
 )
 def test_a_service_admits_null_only_where_dispatch_may_present_it(spec, root_type):
-    """The reading is the kernel's ``can_present_nothing``, the answer every route
-    states. A list re-read's result is empty rather than ``None``, with
-    ``allow_none`` or without, so reading the flag for every service would
-    promise ``null`` to the first two, which never return it. A ``many`` or
-    ``returns_many`` service presents its own return, so a ``None`` from it is
-    ``None``, which its ``allow_none`` declares; the toolset hands the model
-    that as no rows under ``items``, so every list is an object admitting no
-    ``null`` (``test_a_list_that_presents_nothing_is_no_rows``).
-    """
+    """The reading is the kernel's ``can_present_nothing``, the answer every route states."""
     return_schema = _return_schema(spec)
 
     assert return_schema is not None
@@ -6918,12 +5971,7 @@ def _presenting_a_list(service: Any) -> ServiceSpec:
 
 
 async def test_a_service_whose_output_is_a_list_is_its_rows_under_items():
-    """The toolset paginates list *selectors* only, so a service's list carries
-    no page envelope. It is still an object: declared ``returns_many``, dispatch
-    presents the service's own return as the list, and the model is handed its
-    rows under ``items``, the key a page holds them under and the shape
-    django-spec-mcp serves the same spec as, under an object schema saying so.
-    """
+    """The toolset paginates list *selectors* only, so a service's list carries no page envelope."""
     assert await _returned_against_its_schema(_presenting_a_list(touch_every_widget)) == (
         {"items": _TOUCHED},
         "object",
@@ -6931,10 +5979,7 @@ async def test_a_service_whose_output_is_a_list_is_its_rows_under_items():
 
 
 async def test_a_list_that_presents_nothing_is_no_rows():
-    """A ``returns_many`` service declaring ``allow_none`` may return ``None``,
-    which the kernel presents as ``None``. A list result is an object, so that
-    is the empty list under ``items``, as django-spec-mcp serves it, never a
-    ``null`` the object schema does not admit."""
+    """A ``returns_many`` service with ``allow_none`` may return ``None``."""
     spec = ServiceSpec(
         service=touch_widgets,
         atomic=False,
@@ -6948,8 +5993,7 @@ async def test_a_list_that_presents_nothing_is_no_rows():
 
 
 async def test_a_single_row_that_presents_nothing_is_still_none():
-    """Only a list-shaped spec's ``None`` becomes no rows: a spec presenting one
-    row hands the model the ``None`` its ``["object", "null"]`` schema admits."""
+    """Only a list-shaped spec's ``None`` becomes no rows; a single row keeps ``None``."""
     spec = ServiceSpec(
         service=touch_widgets,
         atomic=False,
@@ -6962,15 +6006,12 @@ async def test_a_single_row_that_presents_nothing_is_still_none():
 
 
 def test_a_service_with_no_presenter_that_returns_nothing_returns_none():
-    """Holds the ``schema is None`` guard in ``_unpaged_rows``: a service with no
-    presenter has no output schema to read ``type`` off, and its ``None`` is
-    handed on as it is."""
+    """A service with no presenter has no output schema, so its ``None`` passes through."""
     assert _dispatch(ServiceSpec(service=lambda: None, atomic=False), object(), {}) is None
 
 
 def test_a_service_with_no_presenter_returning_a_tuple_is_its_rows_under_items():
-    """Holds the ``list | tuple`` check in ``_unpaged_rows``: the value decides, as
-    in django-spec-mcp, so a tuple is wrapped as a list is, with no presenter."""
+    """The value decides, as in django-spec-mcp: a tuple is wrapped as a list is."""
 
     def rows():
         return ({"a": 1},)
@@ -6988,21 +6029,13 @@ def test_a_service_with_no_presenter_returning_a_tuple_is_its_rows_under_items()
     ),
 )
 async def test_a_list_output_with_nothing_to_reread_refuses_a_single_row():
-    """Declared ``returns_many``, the service's own return is the list presented,
-    so a service returning one row is a configuration error raised out of the
-    call, naming what the service returned, rather than one object handed to
-    the model against a schema that promised an array.
-    """
+    """Declared ``returns_many``, a one-row return is a configuration error."""
     with pytest.raises(ImproperlyConfigured, match=r"archive_widget returned dict"):
         await _call(SpecToolset({"op": _presenting_a_list(archive_widget)}), "op", None)
 
 
 async def test_an_output_fragment_annotates_the_object_a_list_is_wrapped_in():
-    """The fragment is merged after the list is wrapped, so its keys annotate the
-    object the model is handed, as they annotate a list selector's page, and the
-    array keeps the type it had under ``items``. Merged before the wrap, the
-    ``description`` would land on the array and be lost with it.
-    """
+    """The fragment merges after wrapping, so its keys annotate the object handed over."""
     spec = replace(
         _presenting_a_list(touch_every_widget),
         metadata={"json_schema": {"output": {"description": "X", "minItems": 1}}},
@@ -7017,8 +6050,7 @@ async def test_an_output_fragment_annotates_the_object_a_list_is_wrapped_in():
 
 
 def test_a_spec_with_no_presenter_advertises_nothing():
-    """``None`` is the correct answer, not a gap: a fabricated shape would be a
-    claim the payload never has to honour."""
+    """``None`` is correct: a fabricated shape would claim what the payload never honours."""
     spec = SelectorSpec(kind=SelectorKind.LIST, selector=list_widgets, permissions=allow())
 
     assert _return_schema(spec) is None
@@ -7026,21 +6058,18 @@ def test_a_spec_with_no_presenter_advertises_nothing():
 
 
 async def test_the_return_schema_is_projected_like_the_payload():
-    """A schema advertising a field the render drops is worse than no schema:
-    the model asks for it, gets nothing back, and is told nothing about why."""
+    """A schema advertising a field the render drops is worse than none."""
     toolset = SpecToolset({"widgets": agent_list_spec()})
 
     tools = await toolset.get_tools(None)
     item = tools["widgets"].tool_def.return_schema["properties"]["items"]["items"]
 
-    assert "price" not in item["properties"]  # FieldMarking.hidden()
+    assert "price" not in item["properties"]
     assert item["properties"]["id"]["description"] == "Widget handle."
 
 
 async def test_an_unlabelled_handle_gets_this_transports_own_wording():
-    """The kernel supplies no fallback on purpose -- what to do with an
-    identifier depends on the reader, and only the transport knows its audience.
-    """
+    """The kernel supplies no fallback on purpose: only the transport knows its audience."""
     spec = retrieve_spec(
         presenter=RowPresenter(
             OutputField("id", "integer", marking=FieldMarking.handle()),
@@ -7054,22 +6083,15 @@ async def test_an_unlabelled_handle_gets_this_transports_own_wording():
 
 
 async def test_the_return_schema_is_not_pushed_at_the_model_by_default():
-    """Populating it costs nothing; putting it on the wire costs context every
-    turn. Pydantic-AI owns that opt-in at both scopes, so this stays ``None``.
-    """
+    """Populating it costs nothing; putting it on the wire costs context every turn."""
     tools = await SpecToolset({"list": list_spec()}).get_tools(None)
 
     assert tools["list"].tool_def.include_return_schema is None
 
 
 async def test_a_consumer_can_opt_into_sending_the_return_schema():
-    """The opt-in has to actually reach a schema that is there -- the wrapper
-    only preserves what the tool def already carries.
-    """
+    """The opt-in must reach a schema that exists: the wrapper keeps only what the def carries."""
     toolset = SpecToolset({"list": list_spec()}).include_return_schemas()
-    # The wrapper is Pydantic-AI's own, and it reads the context while listing
-    # (newer releases dereference it unconditionally), so this needs a live
-    # ``RunContext`` rather than the ``ctx_for`` double or ``None``.
     ctx = RunContext(deps=AgentDeps(user=None), model=TestModel(), usage=RunUsage())
 
     tools = await toolset.get_tools(ctx)
@@ -7131,12 +6153,7 @@ def _order_service_spec(
     rendered: dict[str, ServiceSpec] | None = None,
     own: list[Affordance] | None = None,
 ) -> ServiceSpec:
-    """A service whose output renders through a selector declaring ``rendered``.
-
-    The nested selector hands the service's return straight back, and it has to
-    exist: the answers are put on a row by the selector spec declaring them, so a
-    nested spec with no selector renders a row that carries none.
-    """
+    """A service whose output renders through a selector declaring ``rendered``."""
     return ServiceSpec(
         service=_place_order,
         atomic=False,
@@ -7179,10 +6196,7 @@ _AFFORDANCE_SHAPES = [
 async def test_declared_affordances_are_advertised_on_every_item(
     make_spec, schema_item, payload_items
 ):
-    """The kernel adds an ``affordances`` object to every item it presents for a
-    spec declaring them, and the schema this toolset advertised never said so --
-    a model reading the schema was told the key does not exist, then handed it.
-    """
+    """Presented items carry ``affordances``, which the advertised schema never said."""
     tools = await SpecToolset({"orders": make_spec()}).get_tools(None)
 
     item = schema_item(tools["orders"].tool_def.return_schema)
@@ -7199,8 +6213,7 @@ async def test_declared_affordances_are_advertised_on_every_item(
 async def test_the_return_schema_describes_the_affordances_a_call_returns(
     make_spec, schema_item, payload_items
 ):
-    """The two halves generated from one declaration, compared against each other
-    through a real call rather than against expectations written here."""
+    """Both halves come from one declaration and are compared through a real call."""
     toolset = SpecToolset({"orders": make_spec()})
     tools = await toolset.get_tools(None)
     item = schema_item(tools["orders"].tool_def.return_schema)
@@ -7225,17 +6238,11 @@ async def test_the_return_schema_describes_the_affordances_a_call_returns(
 
 
 async def test_a_services_own_affordances_are_not_what_it_renders():
-    """``ServiceSpec.affordances`` are the conditions *that* service is checked
-    against before it runs, and are never rendered. What a service's output
-    carries is declared on the selector it renders through -- so the schema reads
-    the same spec the render does, and here both say nothing.
-    """
+    """``ServiceSpec.affordances`` are checked before the service runs and never rendered."""
     spec = _order_service_spec(
         own=[Affordance(code="books_closed", reason="The books are closed.", when=lambda **_: True)]
     )
     toolset = SpecToolset({"orders": spec})
-    # A real context rather than ``None``: the spec's own condition is asked
-    # when the catalog is listed, against the user this context carries.
     tools = await toolset.get_tools(ctx_for(User(username="u")))
 
     payload = await _call(toolset, "orders", User(username="u"))
@@ -7256,10 +6263,7 @@ async def test_a_services_own_affordances_are_not_what_it_renders():
 async def test_a_spec_declaring_no_affordances_keeps_its_return_schema_byte_for_byte(
     make_spec, paginate
 ):
-    """Rebuilt from the arguments the schema was built from before affordances
-    were threaded through, and compared as JSON text so that key order counts
-    too: a spec that declares none must not so much as gain an empty object.
-    """
+    """Compared as JSON text, so key order counts: a spec declaring none must not change."""
     spec = make_spec()
     tools = await SpecToolset({"t": spec}).get_tools(None)
 
@@ -7304,9 +6308,7 @@ def _refused_spec() -> ServiceSpec:
 
 
 async def test_a_refused_call_fails_with_its_reason_and_its_code():
-    """Through ``call_tool``, the path a run takes. The message carries the code
-    beside the reason, and the cause is kept as well, because that is where a
-    program reads the code from."""
+    """Through ``call_tool``, the path a run takes."""
     toolset = SpecToolset({"close_books": _refused_spec()})
 
     with pytest.raises(ToolFailed) as caught:
@@ -7320,10 +6322,7 @@ async def test_a_refused_call_fails_with_its_reason_and_its_code():
 
 
 async def test_a_refusal_names_the_code_its_rows_advertised():
-    """The point of the suffix, asserted against the other half rather than a
-    literal: the code a row's ``affordances`` answer carries for an operation is
-    the code that operation's refusal ends with. Both come off one declaration,
-    ``_CANCEL_ORDER``, so a model that read the row can connect the two."""
+    """A row's affordance code is the code that operation's refusal carries."""
     toolset = SpecToolset(
         {
             "orders": _order_selector_spec(SelectorKind.RETRIEVE),
@@ -7334,7 +6333,6 @@ async def test_a_refusal_names_the_code_its_rows_advertised():
     row = await _call(toolset, "orders", User(username="u"))
     advertised = row["affordances"]["cancel"]
 
-    # Called directly: ``cancel``'s unmet condition leaves it out of the listing.
     with pytest.raises(ToolFailed) as caught:
         await toolset.call_tool("cancel", {}, ctx_for(User(username="u")), None)
 
@@ -7349,9 +6347,7 @@ async def test_a_refusal_names_the_code_its_rows_advertised():
     ],
 )
 def test_a_business_error_without_a_code_keeps_its_message_unchanged(exc):
-    """``ServiceConflict`` is ``ActionUnavailable``'s parent and is matched by the
-    same branch, so it is the case a check written one class too wide would
-    catch. A conflict raised by hand has no code, and must not gain a label."""
+    """``ServiceConflict`` is a child of ``ActionUnavailable`` and matches the same branch."""
 
     def refuse(**_):
         """Refuse."""
@@ -7373,10 +6369,7 @@ def test_a_business_error_without_a_code_keeps_its_message_unchanged(exc):
     ],
 )
 def test_the_exception_map_still_wins_over_the_code_suffix(registered):
-    """The consumer's map is consulted before any built-in arm, this one
-    included, and it is where a program reads ``.code`` -- so a handler for the
-    refusal, or for any class above it, sees the exception whole and decides the
-    result without a suffix being added to it."""
+    """The consumer's map runs before any built-in arm, where a program reads ``.code``."""
     result = _dispatch(
         _refused_spec(),
         object(),
@@ -7389,9 +6382,7 @@ def test_the_exception_map_still_wins_over_the_code_suffix(registered):
 
 
 def test_translate_exception_sees_the_code_before_the_default_renders_it():
-    """The override is the other door to the same place, and the one that can
-    read the run: returning ``None`` for everything else leaves the suffix to the
-    default, which the second call pins."""
+    """The override is the other door to the same place, and it can read the run."""
 
     class ReadingTheCode(SpecToolset):
         def translate_exception(self, exc, *, ctx):
@@ -7426,10 +6417,7 @@ class _RatedFilterSet(django_filters.FilterSet):
 
 
 async def test_a_filter_is_described_as_the_kernel_derives_it():
-    """The toolset takes no schema registry, so a filter's node is the kernel's
-    derivation from the filter set, as ``spec_input_schema`` states it: a
-    ``NumberFilter`` subclass is a decimal string, whatever type the project
-    means by it. What is advertised is what the kernel's dispatch enforces."""
+    """The kernel derives a filter's node from its filter set, with no schema registry."""
     spec = django_service_specs.SelectorSpec(
         kind=SelectorKind.LIST,
         selector=list_widgets,
@@ -7471,14 +6459,7 @@ async def _call_concurrently(toolset: SpecToolset, *, times: int) -> list[str]:
 
 @pytest.mark.django_db(transaction=True)
 async def test_concurrent_tool_calls_share_one_thread_by_default() -> None:
-    """asgiref's default, and the reason the knob exists rather than a flip.
-
-    ``thread_sensitive=True`` runs every call on asgiref's
-    ``single_thread_executor``, which is a *class* attribute -- one thread shared
-    by every toolset instance and every concurrent run in the process. That is
-    what keeps Django's thread-local connections coherent, and it is also why a
-    fan-out serialises.
-    """
+    """asgiref's default, and the reason the knob exists rather than a flip."""
     toolset = SpecToolset({"echo": _thread_naming_spec()})
 
     names = await _call_concurrently(toolset, times=3)
@@ -7488,13 +6469,7 @@ async def test_concurrent_tool_calls_share_one_thread_by_default() -> None:
 
 @pytest.mark.django_db(transaction=True)
 async def test_the_dispatch_thread_is_the_callers_to_choose() -> None:
-    """With ``thread_sensitive=False`` and an executor, calls actually fan out.
-
-    Pydantic-AI runs function tools in parallel within a segment, so a toolset
-    that funnels them onto one thread turns a parallel step into a serial one.
-    Asserted on thread identity rather than on elapsed time, which would make
-    the suite a benchmark.
-    """
+    """With ``thread_sensitive=False`` and an executor, calls actually fan out."""
     with ThreadPoolExecutor(max_workers=3) as pool:
         toolset = SpecToolset(
             {"echo": _thread_naming_spec()}, thread_sensitive=False, executor=pool
@@ -7506,15 +6481,7 @@ async def test_the_dispatch_thread_is_the_callers_to_choose() -> None:
 
 
 def _dispatch_thread_state() -> tuple[int, bool]:
-    """This thread's ident, and whether it is holding an open default connection.
-
-    Has to run *inside* the dispatch thread, because that is the only place the
-    answer exists: ``django.db.connections`` is thread-local, so a caller can
-    neither read nor close a connection another thread opened. That asymmetry is
-    the whole shape of the bug -- it is also why a consumer cannot work around
-    it from outside without pushing ``connections.close_all`` back into the same
-    executor.
-    """
+    """This thread's ident, and whether it is holding an open default connection."""
     return threading.get_ident(), connections["default"].connection is not None
 
 
@@ -7524,7 +6491,7 @@ def _thread_recording_toolset() -> tuple[SpecToolset, dict[str, int]]:
 
     def _list_recording_its_thread(user: Any) -> Any:
         """List every widget, recording which thread the dispatch ran on."""
-        del user  # the subject is the connection, not the scoping
+        del user
         dispatched_on["thread"] = threading.get_ident()
         return Widget.objects.all()
 
@@ -7554,56 +6521,17 @@ def _assert_a_close_is_observable() -> None:
 async def test_a_dispatch_closes_the_connection_it_opened_on_the_shared_thread(
     conn_max_age: int,
 ) -> None:
-    """A dispatch must not leave a database connection open behind it.
-
-    On the default ``thread_sensitive=True`` every call runs on asgiref's
-    process-wide ``single_thread_executor``. Django opens a connection per
-    thread and closes one per *request* -- and off HTTP there is no request, so
-    nothing ever closes this one. It outlives the run, the toolset and the agent,
-    and surfaces somewhere else entirely: at a test session's teardown as
-    "database is being accessed by other users", naming neither this package nor
-    the thread that holds the handle.
-
-    Reading the state back through a second ``sync_to_async`` is not a
-    convenience -- see ``_dispatch_thread_state``. The ident assertion is what
-    keeps the probe honest: asgiref only guarantees one shared thread while
-    ``thread_sensitive`` holds, and a probe that landed anywhere else would
-    report a closed connection and pass for the wrong reason.
-
-    Run at both ends of ``CONN_MAX_AGE`` because that setting is what separates
-    ``close()`` from Django's own ``close_if_unusable_or_obsolete()``, and only
-    the second parameter can tell them apart: at ``CONN_MAX_AGE=60`` the
-    obsolescence check declines to close, the alias then reads as somebody
-    else's on the next dispatch, and the leak is back. ``CONN_MAX_AGE`` budgets
-    reuse *between requests*; this thread has none, so a connection held for the
-    next request is held forever.
-    """
-    # Django's SQLite backend *ignores* ``close()`` on an in-memory database, to
-    # avoid destroying it -- so under a ``:memory:`` test database this test
-    # could not tell a working fix from a no-op, and a fix would come out green
-    # without being verified. Assert the
-    # environment can observe a close before asserting anything about one.
+    """A dispatch must not leave a database connection open behind it."""
     _assert_a_close_is_observable()
 
     toolset, dispatched_on = _thread_recording_toolset()
-    # Unsaved on purpose. Saving one would need a thread hop of its own -- the
-    # ORM is closed to the event loop -- and a row written from the dispatch
-    # thread commits on that thread's connection, outside the transaction this
-    # test is rolled back with. Nothing here reads the user anyway.
     ctx = ctx_for(User(username="u"))
     tools = await toolset.get_tools(ctx)
 
-    # One settings dict backs every thread's wrapper, so this reaches the
-    # dispatch thread's connection as well as this one's. ``close_at`` is fixed
-    # at connect time, so the close and reopen have to happen inside this
-    # window or the setting would not reach the connection under test.
     settings_dict = connections.settings["default"]
     original_max_age = settings_dict["CONN_MAX_AGE"]
     settings_dict["CONN_MAX_AGE"] = conn_max_age
     try:
-        # Whatever an earlier test left on the shared thread is not this test's
-        # subject. Start from a closed connection and prove that took, so the
-        # closing assertion is about this dispatch and nothing else.
         await sync_to_async(connections.close_all, thread_sensitive=True)()
         assert (await sync_to_async(_dispatch_thread_state, thread_sensitive=True)())[1] is False
 
@@ -7621,25 +6549,8 @@ async def test_a_dispatch_closes_the_connection_it_opened_on_the_shared_thread(
 
 @pytest.mark.django_db
 def test_a_dispatch_leaves_a_connection_it_did_not_open_alone() -> None:
-    """The other half, and the one an unconditional cleanup gets wrong.
-
-    ``sync_to_async(thread_sensitive=True)`` does *not* always mean another
-    thread: with a synchronous frame above the loop -- a WSGI request driving an
-    agent through ``async_to_sync``, which is what this test builds -- asgiref
-    routes the dispatch straight back onto the caller's own thread. That
-    thread's connection belongs to the request and is very likely mid-``atomic``,
-    so a cleanup that closes whatever it finds severs the transaction its own
-    caller is still inside.
-
-    The ident assertion is load-bearing rather than defensive: if asgiref stopped
-    reusing the calling thread, the dispatch would land somewhere with no open
-    connection and every remaining assertion would hold for the wrong reason --
-    the test would pass while testing nothing.
-    """
+    """The other half, and the one an unconditional cleanup gets wrong."""
     _assert_a_close_is_observable()
-    # pytest-django runs a ``django_db`` test inside an atomic block, so the
-    # connection this thread holds is the real thing this cleanup must not
-    # touch -- open, and with a transaction on it.
     connection.ensure_connection()
     assert connection.in_atomic_block
 
@@ -7656,17 +6567,10 @@ def test_a_dispatch_leaves_a_connection_it_did_not_open_alone() -> None:
         "asgiref did not route the dispatch back onto the calling thread, so "
         "this test is no longer about the case it names"
     )
-    # ``close()`` inside an atomic block deliberately does *not* blank
-    # ``connection.connection`` -- it flags the wrapper and lets the next query
-    # be the one that raises. So reading that attribute would show nothing;
-    # read the flag, then prove the consequence by using the connection.
     assert connection.closed_in_transaction is False, (
         "the dispatch closed a connection it did not open -- the caller's own, "
         "with a transaction still on it"
     )
-    # The consequence rather than only the flag: on a connection closed inside
-    # its transaction the *next* query is what raises. Filtered to nothing, so
-    # what it asserts is that the query ran at all.
     assert Widget.objects.filter(name="no-such-widget").exists() is False
 
 
@@ -7678,14 +6582,7 @@ def test_a_dispatch_leaves_a_connection_it_did_not_open_alone() -> None:
 
 
 def test_the_run_context_double_carries_every_field_the_package_reads():
-    """Pin the stand-in against the real dataclass, in both directions.
-
-    A double grown field-by-field as tests needed them is how a helper ends up
-    describing a context no run produces -- and the failure mode is silent, since
-    every test using it agrees with it. Reading a field the real
-    ``RunContext`` does not have would pass here and ``AttributeError`` in
-    production; carrying one fewer than the package reads would do the reverse.
-    """
+    """Pin the stand-in against the real dataclass, in both directions."""
     real = {f.name for f in dataclass_fields(RunContext)}
     assert real >= RUN_CONTEXT_FIELDS_READ, RUN_CONTEXT_FIELDS_READ - real
     double = set(vars(ctx_for("alice")))
@@ -7700,8 +6597,7 @@ async def test_shape_page_override_replaces_the_slice():
     class Windowed(SpecToolset):
         def shape_page(self, rows, *, ctx, page, limit, max_page_size):
             seen["args"] = (page, limit, max_page_size)
-            # A deliberately different window, so the assertion below cannot
-            # also be satisfied by the default shaper having run.
+            # A different window, so the default shaper cannot satisfy the assertion.
             return super().shape_page(rows, ctx=ctx, page=1, limit=1, max_page_size=max_page_size)
 
     user = await sync_to_async(User.objects.create)(username="u")
@@ -7720,14 +6616,7 @@ async def test_shape_page_override_replaces_the_slice():
 
 @pytest.mark.django_db(transaction=True)
 async def test_render_output_override_can_skip_the_projection():
-    """The kernel's ``present`` is the opt-out; ``projection=None`` is not.
-
-    ``present_for_audience`` reads ``projection=None`` as *derive one from the
-    spec*, so a project wanting the unprojected payload -- a chaining pipeline
-    that needs the handles the next step reads by -- has to present with
-    ``present`` instead. That is reachable only because the render step is a
-    seam.
-    """
+    """The kernel's ``present`` is the opt-out; ``projection=None`` is not."""
 
     class Unprojected(SpecToolset):
         def render_output(self, spec, result, *, ctx, projection):
@@ -7746,19 +6635,13 @@ async def test_render_output_override_can_skip_the_projection():
         await unprojected.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
     )
 
-    # If this ever stops holding, the override has stopped being an opt-out of
-    # anything and the test is passing for the wrong reason.
     assert projected != raw
     assert set(raw[0]) - set(projected[0])
 
 
 @pytest.mark.django_db(transaction=True)
 async def test_render_output_is_handed_the_page_s_rows_and_the_envelope_follows():
-    """A paged tool's ``render_output`` presents the page, never the whole set.
-
-    Its ``result.value`` is the rows of the page asked for, and what it returns
-    becomes the envelope's ``items``, with the envelope added after it returns.
-    """
+    """A paged tool's ``render_output`` presents the page, never the whole set."""
     seen: dict[str, Any] = {}
 
     class Rows(SpecToolset):
@@ -7815,8 +6698,6 @@ async def test_tool_call_log_lines_carry_run_correlation_and_usage(caplog):
     assert record.run_id == "run-abc"
     assert record.tool_call_id == "call-xyz"
     assert record.run_step == 1
-    # Cumulative for the run, not attributable to this call -- present so a long
-    # autonomous run can be read back against where its budget stood.
     assert record.run_requests == 0
 
 
@@ -7854,9 +6735,6 @@ def upsert_widget(data, user):
     widget, created = Widget.objects.update_or_create(
         name=data["name"], owner=user, defaults={"price": data["price"]}
     )
-    # The shape an upsert has in practice: a small DTO carrying the row *and*
-    # the flag, which is exactly what an ``output_selector_spec`` re-fetch then
-    # replaces in ``DispatchResult.value``.
     return SimpleNamespace(widget=widget, created=created)
 
 
@@ -7881,13 +6759,7 @@ def upsert_spec(**kwargs):
 
 @pytest.mark.django_db(transaction=True)
 async def test_render_output_reaches_the_dispatch_result_carrier():
-    """created-vs-updated is unanswerable from ``value`` once a re-fetch ran.
-
-    The docstring on ``render_output`` names ``service_result`` as there for an
-    override that wants it. With an ``output_selector_spec`` present, ``value``
-    is the re-fetched row and the service's own return -- the flags carrier --
-    is reachable nowhere else.
-    """
+    """created-vs-updated is unanswerable from ``value`` once a re-fetch ran."""
     seen: dict[str, Any] = {}
 
     class Upsert(SpecToolset):
@@ -7914,13 +6786,7 @@ async def test_render_output_reaches_the_dispatch_result_carrier():
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_render_output_override_written_for_the_earlier_signature_breaks_loudly():
-    """An override taking the per-call request, view and extras raises at the call.
-
-    Those three are the call's seeds and context now, which the kernel hands
-    the presenter itself, so an override still declaring them is not handed
-    them: ``TypeError`` on the first tool call, naming them, rather than a
-    render quietly built from ``None``.
-    """
+    """An override taking the per-call request, view and extras raises at the call."""
     called: list[str] = []
 
     class Legacy(SpecToolset):
@@ -8024,11 +6890,7 @@ def _selection(shapes: Any) -> list[str] | None:
 
 
 class _SelectingPresenter(django_service_specs.Presenter):
-    """A row's ``id`` and ``name``, narrowed by a ``fields`` selection it parses.
-
-    Refuses an unknown name in its own words, with no full stop, so a test
-    through it shows the retry carries whatever the presenter says.
-    """
+    """A row's ``id`` and ``name``, narrowed by a ``fields`` selection it parses."""
 
     def output(self) -> django_service_specs.Output:
         return django_service_specs.Output(
@@ -8053,11 +6915,7 @@ class _SelectingPresenter(django_service_specs.Presenter):
 
 
 class _RejectingPresenter(_SelectingPresenter):
-    """A presenter that refuses to render, whatever the call shaped.
-
-    For the cases about *who* shaped the render, where the presenter has to
-    fail with nothing supplied as well.
-    """
+    """A presenter that refuses to render, whatever the call shaped."""
 
     def __init__(self, exc: BaseException) -> None:
         self._exc = exc
@@ -8100,10 +6958,7 @@ def _single_spec(presenter: django_service_specs.Presenter) -> django_service_sp
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_selection_written_against_the_envelope_is_one_retry_then_the_page():
-    """The reported case, through a real run: ``items`` names the documented
-    page's key, and the presenter reads it against one row. The model is told
-    which argument, why, and what it applies to, and its second call gets the
-    page."""
+    """Through a real run: ``items`` names the page key, and the presenter reads one row."""
     user = await User.objects.acreate(username="alice")
     first = await Widget.objects.acreate(owner=user, name="a")
     second = await Widget.objects.acreate(owner=user, name="b")
@@ -8131,8 +6986,7 @@ async def test_a_selection_written_against_the_envelope_is_one_retry_then_the_pa
 
 @pytest.mark.django_db
 def test_an_unknown_row_field_is_a_retry_not_a_dead_run():
-    """Not specific to the envelope: any field the presenter cannot find. A
-    valid selection still shapes the rows."""
+    """Not specific to the envelope: any field the presenter cannot find."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
     spec = _paged_spec(_SelectingPresenter())
@@ -8163,8 +7017,7 @@ def test_a_tool_that_does_not_page_is_not_told_about_a_page():
 
 @pytest.mark.django_db
 def test_render_error_with_no_shape_supplied_still_raises():
-    """Nothing the model sent shaped this render, so nothing it could send would
-    change it: a retry would spend the budget on a server bug and hide it."""
+    """Nothing the model sent shaped this render, so a retry would hide a server bug."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
     refusal = ServiceValidationError("`bogus` field is not found")
@@ -8175,10 +7028,7 @@ def test_render_error_with_no_shape_supplied_still_raises():
 
 @pytest.mark.django_db
 def test_render_error_from_a_seeded_default_still_raises():
-    """A default is seeded when the model omits the argument, so after the pop it
-    looks exactly like a value the model sent. It is configuration, and a bad one
-    has to stay loud. The selecting presenter, so the default is the only thing
-    wrong."""
+    """A default is seeded when the model omits the argument, so it looks like a sent value."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
     spec = _paged_spec(_SelectingPresenter(), _fields_shape(default="name, bogus"))
@@ -8225,9 +7075,7 @@ def test_a_render_error_that_is_not_a_validation_error_stays_loud():
     "args", [{"fields": "bogus"}, {}], ids=["selection supplied", "nothing supplied"]
 )
 def test_translate_exception_sees_a_render_error_before_the_default_arm(args):
-    """The consumer's map runs first on this path as on the dispatch path, and its
-    handler's value is the tool's result as-is -- whether or not the model shaped
-    the render, because the map is the consumer's decision, not the default's."""
+    """The consumer's map runs first here too; its handler's value is the tool's result as-is."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
     refusal = ServiceValidationError("`bogus` field is not found")
@@ -8246,8 +7094,7 @@ def test_translate_exception_sees_a_render_error_before_the_default_arm(args):
 
 @pytest.mark.django_db
 def test_a_render_output_override_is_covered_too():
-    """The ``try`` holds the call to the seam, not the default behind it, so a
-    consumer rendering its own way gets the same containment."""
+    """The ``try`` holds the call to the seam, so a custom renderer gets the same containment."""
 
     class OwnRender(SpecToolset):
         def render_output(self, spec: Any, result: Any, *, ctx: Any, **kwargs: Any) -> Any:
@@ -8269,8 +7116,7 @@ def test_a_render_output_override_is_covered_too():
 
 @pytest.mark.django_db
 def test_a_presenter_refusing_a_shape_with_the_kernel_s_refusal_is_a_retry():
-    """The seat a presenter refusing a shape raises is the kernel's
-    ``InvalidArguments``, and the render arm reads it as the caller's to fix."""
+    """A presenter refusing a shape raises ``InvalidArguments``: the caller's to fix."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
     refusal = InvalidArguments({"fields": ["No field this tool has."]})
@@ -8297,9 +7143,7 @@ def test_a_presenter_refusing_a_shape_with_the_kernel_s_refusal_is_a_retry():
     ids=["two", "three"],
 )
 def test_several_supplied_values_are_all_named(args, subject):
-    """The presenter does not say which one it refused, so singling one out
-    would be a guess presented as a fact. Declaration order, so the sentence
-    reads the same on every call."""
+    """The presenter does not say which message it refused, so singling one out would guess."""
     user = User.objects.create(username="u")
     Widget.objects.create(owner=user, name="a")
     spec = _paged_spec(
@@ -8320,8 +7164,7 @@ def test_several_supplied_values_are_all_named(args, subject):
 
 @pytest.mark.django_db
 def test_a_detail_that_ends_a_sentence_is_not_given_a_second_full_stop():
-    """Some refusals carry a full stop and some do not; the retry reads right
-    either way."""
+    """Some refusals carry a full stop and some do not; the retry reads right either way."""
     user = User.objects.create(username="u")
     widget = Widget.objects.create(owner=user, name="a")
     refusal = ServiceValidationError({"name": ["Not selectable."]})
@@ -8351,9 +7194,7 @@ async def test_the_read_shaping_line_says_what_a_param_applies_to_on_a_page():
 
 
 async def test_the_scope_sentence_needs_a_list_tool_that_declares_a_shape():
-    """A list tool and a shape both present is not enough: declared only on a
-    retrieve tool, the shape never meets a page, and the block adds a line only
-    when some tool can act on it."""
+    """A shape declared only on a retrieve tool never meets a page."""
     toolset = SpecToolset(
         shaping(
             {"list": list_spec(), "get": retrieve_spec()}, {"get": [Parameter("fields", "string")]}
@@ -8401,9 +7242,7 @@ def _raises(exc: BaseException):
     ids=["dict", "list", "nested dict", "non-field", "positional key", "rows", "string"],
 )
 def test_a_validation_retry_reads_as_text_not_a_repr(detail, expected):
-    """A service's ``ServiceValidationError`` carries its detail un-coerced, in
-    any of these shapes; the model gets one ``path: message`` line per message,
-    with the non-field key not mistaken for an argument's name."""
+    """A service's ``ServiceValidationError`` renders one ``path: message`` line per message."""
     with pytest.raises(ModelRetry) as retry:
         _dispatch(_raises(ServiceValidationError(detail)), object(), {})
 
@@ -8412,10 +7251,7 @@ def test_a_validation_retry_reads_as_text_not_a_repr(detail, expected):
 
 @pytest.mark.parametrize("key", ["non_field_errors", "__all__"], ids=["drf-key", "django-key"])
 def test_a_message_about_the_whole_input_is_read_without_its_key(key):
-    """A service re-raising a model's ``message_dict`` carries its form-wide
-    messages under Django's ``__all__``, and the kernel's under
-    ``non_field_errors``: either is the line on its own, never a path naming an
-    argument the model could not find."""
+    """Form-wide messages arrive under ``__all__`` or ``non_field_errors``."""
     detail = {key: ["Name and owner must make a unique set."], "name": ["Too long."]}
 
     with pytest.raises(ModelRetry) as retry:

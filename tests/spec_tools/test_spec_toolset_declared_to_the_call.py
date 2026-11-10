@@ -1,16 +1,3 @@
-"""A Validator that declares itself to the call: the toolset hands the call's context to the kernel.
-
-django-service-specs reads a Validator declaring ``parameters(self, *,
-call_context=None)`` as it declares itself to the context it is handed. The
-construction checks describe the spec to no call. The tool's schema is built once,
-with no run in hand, under the agent's stamp alone, so it reads a field keyed on the
-transport and never one keyed on a run's own entries. A tool call is under way, so
-the bound values and the server-owned keys are read as the Validator declares
-itself to that call. Written against ``SpecToolset``'s surface, so each test
-compiles against a toolset that hands no context and fails there on what it
-asserts.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
@@ -46,11 +33,7 @@ _MARKED: dict[str, Any] = {"marked": True}
 
 
 def _marked(call_context: dict[str, Any] | None) -> bool:
-    """Whether ``call_context`` is the call's own, carrying the run's entry.
-
-    Keyed on what the dict carries, not on its being there, so a test reading
-    it proves the run's context reached the kernel's helper through the call.
-    """
+    """Whether ``call_context`` is the call's own, carrying the run's entry."""
     return bool(call_context is not None and call_context.get("marked"))
 
 
@@ -67,11 +50,7 @@ class _TypedByTheCall(Validator):
 
 
 class _TenantDeclared(Validator):
-    """Declares ``title``, and ``tenant`` beside it either to the run's calls or to no call.
-
-    ``to_the_call=True`` declares the field only to a call, ``False`` only to
-    the description the tool's schema is built from.
-    """
+    """Declares ``title``, and ``tenant`` beside it either to the run's calls or to no call."""
 
     def __init__(self, *, to_the_call: bool) -> None:
         self.to_the_call = to_the_call
@@ -114,15 +93,7 @@ async def _call_in_the_run(toolset: SpecToolset, name: str, args: dict[str, Any]
 
 
 async def test_a_bound_value_is_checked_against_the_call_s_own_declaration():
-    """The call's declaration refuses the bound value: the server's error, not a retry.
-
-    Construction checks the binding against the declaration made to no call,
-    which takes ``"x"`` as a string, so the toolset builds. The call's own
-    declares an integer. Handed no context, the binding passed the value on and
-    the kernel's shape check answered it as the model's mistake, a
-    ``ModelRetry`` naming ``project_pk``: a value the model neither sent nor
-    was offered, so no retry could correct it.
-    """
+    """The call's declaration refuses the bound value: the server's error, not a retry."""
     toolset = SpecToolset(
         {"record": _service(_TypedByTheCall())},
         tool_server_arguments={"record": ServerArguments({"project_pk": "x"})},
@@ -136,16 +107,7 @@ async def test_a_bound_value_is_checked_against_the_call_s_own_declaration():
 
 
 async def test_a_seed_named_field_the_call_does_not_declare_is_answered_by_the_seed():
-    """The schema offers ``tenant``; the call's declaration has no such field, so the seed owns it.
-
-    Short of the run's entry, the Validator declares ``tenant``, so the tool's
-    schema offers it and the model sends it. In the call it declares no such
-    field, so the registered seed is what fills the service's ``tenant``, and
-    the model's value is dropped like any seed-named argument the spec
-    declares. Handed no context, the server-owned keys were read off the
-    declaration made to no call, which leaves the field to the caller: the
-    model's value reached dispatch, which refused it as an unknown argument.
-    """
+    """The call's declaration has no ``tenant`` field, so the seed owns it."""
     toolset = SpecToolset(
         {"record": _service(_TenantDeclared(to_the_call=False))}, pool_seeds=_tenant_seeds()
     )
@@ -157,15 +119,7 @@ async def test_a_seed_named_field_the_call_does_not_declare_is_answered_by_the_s
 
 
 async def test_a_seed_named_field_declared_only_to_the_call_is_the_model_s_to_send():
-    """The call's declared field is validated into ``data``; the service's ``tenant`` is the seed's.
-
-    Short of the run's entry the Validator has no ``tenant``, so the tool's schema
-    does not offer it; the call's declaration does. The model's argument is
-    weighed against the server-owned keys read as the call declares itself,
-    which leave a Validator field named like a seed to the model. Handed no
-    context, those keys list ``tenant`` as the seed's and the model's value is
-    dropped, so ``data`` loses the field.
-    """
+    """The call's declared field goes into ``data``; ``tenant`` is the seed's."""
     toolset = SpecToolset(
         {"record": _service(_TenantDeclared(to_the_call=True))}, pool_seeds=_tenant_seeds()
     )
@@ -199,15 +153,7 @@ class _OwnerToTheCall(Validator):
 
 
 async def test_a_provider_filled_field_declared_only_to_the_call_drops_the_model_s_value():
-    """The provider's ``owner`` is the one validated; the model's malformed guess costs no retry.
-
-    The tool's schema does not offer ``owner``, which the Validator declares
-    only to the call, and the typed provider fills it, so it is the server's.
-    The model's value is dropped before dispatch reads it, as it is for a key
-    a provider fills that the schema offers. Weighing only the names declared
-    to no call, the toolset passed the value on and the shape check handed the
-    model ``owner: Expected an integer.`` for a key it can never set.
-    """
+    """The provider's ``owner`` is the one validated; the model's malformed guess costs no retry."""
     toolset = SpecToolset(
         {
             "record": ServiceSpec(
@@ -244,12 +190,7 @@ class _ToOneTransport(Validator):
 
 
 async def test_a_required_field_declared_only_to_the_agent_transport_is_offered_and_required():
-    """The schema is built under the agent's stamp, so the model is asked for the field.
-
-    Described to no call, the Validator declared no ``channel``: the tool never
-    offered it, and dispatch, reading the call's own declaration, refused every
-    call the model made from that schema for leaving it out.
-    """
+    """The schema is built under the agent's stamp, so the model is asked for the field."""
     toolset = SpecToolset({"record": _service(_ToOneTransport(AGENT_TRANSPORT))})
 
     schema = _input_schema_of(toolset, "record")
@@ -338,12 +279,7 @@ def test_each_tool_s_schema_is_asked_with_a_stamp_of_its_own():
 
 
 def test_a_clash_declared_only_to_the_agent_transport_is_refused_naming_the_tool():
-    """Assembling the argument set under the stamp is the first read that sees this clash.
-
-    The construction check reads the declaration made to no call, which has no
-    ``pk`` field, so the refusal is raised where the schema is asked, and the
-    tool's name is what makes it readable among many specs.
-    """
+    """Assembling the argument set under the stamp is the first read that sees this clash."""
     spec = ServiceSpec(
         service=report,
         validator=_ToOneTransport(AGENT_TRANSPORT, name="pk"),
@@ -370,7 +306,6 @@ def test_a_field_named_for_a_dispatcher_seat_only_under_the_agent_is_refused_nam
     ) as excinfo:
         SpecToolset({"record": _service(_ToOneTransport(AGENT_TRANSPORT, name="user"))})
 
-    # The wrapper re-raises the refusal prefixed, from the original: neither carries a note.
     assert not hasattr(excinfo.value, "__notes__")
     assert not hasattr(excinfo.value.__cause__, "__notes__")
 
@@ -399,10 +334,7 @@ def test_binding_a_field_declared_only_to_the_agent_is_refused_when_the_toolset_
 
 
 def test_a_validator_reading_the_stamp_s_request_raises_when_the_toolset_is_built():
-    """The stamp carries no request, so a Validator declaring ``call_context`` guards it.
-
-    The error is the Validator's own, with a note naming the tool.
-    """
+    """The stamp carries no request, so a Validator declaring ``call_context`` guards it."""
 
     class _ReadsTheRequest(Validator):
         def parameters(self, *, call_context: dict[str, Any] | None = None) -> Parameters:
@@ -422,13 +354,7 @@ def test_a_validator_reading_the_stamp_s_request_raises_when_the_toolset_is_buil
 
 
 async def test_the_required_reads_owe_no_context():
-    """A call's missing-argument check names reads, and a Validator's field is never one.
-
-    ``_required_arguments`` reads ``_caller_schema`` with no context. The field
-    declared only to the agent is in the tool's ``required`` all the same, and
-    dispatch is what answers a call leaving it out, so the same reads come back
-    under the stamp and the toolset's own retry never names the field.
-    """
+    """A call's missing-argument check names reads, and a Validator's field is never one."""
     spec = ServiceSpec(
         service=report,
         validator=_ToOneTransport(AGENT_TRANSPORT),
@@ -505,13 +431,7 @@ class _SeededPerCall(SpecToolset):
 
 
 async def test_a_field_required_by_the_run_is_filled_from_a_provider_reading_a_call_seed():
-    """The remedy the quickstart names: an ``input_data=`` provider, which reads a per-call seed.
-
-    The Validator requires ``tenant`` only in the run carrying the entry, so the
-    tool's schema leaves it out and the model cannot send it. The provider
-    declares ``seedv``, which ``call_seeds`` fills, and returns ``tenant``, so
-    the call's ``data`` carries the seed's value. A pin of the documented route.
-    """
+    """The remedy the quickstart names: an ``input_data=`` provider, which reads a per-call seed."""
     toolset = _SeededPerCall(
         {
             "record": ServiceSpec(
@@ -531,12 +451,7 @@ async def test_a_field_required_by_the_run_is_filled_from_a_provider_reading_a_c
 
 
 async def test_a_seed_alone_does_not_fill_a_field_required_by_the_run():
-    """A seed fills the service's parameter of its name, not the Validator field.
-
-    The same Validator with a ``tenant`` seed and no provider: the call leaves
-    out the field it cannot see, and the Validator refuses it as required. A
-    pin of the sentence's other half.
-    """
+    """A seed fills the service's parameter of its name, not the Validator field."""
     toolset = _SeededPerCall({"record": _service(_RequiredByTheRun())}, seed="tenant")
 
     with pytest.raises(ModelRetry, match="tenant"):
@@ -568,14 +483,7 @@ async def _call_in_a_run_with_a_request(
 
 
 async def test_a_seed_named_field_only_the_schema_offers_is_answered_by_the_seed():
-    """The stamp's declaration is a third set, which the call's weighing has to include.
-
-    The Validator declares ``tenant`` when the context's ``request`` is
-    ``None``: the stamp, so the schema offers it, but neither the declaration
-    made to no call nor the one made to a call in a run carrying a request. The
-    model sends it, as offered, and the registered seed answers instead of the
-    kernel refusing ``tenant: Unknown argument.``
-    """
+    """The stamp's declaration is a third set, which the call's weighing has to include."""
     toolset = SpecToolset(
         {"record": _service(_OfferedWithoutARequest())}, pool_seeds=_tenant_seeds()
     )
@@ -589,10 +497,7 @@ async def test_a_seed_named_field_only_the_schema_offers_is_answered_by_the_seed
 
 
 async def test_a_plain_field_only_the_schema_offers_is_refused_as_unknown():
-    """With no seed of its name the field is nobody's, and ``REJECT`` names it as unknown.
-
-    A pin: the third set only widens what a seed-named field may be dropped for.
-    """
+    """With no seed of its name the field is nobody's, and ``REJECT`` names it as unknown."""
     toolset = SpecToolset({"record": _service(_OfferedWithoutARequest())})
 
     with pytest.raises(ModelRetry, match="tenant"):
