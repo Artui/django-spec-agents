@@ -1,5 +1,3 @@
-"""``resolve_spec_mapping`` — a spec mapping or a registry, structurally."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -65,12 +63,7 @@ class TestSpecSourceProtocol:
 
 
 def test_iterating_a_registry_would_not_give_names() -> None:
-    """The reason this helper is public rather than inlined in the builder.
-
-    A transport that reserves tool names by iterating the raw argument gets
-    ``RegisteredSpec`` records from a registry, not name strings — filling its
-    collision-detection set with dataclasses and silently disabling the check.
-    """
+    """The reason this helper is public rather than inlined in the builder."""
     registry = SpecRegistry()
     registry.register("ping", open_spec())
 

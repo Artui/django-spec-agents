@@ -1,9 +1,3 @@
-"""Fixture django-spec-mcp servers over kernel specs, for the ``[mcp]`` bridge's tests.
-
-Kernel specs only: django-spec-mcp registers nothing else, and nothing here
-imports Django REST Framework, so the bridge's tests hold without it.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -185,13 +179,7 @@ lookup_server.register_tool(
 
 
 class SelectableRow(Presenter):
-    """A row that reads its own ``fields`` shape and refuses a name it lacks.
-
-    No selection library behind it: the server never reads the value, so the
-    contract the bridge relies on is only that a presenter raising a
-    ``ServiceValidationError`` while rendering comes back as a result it can
-    retry.
-    """
+    """A row that reads its own ``fields`` shape and refuses a name it lacks."""
 
     def output(self) -> Output:
         return Output(fields=(OutputField("id", "integer"), OutputField("name", "string")))

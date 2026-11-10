@@ -1,11 +1,3 @@
-"""Kernel-declared specs the spec-capability builder's and resolver's tests serve.
-
-``build_spec_capability`` hands its source to ``spec_tools``, which serves
-django-service-specs specs only, so these are the kernel's own ``ServiceSpec``
-and ``SelectorSpec``. The ``[mcp]`` bridge's server, in ``mcp_server``,
-registers ``LOOKUP_SPECS`` too, so both routes serve one declaration.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -39,8 +31,7 @@ def _ok(user: Any) -> dict[str, Any]:
 
 
 def open_spec() -> ServiceSpec:
-    """A spec that dispatches for anyone. Its permissions are declared because
-    the spec capability refuses a spec that declares none."""
+    """A spec that dispatches for anyone."""
     return ServiceSpec(service=_ok, atomic=False, permissions=[Unrestricted()])
 
 
