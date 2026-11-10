@@ -10,17 +10,7 @@ from django_spec_agents.contrib.store.utils import hash_file
 
 
 class Command(BaseCommand):
-    """Fill in ``sha256`` for attachments stored before the column existed.
-
-    Deduplication compares content hashes, so an unhashed row can never be
-    matched and re-uploading its file writes a second copy of the bytes.
-
-    A command rather than a data migration, because hashing reads every blob
-    back, over the network if storage is S3. A migration doing that holds the
-    deploy open for as long as the bucket takes and fails the release if one
-    object is missing. Here it is interruptible, resumable — only unhashed rows
-    are ever looked at — and a missing file is a reported skip.
-    """
+    """Fill in ``sha256`` for attachments stored before the column existed."""
 
     help = "Compute the missing sha256 content hashes for stored attachments."
 
@@ -49,12 +39,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Hashed {hashed} attachment(s), skipped {skipped} unreadable.")
 
     def _digest(self, attachment: StoredAttachment) -> str | None:
-        """The row's content hash, or ``None`` when its bytes cannot be read.
-
-        A blob gone missing — deleted out of band, or a database dump restored
-        without its bucket — must not stop the run: the remaining rows are worth
-        hashing, and a hash invented for absent bytes is worse than none.
-        """
+        """The row's content hash, or ``None`` when its bytes cannot be read."""
         try:
             with attachment.file.open("rb") as handle:
                 return hash_file(handle)

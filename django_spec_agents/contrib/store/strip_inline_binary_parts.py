@@ -9,28 +9,7 @@ _FILE_PART_TYPES = frozenset({"audio", "document", "image", "video"})
 
 
 def strip_inline_binary_parts(messages: Any) -> tuple[Any, bool]:
-    """Rebuild ``messages`` without any inline file bytes, and say if it changed.
-
-    A transport that inlines an attachment for the model serialises the file into
-    the message list as base64, which persisted turns a 2.6 MB PDF into roughly
-    3.5 MB of text in one row, shipped to the browser on every load.
-
-    The edit is **structural**: the list is walked as plain JSON and only the
-    offending parts are dropped. Nothing is round-tripped through a message type,
-    because validating and re-dumping is what would silently discard the fields
-    this must not lose — every message's ``id``, and the non-standard
-    ``attachments`` array that both renders the chips and drives attachment
-    reconciliation.
-
-    A message whose parts were all bytes keeps its place with an empty
-    ``content`` list, since dropping it would take its id too.
-
-    Returns:
-        The rebuilt messages and whether anything was removed, so a caller can
-        leave untouched rows untouched. A non-list ``messages`` is handed back
-        unchanged: the column is JSON, and a row written by something other than
-        this store is left alone.
-    """
+    """Rebuild ``messages`` without any inline file bytes, and say if it changed."""
     if not isinstance(messages, list):
         return messages, False
     rebuilt: list[Any] = []

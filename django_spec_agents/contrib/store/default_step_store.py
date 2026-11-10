@@ -25,31 +25,7 @@ from django_spec_agents.contrib.store.utils import owner_or_none
 
 
 class DefaultStepStore:
-    """A durable, owner-scoped ``StepStore`` over the reference models.
-
-    The database equivalent of the harness's own ``SqliteStepStore`` /
-    ``FileStepStore``. It structurally satisfies ``pydantic-ai-harness``'s
-    ``StepStore`` protocol — that protocol is upstream's, not this package's —
-    while partitioning every row by the resolved owner, so one user can never
-    read or resume another's runs even by guessing a ``run_id``. The owner is
-    entirely ours; no harness record carries one.
-
-    **Built per request**, unlike a ``ConversationStore`` singleton whose methods
-    each take a request: the protocol's methods carry none, so the request is
-    bound at construction. Owner resolution runs inside each ``sync_to_async``
-    hop, because it may create a session row for the anonymous bucket and must
-    stay off the event loop.
-
-    **An anonymous request degrades rather than crashing.** With no owner and
-    ``allow_anonymous`` off, every write no-ops and every read returns empty: the
-    capability's hooks fire mid-run, so refusing by raising would abort the run,
-    and an anonymous visitor has no durable identity to resume under anyway. Pair
-    the store with an authenticated mount for it to persist.
-
-    Add ``"django_spec_agents.contrib.store"`` to ``INSTALLED_APPS`` and run
-    ``migrate`` for the backing tables. Requires the
-    ``django-spec-agents[harness]`` extra.
-    """
+    """A durable, owner-scoped ``StepStore`` over the reference models."""
 
     def __init__(self, request: HttpRequest, *, allow_anonymous: bool = False) -> None:
         """Pass ``allow_anonymous`` explicitly: this substrate reads no Django
@@ -72,13 +48,7 @@ class DefaultStepStore:
         parent_run_id: str | None = None,
         conversation_id: str | None = None,
     ) -> list[RunRecord]:
-        """The owner's runs by ``started_at``, **oldest first** — a contract, not a default.
-
-        ``StepStore.list_runs`` documents ascending order and tells callers they
-        may take the most recent run with ``[-1]``, so answering newest-first
-        would quietly hand upstream's own idiom the wrong run. Presenting recent
-        runs first is a reading order, and belongs where the list is rendered.
-        """
+        """The owner's runs by ``started_at``, **oldest first** — a contract, not a default."""
         return await sync_to_async(self._list_runs)(parent_run_id, conversation_id)
 
     # -- Events ---------------------------------------------------------------
@@ -89,8 +59,6 @@ class DefaultStepStore:
     async def list_events(self, *, run_id: str) -> list[StepEvent]:
         return await sync_to_async(self._list_events)(run_id)
 
-    # -- Snapshots ------------------------------------------------------------
-
     async def save_snapshot(self, snapshot: ContinuableSnapshot) -> None:
         await sync_to_async(self._save_snapshot)(snapshot)
 
@@ -98,8 +66,6 @@ class DefaultStepStore:
         self, *, run_id: str, include_interrupted: bool = False
     ) -> ContinuableSnapshot | None:
         return await sync_to_async(self._latest_snapshot)(run_id, include_interrupted)
-
-    # -- Tool effects ---------------------------------------------------------
 
     async def record_tool_effect(self, record: ToolEffectRecord) -> None:
         await sync_to_async(self._record_tool_effect)(record)
@@ -109,8 +75,6 @@ class DefaultStepStore:
 
     async def list_unresolved_tool_effects(self, *, run_id: str) -> list[ToolEffectRecord]:
         return await sync_to_async(self._list_unresolved_tool_effects)(run_id)
-
-    # -- Sync row operations (owner resolved off the event loop) --------------
 
     def _owner(self) -> str | None:
         """The resolved owner id, or ``None`` when an anonymous request is refused."""
@@ -255,8 +219,6 @@ class DefaultStepStore:
             owner_id=owner, run_id=run_id, status="started"
         ).order_by("id")
         return [self._tool_effect_from_row(row) for row in rows]
-
-    # -- Row → record adapters ------------------------------------------------
 
     @staticmethod
     def _run_from_row(row: StoredRun) -> RunRecord:

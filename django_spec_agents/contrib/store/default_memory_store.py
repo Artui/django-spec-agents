@@ -35,61 +35,7 @@ _DEFAULT_MAX_TOTAL_CHARS = 262_144
 
 
 class DefaultMemoryStore:
-    """A durable, owner-scoped ``MemoryStore`` over the reference models.
-
-    The database equivalent of the harness's own ``SqliteMemoryStore`` /
-    ``FileStore``. It structurally satisfies ``pydantic-ai-harness``'s
-    ``MemoryStore`` protocol — that protocol is upstream's, not this package's —
-    while partitioning every row by the resolved owner, so one user's memory can
-    never be read or overwritten by another even when the namespace handed to the
-    capability is wrong. Attach it with::
-
-        Memory(DefaultMemoryStore(request), namespace=lambda ctx: memory_namespace(request))
-
-    **Built per request**, like ``DefaultStepStore`` and for the same reason: the
-    protocol's methods carry no request, so it is bound at construction. Owner
-    resolution runs inside each ``sync_to_async`` hop, because it may create a
-    session row for the anonymous bucket and must stay off the event loop.
-
-    **The path's namespace is not trusted as the boundary.** The harness composes
-    the key as ``<namespace>/<agent_name>/<file>.md`` from a resolver the host
-    supplies, and a ``/`` inside a resolved namespace is *accepted* — it simply
-    opens further path segments. So a resolver reading anything user-controlled
-    could otherwise address another scope. Filtering every query on the
-    server-resolved ``owner_id`` makes that harmless, and
-    [`memory_namespace`][django_spec_agents.memory_namespace] keeps the
-    namespace valid in the first place.
-
-    **Stored content cannot close the fence it is injected inside.** The harness
-    wraps injected memory in ``<memory>`` markers and is explicit in its own
-    README that this "is not a hard prompt-injection boundary"; below harness
-    0.60, which escapes the tag itself, a note containing the closing tag ends
-    the block early and everything after it
-    reads as the user's own turn, durably, on every future run. Every write here
-    escapes the angle brackets of both tags, so the stored bytes are safe for
-    *every* consumer — the injection, ``read_memory``, ``search_memory`` and an
-    app-side read alike. Doing it on write rather than read is also what keeps
-    ``write_memory``'s ``old_text`` replacement working: the model edits against
-    the same escaped text it was shown.
-
-    **A per-owner ceiling, which the capability does not have.** Its
-    ``max_memory_size`` bounds one file and its injection budget bounds what is
-    *read*; nothing upstream caps how many files a namespace accumulates or how
-    large they grow in total. ``max_files`` and ``max_total_chars`` do, at the
-    write.
-
-    **An anonymous request degrades rather than crashing.** With no owner and
-    ``allow_anonymous`` off, every write no-ops and every read returns empty: the
-    capability's hooks fire mid-run, so refusing by raising would abort the run,
-    and an anonymous visitor has no durable identity worth remembering under.
-    Note the asymmetry with the other stores — the memory tools are *model-facing*,
-    so a no-op write still reports success to the model. Pair the store with an
-    authenticated mount for memory to persist.
-
-    Add ``"django_spec_agents.contrib.store"`` to ``INSTALLED_APPS`` and run
-    ``migrate`` for the backing tables. Requires the
-    ``django-spec-agents[harness]`` extra.
-    """
+    """A durable, owner-scoped ``MemoryStore`` over the reference models."""
 
     def __init__(
         self,
@@ -99,29 +45,7 @@ class DefaultMemoryStore:
         max_files: int = _DEFAULT_MAX_FILES,
         max_total_chars: int = _DEFAULT_MAX_TOTAL_CHARS,
     ) -> None:
-        """``request`` is optional, and which of the two modes you get depends on it.
-
-        **Without one (the usual case), the store is namespace-scoped**: the owner
-        is the leading segment of each path, which is the namespace the capability
-        resolved. That is what lets it be constructed at *mount time*, where every
-        transport takes its capability list and no request exists —
-        ``AGUIServer(capabilities=[Memory(DefaultMemoryStore(), ...)])``. Pair it
-        with
-        [`memory_namespace_for_user`][django_spec_agents.memory_namespace_for_user],
-        which derives that segment from the server-resolved ``ctx.deps.user``, and
-        the namespace is a boundary the client cannot choose.
-
-        **With one, the owner is resolved server-side from the request** and the
-        path's namespace is not trusted at all, so a resolver reading anything
-        user-controlled still cannot reach another owner's rows. Only available to
-        a host that builds the store per request — a custom view, or a transport
-        seam that hands one over.
-
-        Pass ``allow_anonymous`` explicitly: this substrate reads no Django
-        settings, and the value should match the conversation store's, so two
-        endpoints sharing a persistence strategy agree on it. It applies only in
-        the request-bound mode; without a request there is no anonymity to detect,
-        and the namespace resolver decides what an anonymous caller is called."""
+        """``request`` is optional, and which of the two modes you get depends on it."""
         self._request = request
         self._allow_anonymous: bool = allow_anonymous
         self._max_files: int = max_files
@@ -168,37 +92,13 @@ class DefaultMemoryStore:
 
     @staticmethod
     def purge(owner_id: str) -> int:
-        """Delete every memory row for one owner, returning how many files went.
-
-        Not part of ``MemoryStore``, and it has to be here because composing the
-        protocol cannot express it: ``list_paths`` then ``delete`` needs the
-        current version of each path, so a purge becomes an unbounded
-        read-then-delete loop that a concurrent ``write_memory`` can lose to.
-        Memory is durable personal data written *about* a user, so an erasure
-        request has to be able to reach it in one statement.
-
-        Deliberately **not** wired to a ``post_delete`` signal on the user model:
-        whether deleting an account erases its memory is a product policy, and a
-        library's job here is to make the operation possible.
-
-        Synchronous — call it from a management command, an admin action, or an
-        async caller through ``sync_to_async``.
-        """
+        """Delete every memory row for one owner, returning how many files went."""
         StoredMemoryOperation.objects.filter(owner_id=owner_id).delete()
         deleted, _ = StoredMemory.objects.filter(owner_id=owner_id).delete()
         return deleted
 
-    # -- Sync row operations (owner resolved off the event loop) --------------
-
     def _owner(self, path: str) -> str | None:
-        """The owner every query for ``path`` filters on, or ``None`` to degrade.
-
-        Namespace-scoped without a request: the leading path segment is the scope
-        the capability resolved, and partitioning on it is what makes the store
-        usable from a mount-time capability list. With a request, the owner is
-        resolved from it instead and the path is not consulted -- strictly
-        stronger, because then even a wrong namespace cannot cross scopes.
-        """
+        """The owner every query for ``path`` filters on, or ``None`` to degrade."""
         if self._request is None:
             return path.split("/", 1)[0]
         return owner_or_none(self._request, allow_anonymous=self._allow_anonymous)
@@ -218,15 +118,7 @@ class DefaultMemoryStore:
         )
 
     def _get_operation(self, operation: MemoryOperation) -> MemoryMutation | None:
-        """A receipt lookup, which is the one call that carries no path.
-
-        So there is no namespace to scope by, and in namespace mode the owner
-        cannot be derived. Looking a receipt up by its id alone is nonetheless
-        safe: the harness derives the id as a digest of ``(scope, run_id,
-        tool_call_id)``, so the scope is already inside it and two owners cannot
-        produce the same one. A request-bound store still filters by owner as
-        well, because it can.
-        """
+        """A receipt lookup, which is the one call that carries no path."""
         if self._request is None:
             return self._receipt(None, operation)
         owner = self._owner("")
@@ -236,12 +128,7 @@ class DefaultMemoryStore:
 
     @staticmethod
     def _receipt(owner: str | None, operation: MemoryOperation) -> MemoryMutation | None:
-        """A prior result for ``operation``, or ``None`` if it has not run here.
-
-        A known id whose fingerprint does not match is a reused id, not a replay:
-        returning the old result would answer a different question than the one
-        asked, so the protocol refuses instead.
-        """
+        """A prior result for ``operation``, or ``None`` if it has not run here."""
         rows = StoredMemoryOperation.objects.filter(operation_id=operation.id)
         if owner is not None:
             rows = rows.filter(owner_id=owner)
@@ -320,15 +207,7 @@ class DefaultMemoryStore:
         return list(rows.order_by("path").values_list("path", flat=True)[:limit])
 
     def _check_ceilings(self, owner: str, path: str, content: str, *, replacing: bool) -> None:
-        """Refuse a write that would push the owner past its file or byte ceiling.
-
-        ``ModelRetry`` rather than a bare exception because the model is the one
-        that can act on it — delete a file, or write less — and the harness's
-        toolset re-raises it untouched, so it reaches the model as an instruction
-        instead of an opaque tool failure. The row being replaced is excluded from
-        both totals: an edit that shrinks a file must not be refused because the
-        file it is shrinking already exists.
-        """
+        """Refuse a write that would push the owner past its file or byte ceiling."""
         others = StoredMemory.objects.filter(owner_id=owner).exclude(path=path)
         if not replacing and others.count() + 1 > self._max_files:
             raise ModelRetry(
@@ -359,12 +238,7 @@ class DefaultMemoryStore:
 def _locked_row(
     owner: str, path: str, expected_version: str | None, *, verb: str
 ) -> StoredMemory | None:
-    """The row at ``path``, locked, once its version matches ``expected_version``.
-
-    ``select_for_update`` rather than a bare read: two concurrent writes that
-    both read the same version would otherwise both pass the compare-and-set
-    and one would silently overwrite the other. Call inside the transaction.
-    """
+    """The row at ``path``, locked, once its version matches ``expected_version``."""
     row = StoredMemory.objects.select_for_update().filter(owner_id=owner, path=path).first()
     current_version = None if row is None else row.version
     if current_version != expected_version:
@@ -373,40 +247,18 @@ def _locked_row(
 
 
 def _validate_path(path: str) -> None:
-    """Reject a path the ``StoredMemory.path`` column cannot hold.
-
-    The harness caps each *segment* at 200 characters but never the joined path,
-    so a deep namespace can compose one longer than the column. Raising here
-    gives one consistent failure — the shape ``validate_store_path`` already
-    raises — rather than a database error that differs per backend.
-    """
+    """Reject a path the ``StoredMemory.path`` column cannot hold."""
     if len(path) > _MAX_PATH_CHARS:
         raise ValueError(f"memory path exceeds {_MAX_PATH_CHARS} characters: {path!r}")
 
 
 def _escape_tag(match: re.Match[str]) -> str:
-    """One fence tag with its angle brackets escaped, and nothing else touched.
-
-    The family's own untrusted-context channel neutralises its marker by rewriting
-    the *word*, which works because that marker is a hyphenated compound chosen so
-    that mangling it still reads as prose. That trick does not port: this marker is
-    ``memory``, an ordinary English word that belongs in ordinary notes, and
-    rewriting every occurrence of it would corrupt the content the feature exists
-    to store. Escaping only the bracket characters of a literal tag leaves the word
-    intact, cannot be re-closed, and is idempotent — the escaped form contains no
-    bracket left to match on a later write.
-    """
+    """One fence tag with its angle brackets escaped, and nothing else touched."""
     return match.group(0).replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _unpersisted_mutation() -> MemoryMutation:
-    """The result of a write that degraded to a no-op.
-
-    A version is fabricated rather than left ``None`` because the harness's
-    toolset raises ``RuntimeError('memory write returned no version')`` on a
-    ``None`` here, which would surface the anonymous degradation to the model as
-    an internal error rather than a quiet no-op. Nothing is stored under it.
-    """
+    """The result of a write that degraded to a no-op."""
     return MemoryMutation(version=uuid4().hex, replayed=False, existed=False)
 
 
