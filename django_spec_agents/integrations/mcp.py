@@ -1,11 +1,3 @@
-"""In-process bridge from a django-spec-mcp server's registry to a Pydantic-AI toolset.
-
-Requires the ``django-spec-agents[mcp]`` extra, so consumers import this module
-lazily and the dependency on ``django_spec_mcp`` stays optional. django-spec-mcp
-needs a ready app registry to import, which is one more reason this module is
-never on a host import path. It imports nothing from Django REST Framework.
-"""
-
 from __future__ import annotations
 
 import json
@@ -46,24 +38,14 @@ _UNAVAILABLE_INSTRUCTION = (
 
 
 def _unavailable_instruction(unavailable: dict[str, Any]) -> str:
-    """The heading, then one line per tool left out: its name and its ``reason``.
-
-    The ``code`` is left out, as the spec-tools route leaves it out: it is for
-    programs and for tying a refusal to a row's ``affordances``, and a model
-    relaying this to a person has no use for it.
-    """
+    """The heading, then one line per tool left out: its name and its ``reason``."""
     lines = [_UNAVAILABLE_INSTRUCTION]
     lines.extend(f"  - `{name}`: {affordance.reason}" for name, affordance in unavailable.items())
     return "\n".join(lines)
 
 
 def _parse_tool_error(result: dict[str, Any]) -> dict[str, Any]:
-    """Extract the ``{"error": {...}}`` payload from an ``isError`` result.
-
-    Both servers encode it as JSON text in ``content[0]``. Falls back to a
-    generic shape rather than raising, so a changed encoding cannot turn
-    reporting an error into a second error.
-    """
+    """Extract the ``{"error": {...}}`` payload from an ``isError`` result."""
     content = result.get("content") or []
     text: Any = content[0].get("text", "") if content else ""
     try:
@@ -74,21 +56,7 @@ def _parse_tool_error(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tool_value(result: dict[str, Any]) -> Any:
-    """The value a successful result hands the model.
-
-    ``structuredContent`` when the server sent it. Without it, django-spec-mcp
-    carries the payload in one JSON text block: a scalar result always (it has
-    no object form, so 0.9.0 sends no ``structuredContent``), and any result of
-    a tool registered with ``include_structured_content=False``. That text is
-    parsed, so the model reads ``3`` rather than a content-block list, and kept
-    raw when it is not JSON. Any other content, a media block for one, is
-    passed on as the blocks.
-
-    Each conjunct of the one-text-block guard has a case in
-    ``test_content_that_is_not_one_text_block_is_passed_on_as_the_blocks``:
-    ``no-content`` (not a list), ``two-text-blocks`` (one block), ``media``
-    (a text block).
-    """
+    """The value a successful result hands the model."""
     if "structuredContent" in result:
         return result["structuredContent"]
     content = result.get("content")
@@ -108,17 +76,7 @@ _FAILURE_LABELS: tuple[tuple[str, str], ...] = (("code", "code"),)
 
 
 def _failure_message(error: dict[str, Any]) -> str:
-    """Compose the ``ToolFailed`` text: the server's sentence, then what names it.
-
-    ``ToolFailed`` carries a string and nothing else, so ``code`` rides as a
-    suffix rather than being dropped. The
-    ``(code: ...)`` form is the one ``spec_tools`` writes for the same refusal
-    raised in process, so a model reads one wording whichever route a tool
-    arrived by, and can match it to the ``code`` a row's ``affordances`` answer
-    advertised. It is written for the model and for a person reading the tool
-    call; a program wanting the code reads it where the server serves it, not
-    out of this sentence.
-    """
+    """Compose the ``ToolFailed`` text: the server's sentence, then what names it."""
     message: str = str(error.get("message") or "tool error")
     labels: list[str] = [
         f"{label}: {error[key]}" for key, label in _FAILURE_LABELS if error.get(key)
@@ -129,19 +87,9 @@ def _failure_message(error: dict[str, Any]) -> str:
 
 
 def _missing_input_prompt(error: dict[str, Any]) -> str:
-    """Compose the ``ModelRetry`` text for ``input_required``: the service's
-    message, plus the names it wants the answer back under.
-
-    Worded as ``spec_tools`` words the same request, for its reason:
-    ``requestedInput`` is a JSON-Schema *properties* mapping keyed by
-    input name, the model is about to call the same tool again, and that tool's
-    parameter schema already describes each argument. The names are what to add;
-    a second, differently shaped description in prose is how a model ends up
-    inventing a nested object.
-    """
+    """Compose the ``ModelRetry`` text for ``input_required``."""
     message: str = str(error.get("message") or "additional input required")
     requested: Any = error.get("requestedInput")
-    # Absent when the service named no schema; the server sends a mapping otherwise.
     if not requested:
         return message
     names: str = ", ".join(f"`{name}`" for name in requested)
@@ -154,15 +102,7 @@ def _retry_message(
     *,
     available: list[str] | None = None,
 ) -> str:
-    """Compose the ``ModelRetry`` text: the server's message, plus whichever of
-    field-level detail or the available tool names helps.
-
-    Never both: a `-32602` is about either the name or the arguments, and the
-    caller already decided which by whether the name was advertised.
-
-    The detail is left off when the message already says it, and kept whole
-    otherwise; see ``_message_says``.
-    """
+    """Compose the ``ModelRetry`` text: the server's message, plus the helpful detail."""
     if available is not None:
         names: str = ", ".join(sorted(available)) or "none"
         return f"{message}. Available tools: {names}."
@@ -172,47 +112,13 @@ def _retry_message(
 
 
 def _message_says(message: str, detail: Any) -> bool:
-    """Whether every name the detail carries appears in the message as a token.
-
-    Appending a detail the message already states makes a model read one
-    sentence twice, and makes this route read differently from the spec-tools
-    route, which raises the toolset's sentence alone for the same omission.
-    So the detail is dropped when the message names everything in it, and kept
-    whole when it names anything less: a part of a detail is never sent, and
-    the generic ``Invalid arguments``, which names nothing, keeps all of its
-    detail.
-
-    A field's name stands for its reasons. The only messages that name fields
-    are the servers' missing-argument line, whose reason is always that the
-    field is required, which the line says, and their render-time line, which
-    quotes the reason after the name. That is the cost of this rule: a future
-    message naming a field without its reason would drop the reason with the
-    detail. Matching the reasons' words instead would keep the missing-argument
-    detail, whose ``This field is required.`` that line paraphrases rather than
-    quotes, and the duplicate with it.
-
-    Each condition is held by a test in ``tests/integrations/test_mcp.py``:
-    every name rather than any by
-    ``test_a_detail_the_message_names_only_in_part_is_kept_whole``; the
-    whole-token match by ``test_a_name_counts_only_as_a_whole_token``; and the
-    non-field key, the kernel's ``NON_FIELD_ERRORS`` which django-spec-mcp
-    writes a reason under no field with, by
-    ``test_a_reason_under_no_field_counts_as_its_own_words`` and, through the
-    bridge, ``test_the_non_field_key_is_the_kernels``.
-    """
+    """Whether every name the detail carries appears in the message as a token."""
     names: list[str] = _detail_names(detail)
     return all(_names_token(message, name) for name in names)
 
 
 def _detail_names(detail: Any, *, under_a_field: bool = False) -> list[str]:
-    """What a detail names: every dict key at any depth, and the strings under none.
-
-    A key is a field, so naming ``items`` says nothing about which of its own
-    fields was refused, and a nested key counts as one more name. A value under
-    no field key, a bare list or string or one under the non-field key, has no
-    name to stand for it, so its own words are what the message must quote. The
-    non-field key is structure rather than a field.
-    """
+    """What a detail names: every dict key at any depth, and the strings under none."""
     if isinstance(detail, dict):
         names: list[str] = []
         for key, value in detail.items():
@@ -229,78 +135,12 @@ def _detail_names(detail: Any, *, under_a_field: bool = False) -> list[str]:
 
 
 def _names_token(message: str, name: str) -> bool:
-    """Whether ``name`` appears in ``message`` with no word character either side.
-
-    Lookarounds rather than ``\\b``: a word boundary needs a word character on
-    one side, so a name that starts or ends with punctuation, ``tags[]`` say,
-    would never match. A substring match would find ``a`` inside ``arguments``.
-    """
+    """Whether ``name`` appears in ``message`` with no word character either side."""
     return re.search(rf"(?<!\w){re.escape(name)}(?!\w)", message) is not None
 
 
 class MCPToolset(AbstractToolset[Any]):
-    """Exposes a django-spec-mcp ``MCPServer``'s tools as a Pydantic-AI toolset.
-
-    Built per request, so the agent acts as the request's logged-in user. Both
-    schemas and execution route through django-spec-mcp's public in-process
-    surface (``MCPServer.list_tools`` / ``acall_tool``), so the advertised
-    parameters, the kernel's argument validation and the spec's permissions
-    match the HTTP transport exactly, without the network hop. Tool definitions carry the default
-    ``kind="function"``, the in-process kind the run loop calls itself; an
-    ``external`` tool would instead be deferred to the client and never run.
-
-    **Definitions once, availability every step.** django-spec-mcp leaves a tool
-    out of ``tools/list`` while an operation-scope affordance refuses it, and
-    whether one does can change mid-run — an admin closes the books. So the
-    definitions are listed once, with every tool the user may see, and each step
-    asks django-spec-mcp which of them a fresh listing would leave out
-    (``aunavailable_tools``):
-    those are not offered that step, and the instructions name
-    each with its ``reason``, so a model asked for one can say why rather than
-    guess or deny the operation exists. A server declaring no such condition
-    answers that without leaving the event loop.
-
-    Failures split four ways, along MCP's protocol-vs-tool boundary:
-
-    - JSON-RPC ``-32602`` and tool-level ``validation_error`` and
-      ``input_required`` results raise ``pydantic_ai.ModelRetry``, so the model
-      calls again with the field errors fixed or the missing input supplied,
-      instead of the run dying;
-    - every other tool-level failure (``service_error``, ``not_found``, a
-      timeout, an oversized result) raises ``pydantic_ai.ToolFailed``, so the
-      model reads the sentence and the call is recorded ``outcome="failed"``;
-    - a permission refusing the user (``-32006``) raises Django's
-      ``PermissionDenied``, which ``ToolFailurePolicy`` passes through by
-      default, so the run ends;
-    - every other protocol fault raises ``RuntimeError``: auth, rate limits,
-      and an internal error (``-32603``), which is also the answer to a
-      service asking for an input its spec does not declare in ``reads=``,
-      since no answer to it could reach the service. ``ToolFailurePolicy``
-      converts it to a failed call, so the run goes on.
-
-    Running in process, the server has no client to ask, so a service's
-    ``AdditionalInputRequired`` for inputs its spec declares arrives degraded,
-    as ``input_required``.
-
-    The mapping is the one ``spec_tools`` applies to the same exceptions raised
-    in process, except for a selector's ``AdditionalInputRequired``:
-    django-spec-mcp builds no input round for a selector, so it arrives as a
-    service error and raises ``ToolFailed``, where ``spec_tools`` raises
-    ``ModelRetry``. A refusal reads identically through both:
-    ``The books are closed. (code: books_closed)``.
-
-    Args:
-        server: The django-spec-mcp ``MCPServer`` whose registry is bridged.
-        request: The request carried into every call; its ``user`` is the
-            acting user.
-        exclude_names: Names the ``@tool`` registry has already claimed. A
-            colliding server tool is skipped, so the registry wins — the rule
-            ``build_tool_catalog`` applies — because pydantic-ai raises
-            ``UserError`` for a duplicate name at run time.
-        max_retries: Per-tool retry budget: how many times a ``ModelRetry`` is
-            fed back to the model before the run aborts. The default matches
-            pydantic-ai's own function-tool default.
-    """
+    """Exposes a django-spec-mcp ``MCPServer``'s tools as a Pydantic-AI toolset."""
 
     def __init__(
         self,
@@ -314,11 +154,7 @@ class MCPToolset(AbstractToolset[Any]):
         self._request = request
         self._exclude_names = exclude_names
         self._max_retries = max_retries
-        # Loaded lazily in ``get_tools``: django-spec-mcp's ``tools/list`` may touch the
-        # DB for per-user listing permissions, which Django forbids on the async
-        # event loop this is constructed in. Every tool the user may see, the
-        # unavailable ones included, so one that becomes available mid-run has a
-        # definition to offer.
+        # Loaded lazily: ``tools/list`` may touch the DB, which Django forbids on the event loop.
         self._tool_defs: list[ToolDefinition] | None = None
 
     @property
@@ -326,15 +162,7 @@ class MCPToolset(AbstractToolset[Any]):
         return "mcp"
 
     async def get_tools(self, ctx: Any) -> dict[str, ToolsetTool[Any]]:
-        """The tools this step may call: every definition, less the unavailable.
-
-        Definitions come from django-spec-mcp's ``tools/list`` once per toolset, which is
-        once per request. Availability is asked again here every step, because
-        pydantic-ai calls this once per step and a condition may flip between
-        two: offering a tool django-spec-mcp would leave out only invites a refusal, and
-        withholding one that became available hides an operation the model could
-        now perform. The call enforces every condition whatever was offered.
-        """
+        """The tools this step may call: every definition, less the unavailable."""
         if self._tool_defs is None:
             self._tool_defs = await sync_to_async(self._load_tool_defs)()
         unavailable = await self._unavailable_tools()
@@ -350,33 +178,14 @@ class MCPToolset(AbstractToolset[Any]):
         }
 
     async def get_instructions(self, ctx: Any) -> str | None:
-        """Name each tool left out this step, with the reason its condition gives.
-
-        ``get_tools`` withholds such a tool, so without this the model sees
-        neither it nor any sign it exists, and a user asking for it gets a guess
-        where a sentence was available. ``None`` when nothing is left out, which
-        is every step for a server declaring no operation condition.
-
-        Asked separately from ``get_tools``, as the spec-tools route asks: the
-        run context carries no key that could safely scope one answer to one
-        step, and asking twice costs a second evaluation of conditions that read
-        only seeds. A condition flipping between the two reads can leave one
-        step's tools and instructions disagreeing about a tool; the call's own
-        enforcement is authoritative either way.
-        """
+        """Name each tool left out this step, with the reason its condition gives."""
         unavailable = await self._unavailable_tools()
         if not unavailable:
             return None
         return _unavailable_instruction(unavailable)
 
     async def _unavailable_tools(self) -> dict[str, Any]:
-        """Each tool django-spec-mcp would leave out of a listing now, with the condition.
-
-        In django-spec-mcp's registry order, so a step always reads the same way. A name
-        ``exclude_names`` claimed is dropped: the registry's tool of that name is
-        the one offered, and telling the model it cannot run would be about a
-        tool it never sees.
-        """
+        """Each tool django-spec-mcp would leave out of a listing now, with the condition."""
         unavailable: dict[str, Any] = await self._server.aunavailable_tools(
             user=self._request.user, request=self._request
         )
@@ -387,13 +196,7 @@ class MCPToolset(AbstractToolset[Any]):
         }
 
     def _load_tool_defs(self) -> list[ToolDefinition]:
-        """Page through django-spec-mcp's ``tools/list``, mapping each tool to a def.
-
-        The merged ``inputSchema`` is used verbatim, so nothing the model could
-        send over HTTP is silently dropped in process. ``include_unavailable``
-        lists the tools an unmet condition would leave out too, since this list
-        outlives the step it is taken in; ``get_tools`` filters them per step.
-        """
+        """Page through django-spec-mcp's ``tools/list``, mapping each tool to a def."""
         defs: list[ToolDefinition] = []
         cursor: str | None = None
         while True:
@@ -409,14 +212,6 @@ class MCPToolset(AbstractToolset[Any]):
                 if tool["name"] in self._exclude_names:
                     continue
                 annotations = tool.get("annotations") or {}
-                # Destructiveness rides ``metadata`` so ``ToolGuard`` can gate a
-                # bridged mutation. MCP reads ``destructiveHint`` only on a tool
-                # that is not read-only, and defaults it to true, so a tool is
-                # marked unless ``readOnlyHint`` is true or ``destructiveHint``
-                # is false: either a project's per-registration ``annotations``
-                # override (django-spec-mcp keeps ``destructiveHint: true`` beside
-                # a read-only one) exempts it. A tool listed with no
-                # ``annotations`` says nothing and is left alone.
                 metadata = (
                     {DESTRUCTIVE_METADATA_KEY: True}
                     if annotations
@@ -424,10 +219,6 @@ class MCPToolset(AbstractToolset[Any]):
                     and annotations.get("destructiveHint") is not False
                     else None
                 )
-                # Passing django-spec-mcp's ``outputSchema`` through as ``return_schema``
-                # is what lets a harness ``CodeMode`` capability render the tool
-                # as a typed stub rather than ``-> Any``. Absent when a project
-                # turns ``INCLUDE_OUTPUT_SCHEMA`` off.
                 output_schema = tool.get("outputSchema")
                 defs.append(
                     ToolDefinition(
@@ -456,14 +247,7 @@ class MCPToolset(AbstractToolset[Any]):
         )
         if isinstance(result, JsonRpcError):
             if result.code == JsonRpcErrorCode.INVALID_PARAMS:
-                # `-32602` is a call django-spec-mcp could not dispatch at all: an
-                # unknown tool or `arguments` that are not an object. Argument
-                # values a tool refuses, a missing, unexpected or wrongly typed
-                # one, arrive as a `validation_error` result instead and are
-                # retried below. This is retried deliberately: `-32602` is by
-                # definition a fault in the request the model produced, and a
-                # wrong name is something it can change. pydantic-ai bounds the
-                # retries, so an unfixable call still ends the run.
+                # `-32602` is a call the service could not dispatch: an unknown tool or bad arguments.
                 raise ModelRetry(
                     _retry_message(
                         result.message,
@@ -472,54 +256,26 @@ class MCPToolset(AbstractToolset[Any]):
                     )
                 )
             if result.code == JsonRpcErrorCode.FORBIDDEN:
-                # `-32006` is a permission check refusing the acting user.
-                # Django's class, which ``ToolFailurePolicy`` passes through
-                # by default, so the run ends: converted, it would leave the
-                # model free to try the next id, and a refusal reading
-                # differently from a missing row is an existence oracle.
                 raise PermissionDenied(f"MCP tool {name!r} failed: {result.message}")
-            # Everything else — auth, rate limits, an internal fault — is not
-            # something the model can rewrite its way out of.
             raise RuntimeError(f"MCP tool {name!r} failed: {result.message}")
         if result.get("isError"):
             error = _parse_tool_error(result)
             error_type: Any = error.get("type")
             if error_type == "validation_error":
-                # Kept on separate lines: Python 3.11's tracer attributes a
-                # multi-line ``raise X(...)`` to the argument line, leaving the
-                # ``raise`` line uncovered and tripping the 100% gate.
                 retry = _retry_message(
                     error.get("message", "invalid arguments"),
                     error.get("detail"),
                 )
                 raise ModelRetry(retry)
             if error_type == "input_required":
-                # django-spec-mcp degrades a service's request for more input to this
-                # result when the caller cannot be asked mid-call, which an
-                # in-process caller never can. "Call me again with these" is the
-                # retry channel's own meaning, and it is what the spec-tools
-                # route raises for the same exception.
                 prompt = _missing_input_prompt(error)
                 raise ModelRetry(prompt)
-            # **Raised, not returned.** A returned ``{"error": error}`` is a
-            # tool value, which pydantic-ai marks ``outcome="success"``: every
-            # refusal, missing row and timeout would reach a transport streaming
-            # the run as a completed call, told apart from a real result only by
-            # the payload's wording. ``ToolFailed`` hands the model the same
-            # sentence, spends no retry budget and prepends no correction
-            # instructions, and marks the return ``outcome="failed"``.
             failure = _failure_message(error)
             raise ToolFailed(failure)
         return _tool_value(result)
 
     def _advertised_names(self, name: str) -> list[str] | None:
-        """The tools this toolset offers, when the failure looks like a bad name.
-
-        Naming them is what makes retrying an invented name worth doing rather
-        than merely survivable. ``None`` when there is nothing useful to add:
-        the name *was* advertised, so the fault is the arguments, or
-        ``get_tools`` has not run and the cache is empty.
-        """
+        """The tools this toolset offers, when the failure looks like a bad name."""
         if self._tool_defs is None:
             return None
         names: list[str] = [d.name for d in self._tool_defs]
