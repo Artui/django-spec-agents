@@ -1,13 +1,3 @@
-"""``ToolGuard`` over a real MCP client, end to end, with no network.
-
-The unit tests hand the guard ``ToolDefinition``s whose metadata the test wrote.
-This one lets pydantic-ai's ``MCPToolset`` write it: the client lists a
-django-spec-mcp server's tools over streamable HTTP, served in process by
-Django's ASGI handler, and dumps each tool's annotations as the remote client
-really does, with every field the server never sent as ``None``. What the
-guard gates here is what it gates for a project attaching a remote MCP server.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -69,8 +59,7 @@ urlpatterns = [path("mcp/", _SERVER.async_urls)]
 
 
 def _asgi_client(**kwargs: Any) -> httpx2.AsyncClient:
-    # FastMCP passes headers, auth, timeout and redirects; the transport is the
-    # only thing changed, so every request lands in Django's ASGI handler.
+    # FastMCP passes headers, auth and timeouts; only the transport changes.
     return httpx2.AsyncClient(transport=httpx2.ASGITransport(app=ASGIHandler()), **kwargs)
 
 
@@ -95,17 +84,14 @@ async def test_the_guard_gates_what_the_remote_annotations_mark(
     result = await agent.run("Add some numbers.")
 
     assert isinstance(result.output, DeferredToolRequests)
-    # ``read_only`` and ``non_destructive`` say the tool is safe, and ``unsaid``
-    # says nothing, so the model's calls to them run; the other two wait for a
-    # human.
+    # Tools that say they are safe run; the other two wait for a human.
     assert sorted(call.tool_name for call in result.output.approvals) == ["destructive", "plain"]
 
 
 async def test_the_unsaid_tool_reaches_the_guard_saying_nothing(
     mcp_toolset: MCPToolset[Any],
 ) -> None:
-    # Pins the branch the first test takes for ``unsaid``: were its annotations
-    # to say ``readOnlyHint: True``, it would go ungated for another reason.
+    # Pins ``unsaid``'s branch: were it to say ``readOnlyHint: True``, it would run ungated.
     ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
     async with mcp_toolset:
         tools = await mcp_toolset.get_tools(ctx)

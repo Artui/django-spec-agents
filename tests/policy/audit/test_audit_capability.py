@@ -59,14 +59,7 @@ from tests.tool_retries import is_tool_retry
 
 
 class _Clock:
-    """The clock audit times a call with, moved only by the doubles below.
-
-    A double that makes a call slow calls ``pause`` where it would have slept,
-    so a record's ``duration_ms`` is exactly the pauses inside its span and
-    nothing else. Read from the wall clock, a case with no pause failed
-    a ``< 300`` bound whenever a loaded runner stalled it for 300 ms, and a
-    case that must span a pause could only be asserted at its lower bound.
-    """
+    """The clock audit times a call with, moved only by the doubles below."""
 
     def __init__(self) -> None:
         self.now = 0.0
@@ -107,12 +100,7 @@ def _agent(
     tool_guard: ToolGuardConfig | None = None,
     toolsets: Sequence[Any] = (),
 ) -> Agent[AgentDeps, Any]:
-    """An agent composed the way a transport composes one: through ``build_agent``.
-
-    That is what puts audit after every capability in ``config.capabilities``
-    and the failure policy where ``build_agent`` places it, so the hook order
-    under test is the one a deployment gets.
-    """
+    """An agent composed the way a transport composes one: through ``build_agent``."""
     registry = ToolRegistry()
     for fn in tools:
         tool(registry)(fn)
@@ -159,8 +147,7 @@ async def ping() -> str:
 def _toolset_agent(
     fn: Callable[..., Any], *capabilities: AbstractCapability[Any]
 ) -> Agent[Any, Any]:
-    """An agent over one tool in a plain toolset, with ``capabilities`` and no
-    ``build_agent``, so the order is the one the caller composed by hand."""
+    """An agent over one tool in a plain toolset, with ``capabilities``, in the caller's order."""
     return Agent(
         TestModel(call_tools=[fn.__name__]),
         toolsets=[FunctionToolset([fn])],
@@ -178,8 +165,7 @@ async def _run_with(
 
 
 def _flaky_once() -> tuple[Callable[[int], Awaitable[str]], list[str]]:
-    """A tool that fails its first call and finds on every later one, with the
-    outcome of each call it has had."""
+    """A tool that fails its first call and succeeds on every later one."""
     ran: list[str] = []
 
     async def flaky(n: int) -> str:
@@ -219,11 +205,7 @@ def _delegating_to(inner: Agent[Any, Any], audit: AuditCapability) -> Agent[Any,
 
 
 class _Veto(AbstractCapability[Any]):
-    """Refuses a call from ``before_tool_execute``.
-
-    ``tools`` limits it to those tool names, and ``allow`` lets that many of
-    their calls through first, the way a budget guardrail runs out.
-    """
+    """Refuses a call from ``before_tool_execute``."""
 
     def __init__(self, tools: frozenset[str] | None = None, allow: int = 0) -> None:
         self._tools = tools
@@ -254,11 +236,7 @@ class _InnermostVeto(_Veto):
 
 
 class _RetryFirstCall(AbstractCapability[Any]):
-    """Asks the model to try again from ``before_tool_execute``, once.
-
-    A harness-style argument check does this: the call is refused before the
-    tool runs, with a ``ModelRetry`` rather than a veto.
-    """
+    """Asks the model to try again from ``before_tool_execute``, once."""
 
     def __init__(self) -> None:
         self._asked = False
@@ -278,11 +256,7 @@ class _RetryFirstCall(AbstractCapability[Any]):
 
 
 class _RetryOnce(AbstractCapability[Any]):
-    """A wrapper that runs the tool again when it raises.
-
-    pydantic-ai allows it: each call of ``handler`` runs the tool again, and
-    every capability's ``before_tool_execute`` with it.
-    """
+    """A wrapper that runs the tool again when it raises."""
 
     async def wrap_tool_execute(
         self,
@@ -358,11 +332,7 @@ class _RewriteResult(AbstractCapability[Any]):
 
 
 class _SlowHooks(AbstractCapability[Any]):
-    """A wrapper, a ``before`` and an ``after``, each far slower than the tool.
-
-    Each delays the tool or follows it, and audit starts the clock at its own
-    ``before_tool_execute``, the last before the tool.
-    """
+    """A wrapper, a ``before`` and an ``after``, each far slower than the tool."""
 
     async def wrap_tool_execute(
         self,
@@ -403,18 +373,13 @@ class _SlowHooks(AbstractCapability[Any]):
 
 
 def test_audit_declares_innermost_ordering() -> None:
-    """Innermost, so its ``before_tool_execute`` runs after every other one and
-    its ``on_tool_execute_error`` and ``after_tool_execute`` before every other
-    one. Those are the two moments either side of the tool itself."""
+    """Innermost: its ``before_tool_execute`` runs last and its error hooks run first."""
     ordering = AuditCapability(CapturingAuditLogger()).get_ordering()
     assert ordering is not None
     assert ordering.position == "innermost"
 
 
 async def test_records_toolset_tools_not_just_registry_tools() -> None:
-    # The capability hooks the run loop, so tools contributed by a composed
-    # toolset (MCP / spec / attachment / skills) are audited too, not only
-    # registry tools.
     def triple(n: int) -> int:
         """Triple a number."""
         return n * 3
@@ -434,12 +399,7 @@ async def test_stamps_ip_and_organization_onto_events() -> None:
 
 
 async def test_the_runs_deps_supply_the_ip() -> None:
-    """The per-run IP wins, so one agent can serve requests from many clients.
-
-    Reading it only off the constructor is what forced a fresh agent per
-    request — and the failure mode if a transport builds once anyway is silent:
-    every record carries the IP of whoever arrived first.
-    """
+    """The per-run IP wins, so one agent can serve requests from many clients."""
     audit = CapturingAuditLogger()
     agent = _toolset_agent(ping, AuditCapability(audit, ip_address="10.0.0.7"))
 
@@ -459,8 +419,7 @@ async def test_a_run_with_no_ip_falls_back_to_the_constructed_one() -> None:
 
 
 async def test_deps_without_an_ip_field_are_not_an_error() -> None:
-    """The deps type is the host's to choose — a project's own class need not
-    carry the field, and `None` deps are what pydantic-ai passes by default."""
+    """The host picks the deps type; ``None`` is what pydantic-ai passes by default."""
     audit = CapturingAuditLogger()
     agent = _toolset_agent(ping, AuditCapability(audit, ip_address="10.0.0.7"))
 
@@ -471,12 +430,7 @@ async def test_deps_without_an_ip_field_are_not_an_error() -> None:
 
 @pytest.mark.parametrize("tool_failure", [False, True], ids=["policy-off", "policy-on"])
 async def test_a_raising_tool_is_recorded_by_its_own_exception(tool_failure: bool) -> None:
-    """The record names the tool's exception, whichever capability converts it.
-
-    With the failure policy on, the exception the run continues past is the
-    policy's ``ToolFailed``, written for the model and redacted by default.
-    The operator's record still reads the tool's own exception.
-    """
+    """The record names the tool's exception, whichever capability converts it."""
 
     def lookup(n: int) -> str:
         """Look a thing up."""
@@ -487,8 +441,6 @@ async def test_a_raising_tool_is_recorded_by_its_own_exception(tool_failure: boo
 
     if tool_failure:
         result = await agent.run("go", deps=_deps())
-        # The record is the operator's copy only: the model still gets the
-        # policy's failed result, which carries none of the exception's text.
         [returned] = _tool_returns(result.all_messages())
         assert returned.outcome == "failed"
         assert "kaboom" not in str(returned.content)
@@ -502,13 +454,7 @@ async def test_a_raising_tool_is_recorded_by_its_own_exception(tool_failure: boo
 async def test_a_tools_own_tool_failed_is_recorded_as_it_propagated(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A ``ToolFailed`` the tool raises skips the error hooks.
-
-    pydantic-ai converts it into a ``ToolFailedError`` carrying the same
-    message before any capability hook sees it, so that is what reaches audit
-    and what it records, never the ``ToolFailed``'s cause. The failure policy
-    is not handed it either.
-    """
+    """A ``ToolFailed`` the tool raises skips the error hooks."""
 
     def lookup(n: int) -> str:
         """Fails with a sentence for the model."""
@@ -523,9 +469,6 @@ async def test_a_tools_own_tool_failed_is_recorded_as_it_propagated(
         await agent.run("go", deps=_deps())
 
     assert _records(audit) == [("lookup", '{"n": 0}', False, "ToolFailedError: model copy", None)]
-    # The policy logs every failure it converts; silence is it never seeing one.
-    # Non-vacuous only while this literal is the policy's logger: an empty list
-    # under a name the policy no longer logs to proves nothing.
     assert logging.getLogger("django_pydantic_agent.failure") is failure_policy_module._logger
     assert not [r for r in caplog.records if r.name == "django_pydantic_agent.failure"]
 
@@ -550,10 +493,7 @@ async def test_a_model_retry_is_recorded_as_it_propagated() -> None:
 
 
 async def test_a_recovered_failure_is_still_recorded_as_the_failure() -> None:
-    """Another capability recovering is a decision about the run, not the tool.
-
-    The model gets the recovered value; the record keeps what the tool did.
-    """
+    """Another capability recovering is a decision about the run, not the tool."""
 
     def lookup(n: int) -> str:
         """Look a thing up."""
@@ -568,14 +508,7 @@ async def test_a_recovered_failure_is_still_recorded_as_the_failure() -> None:
 
 @pytest.mark.parametrize("veto", [_Veto, _InnermostVeto], ids=["unpinned", "innermost"])
 async def test_a_vetoed_call_is_not_recorded(veto: type[_Veto]) -> None:
-    """A call another capability stops before it reaches the tool has no record.
-
-    That is what harness's guardrails and tool-call judge do, by raising
-    ``SkipToolExecution`` from ``before_tool_execute``, and it matches how a
-    destructive call the tool guard holds for approval has none. Harness pins
-    both innermost, the tier audit shares, so that case is here as well as an
-    unpinned one.
-    """
+    """A call another capability stops before it reaches the tool has no record."""
     calls: list[int] = []
 
     def lookup(n: int) -> str:
@@ -594,12 +527,7 @@ async def test_a_vetoed_call_is_not_recorded(veto: type[_Veto]) -> None:
 
 
 async def test_audit_composed_ahead_of_an_innermost_veto_does_not_record_it() -> None:
-    """Composed by hand ahead of an innermost guardrail, audit is not the last
-    ``before_tool_execute``, and its wrapper encloses the guardrail's, so the
-    veto reaches it after audit has seen the call start. The vetoed call is
-    still not recorded, because a ``SkipToolExecution`` is a call that did not
-    execute.
-    """
+    """A veto arrives after audit has seen the call start."""
 
     def lookup(n: int) -> str:
         """Look a thing up."""
@@ -618,8 +546,7 @@ async def test_audit_composed_ahead_of_an_innermost_veto_does_not_record_it() ->
 
 
 async def test_a_veto_from_a_capability_passed_per_run_is_not_recorded() -> None:
-    """A capability a transport passes to one run sorts after the agent's own,
-    so an innermost one lands inside audit however ``build_agent`` composed it."""
+    """A transport-passed capability sorts after the agent's own, inside audit."""
     calls: list[int] = []
 
     def lookup(n: int) -> str:
@@ -650,14 +577,7 @@ class _SlowInnermostRewriteArgs(_InnermostRewriteArgs):
 
 
 async def test_a_per_run_innermost_rewrite_does_not_reach_the_record() -> None:
-    """A ``before_tool_execute`` sorted after audit.
-
-    A capability passed to a single run sorts after audit within the innermost
-    tier, so its ``before_tool_execute`` runs after audit's. Audit's wrapper
-    encloses that hook, and the record keeps the arguments from before the
-    rewrite and times the hook with the tool. The rest of what such a
-    capability changes is below.
-    """
+    """A ``before_tool_execute`` sorted after audit."""
     received: list[int] = []
 
     def lookup(n: int) -> str:
@@ -674,14 +594,7 @@ async def test_a_per_run_innermost_rewrite_does_not_reach_the_record() -> None:
 
 
 class _OneThing(AbstractCapability[Any]):
-    """An innermost capability doing the one thing ``behaviour`` names to a call.
-
-    Every hook ``behaviour`` does not name passes the call on unchanged, so
-    each case below differs from the tool's own execution in one way only.
-    Passed to a single run it sorts after the agent's own capabilities, audit
-    included; in ``config.capabilities`` ``build_agent`` puts audit after it,
-    unless ``inside_audit`` makes its ordering ask audit to wrap it.
-    """
+    """An innermost capability doing the one thing ``behaviour`` names to a call."""
 
     def __init__(self, behaviour: str, *, inside_audit: bool = False) -> None:
         self._behaviour = behaviour
@@ -757,16 +670,12 @@ class _OneThing(AbstractCapability[Any]):
         try:
             result = await handler(args)
         except Exception as error:
-            # What reaches a wrapper is the failure policy's copy,
-            # not the tool's exception, so each of these acts on any one.
+            # A wrapper gets the failure policy's copy, not the tool's exception.
             if self._behaviour == "wrapper-reruns":
                 return await self._run_again(handler, args)
             if self._behaviour == "wrapper-recovers":
                 return "recovered"
             if self._behaviour == "wrapper-raises-its-own":
-                # A ToolFailed rather than an error: a wrapper is
-                # outside every error hook, so an error raised here would end
-                # the run rather than reach the failure policy.
                 raise ToolFailed("converted") from error
             raise
         if self._behaviour == "wrapper-reruns-a-success":
@@ -778,12 +687,7 @@ class _OneThing(AbstractCapability[Any]):
     async def _run_again(
         self, handler: Callable[[dict[str, Any]], Any], args: dict[str, Any]
     ) -> Any:
-        """Run the tool a second time, later and with other arguments.
-
-        Different arguments say which run a record's ``arguments_repr`` comes
-        from, and the pause between the runs says whether its ``duration_ms``
-        spans both.
-        """
+        """Run the tool a second time, later and with other arguments."""
         _CLOCK.pause(0.3)
         return await handler({**args, "n": 5})
 
@@ -800,14 +704,7 @@ _RUN_AGAIN = ("lookup", '{"n": 5}', True, None, 11)
 
 @dataclass(frozen=True)
 class _SortedAfterAudit:
-    """What one ``_OneThing`` behaviour does to the record.
-
-    ``own`` is the tool's own execution, which is what the record holds when
-    the capability is composed through ``config.capabilities``.
-    ``sorted_after`` is what it holds when the capability sorts after audit:
-    passed to a single run, or in ``config.capabilities`` with an ordering that
-    places it inside audit.
-    """
+    """What one ``_OneThing`` behaviour does to the record."""
 
     behaviour: str
     tool_fails: bool
@@ -815,30 +712,18 @@ class _SortedAfterAudit:
     own: list[Any]
     sorted_after: list[Any]
     slow_sorted_after: bool = False
-    # What the tool raises on its first run when it fails.
     raises: type[Exception] = ValueError
 
     @property
     def id(self) -> str:
-        """The behaviour, suffixed with what the tool raises where that is not
-        the ``ValueError`` most rows fail with."""
+        """The behaviour, with the exception the tool raises when not ``ValueError``."""
         if self.raises is ValueError:
             return self.behaviour
         return f"{self.behaviour}-on-{self.raises.__name__}"
 
 
 def _past_every_hook(raises: type[Exception], recorded_as: str) -> list[_SortedAfterAudit]:
-    """A wrapper recovering, raising its own and rerunning, when the tool raises
-    one of the two exceptions pydantic-ai routes past every error and result
-    hook.
-
-    ``recorded_as`` is the type pydantic-ai converts ``raises`` into, which is
-    what the record names when audit sees it first. Sorted after audit,
-    audit's hooks never settle the call, so audit's wrapper records
-    whatever the wrapper inside it hands back: a recovery as a success, its
-    own exception in the tool's place, and a rerun as the later run alone,
-    the first having no record.
-    """
+    """A wrapper that recovers and reruns when the tool raises one of two exceptions."""
     failed = ("lookup", '{"n": 0}', False, f"{recorded_as}: kaboom", None)
     recovered = ("lookup", '{"n": 0}', True, None, 9)
     converted = ("lookup", '{"n": 0}', False, "ToolFailed: converted", None)
@@ -990,21 +875,7 @@ _SORTED_AFTER_AUDIT = [
 async def test_a_capability_sorted_after_audit_reaches_the_record(
     case: _SortedAfterAudit, composed: str
 ) -> None:
-    """A capability that sorts after audit runs between audit and the tool.
-
-    Passed to a single run, an innermost capability sorts after audit, so what
-    it does to the call reaches the record as if the tool had done it: what
-    its ``before``, ``on_error`` and ``after`` hooks do, the reruns of its
-    wrapper, and what its wrapper does with a tool's own ``ModelRetry`` or
-    ``ToolFailed``. These are examples of that, not a list of the only ways.
-    The same capability in ``config.capabilities`` leaves the record the
-    tool's own, because ``build_agent`` appends audit after it. That is list
-    order, which a capability's own ordering overrides: in
-    ``config.capabilities`` and asking audit to wrap it, it sorts after audit
-    and reaches the record exactly as it does passed to a single run.
-
-    A duration is never negative, whichever run a record describes.
-    """
+    """A capability that sorts after audit runs between audit and the tool."""
     ran: list[int] = []
 
     def lookup(n: int) -> str:
@@ -1028,16 +899,12 @@ async def test_a_capability_sorted_after_audit_reaches_the_record(
     assert ran == case.ran
     assert _records(audit) == expected
     assert min(event.duration_ms for event in audit.events) >= 0
-    # Exactly the pause inside a record's span, on the audit's own clock: a
-    # slept case spans it, and every other case reads zero however long the
-    # runner stalls.
     longest = max(event.duration_ms for event in audit.events)
     assert longest == pytest.approx(300.0 if slow else 0.0)
 
 
 async def test_a_capability_composed_by_hand_after_audit_reaches_the_record_too() -> None:
-    """Sorting after audit is what matters, not being passed to a single run:
-    composed by hand after audit, an innermost recovery is recorded."""
+    """Sorting after audit is what matters, not being passed to a single run."""
 
     def lookup(n: int) -> str:
         """Look a thing up."""
@@ -1074,15 +941,7 @@ _SCREENS_A_FAILURE: dict[str, tuple[type[Exception], str, bool]] = {
 async def test_harness_tool_guardrail_is_innermost_and_sorts_after_audit_per_run(
     verdict: str, composed: str
 ) -> None:
-    """pydantic-ai-harness's tool guardrail is innermost, so passed to a single
-    run it sorts after audit and its verdicts reach the record: a
-    ``retry`` before the tool runs is recorded as a failure, a ``retry`` from
-    its ``result_guard`` turns the tool's success into a failure, and a
-    ``replace`` of the result is measured. Its ``result_guard`` also screens
-    the message of a tool that raised ``ModelRetry`` or ``ToolFailed``, from
-    its ``wrap_tool_execute``, so a ``replace`` there is
-    the message the record names. In ``config.capabilities`` none of it
-    reaches the record."""
+    """Innermost, so its verdicts reach the record when passed to one run."""
 
     async def guard(ctx: RunContext[Any], info: Any) -> Any:
         if not asked:
@@ -1129,8 +988,6 @@ async def test_harness_tool_guardrail_is_innermost_and_sorts_after_audit_per_run
         rejected = ("lookup", '{"n": 0}', False, "ModelRetry: result rejected", None)
         assert _records(audit) == [rejected if reaches_the_record else _FOUND, _FOUND]
     elif verdict in _SCREENS_A_FAILURE:
-        # The guardrail screens it in its wrapper, which per run sits inside
-        # audit's, and in config outside it.
         _, recorded_as, called_again = _SCREENS_A_FAILURE[verdict]
         message = "[redacted]" if composed == "per-run" else "secret 123"
         screened = ("lookup", '{"n": 0}', False, f"{recorded_as}: {message}", None)
@@ -1141,8 +998,7 @@ async def test_harness_tool_guardrail_is_innermost_and_sorts_after_audit_per_run
 
 
 async def test_a_retry_asked_for_before_the_tool_runs_is_not_recorded() -> None:
-    """The refused attempt never reached the tool, so only the retried one,
-    which did, has a record."""
+    """The refused attempt never reached the tool, so only the retry has a record."""
     calls: list[int] = []
 
     def lookup(n: int) -> str:
@@ -1180,10 +1036,7 @@ async def _approve_and_resume(agent: Agent[AgentDeps, Any], deferred: Any) -> No
 
 
 async def test_a_call_an_approval_required_toolset_defers_is_recorded_once_it_runs() -> None:
-    """pydantic-ai's own approval gate, ``FunctionToolset.approval_required()``,
-    raises ``ApprovalRequired`` from inside the call, where audit sees it. The
-    deferred call did not execute, so it has no record; the approved one does.
-    """
+    """The approval gate raises ``ApprovalRequired`` inside the call, where audit sees it."""
     audit = CapturingAuditLogger()
     agent = _agent(
         sink=audit,
@@ -1266,9 +1119,7 @@ async def test_an_approval_deferral_is_not_recorded_until_the_approved_call_runs
     "rewrite", [_RewriteArgs, _InnermostRewriteArgs], ids=["unpinned", "innermost"]
 )
 async def test_the_arguments_are_the_ones_the_tool_received(rewrite: type[_RewriteArgs]) -> None:
-    """Including an innermost capability's rewrite, which is why ``build_agent``
-    appends audit after ``config.capabilities``: list order breaks ties within
-    a tier, and that keeps audit's ``before_tool_execute`` the last to run."""
+    """Including an innermost rewrite: list order breaks ties within a tier."""
     received: list[int] = []
 
     def lookup(n: int) -> str:
@@ -1284,8 +1135,7 @@ async def test_the_arguments_are_the_ones_the_tool_received(rewrite: type[_Rewri
 
 
 async def test_the_arguments_include_a_wrappers_rewrite() -> None:
-    """A wrapper composed ahead of audit rewrites the arguments before any
-    ``before`` hook runs, and the record carries the rewrite."""
+    """A wrapper composed ahead of audit rewrites the arguments before any ``before`` hook."""
     received: list[int] = []
 
     def lookup(n: int) -> str:
@@ -1301,12 +1151,7 @@ async def test_the_arguments_include_a_wrappers_rewrite() -> None:
 
 
 async def test_a_wrapper_that_runs_the_tool_twice_gets_one_record_per_run() -> None:
-    """One record per time the tool actually ran.
-
-    The wrapper retries a failure, and a budget guardrail lets one call
-    through. The retry runs the guardrail again, which refuses it, so the tool
-    runs once. The records follow the tool.
-    """
+    """One record per time the tool actually ran."""
     flaky, ran = _flaky_once()
     audit = CapturingAuditLogger()
     await _agent(
@@ -1322,10 +1167,7 @@ async def test_a_wrapper_that_runs_the_tool_twice_gets_one_record_per_run() -> N
 
 
 class _RefuseTheSecondAttempt(AbstractCapability[Any]):
-    """Asks for a retry from ``before_tool_execute`` on its second call only.
-
-    Unpinned, so it runs ahead of audit's ``before_tool_execute``.
-    """
+    """Asks for a retry from ``before_tool_execute`` on its second call only."""
 
     def __init__(self) -> None:
         self._attempts = 0
@@ -1345,16 +1187,7 @@ class _RefuseTheSecondAttempt(AbstractCapability[Any]):
 
 
 async def test_a_rerun_refused_ahead_of_audit_is_not_recorded() -> None:
-    """A wrapper runs the tool again after a failure, and a capability ahead of
-    audit refuses that second run with a ``ModelRetry``; the model's own retry
-    then runs the tool.
-
-    The rerun enters audit's wrapper again, and the refusal reaches it before
-    audit's ``before_tool_execute`` has run for that entry. Only the fresh,
-    unreached execution each entry starts keeps the second from taking the
-    first's "reached" and recording a call that never ran. The records follow
-    the tool.
-    """
+    """A capability ahead of audit refuses the wrapper's second run with a ``ModelRetry``."""
     flaky, ran = _flaky_once()
     audit = CapturingAuditLogger()
     await _agent(
@@ -1372,15 +1205,7 @@ async def test_a_rerun_refused_ahead_of_audit_is_not_recorded() -> None:
 
 
 async def test_a_rerun_sorted_after_audit_and_refused_ahead_of_it_mixes_two_runs() -> None:
-    """A wrapper sorted after audit runs the tool again after the tool's own
-    ``ModelRetry``, and a capability ahead of audit refuses that second run.
-
-    Audit's hooks saw neither outcome, the retry having been routed past them
-    and the refusal arriving before audit's ``before_tool_execute``, so
-    audit's wrapper records the refusal with the first run's arguments and a
-    time spanning the wrapper's pause. The model's own retry then gets a
-    record of its own.
-    """
+    """A wrapper after audit reruns the tool, and a capability ahead refuses that run."""
     ran: list[int] = []
 
     def lookup(n: int) -> str:
@@ -1434,19 +1259,11 @@ async def test_the_duration_is_the_tools_own(lookup: Callable[..., Any]) -> None
 
     assert _records(audit) == [(lookup.__name__, '{"n": 0}', True, None, 5)]
     assert audit.events[0].duration_ms == pytest.approx(50.0)
-    # The hooks did pause, 1.2 s in all, so the 50 ms above leaves them out
-    # rather than the hooks having stopped pausing.
     assert _CLOCK.now == pytest.approx(1.25)
 
 
 class _Overlap:
-    """Holds two tool calls in flight together, then lets the first finish.
-
-    The first call to arrive waits for the second, then finishes while the
-    second is still running. That is the order that crosses two calls' state
-    if any of it is shared: the first call's result hooks run after the second
-    call's argument hooks.
-    """
+    """Holds two tool calls in flight together, then lets the first finish."""
 
     def __init__(self) -> None:
         self._arrived = 0
@@ -1493,12 +1310,7 @@ async def test_parallel_calls_in_one_run_keep_their_own_records() -> None:
 
 
 async def test_concurrent_runs_of_one_agent_keep_their_own_records() -> None:
-    """Two runs of one agent, in flight at once, with the same tool call id.
-
-    ``TestModel`` gives every run the same ``tool_call_id``, so per-call state
-    keyed on that id alone would cross the two over. The runs differ by their
-    deps: one tool call succeeds and the other fails.
-    """
+    """Two runs of one agent, in flight at once, with the same tool call id."""
     overlap = _Overlap()
 
     async def lookup(ctx: RunContext[AgentDeps], n: int) -> str:
@@ -1522,11 +1334,7 @@ async def test_concurrent_runs_of_one_agent_keep_their_own_records() -> None:
 
 
 async def test_two_audit_capabilities_in_one_chain_each_record_the_call() -> None:
-    """A project's own ``AuditCapability`` beside the one ``build_agent`` adds.
-
-    Both are innermost and observe the same call through the same hooks, so
-    each keeps its own state rather than one reading the other's.
-    """
+    """A project's own ``AuditCapability`` beside the one ``build_agent`` adds."""
 
     def lookup(n: int) -> str:
         """Look a thing up."""
@@ -1539,13 +1347,7 @@ async def test_two_audit_capabilities_in_one_chain_each_record_the_call() -> Non
 
 
 async def test_a_nested_run_sharing_the_capability_records_its_own_calls() -> None:
-    """A tool that runs another agent composed with the same capability.
-
-    The inner calls start while the outer one is still in flight, inside it,
-    so each must keep its own state: the inner record is the inner tool's, an
-    inner call a guardrail refuses has none, and the outer record still
-    measures the outer tool's own result.
-    """
+    """A tool that runs another agent composed with the same capability."""
     audit_log = CapturingAuditLogger()
     audit = AuditCapability(audit_log)
 
@@ -1572,15 +1374,7 @@ async def test_a_nested_run_sharing_the_capability_records_its_own_calls() -> No
 
 
 async def test_a_nested_call_refused_ahead_of_audit_is_not_recorded() -> None:
-    """A tool runs another agent composed with the same capability, whose first
-    call a capability ahead of audit refuses with a ``ModelRetry``.
-
-    The refusal reaches the inner call's audit wrapper, which starts
-    in a context still holding the outer call's execution, before audit's
-    ``before_tool_execute`` has run for the inner call. Only the fresh,
-    unreached execution the wrapper starts keeps the inner call from taking
-    the outer one's "reached" and recording a call that never ran.
-    """
+    """A tool runs another agent with the same capability, whose first call is refused."""
     audit_log = CapturingAuditLogger()
     audit = AuditCapability(audit_log)
     ran: list[int] = []
@@ -1606,19 +1400,7 @@ async def test_a_nested_call_refused_ahead_of_audit_is_not_recorded() -> None:
 
 
 async def test_no_per_call_state_outlives_the_run() -> None:
-    """Including on the paths where some of audit's hooks never run.
-
-    A veto leaves the tool unrun, an approval deferral stops before any hook,
-    and a tool's own ``ToolFailed`` skips the error and result hooks. Per-call
-    state lives in the tool call's own context, so none survives the run.
-
-    The tools are coroutines so that they run on the event loop. A plain
-    function runs on anyio's worker thread under a copy of the context, and
-    that thread hands the result back to the loop before it drops the copy, so
-    the scan below can land in between and find an execution the thread
-    releases a moment later: a failure that says nothing about audit, and
-    depends only on how the runner schedules the two threads.
-    """
+    """Including on the paths where some of audit's hooks never run."""
 
     async def lookup(n: int) -> str:
         """Look a thing up."""
@@ -1654,8 +1436,7 @@ async def test_failure_is_recorded_and_reraised() -> None:
 
 
 async def test_raising_sink_never_breaks_the_run(caplog: pytest.LogCaptureFixture) -> None:
-    # Non-raising semantics: a broken sink degrades to a logged error and a
-    # dropped audit record — the tool result still reaches the model.
+    # A broken sink drops the record; the tool result still reaches the model.
     agent = _toolset_agent(ping, AuditCapability(_RaisingLogger()))
     with caplog.at_level(logging.ERROR, logger="django_pydantic_agent.audit"):
         result = await agent.run("ping")
@@ -1673,8 +1454,7 @@ def _tool_failed_from_a_cause() -> str:
 
 
 def _tool_failed_from_an_empty_timeout() -> str:
-    # The shape of a spec tool's timeout: the limit is in the message, and the
-    # cause is an ``asyncio`` timeout whose text is empty.
+    # The timeout's limit is in the message, and its cause has empty text.
     raise ToolFailed("This call took longer than the 5s limit.") from TimeoutError()
 
 
@@ -1705,14 +1485,7 @@ def _calls_lookup_from_the_sandbox(messages: list[ModelMessage], info: AgentInfo
 async def _run_lookup_under_code_mode(
     lookup: Callable[[], str], *capabilities: Any
 ) -> tuple[list[str | None], str]:
-    """Run ``lookup`` from inside a code-mode sandbox. Returns the audit's
-    failure records for it, and the retry text the model was sent for the
-    ``run_code`` call, which carries what the sandbox saw.
-
-    Code mode calls the sandbox's tools through a nested tool manager that
-    inherits the agent's capabilities but leaves a ``ToolFailed`` unconverted,
-    so a tool's own ``ToolFailed`` reaches every hook as raised.
-    """
+    """Run ``lookup`` from inside a code-mode sandbox."""
     audit = CapturingAuditLogger()
     agent = Agent(
         FunctionModel(_calls_lookup_from_the_sandbox),
@@ -1732,8 +1505,7 @@ async def _run_lookup_under_code_mode(
 
 
 async def _run_lookup_directly(lookup: Callable[[], str]) -> list[str | None]:
-    """Run ``lookup`` as an ordinary tool call, with the failure policy on as a
-    deployment has it. Returns the audit's failure records for it."""
+    """Run ``lookup`` as an ordinary tool call, with the failure policy on."""
     audit = CapturingAuditLogger()
     agent = Agent(
         TestModel(call_tools=["lookup"]),
@@ -1758,14 +1530,7 @@ async def _run_lookup_directly(lookup: Callable[[], str]) -> list[str | None]:
 async def test_a_tools_own_tool_failed_keeps_its_own_message(
     raise_it: Callable[[], str], message: str, route: str
 ) -> None:
-    """Never its cause, and never its context.
-
-    The cause can say less than the message (the empty timeout), and the
-    context is whatever the tool happened to be handling. On an ordinary call
-    pydantic-ai converts the tool's ``ToolFailed`` into a ``ToolFailedError``
-    with the same message before any hook sees it; a code-mode sandbox's
-    nested tool manager leaves it as raised.
-    """
+    """Never its cause, and never its context."""
     if route == "direct":
         assert await _run_lookup_directly(raise_it) == [f"ToolFailedError: {message}"]
     else:
@@ -1786,8 +1551,7 @@ async def test_any_other_exception_records_itself_not_its_cause(route: str) -> N
 
 
 async def test_under_code_mode_a_tools_model_retry_is_recorded_as_raised() -> None:
-    """The sandbox's nested tool manager does not turn it into a
-    ``ToolRetryError``, as an ordinary call does."""
+    """The sandbox's nested tool manager does not turn it into a ``ToolRetryError``."""
 
     def lookup() -> str:
         """Look up order 42."""
@@ -1799,10 +1563,7 @@ async def test_under_code_mode_a_tools_model_retry_is_recorded_as_raised() -> No
 
 
 async def test_under_code_mode_the_policys_translation_records_the_exception() -> None:
-    """The record names the exception, and the sandbox sees the policy's raise
-    as a plain ``Exception`` carrying its message, as it sees any
-    ``ToolFailed``: the private subclass the policy raises is not visible to
-    the model's script."""
+    """The record names the exception; the sandbox sees a plain ``Exception`` with its message."""
 
     def lookup() -> str:
         """Look up order 42."""
@@ -1817,12 +1578,7 @@ async def test_under_code_mode_the_policys_translation_records_the_exception() -
 
 
 async def test_a_spec_tools_timeout_keeps_its_message() -> None:
-    """The real producer of the empty-timeout shape above.
-
-    ``SpecToolset`` raises a ``ToolFailed`` naming its limit from the
-    ``asyncio`` timeout, whose own text is empty, so a record describing the
-    cause would read ``TimeoutError: `` and lose the only detail there is.
-    """
+    """The real producer of the empty-timeout shape above."""
 
     def slow(user: Any) -> dict[str, Any]:
         """Take longer than the limit."""
@@ -1903,14 +1659,7 @@ async def test_a_before_or_after_hook_reaches_the_record_only_through_the_tool(
     reject: bool,
     recorded: list[tuple[bool, str | None, int | None, bool]],
 ) -> None:
-    """The same record on every pydantic-ai, whichever side of the wrapper the
-    installed release runs these hooks.
-
-    A before-hook's rewrite is in the arguments, because it is what the tool
-    received. A before-hook's rejection leaves no record, because the tool
-    never ran. The size is the tool's own result, not the after-hook's
-    rewrite, and an after-hook's rejection comes after a tool that succeeded.
-    """
+    """The same record on every pydantic-ai, whichever side of the wrapper the hooks run on."""
 
     def echo(secret: str) -> str:
         """Echo."""
@@ -1931,9 +1680,7 @@ async def test_a_before_or_after_hook_reaches_the_record_only_through_the_tool(
 
 
 def test_the_execution_context_variable_names_this_package() -> None:
-    # A ``ContextVar``'s name shows in a debugger and a ``repr`` and nowhere a
-    # project configures, so it follows the package rather than the spelling the
-    # two loggers keep, which a project's logging configuration does name.
+    # A ``ContextVar`` name shows in debuggers, so it follows the package name.
     capability = AuditCapability(CapturingAuditLogger())
     assert capability._execution.name == "django_spec_agents.audit.execution"
 
@@ -1988,18 +1735,7 @@ async def _code_mode_records(
 async def test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls(
     code: str, sequential: bool, mode: str
 ) -> None:
-    """Code mode awaits a nested call inline, in ``run_code``'s own task, when
-    the nested tool is marked sequential or the run is.
-
-    The nested call's wrapper then sets the context variable in the context
-    ``run_code``'s own hooks read. Without the reset on the way out, those
-    hooks would settle the nested call's execution and leave ``run_code``'s to
-    its wrapper, which sees the result after a capability ahead of audit has
-    rewritten it, and the time its hooks took. The record is the same with or
-    without that rewrite. ``run_code``'s result carries the script's timings,
-    so its size varies by a few characters between runs; the rewrite adds
-    thousands.
-    """
+    """Code mode awaits a nested call inline when the nested tool or the run is sequential."""
     padded = await _code_mode_records(code, sequential=sequential, mode=mode, pad=True)
     plain = await _code_mode_records(code, sequential=sequential, mode=mode, pad=False)
 

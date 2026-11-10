@@ -124,13 +124,7 @@ class TestEveryDestructivenessSignal:
     ``function`` tool and ran unconfirmed."""
 
     async def test_flips_a_tool_whose_mcp_annotation_says_it_mutates(self) -> None:
-        """A toolset that speaks MCP's own vocabulary nests ``readOnlyHint``
-        under ``annotations`` instead of stamping the metadata key.
-
-        The same spec was therefore gated when it arrived over an MCP bridge
-        (which maps the hint onto the key) and ungated when the identical spec
-        was attached in process.
-        """
+        """A toolset speaking MCP's vocabulary nests ``readOnlyHint`` under ``annotations``."""
         guard = ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True))
         kinds = await _prepare(
             guard,
@@ -147,10 +141,7 @@ class TestEveryDestructivenessSignal:
         assert kinds["not_a_mapping"] == "function"
 
     async def test_flips_a_tool_whose_schema_carries_the_destructive_stamp(self) -> None:
-        """``build_input_schema`` is a public export, so a project can derive a
-        schema outside the registration flow and attach the tool through
-        ``toolsets=``. Its ``x-destructive`` stamp had no server-side reader at
-        all: the gate saw a plain ``function`` tool and let it run."""
+        """``build_input_schema`` is public: a tool can be attached through ``toolsets=``."""
 
         def purge(target: str) -> str:
             """Purge a thing."""
@@ -237,8 +228,7 @@ class TestMcpAnnotationsAgreeWithTheBridge:
     async def test_the_table_is_what_the_bridge_marks(
         self, sent: dict[str, Any], destructive: bool
     ) -> None:
-        """The expected column is not the guard's own reading: it is what the
-        bridge stamps for the same annotations on the wire."""
+        """The expected column is what the bridge stamps on the wire for the same annotations."""
         from types import SimpleNamespace
 
         from django.contrib.auth.models import AnonymousUser
@@ -264,13 +254,7 @@ class TestMcpAnnotationsAgreeWithTheBridge:
 
 
 async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
-    """The reproduction, end to end: a mutating spec attached in process.
-
-    ``SpecToolset`` builds its tool definitions from the spec kind — a
-    ``ServiceSpec`` mutates, a ``SelectorSpec`` reads — and says so with MCP's
-    ``readOnlyHint``. Serving a write in process rather than over the MCP
-    bridge is presented as a transport swap, so the gate has to survive it.
-    """
+    """The reproduction, end to end: a mutating spec attached in process."""
     from django_service_specs import SelectorKind, SelectorSpec, ServiceSpec, Unrestricted
 
     from django_spec_agents.spec_tools import SpecToolset
@@ -293,7 +277,6 @@ async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
             ),
         }
     )
-    # ``get_tools`` ignores its ``RunContext``; there is no run here.
     tool_defs = [t.tool_def for t in (await toolset.get_tools(None)).values()]  # type: ignore[arg-type]
 
     guard = ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True))
