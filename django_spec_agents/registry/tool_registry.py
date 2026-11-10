@@ -15,34 +15,16 @@ from django_spec_agents.types.schema_strategy import SchemaStrategy
 
 
 class ToolRegistry:
-    """An ordered, named collection of server-side tools.
-
-    State lives on the instance — a transport holds one, tests build a fresh one
-    per scenario. Each tool's JSON Schema is derived once at registration, with
-    the tool's own ``ToolSpec.schema_strategy`` when it sets one and the
-    registry's ``schema_strategy`` otherwise (see
-    [`build_input_schema`][django_spec_agents.build_input_schema]), and either
-    sync or async callables can be dispatched.
-
-    The strategy shapes ``ToolBinding.input_schema`` only. The schema the agent
-    offers the model for a registry tool is pydantic-ai's own, whichever is set.
-    """
+    """An ordered, named collection of server-side tools."""
 
     def __init__(self, *, schema_strategy: SchemaStrategy = SchemaStrategy.HAND_BUILT) -> None:
         self._bindings: dict[str, ToolBinding] = {}
         self._schema_strategy = SchemaStrategy(schema_strategy)
 
     def register(self, spec: ToolSpec) -> ToolBinding:
-        """Register ``spec`` and return its binding.
-
-        Raises:
-            ValueError: when ``spec.name`` is already registered, or its
-                ``schema_strategy`` is not a ``SchemaStrategy``.
-        """
+        """Register ``spec`` and return its binding."""
         if spec.name in self._bindings:
             raise ValueError(f"tool {spec.name!r} already registered")
-        # ``build_input_schema`` coerces the strategy, so an unknown one on the
-        # spec is refused there.
         strategy = self._schema_strategy if spec.schema_strategy is None else spec.schema_strategy
         binding = ToolBinding(
             spec=spec,
@@ -75,21 +57,7 @@ class ToolRegistry:
             raise KeyError(f"tool {name!r} is not registered") from e
 
     def call(self, name: str, arguments: dict[str, Any], *, ctx: Any = None) -> Any:
-        """Dispatch a sync call to the registered tool.
-
-        ``arguments`` is the model's payload and nothing else. A tool declaring a
-        leading ``ctx: RunContext[...]`` gets it from ``ctx`` here, the way
-        pydantic-ai would supply it from the run; passing one to a tool that
-        takes none is harmless.
-
-        Refuses coroutine functions to avoid silently returning an
-        un-awaited coroutine. Use
-        [`acall`][django_spec_agents.ToolRegistry.acall] for async tools.
-
-        Raises:
-            TypeError: when the tool is async, or declares a ``RunContext``
-                parameter and no ``ctx`` was given.
-        """
+        """Dispatch a sync call to the registered tool."""
         fn = self.get(name).spec.fn
         if inspect.iscoroutinefunction(fn):
             raise TypeError(
@@ -98,11 +66,7 @@ class ToolRegistry:
         return _invoke(fn, name, arguments, ctx)
 
     async def acall(self, name: str, arguments: dict[str, Any], *, ctx: Any = None) -> Any:
-        """Dispatch an async call; transparently awaits sync callables.
-
-        ``ctx`` is bound exactly as in
-        [`call`][django_spec_agents.ToolRegistry.call].
-        """
+        """Dispatch an async call; transparently awaits sync callables."""
         fn = self.get(name).spec.fn
         if inspect.iscoroutinefunction(fn):
             return await _ainvoke(fn, name, arguments, ctx)
@@ -112,21 +76,7 @@ class ToolRegistry:
 def _bind(
     fn: Callable[..., Any], name: str, arguments: dict[str, Any], ctx: Any
 ) -> inspect.BoundArguments:
-    """Bind the model's ``arguments``, adding the run context the model cannot send.
-
-    ``eval_str`` matches the derivation at registration time, so the annotation
-    seen here is the same object that shaped the tool's schema rather than the
-    string a module's ``from __future__ import annotations`` leaves behind.
-
-    An omitted parameter whose default is a pydantic ``Field`` gets that field's
-    default, the one the schema advertises, rather than the ``FieldInfo`` itself.
-    A ``Field`` with no default is required in the schema, so omitting it is the
-    caller's error and raises as any missing argument does.
-
-    Raises:
-        TypeError: when the tool declares a ``RunContext`` parameter and no
-            ``ctx`` was given, or an argument is missing or unknown.
-    """
+    """Bind the model's ``arguments``, adding the run context the model cannot send."""
     sig = inspect.signature(fn, eval_str=True)
     context_parameter = run_context_parameter(sig)
     if context_parameter is not None:
@@ -135,8 +85,6 @@ def _bind(
                 f"tool {name!r} takes a RunContext as its {context_parameter!r} "
                 "parameter; pass ctx= to dispatch it directly."
             )
-        # The caller's context last, so a model that invented a ``ctx``
-        # argument cannot shadow the real one with a value of its own.
         arguments = {**arguments, context_parameter: ctx}
     bound = sig.bind(**arguments)
     for param in sig.parameters.values():

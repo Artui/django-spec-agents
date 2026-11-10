@@ -1,5 +1,3 @@
-"""``AGENT_TRANSPORT`` -- what every agent call's context carries under ``transport``."""
-
 from __future__ import annotations
 
 from typing import Final

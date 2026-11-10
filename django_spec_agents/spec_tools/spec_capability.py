@@ -1,5 +1,3 @@
-"""``SpecCapability`` — a Pydantic-AI capability wrapping ``SpecToolset``."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -20,65 +18,7 @@ from django_spec_agents.spec_tools.types.agent_conventions import AgentConventio
 
 
 class SpecCapability(AbstractCapability[Any]):
-    """A Pydantic-AI capability exposing specs as tools.
-
-    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] is a first-class toolset you
-    can attach directly (``Agent(toolsets=[SpecToolset(...)])``), and it already
-    exposes the tools *and* teaches the model its conventions. This wraps one to
-    add the two capability-only knobs, ``defer_loading`` and the
-    ``description`` its catalog entry is chosen by. It does **not** re-emit
-    those conventions — Pydantic-AI collects them from the owned toolset — so
-    wrapping and attaching directly yield the same instructions, exactly once.
-
-    Construct it the same way as ``SpecToolset`` (it forwards the toolset knobs):
-
-        agent = Agent(
-            model,
-            deps_type=AgentDeps,
-            capabilities=[SpecCapability({
-                "list_orders": orders_selector_spec,   # SelectorSpec -> read-only tool
-                "create_order": create_order_spec,     # ServiceSpec  -> mutation tool
-            })],
-        )
-
-    or wrap an already-built toolset with
-    [`from_toolset`][django_spec_agents.spec_tools.SpecCapability.from_toolset]
-    (the compose path). Either way the exposed tool set and instructions are the
-    toolset's.
-
-    **Everything else ``SpecToolset`` accepts, this accepts, and means there.**
-    That is a guarantee rather than a list, enforced name-by-name by the
-    forwarding tests: a knob added to the toolset and forgotten here is not a
-    missing feature but an *unreachable* one for every consumer composing through
-    a capability. See [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] for what
-    each does; the safety-relevant ones are ``require_permissions``,
-    ``max_result_bytes``, ``max_page_size`` and ``dispatch_timeout``.
-
-    Args:
-        specs: As ``SpecToolset``, including a
-            ``SpecRegistry``
-            or a filtered view of one, so a project declaring its specs once can
-            project several capabilities from them. Every entry is a
-            django-service-specs spec or a declaration that compiles to one;
-            one that compiles to no spec raises ``TypeError`` when the
-            capability is built, as it does for the toolset.
-        defer_loading: Hide the whole spec toolset and its instructions behind
-            Pydantic-AI's native ``load_capability`` tool until the model loads
-            it — progressive disclosure for a large spec map.
-        id: As ``SpecToolset``. It keys ``defer_loading``'s catalog entry, so
-            give each capability projected from one registry its own.
-        description: One line saying what this capability is for, rendered
-            beside ``id`` in ``defer_loading``'s catalog. **Give one to every
-            deferred capability:** Pydantic-AI's loader renders ``- {id}:
-            {description}`` when there is one and a bare ``- {id}`` when there
-            is not, so several undescribed capabilities leave the model
-            choosing between names alone — the guess-or-load-everything outcome
-            deferring exists to avoid. Not the same knob as ``descriptions``,
-            which relabels individual *tools*.
-        unknown_arguments: As ``SpecToolset``: ``REJECT`` (the default) or
-            ``IGNORE``. ``PASSTHROUGH`` raises ``ImproperlyConfigured`` when the
-            capability is built, since the toolset it owns is built then.
-    """
+    """A Pydantic-AI capability exposing specs as tools."""
 
     def __init__(
         self,
@@ -138,21 +78,7 @@ class SpecCapability(AbstractCapability[Any]):
         defer_loading: bool = False,
         description: str | None = None,
     ) -> SpecCapability:
-        """Wrap an already-built
-        [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] (the compose
-        path).
-
-        The capability adopts the toolset's ``id``, and its tools and
-        instructions are the toolset's own — set an ``instructions`` override or
-        ``conventions`` on the ``SpecToolset`` itself if you need them, so
-        ``from_toolset(ts)`` and ``SpecCapability(specs, …)`` behave identically.
-        A toolset's ``conventions`` are kept because the toolset is: this wraps
-        that instance rather than rebuilding it.
-
-        ``description`` means what it does on the constructor: the catalog line
-        a deferred capability is chosen by. It has no toolset counterpart to
-        adopt, so pass it here.
-        """
+        """Wrap an already-built ``SpecToolset`` (the compose path)."""
         self = cls.__new__(cls)
         self._configure(toolset, defer_loading=defer_loading, description=description)
         return self
@@ -160,11 +86,7 @@ class SpecCapability(AbstractCapability[Any]):
     def _configure(
         self, toolset: SpecToolset, *, defer_loading: bool, description: str | None
     ) -> None:
-        # ``AbstractCapability`` is a ``@dataclass(init=False)``, so its fields are
-        # set as plain instance attributes. ``id`` mirrors the toolset's, so
-        # ``defer_loading``'s catalog entry and the toolset resolve under one
-        # identity. No ``get_instructions`` override: Pydantic-AI collects the
-        # owned toolset's, and re-emitting here would duplicate them.
+        # ``id`` mirrors the toolset's, so the catalog entry and toolset share one identity.
         self.id = toolset.id
         self.description = description
         self.defer_loading = defer_loading

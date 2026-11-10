@@ -17,12 +17,7 @@ _SESSION_KEY = "django_pydantic_agent_conversations"
 
 
 class DjangoSessionConversationStore:
-    """Conversation persistence in the Django session, needing no migration.
-
-    Conversations are namespaced by ``thread_id`` inside the user's own session,
-    so owner scoping is implicit and durability lasts as long as that browser
-    session. For cross-device or audited persistence, use a model-backed store.
-    """
+    """Conversation persistence in the Django session, needing no migration."""
 
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
         return await sync_to_async(self._load)(thread_id, request)
@@ -72,8 +67,7 @@ class DjangoSessionConversationStore:
     def _list(self, request: HttpRequest, limit: int | None) -> ConversationMetaList:
         store = request.session.get(_SESSION_KEY, {})
         metas = [_meta(thread_id, raw) for thread_id, raw in store.items()]
-        # Newest first so a ``limit`` returns the most recent threads (mirrors the
-        # model store's ``-updated_at`` ordering); ``None`` timestamps sort last.
+        # Newest first, so a ``limit`` keeps the most recent threads.
         metas.sort(key=lambda m: (m.updated_at is not None, m.updated_at), reverse=True)
         return metas[:limit] if limit is not None else metas
 

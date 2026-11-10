@@ -25,14 +25,7 @@ def owner_or_none(request: HttpRequest, *, allow_anonymous: bool) -> str | None:
 
 
 def hash_file(handle: File) -> str:
-    """The SHA-256 of ``handle``'s bytes, as hex, read a chunk at a time.
-
-    Chunked so fingerprinting a 10 MiB upload does not put 10 MiB in memory, and
-    because the same helper hashes files already in storage, where the bytes may
-    be arriving over the network. ``File.chunks()`` rewinds when the underlying
-    stream supports it, so a handle hashed here can still go to ``Storage.save``
-    and be written whole.
-    """
+    """The SHA-256 of ``handle``'s bytes, as hex, read a chunk at a time."""
     digest = hashlib.sha256()
     for chunk in handle.chunks(chunk_size=_CHUNK_SIZE):
         digest.update(chunk)
@@ -40,26 +33,12 @@ def hash_file(handle: File) -> str:
 
 
 def unreferenced_attachments(attachments: QuerySet[StoredAttachment]) -> QuerySet[StoredAttachment]:
-    """Narrow ``attachments`` to those no conversation refers to.
-
-    The single definition of "unreferenced", so the conversation cascade and the
-    prune command cannot drift on what an orphan is. It does not consider age: an
-    upload that was never sent is unreferenced from the moment it lands, which is
-    why the command pairs this with a threshold.
-    """
+    """Narrow ``attachments`` to those no conversation refers to."""
     return attachments.filter(conversations__isnull=True)
 
 
 def delete_attachments(attachments: Iterable[StoredAttachment]) -> AttachmentDeletion:
-    """Delete each row, and its blob once no surviving row shares that blob.
-
-    Deduplication pulls the row count and the blob count apart, so the bytes go
-    only when the last row referring to them does. The check is on the stored
-    file name, never on ``sha256``: the name identifies a blob, while the hash is
-    merely what made two rows share one, and rows hashed by a backfill can carry
-    one digest while pointing at two distinct files written before deduplication
-    existed. Deleting on the digest would leak one of them.
-    """
+    """Delete each row, and its blob once no surviving row shares that blob."""
     rows = 0
     blobs = 0
     freed = 0
@@ -77,14 +56,7 @@ def delete_attachments(attachments: Iterable[StoredAttachment]) -> AttachmentDel
 
 
 def preview_attachment_deletion(attachments: list[StoredAttachment]) -> AttachmentDeletion:
-    """What ``delete_attachments`` would remove, removing nothing.
-
-    Kept beside the function it predicts because the two have to agree; a dry run
-    reporting the row count as space reclaimed overstates the result the moment
-    two rows share a blob. A blob counts as freed when every row pointing at it
-    is in ``attachments``, so rows sharing a file with each other free it once,
-    and one left outside the set keeps it.
-    """
+    """What ``delete_attachments`` would remove, removing nothing."""
     sizes: dict[str, int] = {}
     for attachment in attachments:
         if attachment.file.name:

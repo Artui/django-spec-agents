@@ -1,5 +1,3 @@
-"""Settings-agnostic Django agent-host substrate for Pydantic-AI."""
-
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.build_tool_catalog import build_tool_catalog
 from django_spec_agents.agent.types.agent_config import AgentConfig

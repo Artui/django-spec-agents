@@ -10,20 +10,7 @@ from django_spec_agents.contrib.store.models import StoredMemory
 
 
 class Command(BaseCommand):
-    """Erase every stored memory file belonging to one owner.
-
-    Memory is durable personal data written *about* a user and replayed into
-    every later session, so an erasure request has to be able to reach it. The
-    ``MemoryStore`` protocol has no bulk or prefix delete — its five methods are
-    ``read``, ``write``, ``delete``, ``list_paths`` and ``get_operation`` — and
-    composing them gives an unbounded read-then-delete loop that a concurrent
-    ``write_memory`` can lose to. This runs the single statement instead.
-
-    ``owner_id`` is what the store partitions on: the user's pk for an
-    authenticated owner, or the ``anon:<session_key>`` bucket for an anonymous
-    one. It is **not** the harness namespace, which is derived separately and
-    prefixed.
-    """
+    """Erase every stored memory file belonging to one owner."""
 
     help = "Delete all stored agent memory for one owner."
 

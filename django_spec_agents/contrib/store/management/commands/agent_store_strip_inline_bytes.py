@@ -11,16 +11,7 @@ from django_spec_agents.contrib.store.strip_inline_binary_parts import strip_inl
 
 
 class Command(BaseCommand):
-    """Remove inlined file bytes from conversations already stored.
-
-    A row written before transports stopped inlining keeps its base64 payload
-    until something rewrites it, and this is the only thing that does: a
-    transport does not strip what a client posts back, because a client may
-    legitimately post inline content of its own.
-
-    The bytes are not lost — the attachment is untouched in the attachment store,
-    and the model reaches it by id as always.
-    """
+    """Remove inlined file bytes from conversations already stored."""
 
     help = "Strip inlined base64 file content from stored conversation messages."
 
@@ -48,11 +39,7 @@ class Command(BaseCommand):
 
 
 def _encoded_size(messages: Any) -> int:
-    """The size of ``messages`` as compact JSON.
-
-    The encoded form is what the column stores and what crosses the wire to the
-    browser; the in-memory object graph is neither.
-    """
+    """The size of ``messages`` as compact JSON."""
     return len(json.dumps(messages, separators=(",", ":"), default=str))
 
 

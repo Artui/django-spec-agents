@@ -22,18 +22,7 @@ _DEFAULT_AGE = "24h"
 
 
 class Command(BaseCommand):
-    """Delete uploads no conversation refers to and that are old enough to be safe.
-
-    The conversation cascade collects attachments a thread quoted; what it can
-    never see is the upload that was never sent, which belongs to no conversation
-    at all.
-
-    Age is therefore not optional. By references alone, an upload sitting in a
-    composer right now is indistinguishable from one abandoned last month, so
-    ``--older-than`` is the floor on how long an upload must survive before it
-    counts as abandoned. Set it comfortably above the longest a message may sit
-    unsent in your product. Nothing schedules this command for you.
-    """
+    """Delete uploads no conversation refers to and that are old enough to be safe."""
 
     help = "Delete unreferenced attachments older than a threshold (default 24h)."
 
@@ -74,12 +63,7 @@ class Command(BaseCommand):
 
 
 def _parse_age(value: str) -> timedelta:
-    """A ``30m`` / ``24h`` / ``7d`` threshold, or hours when the unit is left off.
-
-    A negative value is rejected rather than clamped: it would put the cutoff in
-    the future and sweep away uploads that have not happened yet, the one outcome
-    this command exists to prevent.
-    """
+    """A ``30m`` / ``24h`` / ``7d`` threshold, or hours when the unit is left off."""
     text = value.strip().lower()
     unit = _UNITS.get(text[-1:])
     amount = text if unit is None else text[:-1]

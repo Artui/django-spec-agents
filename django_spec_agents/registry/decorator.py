@@ -23,14 +23,7 @@ def tool(
     summary: str | None = None,
     schema_strategy: SchemaStrategy | None = None,
 ) -> Callable[[F], F]:
-    """Register the decorated callable on ``registry`` as a tool.
-
-    ``name`` defaults to the function's name and ``description`` to the first
-    paragraph of its docstring. ``confirm`` is the confirmation prompt for a
-    destructive tool and ``summary`` a short display label; both reach the client
-    as the matching ``x-*`` schema key. ``schema_strategy`` overrides the
-    registry's for this tool's schema; ``None`` keeps the registry's.
-    """
+    """Register the decorated callable on ``registry`` as a tool."""
 
     def _decorator(fn: F) -> F:
         spec = ToolSpec(

@@ -6,16 +6,7 @@ from django_spec_agents.contrib.store.attachment_storage import attachment_stora
 
 
 class StoredConversation(models.Model):
-    """The reference durable conversation row, one per ``(owner_id, thread_id)``.
-
-    ``owner_id`` is the resolved owner (the user's pk, or an
-    ``anon:<session_key>`` bucket) and every query filters by it: it is the
-    security boundary. ``title`` / ``preview`` are denormalised so the thread
-    drawer's list query never loads message bodies. ``attachments`` is derived
-    from ``messages`` on every save and is what attachment lifecycle runs on.
-
-    Used by ``DefaultConversationStore``.
-    """
+    """The reference durable conversation row, one per ``(owner_id, thread_id)``."""
 
     thread_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
@@ -45,22 +36,7 @@ class StoredConversation(models.Model):
 
 
 class StoredAttachment(models.Model):
-    """The reference durable attachment row for a model-backed store.
-
-    ``attachment_id`` is the opaque handle the wire ref carries; ``file`` holds
-    the bytes via Django ``Storage``; ``name`` / ``mime`` / ``size`` are
-    denormalised so metadata is returned without reading the file back.
-    ``owner_id`` is the resolved owner and every query filters by it: it is the
-    security boundary. ``sha256`` is the chunked digest that lets a re-upload of
-    the same bytes reuse the blob already in storage, blank on rows predating the
-    column until ``agent_store_backfill_hashes`` fills them in.
-
-    ``thread_id`` is a loose label a project may set; the reference store leaves
-    it blank. Lifecycle runs on the ``ConversationAttachment`` relation, not
-    on this column, which is kept only because projects read it.
-
-    Used by ``DefaultAttachmentStore``.
-    """
+    """The reference durable attachment row for a model-backed store."""
 
     attachment_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
@@ -69,10 +45,7 @@ class StoredAttachment(models.Model):
     mime = models.CharField(max_length=255, blank=True, default="")
     size = models.PositiveBigIntegerField(default=0)
     sha256 = models.CharField(max_length=64, blank=True, default="")
-    # Indexed because deleting a row has to ask whether any other row still
-    # points at the same stored blob before removing the bytes. ``storage`` is a
-    # callable so the migration records which backend to ask for rather than the
-    # one a project happened to have configured when it was written.
+    # Indexed: deleting a row must ask whether another row still points at the same blob.
     file = models.FileField(
         upload_to="django_pydantic_agent/attachments/",
         storage=attachment_storage,
@@ -100,18 +73,7 @@ class StoredAttachment(models.Model):
 
 
 class ConversationAttachment(models.Model):
-    """One conversation's reference to one attachment.
-
-    The through model behind ``StoredConversation.attachments``, a
-    many-to-many rather than a foreign key on the attachment because both ends
-    are plural: deduplication lets several rows describe the same bytes, and one
-    attachment id may be quoted by more than one thread.
-
-    Rows are derived, never hand-written — a conversation's save reconciles them
-    from the attachment ids its own messages carry. Both sides cascade, so
-    deleting either end drops the link; the attachment row outlives the link and
-    is collected separately once nothing references it.
-    """
+    """One conversation's reference to one attachment."""
 
     conversation = models.ForeignKey(
         StoredConversation, on_delete=models.CASCADE, related_name="attachment_links"
@@ -144,14 +106,7 @@ class ConversationAttachment(models.Model):
 
 
 class StoredRun(models.Model):
-    """Lineage metadata for one agent run, one row per ``(owner_id, run_id)``.
-
-    ``conversation_id`` groups a dialogue's runs and ``parent_run_id`` records
-    which run spawned this one — two independent axes, so a delegated run may
-    share a conversation while pointing at a different orchestrator run.
-    ``started_at`` is the harness-supplied instant persisted verbatim, not
-    stamped at insert, and orders ``list_runs``.
-    """
+    """Lineage metadata for one agent run, one row per ``(owner_id, run_id)``."""
 
     run_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
@@ -174,12 +129,7 @@ class StoredRun(models.Model):
 
 
 class StoredStepEvent(models.Model):
-    """One append-only step event at a run/model/tool boundary.
-
-    Never mutated — a correction is a follow-up row, and ``list_events`` returns
-    them in insertion order (by ``id``). ``kind`` is a harness ``EventKind``
-    literal; ``error`` carries ``repr(exc)`` on the ``*_failed`` kinds.
-    """
+    """One append-only step event at a run/model/tool boundary."""
 
     run_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
@@ -202,20 +152,7 @@ class StoredStepEvent(models.Model):
 
 
 class StoredSnapshot(models.Model):
-    """A message history a run can be resumed or forked from.
-
-    ``messages`` is the full ``list[ModelMessage]`` serialised with
-    ``ModelMessagesTypeAdapter``, ready for ``Agent.run(message_history=...)``.
-    ``latest_snapshot`` picks the most recent by insertion order (largest
-    ``id``), not by ``step_index``, matching the harness stores.
-
-    ``state`` mirrors harness's ``SnapshotState``: ``complete`` sits at a
-    boundary where every tool call has a matching return and is always safe to
-    resume from, while ``interrupted`` is a mid-tool-cycle rescue point whose
-    pending calls may need re-executing or closing out. It is stored rather than
-    inferred because by the time a resume is attempted the run that produced the
-    row is gone.
-    """
+    """A message history a run can be resumed or forked from."""
 
     run_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
@@ -239,14 +176,7 @@ class StoredSnapshot(models.Model):
 
 
 class StoredToolEffect(models.Model):
-    """A tool call's side-effect status.
-
-    Upserted on ``(owner_id, run_id, tool_call_id)`` as the call moves
-    ``started`` to ``completed`` / ``failed``. Still ``started`` after a process
-    restart means the external effect may or may not have landed;
-    ``idempotency_key`` / ``effect_summary`` are what let an orchestrator decide
-    whether replay is safe. ``list_unresolved_tool_effects`` returns those rows.
-    """
+    """A tool call's side-effect status."""
 
     run_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
@@ -272,26 +202,7 @@ class StoredToolEffect(models.Model):
 
 
 class StoredMemory(models.Model):
-    """One durable memory file, one row per ``(owner_id, path)``.
-
-    ``path`` is the harness's own scope-qualified key —
-    ``<namespace>/<agent_name>/<file>.md`` — stored verbatim so ``list_paths``
-    can answer a prefix query the way the reference stores do. ``owner_id`` is
-    the owner every query filters by, and so the security boundary. Which owner
-    it holds depends on the store's mode: a namespace-scoped store takes it from
-    the path's leading segment, the namespace the capability resolved, and a
-    request-bound store resolves it from the request and trusts nothing in the
-    path, so a resolver returning something surprising cannot reach another
-    owner's rows.
-
-    ``version`` is the protocol's opaque compare-and-set token, replaced with a
-    fresh value on every write. A random token rather than a counter because a
-    counter restarts after a delete, which would let a stale version from before
-    the delete satisfy a later compare-and-set. ``operation_id`` records which
-    idempotent mutation last wrote the row, mirroring the reference stores.
-
-    Used by ``DefaultMemoryStore``.
-    """
+    """One durable memory file, one row per ``(owner_id, path)``."""
 
     owner_id = models.CharField(max_length=255, blank=True, default="")
     path = models.CharField(max_length=500)
@@ -314,18 +225,7 @@ class StoredMemory(models.Model):
 
 
 class StoredMemoryOperation(models.Model):
-    """An idempotency receipt for one memory mutation.
-
-    The harness gives every ``write_memory`` / ``delete_memory`` call a stable
-    ``id`` and a ``fingerprint`` of its arguments, then asks the store whether it
-    has seen that id before. Replaying the recorded result is what stops a
-    retried tool call appending the same note twice; a matching id with a
-    *different* fingerprint is a reused id, which the protocol says to refuse.
-
-    ``version`` is nullable because a delete's recorded result carries none.
-    Partitioned by ``owner_id`` like every other row, so one owner's receipts can
-    neither be read nor replayed by another.
-    """
+    """An idempotency receipt for one memory mutation."""
 
     owner_id = models.CharField(max_length=255, blank=True, default="")
     operation_id = models.CharField(max_length=255)
