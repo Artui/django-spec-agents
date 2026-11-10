@@ -44,8 +44,7 @@ def test_resolve_owner_id_returns_pk_for_authenticated_user() -> None:
 
 
 def test_resolve_owner_id_refuses_anonymous_when_disallowed() -> None:
-    """The safe default: refuse, rather than collapse every anonymous visitor
-    into one shared bucket where they can read each other's threads."""
+    """Refuse by default, rather than sharing one bucket among all anonymous visitors."""
     with pytest.raises(AnonymousOperationError):
         resolve_owner_id(_anon_request(), allow_anonymous=False)
 

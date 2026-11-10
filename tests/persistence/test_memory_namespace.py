@@ -34,14 +34,7 @@ def _path(namespace: str) -> str:
 
 
 def test_the_owner_id_the_other_stores_use_is_not_a_valid_namespace() -> None:
-    """The defect this resolver exists for, pinned against the naive wiring.
-
-    Reaching for ``resolve_owner_id`` — the id the conversation, attachment and
-    step stores all partition on — is the obvious way to scope memory per user,
-    and it aborts every anonymous run: the colon is outside the segment alphabet
-    the harness accepts, and the raise happens during namespace resolution, which
-    sits outside the store read that ``injection_errors`` guards.
-    """
+    """The defect this resolver exists for, pinned against the naive wiring."""
     owner_id = resolve_owner_id(_anon(), allow_anonymous=True)
 
     assert owner_id == "anon:abc123"
@@ -79,18 +72,12 @@ def test_a_session_is_created_when_the_browser_has_none() -> None:
 
 
 def test_a_segment_safe_primary_key_is_carried_through_readably() -> None:
-    """Kept legible on purpose: an operator reading a stored path should be able
-    to tell whose it is without a lookup table."""
+    """Kept legible on purpose: an operator can tell whose path it is at a glance."""
     assert memory_namespace(authed_request("7")) == "u-7"
 
 
 def test_two_primary_keys_differing_only_in_unsafe_characters_stay_apart() -> None:
-    """The reason unsafe ids are digested rather than sanitised.
-
-    Stripping or replacing the offending characters maps ``tenant/42`` and
-    ``tenant-42`` onto one namespace, which is two users reading each other's
-    memory — the exact failure the resolver exists to prevent.
-    """
+    """The reason unsafe ids are digested rather than sanitised."""
     assert memory_namespace(authed_request("tenant/42")) != memory_namespace(
         authed_request("tenant-42")
     )

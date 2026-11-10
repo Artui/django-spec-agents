@@ -46,8 +46,7 @@ def test_two_primary_keys_differing_only_in_unsafe_characters_stay_apart() -> No
     [None, SimpleNamespace(is_authenticated=False, pk=None)],
 )
 def test_an_unauthenticated_caller_gets_the_shared_anonymous_namespace(user: object) -> None:
-    """Documented limitation, not an oversight: with no request there is no
-    session to key on, so this cannot be a per-visitor bucket."""
+    """No request means no session to key on, so this cannot be a per-visitor bucket."""
     assert memory_namespace_for_user(user) == "anon"
     validate_store_path(_path(memory_namespace_for_user(user)))
 
