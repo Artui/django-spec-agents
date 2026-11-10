@@ -25,8 +25,7 @@ _SPECS: dict[str, Any] = {
 
 
 def _spec_mcp_server() -> MCPServer:
-    """Three tools covering the ``display_name -> title -> prettified name``
-    summary chain and the ``display_description -> description`` one."""
+    """Three tools cover the ``display_name -> title -> prettified name`` summary chain."""
     server = MCPServer(name="catalog-spec-mcp")
     spec = ServiceSpec(service=_svc, permissions=[Unrestricted()], atomic=False)
     server.register_tool(
@@ -74,7 +73,6 @@ def test_registry_tools_use_summary_or_prettified_name_with_description() -> Non
     # Explicit @tool(summary=) wins; description comes from the docstring.
     assert by_name["find_user"]["summary"] == "Look up a user"
     assert by_name["find_user"]["description"] == "Find a user by email."
-    # No summary → prettified from the tool name.
     assert by_name["list_open_orders"]["summary"] == "List open orders"
 
 
@@ -86,10 +84,8 @@ def test_a_spec_mcp_servers_tools_resolve_their_labels() -> None:
     # display_name / display_description win.
     assert by_name["ping"]["summary"] == "Ping the service"
     assert by_name["ping"]["description"] == "Health check."
-    # No display_*: summary from title, description from the protocol description.
     assert by_name["lookup_widget"]["summary"] == "Lookup widget"
     assert by_name["lookup_widget"]["description"] == "Find a widget."
-    # Nothing: summary prettified from the name, no description key.
     assert by_name["raw_tool"]["summary"] == "Raw tool"
     assert "description" not in by_name["raw_tool"]
 
@@ -99,8 +95,7 @@ def test_the_servers_tools_follow_in_registration_order() -> None:
 
 
 def test_the_old_server_keyword_is_gone() -> None:
-    # ``drf_mcp_server=`` was deprecated for one minor; it is now an unknown
-    # keyword rather than an alias that would keep a caller on the old name.
+    # ``drf_mcp_server=`` is now an unknown keyword, not an alias that keeps the old name alive.
     with pytest.raises(TypeError, match="unexpected keyword argument 'drf_mcp_server'"):
         build_tool_catalog(ToolRegistry(), drf_mcp_server=_SPEC_MCP)
 
@@ -108,7 +103,6 @@ def test_the_old_server_keyword_is_gone() -> None:
 def test_service_specs_appear_in_catalog_with_prettified_summary() -> None:
     # Specs only — no MCP server, which also defines ``ping`` and would win.
     by_name = {e["name"]: e for e in build_tool_catalog(ToolRegistry(), service_specs=_SPECS)}
-    # No x-summary on a spec → prettified name; description ← the service docstring.
     assert by_name["ping"]["summary"] == "Ping"
     assert by_name["ping"]["description"] == "Ping the server."
 

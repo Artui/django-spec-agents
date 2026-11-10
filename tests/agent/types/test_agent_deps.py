@@ -1,5 +1,3 @@
-"""``AgentDeps`` — the per-run dependency record handed to the agent."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -24,28 +22,19 @@ def test_carries_the_acting_user() -> None:
 
 
 def test_the_acting_user_has_to_be_stated() -> None:
-    """Pydantic-AI does not enforce ``deps=`` and never validates what it gets,
-    so a default here would be the difference between an unauthenticated run and
-    a run nobody decided the identity of.
-
-    Registry tools do not fail closed the way a spec tool does — they run with no
-    user context at all and the answer looks ordinary — so the only place to
-    catch it is construction.
-    """
+    """Pydantic-AI never validates ``deps=``, so a default here would be an unauthenticated run."""
     with pytest.raises(TypeError):
         AgentDeps()  # type: ignore[call-arg]
 
 
 def test_an_unauthenticated_run_says_so_in_one_word() -> None:
-    """Nothing is forbidden, only made explicit: the anonymous run is still one
-    argument away."""
+    """Nothing is forbidden, only made explicit: the anonymous run is still one argument away."""
     deps = AgentDeps(user=None)
     assert (deps.user, deps.state, deps.progress) == (None, None, None)
 
 
 def test_the_docstring_only_names_settings_that_exist() -> None:
-    """``AgentConfig.deps_factory`` would raise ``TypeError``: that parameter lives
-    on the transport, one layer up, so the docstring must not send readers to it."""
+    """``AgentConfig.deps_factory`` raises ``TypeError``; that parameter lives on the transport."""
     named = set(re.findall(r"AgentConfig\.(\w+)", AgentDeps.__doc__ or ""))
     fields = {f.name for f in dataclasses.fields(AgentConfig)}
 
@@ -53,9 +42,7 @@ def test_the_docstring_only_names_settings_that_exist() -> None:
 
 
 def test_carries_a_progress_sink_for_the_run() -> None:
-    """A spec's ``progress(...)`` calls are read off ``ctx.deps.progress``. With
-    no field to read they would resolve to drf-services' no-op and vanish, and a
-    project could not fix that by subclassing without also owning the extractor."""
+    """A spec's ``progress(...)`` calls are read off ``ctx.deps.progress``."""
     reports: list[tuple[int, int | None]] = []
 
     def sink(progress: int, *, total: int | None = None, **_: object) -> None:
@@ -68,11 +55,7 @@ def test_carries_a_progress_sink_for_the_run() -> None:
 
 
 def test_carries_a_context_of_its_own_for_the_run() -> None:
-    """``call_context`` is a plain dict, a new one per deps, never one shared default.
-
-    A shared default would carry one run's entries into every other run built
-    without one, which is the leak a per-run record exists to prevent.
-    """
+    """``call_context`` is a plain dict, a new one per deps, never one shared default."""
     first, second = AgentDeps(user=None), AgentDeps(user=None)
 
     assert getattr(first, "call_context", None) == {}
@@ -88,9 +71,7 @@ class TestStateHandlerConformance:
         assert isinstance(AgentDeps(user=None), StateHandler)
 
     def test_state_is_assignable(self) -> None:
-        """The adapter assigns ``deps.state = state`` directly — it does *not*
-        use ``dataclasses.replace``, despite what the protocol's own comment
-        says. So this record cannot be frozen."""
+        """The adapter assigns ``deps.state`` directly, so this record cannot be frozen."""
         deps = AgentDeps(user=None)
         deps.state = {"document": "hello"}
 
@@ -101,7 +82,6 @@ class TestStateHandlerConformance:
         assert dataclasses.is_dataclass(AgentDeps)
 
     def test_a_pydantic_model_seeds_validation(self) -> None:
-        """The adapter validates incoming state against ``type(deps.state)``, so
-        seeding an instance is how a project opts into a typed state model."""
+        """The adapter validates state against ``type(deps.state)``: seeding an instance opts in."""
         deps = AgentDeps(user=None, state=_Doc())
         assert isinstance(deps.state, BaseModel)
