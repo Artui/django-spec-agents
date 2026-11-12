@@ -51,7 +51,8 @@ def tool_calling_model(
     Args:
         tool_name: The tool to call. It must be one the toolset advertises --
             an unknown name is a retry from the tool manager, not a failure the
-            model sees, so the run would loop.
+            model sees, so the run fails with "exceeded max retries" once that
+            tool's retry budget is spent.
         args: The arguments for the first call.
         retry_args: The arguments for the second call, used only if the first
             raised ``ModelRetry``. Defaults to ``args``, which makes the model

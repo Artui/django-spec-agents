@@ -374,6 +374,15 @@ ledger.
 
 It needs the `[harness]` extra, since the protocol it satisfies lives there.
 
+Resuming a run reads its latest snapshot with `latest_snapshot(run_id=...)`. That
+is the newest snapshot by insertion order, not the highest `step_index`, and only
+`complete` ones unless you pass `include_interrupted=True`. A `complete` snapshot
+is a safe point to resume from. An `interrupted` one is a rescue point saved
+mid tool cycle, for example after a crash, so its pending tool calls may need to
+be re-run or closed out. Check `list_unresolved_tool_effects` for the run before
+resuming from one. Its `messages` are already a `list[ModelMessage]`, ready for
+`Agent.run(message_history=...)`.
+
 ### `list_runs` answers oldest first
 
 Ascending `started_at` is upstream's documented protocol order — `StepStore`
@@ -522,9 +531,18 @@ store carries a non-protocol `purge(owner_id)` that is one statement, plus a
 command:
 
 ```bash
-python manage.py agent_store_purge_memory 42 --dry-run
-python manage.py agent_store_purge_memory 42
+python manage.py agent_store_purge_memory u-42 --dry-run
+python manage.py agent_store_purge_memory u-42
 ```
+
+The argument is the owner id the memory was filed under, not the bare user key.
+With the usual mount-time namespace from `memory_namespace_for_user`, that is `u-`
+followed by the user's primary key, so `u-42` for user 42 (a digest of the key
+replaces it when the key is not a safe path segment). A store built per request
+files rows under the bare primary key, `42`. Anonymous memory is filed under
+`anon` in the mount-time mode and, where the store allows anonymous callers, under
+`anon:<session key>` in the per-request mode. Run the command with `--dry-run`
+first to see how many files the id matches.
 
 It is deliberately **not** wired to a `post_delete` signal on your user model.
 Whether deleting an account erases its memory is a product policy; a library's

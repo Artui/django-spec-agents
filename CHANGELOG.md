@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The API reference's docstrings are restored.** The long docstrings that the
   comment-budget cut to one line are back on the classes and functions the
   reference pages render.
+- **The guide pages say what the code does where they were wrong or silent.** The
+  storage page's erasure example now passes the owner id the memory is filed under
+  (`u-42`, not `42`) and explains which id fits which mode, and its step persistence
+  section says what a snapshot's state means for a resume. The integrations page
+  drops the request that `build_spec_capability` never took and says that a spec
+  without `permissions` is refused. The tools page says `ToolRegistry.call` refuses
+  an async tool, and the testing page counts three doubles.
 
 ## [0.13.0] — 2026-11-09
 

@@ -32,10 +32,19 @@ If you have `ServiceSpec` / `SelectorSpec` objects and no MCP server, take
 pip install django-spec-agents[specs]
 ```
 
-`build_spec_capability(specs, request, exclude_names=…)` returns a
-`SpecCapability` over the specs, bound to `request.user`. Each call runs through
-the kernel's transport-neutral dispatch and enforces the spec's own
+`build_spec_capability(specs, exclude_names=…)` returns a `SpecCapability` over
+the specs. It takes no request: the acting user is read at run time from
+`ctx.deps.user`, so an agent built once serves every caller. Each call runs
+through the kernel's transport-neutral dispatch and enforces the spec's own
 `permissions`.
+
+Every spec passed here must declare `permissions`. A spec with `permissions=None`
+makes `build_spec_capability` raise `ImproperlyConfigured`, rather than exposing a
+tool anyone can call, because off HTTP there is no view or project default to
+inherit. This function has no switch for that. A project migrating a large
+registry builds `SpecCapability` itself with `require_permissions=False`, which
+turns the refusal into an `UnguardedSpecWarning`, and until a spec declares
+permissions the model can call it ungated.
 
 Choosing the capability over a bare toolset is deliberate. The tool-set
 conventions (list-tool `page` / `limit` / `ordering`, and the error contract)
@@ -69,7 +78,7 @@ exposing the same specs over more than one transport:
 ```python
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 
-capability = build_spec_capability(registry, request)
+capability = build_spec_capability(registry)
 ```
 
 The registry is matched **structurally**, through a `SpecSource` Protocol
