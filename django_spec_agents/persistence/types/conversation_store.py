@@ -10,7 +10,25 @@ from django_spec_agents.persistence.types.conversation_meta import ConversationM
 
 @runtime_checkable
 class ConversationStore(Protocol):
-    """Pluggable server-side persistence for AG-UI conversations."""
+    """Pluggable server-side persistence for AG-UI conversations.
+
+    Handed to a transport. The package ships ``NullConversationStore`` (the
+    server stays stateless) and a session-backed implementation; projects supply
+    their own. All methods are async so an implementation can use the async ORM
+    or a network backend.
+
+    Threads key by ``(owner_id, thread_id)``, so two endpoints sharing a store
+    share one user's thread list. Wrap with
+    [`ScopedConversationStore`][django_spec_agents.ScopedConversationStore]
+    to partition them.
+
+    ``list`` returns owner-scoped metadata only, no message bodies, capped at
+    ``limit`` rows (``None`` for the store's own default); a store that cannot
+    enumerate returns an empty list. ``exists`` is a presence check that loads no
+    message body, so a rename or probe does not deserialize a whole thread just
+    to 404. ``rename`` sets a display title, and is a no-op in a store that
+    cannot persist one.
+    """
 
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None: ...
     async def save(self, conversation: Conversation, *, request: HttpRequest) -> None: ...

@@ -8,7 +8,15 @@ from django_spec_agents.persistence.types.opened_attachment import OpenedAttachm
 
 
 class NullAttachmentStore:
-    """The default attachment store: uploads disabled, server stays stateless."""
+    """The default attachment store: uploads disabled, server stays stateless.
+
+    A transport's attachments view detects this store and answers ``410 Gone``,
+    so a misconfigured client gets a clear "uploads are off" signal rather than a
+    silent success, and ``save`` is never reached. Called directly it raises,
+    rather than fabricating a ref. ``open`` returns ``None`` so every fetch is a
+    404, and ``delete`` is a no-op: the endpoint is inert until a real store is
+    configured.
+    """
 
     async def save(self, upload: UploadedFile, *, request: HttpRequest) -> AttachmentRef:
         raise NotImplementedError(

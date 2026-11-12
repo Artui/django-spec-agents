@@ -29,7 +29,25 @@ def _live_blob_name(twins: Iterable[StoredAttachment]) -> str | None:
 
 
 class DefaultAttachmentStore(ModelAttachmentStore):
-    """A ready-to-use model-backed store over ``StoredAttachment``."""
+    """A ready-to-use model-backed store over ``StoredAttachment``.
+
+    Bytes live in Django ``Storage`` (filesystem by default, S3 or GCS through
+    ``STORAGES``), metadata in a row. Add
+    ``"django_spec_agents.contrib.store"`` to ``INSTALLED_APPS``, run
+    ``migrate``, and pass an instance to your transport's ``attachment_store=``.
+    For a bespoke schema, subclass
+    [`ModelAttachmentStore`][django_spec_agents.ModelAttachmentStore]
+    instead.
+
+    Every query filters by the ``owner_id`` the base resolves, so one user's id
+    never reaches another's file, and the public ``attachment_id`` is an opaque
+    UUID kept separate from the storage filename.
+
+    Uploads are **deduplicated by content hash, within one owner**: the same file
+    sent into five threads is written to storage once and pointed at five times,
+    while still getting a row of its own each time so it keeps the name the
+    composer showed. The blob goes when the last row pointing at it does.
+    """
 
     def _save(self, upload: UploadedFile, owner_id: str | None) -> AttachmentRef:
         """Persist one upload, reusing an identical blob this owner already has."""

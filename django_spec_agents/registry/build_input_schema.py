@@ -50,7 +50,42 @@ def build_input_schema(
     summary: str | None = None,
     schema_strategy: SchemaStrategy = SchemaStrategy.HAND_BUILT,
 ) -> dict[str, Any]:
-    """Derive a JSON Schema object from ``fn``'s parameters."""
+    """Derive a JSON Schema object from ``fn``'s parameters.
+
+    ``schema_strategy`` picks the derivation. The default,
+    ``SchemaStrategy.HAND_BUILT``, covers ``str``, ``int``, ``float``,
+    ``bool``, ``list[T]``, ``dict[str, Any]`` and ``X | None`` unions, and
+    reads ``Annotated[T, ...]`` as ``T`` plus what its metadata maps to: a
+    ``Field``'s ``description``, ``title`` and ``examples``, and the bounds of a
+    ``Field`` or of ``annotated_types`` metadata. A string or forward reference
+    nested in an annotation is resolved in the globals the top level is
+    evaluated in. Anything richer, or a nested reference that does not resolve,
+    falls back to an empty fragment, imposing no type constraint but staying
+    wire-valid; so
+    does a bound that is not an ``int`` or ``float`` (a ``Decimal``, a
+    ``date``), and ``examples`` that do not serialise to JSON. An annotation
+    that does not evaluate at the top level raises ``NameError`` under either
+    strategy, from `inspect.signature`.
+
+    ``SchemaStrategy.PYDANTIC`` builds a pydantic model over the same
+    parameters and returns its JSON Schema, so it covers whatever pydantic
+    does, keyed by parameter name rather than a ``Field`` alias, and raises
+    where pydantic does: on a type it cannot schematise, an
+    unresolvable reference (``NameError``), or a parameter pydantic would not
+    hold as a field (``TypeError``).
+
+    ``destructive`` / ``category`` / ``confirm`` / ``summary`` are stamped at the
+    schema root as the matching ``x-*`` extension keys, which AG-UI passes
+    through verbatim to the client.
+
+    A leading ``ctx: RunContext[...]`` parameter is **not** an argument and is
+    left out. Pydantic-AI fills it from the run — it is how a tool reaches the
+    acting user — so advertising it would ask the model to invent a value for
+    something it cannot supply.
+
+    Raises:
+        ValueError: when ``schema_strategy`` is not a ``SchemaStrategy``.
+    """
     strategy = SchemaStrategy(schema_strategy)
     sig = inspect.signature(fn, eval_str=True)
     globalns = _signature_globals(fn)

@@ -11,7 +11,63 @@ from django.core.exceptions import ImproperlyConfigured
 
 @dataclass(frozen=True)
 class AgentConventions:
-    """The instructions a toolset gives the model, plus three sentences beside them."""
+    """The instructions a toolset gives the model, and three sentences beside them, one field each.
+
+    Every field defaults to the sentence the toolset says today, so
+    ``AgentConventions()`` changes nothing and ``AgentConventions(pagination=...)``
+    changes exactly one line. Pass it as ``conventions=`` to
+    [`SpecToolset`][django_spec_agents.spec_tools.SpecToolset] or
+    [`SpecCapability`][django_spec_agents.spec_tools.SpecCapability]; leaving that
+    unset is the same as passing ``AgentConventions()``.
+
+    **What is a field:** every line of the instructions block, the heading of its
+    unavailable list included; the description of a handle field that declares
+    none; the sentence scoping a paged tool's read-shaping parameters; and the
+    retry for a missing argument. Nothing else is. The descriptions of the
+    arguments the toolset adds, such as ``limit`` and ``page``, and its other
+    retries stay fixed.
+
+    **A field changes what a line says, never whether it appears.** The toolset
+    still decides that: the pagination line only when some tool returns a page,
+    the ordering line only when some tool can sort, and so on, re-derived per step
+    when an operation condition leaves a tool out. An override keeps those
+    conditions, which is what ``instructions=`` loses by replacing the whole
+    block, and a later release that corrects one default reaches every field you
+    did not override.
+
+    **``None`` drops the line** wherever the toolset would have said it; ``""``
+    does not, and leaves a blank line where an instructions line was. The one
+    exception is ``missing_arguments``, which is the whole text of a retry and so
+    can be neither dropped nor left blank.
+
+    **Each field is a ``str.format`` template.** The placeholders a field accepts
+    are the ones listed on it, and nothing else; anything outside them raises
+    ``ImproperlyConfigured`` naming the field when the instance is built, so a typo
+    fails at startup rather than inside a prompt. A literal brace is written twice,
+    ``{{`` or ``}}``, in every field.
+
+    **Some lines state facts about behaviour,** not just advice: ``pagination``
+    names the keys of the page envelope, ``base`` says which failures come back as
+    a retry and which as a failed call, and ``query_param_on_pages`` lists the
+    envelope's keys again. The toolset keeps behaving as the defaults describe
+    whatever the text says, so an override that rewords one of those owns keeping
+    it true. The envelope is the one fact the toolset keeps true for it:
+    ``{envelope}``, in the three fields that name the page, is the page as the
+    toolset writes it, ``total`` included when it is built with
+    ``include_total``. Text without the placeholder is said as written, flag or
+    not, so an override written against an earlier release keeps its words and
+    does not gain ``total``.
+
+    Each transport words these for its own reader, which is why they live here and
+    not in a shared library, and why changing them here changes nothing the MCP
+    transport says about the same specs.
+
+    Raises:
+        ImproperlyConfigured: A field uses a placeholder it does not accept, is not
+            a valid format string, is neither a string nor ``None``, or is
+            ``missing_arguments`` set to ``None`` or to an empty or whitespace-only
+            string.
+    """
 
     base: str | None = (
         "The following tools call this application's services and selectors.\n"

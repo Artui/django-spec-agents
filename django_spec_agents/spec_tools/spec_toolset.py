@@ -261,7 +261,317 @@ def _envelope_listed(include_total: bool) -> str:
 
 
 class SpecToolset(AbstractToolset[Any]):
-    """Exposes specs as a Pydantic-AI toolset."""
+    """Exposes specs as a Pydantic-AI toolset.
+
+    A spec is anything django-service-specs' ``kernel_spec`` compiles: a
+    django-service-specs ``ServiceSpec`` or ``SelectorSpec``, or a declaration
+    that compiles to one. Every read of it is the
+    compiled spec's. Build it from a ``name -> spec`` mapping and hand it to an
+    ``Agent``:
+
+        toolset = SpecToolset({
+            "list_orders": orders_selector_spec,   # SelectorSpec -> read-only tool
+            "create_order": create_order_spec,     # ServiceSpec  -> mutation tool
+        })
+        agent = Agent(model, deps_type=AgentDeps, toolsets=[toolset])
+
+    Each key becomes one tool: the description is the spec's selector/service
+    docstring, the parameter schema is the kernel's ``spec_caller_input_schema``
+    (with a list selector's ``page`` / ``limit`` args merged in), the ``return_schema``
+    comes from the same spec's projected output path, and the ``readOnlyHint``
+    annotation is derived from the spec kind (selectors read, services mutate).
+
+    **The parameter schema asks for what a call needs and nothing the toolset
+    fills.** A selector parameter named after a pool seed or a key a typed
+    ``kwargs=`` provider returns is not advertised; every other selector
+    parameter without a default is required, except one the provider *may* fill,
+    which stays advertised but optional: any parameter, beside a provider whose
+    return annotation does not name a ``TypedDict``, and a key the provider may
+    decline with ``UNSET``, both as the kernel's ``provider_keys`` reads the
+    annotation. A name a
+    ``call_seeds`` override fills is invisible here, so it has to be
+    declared (see ``call_seeds``). A single-item service also advertises its
+    target lookup -- the parameters of its ``collection_selector_spec``, or
+    failing that its ``instance_selector_spec``, such as a ``pk`` -- beside its
+    input's fields, the input's property winning a shared name, and less every
+    key the kernel's ``server_owned_keys`` names, which dispatch fills itself. A
+    call leaving out a required selector parameter is handed back as
+    ``ModelRetry`` naming each one left out, before anything runs. A required
+    input field is the Validator's to report, once the call is dispatched, so
+    a call missing both hears about the field on its next turn.
+
+    **A list selector's result is a page, always.** It comes back as
+    ``{"items": [...], "page": 1, "totalPages": N, "hasNext": bool}`` — never a
+    bare list — with at most
+    [`DEFAULT_PAGE_SIZE`][django_service_specs.DEFAULT_PAGE_SIZE]
+    rows unless ``max_page_size`` lowers it, which is what the ``page`` and
+    ``limit`` arguments every list tool advertises promise. ``hasNext`` is what
+    tells a model asking for a collection that more rows exist than it was
+    shown.
+
+    **Every other list result is an object too**: the rows a service presents
+    -- a ``LIST`` output re-read, a ``many`` call, a ``returns_many`` return --
+    come back as ``{"items": [...]}``, with no page around them, under a return
+    schema saying so. ``items`` is the key a page holds its rows under, so a
+    model reads a list's rows at one path whether the tool pages or not, and
+    django-spec-mcp serves the same spec in the same shape. A list that
+    presents nothing, a ``many`` or ``returns_many`` service declaring
+    ``allow_none`` returning ``None``, is ``{"items": []}``.
+
+    **Filtering needs no declaration here, and ordering belongs to the
+    ``filter_set``.** A ``SelectorSpec.filter_set``'s fields are already
+    generated into the tool's input schema and flow through as ordinary
+    ``params``, which the kernel hands the FilterSet as ``filter_data``.
+    That includes ordering: a FilterSet carrying an ``OrderingFilter`` named
+    ``ordering`` advertises the argument itself — the kernel derives the
+    filter's public choices into the schema, each a ``const`` under its
+    label — and the toolset keeps
+    its hands off the value, which the FilterSet validates and applies through
+    its own ``param_map``.
+
+    **A ``many=True`` service takes its list as one named argument.** Its input
+    validates as a JSON array and a model's arguments are always an object, so the
+    list travels under the argument ``ServiceSpec.many_argument`` names --
+    ``items`` unless the spec names another -- and nothing may be sent beside it
+    but the spec's own ``reads``. An invalid item comes
+    back as a ``ModelRetry`` keyed under that argument and then by the item's
+    index. The result is the rendered list under ``items``, advertised so.
+
+    **What a tool reads off HTTP is the spec's to declare**, in its ``reads``,
+    where every transport and every mount reads the same answer; the toolset
+    reads them off the compiled spec, so a spec arriving in a ``SpecRegistry``
+    and the same spec in a bare mapping are served alike. A read no callable
+    takes is one of the compiled spec's ``shapes``: it is advertised as a tool
+    argument and dispatched as one, and the kernel hands what the caller sent
+    to the presenter, on ``PresentationContext.shapes``, and to any callable
+    declaring ``shapes``, so a field selection is the presenter's to read, with
+    no toolset awareness of how it parses one. A read a callable does take,
+    by name or through ``**kwargs``, is that callable's argument: advertised as
+    a plain one, and handed its declared default when the model leaves it out.
+    A read standing for a URL route capture (``parent_pk``) is an argument of
+    the spec, which a selector, a service or a ``kwargs=`` provider takes by
+    its name. A
+    ``null`` sent under a read that cannot be null is the model declining it,
+    and its default answers. A value the model may not choose is not a read at
+    all but ``tool_server_arguments``, which keeps it from the model rather
+    than defaulting it.
+
+    For anything the keywords below do not cover,
+    [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds] and
+    [`translate_exception`][django_spec_agents.spec_tools.SpecToolset.translate_exception]
+    are overridable and both receive the live ``RunContext``, which is how
+    per-run typed deps reach dispatch; the run's ``AgentDeps.call_context`` is
+    copied into every call's context.
+
+    Args:
+        specs: The ``name -> spec`` mapping to expose, one tool per key. A
+            ``SpecRegistry`` is accepted anywhere the mapping is — the shared
+            declaration site for a project exposing the same specs over more than
+            one transport, so the agent reads the source MCP and the HTTP views
+            read. The registry and ``registry.specs()`` build the same tools:
+            the toolset reads every spec's ``reads`` and its output projection
+            off the compiled spec, which either carries. A filtered
+            view is itself a registry, so several toolsets can be projected from
+            one declaration with no shared state
+            (``SpecToolset(registry.by_tag("read"), id="reads")``). Only the
+            names come from it; everything else here is transport-specific, which
+            the registry deliberately carries none of.
+        id: Identifies this toolset, and keys a wrapping
+            [`SpecCapability`][django_spec_agents.spec_tools.SpecCapability]'s
+            ``defer_loading`` catalog entry — so give each projection of one
+            registry its own.
+        instructions: Replaces the conventions block
+            [`get_instructions`][django_spec_agents.spec_tools.SpecToolset.get_instructions]
+            derives from the specs. ``None`` derives it. What it does **not**
+            replace is the per-step list of operations that are unavailable right
+            now, which is appended after it whenever an operation condition leaves
+            one out of the catalog, unless ``conventions`` sets
+            ``unavailable_heading`` to ``None``, which drops that list with or
+            without an override: the override replaces conventions, and which
+            operations are offered on a given step is state no override written in
+            advance could have described.
+
+            Refused beside a ``conventions=`` that changes a line only the
+            derived block says, because the override would ignore it without a
+            word. The fields that land elsewhere -- ``unavailable_heading``,
+            ``handle_field_description``, ``query_param_on_pages`` and
+            ``missing_arguments`` -- apply with or without it.
+        conventions: The wording the model is told, one line per field -- an
+            [`AgentConventions`][django_spec_agents.spec_tools.AgentConventions].
+            ``None`` is ``AgentConventions()``, the default wording. A field changes
+            what its line says and never whether it appears, which the toolset
+            still decides per step; ``None`` on a field drops its line. Unlike
+            ``instructions=``, an override of one line leaves every other line
+            derived, conditional and current.
+        get_user: Reads the acting identity off the run context. Defaults to
+            ``ctx.deps.user`` (the
+            [`AgentDeps`][django_spec_agents.AgentDeps] shape).
+        get_progress: Reads the run's ``ProgressReporter`` sink off the run
+            context, for a spec that reports progress. Defaults to
+            ``ctx.deps.progress``, tolerating a deps type without the field.
+        unknown_arguments: What to do with a tool arg outside the spec's declared
+            input set — a key the model invented. ``UnknownArguments.REJECT``
+            (the default) surfaces it as a ``ModelRetry`` so the model
+            self-corrects, and ``IGNORE`` drops it. Under either, the key never
+            reaches the callable, which the kernel hands only what its spec
+            declares. A ``filter_set``'s filters are declared names, so a key
+            outside them and the selector's parameters is refused like any
+            other; a selector taking a bare ``**kwargs`` declares no name, so
+            every key sent to it is refused.
+            ``PASSTHROUGH`` raises ``ImproperlyConfigured`` here: a tool call
+            has no channel that carries an undeclared name through to the
+            callable, and the kernel's dispatch refuses it on every call.
+        tool_server_arguments: Values the server supplies for a tool's
+            arguments, and names it keeps from the model, keyed by tool name --
+            a django-service-specs
+            [`ServerArguments`][django_service_specs.types.server_arguments.ServerArguments]
+            per tool. Each name is one the tool's spec declares: a selector or
+            target-lookup parameter, or one of its ``reads``. A name in
+            ``values`` is bound: the call carries the server's value whatever
+            the model sent, it satisfies a ``required`` parameter, and every
+            reader of the call sees it, as one of the call's arguments.
+            A ``withheld`` name is absent, so its declared default, or the
+            callable's own, answers. Neither is advertised: both leave the
+            tool's ``properties`` and ``required``, and the instructions name
+            neither. What the model sends under one is dropped before the call
+            is checked, never refused, and logged at ``WARNING`` with the tool
+            and the names, never the values. Checked when the toolset is built:
+            a name the tool does not expose is refused with ``ValueError``,
+            and a binding ``check_server_arguments`` refuses -- an undeclared
+            name, a seed or provider's name, a withheld name no call could do
+            without, a bound value its parameter refuses -- with
+            ``ImproperlyConfigured`` naming the tool. A seed
+            [`call_seeds`][django_spec_agents.spec_tools.SpecToolset.call_seeds]
+            returns under a bound or withheld read or parameter is refused the
+            same way, at the call, since the mount's check cannot see it
+            (``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``);
+            a Validator field of that name still takes the bound value, and
+            the service parameter the seed.
+            Static, like the tool
+            definitions: build a toolset per scope, as a run scoped to one
+            project builds one with that project bound.
+        max_retries: Each tool's retry budget: how many times a
+            ``ModelRetry`` is fed back to the model before the
+            run aborts with ``UnexpectedModelBehavior``. The default matches
+            pydantic-ai's own function-tool default.
+        max_result_bytes: Ceiling on a rendered result, measured on the encoded
+            payload because what is being protected is the model's context
+            window. Over it the call **fails** with a model-readable
+            ``ToolFailed`` — never truncates, because a partial payload looks
+            complete.
+        tool_max_result_bytes: ``max_result_bytes`` per tool. An explicit
+            ``None`` opts that tool out; an absent key inherits the default.
+        max_page_size: Clamps a list tool's ``limit`` *and* advertises the
+            ceiling as JSON-Schema ``maximum``. It lowers the default page size
+            only when it is below ``DEFAULT_PAGE_SIZE``: an omitted ``limit`` is
+            served ``min(DEFAULT_PAGE_SIZE, max_page_size)``, and that is the
+            default the ``limit`` description and the instructions state. A
+            ceiling above it raises what a call may ask for, not what it gets by
+            asking for nothing. Unset, a list tool still returns at most
+            ``DEFAULT_PAGE_SIZE`` rows per page — the unbounded read is the one
+            that hurts, and it is what a model produces by not thinking about
+            pagination.
+        include_total: Adds ``total``, how many rows the list matched across
+            every page, to each list tool's page beside ``totalPages`` and
+            ``hasNext``, and advertises it in the tool's return schema and its
+            ``limit`` description, and in what ``{envelope}`` renders: the
+            pagination line of the derived instructions, the sentence on each
+            read-shaping parameter and its render retry. Off by default. It
+            costs no query: the count is the one taken before the slice. The
+            flag is toolset-wide, and what is advertised follows it rather
+            than any ``shape_page`` override. A project that wants ``total`` on
+            some tools only leaves it off and has an override return a counting page for those
+            tools, so nothing advertised claims a key a page lacks; turning it
+            on and dropping ``total`` from some tools would.
+        thread_sensitive: Whether every dispatch shares one thread. ``True``
+            (the default, and asgiref's) is what keeps Django's thread-local
+            database connections coherent, and is why it is not flipped for you.
+
+            **The cost is that concurrent tool calls serialise, process-wide.**
+            asgiref's ``single_thread_executor`` is a *class* attribute, so it is
+            one thread shared by every toolset instance and every concurrent run
+            in the process -- not one per toolset. Pydantic-AI genuinely runs
+            function tools in parallel within a segment, so four 0.30s calls
+            under one model step take ~1.2s rather than ~0.3s. That is invisible
+            in a chat turn calling one tool and severe in a fan-out.
+
+            Set ``False`` only when you know the dispatched work is safe off the
+            main thread -- typically because each call opens and closes its own
+            connection, or you pass an ``executor`` you control.
+        executor: A ``ThreadPoolExecutor`` to run dispatch on, instead of
+            asgiref's shared single thread. Only consulted when
+            ``thread_sensitive`` is ``False``, which is asgiref's own rule.
+        dispatch_timeout: Seconds bounding one call, so the model gets an answer
+            instead of a hang. It does not *stop* the work: the dispatch runs in
+            a ``sync_to_async`` thread and asyncio cannot interrupt a thread
+            parked in a database driver's socket read, so the query runs to
+            completion regardless. Pair it with a database statement timeout.
+        require_permissions: Refuse to construct a toolset containing a spec
+            declaring no permissions, whose ``permissions`` compiles to
+            ``None``. Over HTTP that may mean *inherit* from a view; here
+            there is nothing to inherit from, so it means
+            *ungated*. An empty list is a declaration that anyone may call, and
+            is neither refused nor warned about. ``False``
+            downgrades the refusal to an ``UnguardedSpecWarning`` while
+            migrating.
+        descriptions: Overrides ``spec.description`` per tool — the docstring an
+            API developer reads is rarely the sentence a model needs. A tool left
+            with no description anywhere gets an ``UndescribedToolWarning``.
+        exception_map: Maps an exception type to a handler returning the tool's
+            result (or raising ``ModelRetry``). Matched along
+            the MRO, most specific first, and consulted **before** the built-in
+            arms, so a project can override those too.
+        pool_seeds: The project's own always-available pool seeds -- a
+            [`PoolSeeds`][django_service_specs.PoolSeeds]
+            registry of names such as a tenant, a locale or a clock, which over
+            HTTP hang off ``request`` and off it have no channel. Handed to every
+            dispatch this toolset makes, so a service, a selector or an
+            affordance's condition declaring one receives it as it would from
+            the kernel's ``dispatch(pool_seeds=)`` called directly; and to the
+            per-step check that leaves out an operation whose condition is
+            unmet, so the catalog and the instructions are decided against the
+            same seeds the call is refused with. A registered name is also
+            reserved: the model cannot supply it where the seed fills a
+            parameter, so an argument of that name is dropped where the spec
+            declares such a parameter and refused as unknown under ``REJECT``
+            where the spec declares the name nowhere, no tool's input schema
+            advertises it, and a read the spec declares under it, in any seat,
+            is refused here with ``ImproperlyConfigured``. A Validator field
+            of the name is the one exception, and the model's to send:
+            it is validated into ``data``, while the service's parameter of the
+            name still receives the seed's value. Toolset-wide, with no
+            per-tool or per-call form: a seed is ambient to the deployment, and
+            what varies per call belongs in its resolver, which declares
+            ``user`` / ``request`` to receive them.
+
+    Raises:
+        ImproperlyConfigured: ``unknown_arguments`` is neither ``REJECT`` nor
+            ``IGNORE``, a spec declares no permissions and
+            ``require_permissions`` is set, a spec reads a registered pool seed's
+            name, a ``many`` spec's list is named after a registered pool seed or
+            ``request`` / ``view``, a selector takes a parameter that a list tool's ``page`` /
+            ``limit`` takes out of the call before it runs (a spec's own
+            read of an input's name is not one: it is where the input comes
+            from, and is served as the input), a shape takes the
+            name ``page``, ``limit`` or ``ordering``,
+            ``tool_server_arguments`` names something django-service-specs'
+            ``check_server_arguments`` refuses for the tool's spec,
+            ``instructions=`` is given beside a
+            ``conventions=`` that changes a line of the block it replaces, a
+            spec's Validator names a required field no call can send, or the
+            kernel or a spec's own library refuses a spec while the toolset
+            compiles it, reads its input schema or projects its output -- a
+            malformed ``metadata["json_schema"]`` fragment, or two output
+            fields marked ``FieldMarking.label()``. The refusing message is
+            prefixed ``SpecToolset tool '<name>': ``.
+        TypeError: A value in ``specs`` is not one ``kernel_spec`` compiles
+            -- a registry's entry rather than its spec, say, or a declaration
+            of several specs, whose variants each take their own name. The
+            kernel's message, prefixed with the tool's name.
+        ValueError: A tool name is outside ``^[a-zA-Z0-9_-]{1,64}$``, or a
+            per-tool mapping, ``tool_server_arguments`` included, names a tool
+            this toolset does not expose.
+    """
 
     def __init__(
         self,
@@ -367,7 +677,15 @@ class SpecToolset(AbstractToolset[Any]):
 
     @property
     def specs(self) -> Mapping[str, Spec]:
-        """The resolved ``name -> spec`` mapping this toolset exposes."""
+        """The resolved ``name -> spec`` mapping this toolset exposes.
+
+        The synchronous answer to "what tools are these?", for a caller composing
+        this toolset at configuration time — a name-dedup pass, a tool catalog —
+        with no run in sight, since ``get_tools`` is ``async`` and needs a
+        ``RunContext``. Read-only (a ``MappingProxyType``), so enumerating it
+        cannot add a tool that skipped the constructor's permission and
+        description checks.
+        """
         return MappingProxyType(self._specs)
 
     def _server_names(self, name: str) -> frozenset[str]:
@@ -380,7 +698,59 @@ class SpecToolset(AbstractToolset[Any]):
         return self._tool_shapes[name] - self._server_names(name)
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
-        """The tool catalog this run is offered, one entry per listed spec."""
+        """The tool catalog this run is offered, one entry per listed spec.
+
+        **The catalog is not permission-filtered, by design.** Every tool is
+        advertised to every run and the spec's ``permissions`` gate the *call*: a
+        denied tool is one the model can see and cannot use. Filtering by
+        default would be worse in three ways — a permission whose answer depends
+        on the arguments has none to read at listing time and would deny a tool
+        the caller can in fact invoke; ``get_tools`` runs once per model step, so
+        a DB-backed check becomes a query per spec per step; and a tool the model
+        never sees is one it cannot ask about, which is how a run ends in a
+        guess instead of a denial. Nothing row-level is exposed either way — a
+        listing carries a name, a description and an input schema.
+
+        **An operation whose condition is unmet right now is left out, and that is
+        not the same decision.** A spec's ``Affordance`` answered without a row --
+        a callable ``when``, "the books are open" -- is asked each step, and a
+        tool it fails is omitted until it holds again. Each of the three
+        arguments above has an answer here. Such a condition reads only the
+        seeds -- the user, the request, a registered seed -- and never an
+        argument, so it cannot hide a tool the caller could in fact invoke:
+        whatever the model would send, the call would be refused. Only the specs
+        declaring one are asked, so a toolset that declares none pays nothing,
+        not even a thread hop. And the model can still ask about what it cannot
+        see, because
+        [`get_instructions`][django_spec_agents.spec_tools.SpecToolset.get_instructions]
+        names every tool left out this way together with its reason, which is
+        what it needs to tell the user why rather than guess.
+
+        A condition on the row (an ORM expression) is never asked here: there is
+        no row at listing time, and it goes on being answered per object at the
+        call. A condition that raises aborts the step, as it would the call --
+        one that cannot be answered is not a ``no``.
+
+        **The omission is applied beside ``is_tool_listed``, not inside it**, so
+        an override of that seam -- which is free to return ``True`` -- cannot
+        switch it off by not calling ``super()``. Neither is an authorization
+        decision: the call enforces every affordance whatever this listed, and a
+        model calling a name left out gets pydantic-ai's unknown-tool retry.
+
+        This and ``get_instructions`` each ask the conditions for themselves,
+        once per step apiece, rather than sharing one answer. The run context
+        carries no key that could safely scope a shared answer to one run and one
+        step: ``run_id`` may be supplied by the caller and is reused when a
+        failed run is retried under it, and a context built by hand has none.
+        A memo keyed on it could hand one run's -- one user's -- answer to
+        another, where asking twice costs a second evaluation of conditions that
+        read only seeds. The price is that a condition flipping between the two
+        reads can leave one step's catalog and its instructions disagreeing
+        about one tool; the call's own enforcement is authoritative either way.
+
+        Override [`is_tool_listed`][django_spec_agents.spec_tools.SpecToolset.is_tool_listed]
+        when a deployment does want a narrower catalog.
+        """
         unavailable = await self._unavailable_operations(ctx)
         return {
             name: ToolsetTool(
@@ -394,12 +764,67 @@ class SpecToolset(AbstractToolset[Any]):
         }
 
     async def is_tool_listed(self, name: str, ctx: RunContext[Any]) -> bool:
-        """Whether ``name`` belongs in this run's catalog."""
+        """Whether ``name`` belongs in this run's catalog. ``True`` by default.
+
+        The seam for a deployment that wants a per-run catalog — hiding a
+        staff-only tool from a non-staff run, or scoping the catalog to a
+        tenant read off ``ctx.deps``. Hiding a tool is a *disclosure* decision,
+        never an authorization one: the call is gated by
+        ``spec.permissions`` whatever this returns, so an override that
+        wrongly returns ``True`` grants nothing.
+
+        Not consulted for a tool an unmet operation condition already left out
+        of this step's catalog, and returning ``True`` does not put one back:
+        that omission is applied by ``get_tools`` itself, so an override need
+        not call ``super()`` to keep it.
+
+        ``async`` because ``get_tools`` is, and it is called once per tool per
+        model step. An override that queries the database must wrap that work in
+        ``asgiref.sync.sync_to_async`` — Django refuses ORM access on the event
+        loop, exactly as ``call_tool`` has to for dispatch.
+        """
         del name, ctx
         return True
 
     async def get_instructions(self, ctx: RunContext[Any]) -> str | None:
-        """Teach the model this toolset's conventions."""
+        """Teach the model this toolset's conventions.
+
+        The per-tool descriptions and parameter schemas say what each tool *is*,
+        but not how the family behaves: that list tools accept ``page`` /
+        ``limit`` / ``ordering``, that a business failure comes back as a readable
+        failed result (a final answer, not a reason to retry) while a
+        bad argument comes back as a retry request, and that a permission error
+        is final. Pydantic-AI appends the block to the system prompt each turn,
+        for a toolset attached directly *or* wrapped by a capability.
+
+        **Per step, when an operation condition leaves a tool out.** The block is
+        then derived from the tools this step offers, so no line advises about
+        one it does not, and it ends by naming each tool left out with its
+        ``reason``: the model sees neither the tool nor, otherwise, any sign it
+        exists, and a user asking for it would get a guess where a sentence was
+        available. The conditions are asked here and in ``get_tools``
+        separately -- see that method for why, and for what it costs. With an
+        ``instructions`` override, the override stands in for the derived block
+        and the unavailable tools are still appended after it, because an
+        override replaces the conventions and cannot have described which
+        operations a given step would lack. ``unavailable_heading=None`` in the
+        ``conventions`` drops that list either way, override or not.
+
+        A toolset declaring no such condition is untouched by any of this: it
+        asks nothing, and returns the same string every step.
+
+        Each line is worded by the toolset's ``conventions``, which change what a
+        line says and never whether it appears.
+
+        Returns:
+            The ``instructions`` override when one was given, else a block
+            derived from the specs — each line conditional on something in this
+            toolset being able to act on it, so the prompt carries no advice that
+            cannot fire — followed in either case by the operations unavailable
+            this step, when there are any and ``unavailable_heading`` is not
+            ``None``. ``None`` when ``conventions`` dropped
+            every line that would have been said and nothing is unavailable.
+        """
         unavailable = await self._unavailable_operations(ctx)
         block: str | None
         if self._instructions_override is not None:
@@ -521,14 +946,76 @@ class SpecToolset(AbstractToolset[Any]):
     def call_seeds(
         self, *, ctx: RunContext[Any], tool_name: str
     ) -> Mapping[str, Callable[..., Any]]:
-        """The seeds one call registers beside the mount's ``pool_seeds``, by name."""
+        """The seeds one call registers beside the mount's ``pool_seeds``, by name.
+
+        Each value is a resolver, as for
+        [`PoolSeeds`][django_service_specs.PoolSeeds]' ``extend``: called once
+        per call, with whatever it declares of the kernel's base pool
+        (``user``, ``progress``). The default returns none. Override it for a
+        value that depends on the run or on the tool being called, which
+        ``pool_seeds=``, toolset-wide, cannot carry: a tenant read off
+        ``ctx.deps``, or the role a permission check reads for this operation.
+
+        **Called in the dispatch thread, before the call's arguments are
+        checked**, so a name a seed fills is never asked of the model
+        (``test_a_seed_the_hook_returns_reaches_the_call_and_is_not_asked_of_the_model``),
+        and once per conditioned tool when the catalog is listed, so a condition
+        reading a seed it returns is asked with the tool's own
+        (``test_a_listing_asks_each_condition_with_its_own_tool_s_seeds``).
+
+        **A read or parameter ``tool_server_arguments`` binds or withholds for
+        the tool is refused too**, with ``ImproperlyConfigured`` naming the tool,
+        as the same seed on the mount's ``pool_seeds`` is when the toolset is
+        built. A configuration error rather than a retry: the model cannot act
+        on it, and the seed would otherwise win over the server's value without
+        a trace
+        (``test_a_call_seed_under_a_bound_or_withheld_name_is_refused_at_the_call``).
+        A bound Validator field of the same name is not a read: it takes the
+        bound value and the service parameter the seed, as on the mount
+        (``test_a_bound_validator_field_and_a_call_seed_of_the_same_name_both_reach_the_call``).
+
+        A name the mount's ``pool_seeds`` registers already is refused with
+        ``ValueError`` at the call, as ``PoolSeeds.extend`` refuses one
+        registered twice
+        (``test_a_hook_seed_the_mount_already_registers_is_refused``). Returning
+        ``request`` or ``view`` replaces the one the call carries, which is
+        otherwise the run's ``call_context`` entry of that name, ``None`` where
+        the run put none: a ``view`` returned here is what a permission check
+        or a presenter declaring ``view`` reads.
+
+        **A name a seed fills has to be declared.** A selector parameter only a
+        seed fills is, to the tool's schema, a parameter without a default like
+        any other, so it is advertised as required. Leave it out of the
+        spec's reads, as a library compiling a spec does for a parameter it
+        marks as no client input: the name is left out of the schema, so the
+        model is never asked for it, and the seed fills it. Under the default
+        ``unknown_arguments`` a call that
+        sends it anyway is handed back as an unexpected argument
+        (``test_a_marked_name_sent_to_an_open_selector_is_refused``).
+        ``test_a_name_a_call_seeds_override_fills_is_kept_from_the_model`` holds
+        the marker, and
+        ``test_a_name_a_call_seeds_override_fills_is_declared_to_the_toolset``
+        a seed the mount registers instead.
+        """
         del ctx, tool_name
         return {}
 
     def translate_exception(
         self, exc: BaseException, *, ctx: RunContext[Any]
     ) -> ExceptionHandler | None:
-        """Return a handler for ``exc``, or ``None`` to leave it to the defaults."""
+        """Return a handler for ``exc``, or ``None`` to leave it to the defaults.
+
+        The default consults ``exception_map`` by walking the exception's MRO,
+        so a handler registered for a base class catches its subclasses and the
+        **most specific** registration wins. Override for a decision the map
+        cannot express — one that has to read the run's deps.
+
+        This runs ahead of every built-in arm, so it is also where a program reads
+        a refusal's code: an ``ActionUnavailable`` arrives here with ``.code``
+        intact, before the default renders it into the sentence
+        ``<reason> (code: <code>)``. A handler returned for it replaces that
+        sentence along with everything else the default would have done.
+        """
         del ctx
         for klass in type(exc).__mro__:
             handler = self._exception_map.get(cast(type[BaseException], klass))
@@ -547,7 +1034,30 @@ class SpecToolset(AbstractToolset[Any]):
         limit: int | None,
         max_page_size: int | None,
     ) -> OutputPage:
-        """Slice a list selector's rows into the page this call serves."""
+        """Slice a list selector's rows into the page this call serves.
+
+        Called only for list selectors -- the specs that advertise pagination
+        arguments and return something sliceable. The default is the kernel's
+        shared ``paginate_output`` (which counts the rows and clamps both bounds)
+        followed by forcing evaluation, so nothing downstream holds a lazy
+        queryset.
+
+        **No sorting happens here, and an override should not add any.** Ordering
+        belongs to whatever the spec declared it on, which has already applied it
+        to the queryset by the time this runs; an ``order_by`` here would replace
+        that sort rather than compose with it.
+
+        **``include_total`` decides the page here**: on, the page returned
+        writes ``total`` into its envelope. The return schema, the ``limit``
+        description and the ``{envelope}`` the conventions render follow the
+        flag too, but they are written at construction, so an override changes
+        the payload and never what is advertised. An
+        override that builds a page of its own carries what that page's
+        ``envelope`` writes: that is how a project with the flag off adds
+        ``total``, or figures of its own, on the tools it chooses
+        (``ctx.tool_name`` names the call's). Under the flag, an override should
+        keep ``total`` on every page, since every tool advertises it.
+        """
         del ctx
         shaped = _shape_list(rows, page=page, limit=limit, max_page_size=max_page_size)
         if not self._include_total:
@@ -564,14 +1074,60 @@ class SpecToolset(AbstractToolset[Any]):
         ctx: RunContext[Any],
         projection: AudienceProjection | None,
     ) -> Any:
-        """Turn a dispatch result into the payload the model reads."""
+        """Turn a dispatch result into the payload the model reads.
+
+        ``result`` is the kernel's
+        [`DispatchResult`][django_service_specs.DispatchResult]: for a paged
+        tool, with the page's rows as its ``value``, and the envelope is added
+        after this returns. The default is the kernel's
+        ``present_for_audience``: the spec's presenter, handed each value with
+        the call's ``PresentationContext`` -- its seeds, its context and the
+        read-shaping arguments the caller sent, on ``shapes`` -- then the
+        output's audience markings, using the projection this toolset resolved
+        once at registration. ``result.instance`` (the pre-mutation target),
+        ``result.data`` (the validated input) and ``result.service_result``
+        (the flags an upsert's ``created`` rides on) are here for an override
+        that wants them.
+
+        **This is the opt-out of projecting**, and the only one. Passing
+        ``projection=None`` is not it -- ``present_for_audience`` reads ``None``
+        as "derive one from the spec", so the payload is projected anyway. An
+        override that wants the unprojected payload calls the kernel's
+        ``present(spec, result)`` directly.
+
+        Two cases want that. A **chaining pipeline** feeding one spec's output
+        into the next needs the handles the next step reads by, and the kernel
+        says so in ``present_for_audience``'s own docstring: project them away
+        and the next step has nothing to key on. And an output field declaring
+        ``choices`` whose display differs from its value is projected
+        **without any marking being declared** -- ``choice_labels`` is derived
+        from the field itself -- so "we marked nothing, so nothing is
+        projected" is not true, and an override is how a project that means it
+        says so.
+        """
         del ctx
         return present_for_audience(spec, result, projection=projection)
 
     def enforce_result_bytes(
         self, payload: Any, *, ctx: RunContext[Any], max_bytes: int | None, label: str
     ) -> Any:
-        """Return ``payload``, or raise a model-readable refusal when it is over budget."""
+        """Return ``payload``, or raise a model-readable refusal when it is over budget.
+
+        Measured on the envelope, because the envelope is what is sent. Override to
+        bound on something other than serialized length -- a row count, a per-run
+        running total read off ``ctx.usage``, a taper against ``ctx.usage_limits``
+        as a run gets long -- or to shape the refusal differently.
+
+        **The default raises ``ToolFailed``**; an override is free to return a
+        value instead, and that value becomes the tool's result marked
+        ``outcome="success"``. An override delegating to ``super()`` sees the
+        refusal as an exception, not as a returned value.
+
+        ``ctx`` is not merely passed through to an override here: the default
+        reads this run's correlation fields off it and stamps them on the
+        ``WARNING`` a fired bound emits, which is the one line saying why a
+        result the model expected came back as a refusal.
+        """
         return _enforce_result_bytes(
             payload, max_bytes=max_bytes, label=label, extra=_run_extra(ctx)
         )

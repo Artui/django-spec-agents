@@ -1,3 +1,35 @@
+"""Test doubles for driving a toolset through a real ``Agent`` run loop.
+
+Asserting on ``call_tool`` directly answers *does the tool work*. It does not
+answer the questions that only the run loop can: that the tools execute
+in-process rather than being deferred to the client, that a ``ModelRetry``
+is fed back for another attempt instead of aborting, that the toolset's
+``get_instructions`` actually reaches the model. Those need an ``Agent``, and an
+``Agent`` needs a model.
+
+``FunctionModel`` is the model with no provider and no network behind it, and
+the recipes here are the ones a consumer wanting the same coverage would
+otherwise re-derive from the pydantic-ai docs.
+
+**Test doubles, not fixtures.** Nothing here touches Django, the database or
+``pytest``, so it composes with whatever a project already uses.
+
+**Pydantic-AI is the only thing it imports**, which is why it sits at the
+package's top level rather than under ``spec_tools``: a host-only install, with
+no ``[specs]`` extra and no Django REST Framework, can drive its own agents with
+these doubles. The package root never imports it.
+
+```python
+from pydantic_ai import Agent
+from django_spec_agents import AgentDeps
+from django_spec_agents.spec_tools import SpecToolset
+from django_spec_agents.testing import tool_calling_model
+
+agent = Agent(tool_calling_model("list_widgets"), deps_type=AgentDeps, toolsets=[toolset])
+result = await agent.run("go", deps=AgentDeps(user=user))
+```
+"""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping
@@ -14,7 +46,29 @@ def tool_calling_model(
     retry_args: Mapping[str, Any] | None = None,
     final_text: str = "done",
 ) -> FunctionModel:
-    """A model that calls one tool, optionally corrects itself once, then stops."""
+    """A model that calls one tool, optionally corrects itself once, then stops.
+
+    Args:
+        tool_name: The tool to call. It must be one the toolset advertises --
+            an unknown name is a retry from the tool manager, not a failure the
+            model sees, so the run would loop.
+        args: The arguments for the first call.
+        retry_args: The arguments for the second call, used only if the first
+            raised ``ModelRetry``. Defaults to ``args``, which makes the model
+            repeat itself -- fine for asserting the retry *reached* it, and
+            wrong for asserting recovery, since a spec that rejected those
+            arguments once will reject them again and the run will not settle.
+        final_text: The output once a tool call has returned.
+
+    Returns:
+        A ``FunctionModel``: no provider, no network, no key.
+
+    The branch order matters and is not arbitrary. A retry is checked
+    **before** a tool return, because from pydantic-ai 2.60 a retried call *is*
+    a tool return, marked ``outcome="retried"``, and the tool-return arm would
+    end the run on the failed attempt. Below 2.60 the retry is a separate
+    ``retry-prompt`` part, and both shapes are read.
+    """
 
     def model_fn(messages: Any, info: Any) -> ModelResponse:
         return _next_response(messages, tool_name, args, retry_args, final_text)
@@ -53,7 +107,31 @@ def streaming_tool_calling_model(
     retry_args: Mapping[str, Any] | None = None,
     final_text: str = "done",
 ) -> FunctionModel:
-    """`tool_calling_model`, for a transport that streams."""
+    """`tool_calling_model`, for a transport that streams.
+
+    The arguments and the behaviour are that function's; the difference is that
+    this one supplies ``stream_function`` as well, and it exists because a
+    ``FunctionModel`` built with ``function=`` alone cannot serve a streamed
+    request at all -- it raises ``FunctionModel must receive a
+    `stream_function` to support streamed requests``.
+
+    That matters more than a missing convenience. AG-UI *always* streams, so a
+    consumer reaching for the double next door to test what its browser
+    receives gets a run that dies before the toolset is touched -- and the
+    transport redacts the reason, so what reaches the client is "The run
+    failed", naming nothing.
+
+    Both functions are supplied, which ``FunctionModel`` allows: the same double
+    then serves a streamed run and a non-streamed one, so a test does not have to
+    know which the transport under it chose.
+
+    ```python
+    from django_spec_agents.testing import streaming_tool_calling_model
+
+    # An AG-UI endpoint, driven end to end.
+    agent = Agent(streaming_tool_calling_model("refund_order", {"reference": "ENC-1"}))
+    ```
+    """
 
     def model_fn(messages: Any, info: Any) -> ModelResponse:
         return _next_response(messages, tool_name, args, retry_args, final_text)
@@ -73,7 +151,27 @@ def streaming_tool_calling_model(
 def instruction_capturing_model(
     captured: dict[str, Any], *, final_text: str = "done"
 ) -> FunctionModel:
-    """A model that records the instructions it was given and calls nothing."""
+    """A model that records the instructions it was given and calls nothing.
+
+    Writes ``captured["instructions"]`` on every request, so the last value is
+    what the final request carried.
+
+    The caller owns the dict rather than getting one back with the model,
+    because the assertion happens after ``agent.run`` returns and a tuple return
+    reads worse at every call site than a name that is already in scope:
+
+    ```python
+    captured: dict[str, Any] = {}
+    agent = Agent(instruction_capturing_model(captured), toolsets=[toolset])
+    await agent.run("go", deps=deps)
+    assert "Sort with" in captured["instructions"]
+    ```
+
+    A toolset's ``get_instructions`` is collected by pydantic-ai rather than by
+    anything here, so this is the only way to assert the conventions a
+    ``SpecToolset`` contributes actually arrive -- and they arrive on the
+    request, not on the toolset.
+    """
 
     def model_fn(messages: Any, info: Any) -> ModelResponse:
         captured["instructions"] = messages[-1].instructions
