@@ -35,7 +35,61 @@ _DEFAULT_MAX_TOTAL_CHARS = 262_144
 
 
 class DefaultMemoryStore:
-    """A durable, owner-scoped ``MemoryStore`` over the reference models."""
+    """A durable, owner-scoped ``MemoryStore`` over the reference models.
+
+    The database equivalent of the harness's own ``SqliteMemoryStore`` /
+    ``FileStore``. It structurally satisfies ``pydantic-ai-harness``'s
+    ``MemoryStore`` protocol — that protocol is upstream's, not this package's —
+    while partitioning every row by the resolved owner, so one user's memory can
+    never be read or overwritten by another even when the namespace handed to the
+    capability is wrong. Attach it with::
+
+        Memory(DefaultMemoryStore(request), namespace=lambda ctx: memory_namespace(request))
+
+    **Built per request**, like ``DefaultStepStore`` and for the same reason: the
+    protocol's methods carry no request, so it is bound at construction. Owner
+    resolution runs inside each ``sync_to_async`` hop, because it may create a
+    session row for the anonymous bucket and must stay off the event loop.
+
+    **The path's namespace is not trusted as the boundary.** The harness composes
+    the key as ``<namespace>/<agent_name>/<file>.md`` from a resolver the host
+    supplies, and a ``/`` inside a resolved namespace is *accepted* — it simply
+    opens further path segments. So a resolver reading anything user-controlled
+    could otherwise address another scope. Filtering every query on the
+    server-resolved ``owner_id`` makes that harmless, and
+    [`memory_namespace`][django_spec_agents.memory_namespace] keeps the
+    namespace valid in the first place.
+
+    **Stored content cannot close the fence it is injected inside.** The harness
+    wraps injected memory in ``<memory>`` markers and is explicit in its own
+    README that this "is not a hard prompt-injection boundary"; below harness
+    0.60, which escapes the tag itself, a note containing the closing tag ends
+    the block early and everything after it
+    reads as the user's own turn, durably, on every future run. Every write here
+    escapes the angle brackets of both tags, so the stored bytes are safe for
+    *every* consumer — the injection, ``read_memory``, ``search_memory`` and an
+    app-side read alike. Doing it on write rather than read is also what keeps
+    ``write_memory``'s ``old_text`` replacement working: the model edits against
+    the same escaped text it was shown.
+
+    **A per-owner ceiling, which the capability does not have.** Its
+    ``max_memory_size`` bounds one file and its injection budget bounds what is
+    *read*; nothing upstream caps how many files a namespace accumulates or how
+    large they grow in total. ``max_files`` and ``max_total_chars`` do, at the
+    write.
+
+    **An anonymous request degrades rather than crashing.** With no owner and
+    ``allow_anonymous`` off, every write no-ops and every read returns empty: the
+    capability's hooks fire mid-run, so refusing by raising would abort the run,
+    and an anonymous visitor has no durable identity worth remembering under.
+    Note the asymmetry with the other stores — the memory tools are *model-facing*,
+    so a no-op write still reports success to the model. Pair the store with an
+    authenticated mount for memory to persist.
+
+    Add ``"django_spec_agents.contrib.store"`` to ``INSTALLED_APPS`` and run
+    ``migrate`` for the backing tables. Requires the
+    ``django-spec-agents[harness]`` extra.
+    """
 
     def __init__(
         self,
@@ -92,7 +146,22 @@ class DefaultMemoryStore:
 
     @staticmethod
     def purge(owner_id: str) -> int:
-        """Delete every memory row for one owner, returning how many files went."""
+        """Delete every memory row for one owner, returning how many files went.
+
+        Not part of ``MemoryStore``, and it has to be here because composing the
+        protocol cannot express it: ``list_paths`` then ``delete`` needs the
+        current version of each path, so a purge becomes an unbounded
+        read-then-delete loop that a concurrent ``write_memory`` can lose to.
+        Memory is durable personal data written *about* a user, so an erasure
+        request has to be able to reach it in one statement.
+
+        Deliberately **not** wired to a ``post_delete`` signal on the user model:
+        whether deleting an account erases its memory is a product policy, and a
+        library's job here is to make the operation possible.
+
+        Synchronous — call it from a management command, an admin action, or an
+        async caller through ``sync_to_async``.
+        """
         StoredMemoryOperation.objects.filter(owner_id=owner_id).delete()
         deleted, _ = StoredMemory.objects.filter(owner_id=owner_id).delete()
         return deleted

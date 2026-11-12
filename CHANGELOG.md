@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The API reference's docstrings are restored.** The long docstrings that the
+  comment-budget cut to one line are back on the classes and functions the
+  reference pages render.
+
 ## [0.13.0] — 2026-11-09
 
 The floor on `django-service-specs` rises to 0.31.0, so a minor release. Nothing

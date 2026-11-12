@@ -11,7 +11,37 @@ from django_spec_agents.persistence.utils import resolve_owner_id
 
 
 class ModelConversationStore(ABC):
-    """Abstract base for a model-backed (or any sync) ``ConversationStore``."""
+    """Abstract base for a model-backed (or any sync) ``ConversationStore``.
+
+    Provides the async wrapping and per-request owner scoping; a subclass
+    implements the three abstract *synchronous* row operations (``_fetch`` /
+    ``_store`` / ``_remove``) against its own Django model, and may override
+    ``_list`` / ``_exists`` / ``_rename``. Model-agnostic on purpose — the package
+    ships no concrete model, so it forces no migration and consumers define the
+    fields and the owner relation.
+
+    Each hook receives the resolved ``owner_id`` (the user's id, or
+    ``anon:<session key>`` for an anonymous visitor when ``allow_anonymous`` is
+    on; otherwise the request is refused before the hook runs) and **must**
+    filter by it, so threads never cross users.
+
+    ``allow_anonymous`` governs whether anonymous requests are served. ``False``
+    refuses them rather than collapsing every anonymous visitor into one shared
+    owner bucket where they could read and delete each other's data. It is a
+    *store* policy, so two endpoints sharing a store necessarily agree on it.
+    Pass it explicitly: this substrate reads no Django settings.
+
+    Example:
+
+        class MyStore(ModelConversationStore):
+            def _fetch(self, thread_id, owner_id):
+                row = MyConversation.objects.filter(
+                    thread_id=thread_id, owner_id=owner_id,
+                ).first()
+                return None if row is None else Conversation(...)
+            def _store(self, conversation, owner_id): ...
+            def _remove(self, thread_id, owner_id): ...
+    """
 
     # A class-level default, so a subclass that skips super() refuses anonymous requests.
     _allow_anonymous: bool = False

@@ -11,7 +11,14 @@ from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardCon
 
 @dataclass(frozen=True)
 class AgentConfig:
-    """Resolved construction parameters for a Pydantic-AI ``Agent``."""
+    """Resolved construction parameters for a Pydantic-AI ``Agent``.
+
+    Bundles everything [`build_agent`][django_spec_agents.build_agent]
+    needs so the call site passes one record instead of a long keyword list.
+    A transport resolves these from its own configuration and hands the record
+    down; ``toolsets`` and ``capabilities`` arrive already resolved to instances
+    (never dotted paths — this substrate resolves nothing from settings).
+    """
 
     model: Any
     """The Pydantic-AI model (a model string or ``Model`` instance)."""

@@ -10,7 +10,50 @@ from django_spec_agents.persistence.types.conversation_store import Conversation
 
 
 class ScopedConversationStore:
-    """Partition another ``ConversationStore`` by a scope name."""
+    """Partition another
+    [`ConversationStore`][django_spec_agents.ConversationStore] by a scope
+    name.
+
+    Stores key threads by ``(owner_id, thread_id)``. Two AG-UI endpoints sharing
+    one store therefore share one user's thread list: a conversation started at
+    ``/internal/agent`` appears in ``/public/agent``'s history drawer and can be
+    resumed there — under the *public* agent's model, tools and guard policy.
+
+    Wrapping fixes that without a migration:
+
+        internal = AGUIServer(
+            registry,
+            conversation_store=ScopedConversationStore(store, scope="internal"),
+        )
+        public = AGUIServer(
+            registry,
+            conversation_store=ScopedConversationStore(store, scope="public"),
+        )
+
+    The partition is a thread-id prefix, so this composes with any
+    implementation, third-party ones included, where a ``scope`` column would
+    mean a migration and a breaking change to the
+    [`ConversationStore`][django_spec_agents.ConversationStore]
+    protocol every custom store implements.
+
+    **Opt in explicitly.** A transport does not wrap by itself: doing so from its
+    namespace would silently orphan the whole thread history of an existing
+    single-endpoint project the moment it set one.
+
+    The scope is invisible on the wire. Thread ids are echoed back to the client
+    unchanged; only the storage key carries the prefix.
+
+    **``:`` is reserved and a scope containing one is refused.** The prefix is
+    the whole partition, so an ambiguous prefix is an ambiguous partition: with
+    scopes ``admin`` and ``admin:readonly``, the readonly mount's thread keys to
+    ``admin:readonly:t1``, which the admin mount's own prefix filter matches. It
+    would list that thread as ``readonly:t1``, and load, rename and delete would
+    all resolve there — silently, in both directions, since thread ids come from
+    the client. Refused at construction rather than escaped at the key, because
+    escaping would rewrite the storage key of every thread already saved.
+    Scopes that merely share a prefix (``admin`` / ``administrators``) are
+    unaffected: the separator ends the scope.
+    """
 
     def __init__(self, inner: ConversationStore, *, scope: str) -> None:
         if ":" in scope:
@@ -46,7 +89,12 @@ class ScopedConversationStore:
         await self._inner.delete(self._key(thread_id), request=request)
 
     async def list(self, *, request: HttpRequest, limit: int | None = None) -> ConversationMetaList:
-        """This scope's threads only, with storage keys translated back."""
+        """This scope's threads only, with storage keys translated back.
+
+        ``limit`` is applied by the inner store *before* this filter, so a busy
+        sibling scope can crowd out rows. A store needing exact per-scope paging
+        should partition at the query rather than by wrapping.
+        """
         prefix = f"{self._scope}:"
         return [
             dataclasses.replace(meta, thread_id=self._unkey(meta.thread_id))

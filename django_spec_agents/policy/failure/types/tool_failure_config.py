@@ -5,7 +5,25 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ToolFailureConfig:
-    """Resolved policy for what an unhandled tool exception does to a run."""
+    """Resolved policy for what an unhandled tool exception does to a run.
+
+    Tunes the
+    [`ToolFailurePolicy`][django_spec_agents.ToolFailurePolicy]
+    capability. On by default, because without it one raising tool ends the whole
+    run, discarding the answer the model had assembled and every other tool
+    result in the turn.
+
+    The two flags default opposite ways because they answer different questions.
+    Whether the run survives is reliability; whether the exception's text reaches
+    the model is disclosure, since a message can carry a query, a path or a
+    credential, and whatever the model sees also reaches whatever renders the
+    transcript. The policy never redacts the operator's copy, whichever way
+    ``include_detail`` is set: the full exception goes to the audit logger, and
+    to the Python logger whenever the policy converts it. A capability that sorts
+    after audit can still change what audit records; the
+    [`AuditCapability`][django_spec_agents.AuditCapability] states that
+    exception.
+    """
 
     enabled: bool = True
     """Whether the ``ToolFailurePolicy`` capability is composed into the agent.

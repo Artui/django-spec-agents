@@ -140,7 +140,68 @@ def _names_token(message: str, name: str) -> bool:
 
 
 class MCPToolset(AbstractToolset[Any]):
-    """Exposes a django-spec-mcp ``MCPServer``'s tools as a Pydantic-AI toolset."""
+    """Exposes a django-spec-mcp ``MCPServer``'s tools as a Pydantic-AI toolset.
+
+    Built per request, so the agent acts as the request's logged-in user. Both
+    schemas and execution route through django-spec-mcp's public in-process
+    surface (``MCPServer.list_tools`` / ``acall_tool``), so the advertised
+    parameters, the kernel's argument validation and the spec's permissions
+    match the HTTP transport exactly, without the network hop. Tool definitions carry the default
+    ``kind="function"``, the in-process kind the run loop calls itself; an
+    ``external`` tool would instead be deferred to the client and never run.
+
+    **Definitions once, availability every step.** django-spec-mcp leaves a tool
+    out of ``tools/list`` while an operation-scope affordance refuses it, and
+    whether one does can change mid-run — an admin closes the books. So the
+    definitions are listed once, with every tool the user may see, and each step
+    asks django-spec-mcp which of them a fresh listing would leave out
+    (``aunavailable_tools``):
+    those are not offered that step, and the instructions name
+    each with its ``reason``, so a model asked for one can say why rather than
+    guess or deny the operation exists. A server declaring no such condition
+    answers that without leaving the event loop.
+
+    Failures split four ways, along MCP's protocol-vs-tool boundary:
+
+    - JSON-RPC ``-32602`` and tool-level ``validation_error`` and
+      ``input_required`` results raise ``pydantic_ai.ModelRetry``, so the model
+      calls again with the field errors fixed or the missing input supplied,
+      instead of the run dying;
+    - every other tool-level failure (``service_error``, ``not_found``, a
+      timeout, an oversized result) raises ``pydantic_ai.ToolFailed``, so the
+      model reads the sentence and the call is recorded ``outcome="failed"``;
+    - a permission refusing the user (``-32006``) raises Django's
+      ``PermissionDenied``, which ``ToolFailurePolicy`` passes through by
+      default, so the run ends;
+    - every other protocol fault raises ``RuntimeError``: auth, rate limits,
+      and an internal error (``-32603``), which is also the answer to a
+      service asking for an input its spec does not declare in ``reads=``,
+      since no answer to it could reach the service. ``ToolFailurePolicy``
+      converts it to a failed call, so the run goes on.
+
+    Running in process, the server has no client to ask, so a service's
+    ``AdditionalInputRequired`` for inputs its spec declares arrives degraded,
+    as ``input_required``.
+
+    The mapping is the one ``spec_tools`` applies to the same exceptions raised
+    in process, except for a selector's ``AdditionalInputRequired``:
+    django-spec-mcp builds no input round for a selector, so it arrives as a
+    service error and raises ``ToolFailed``, where ``spec_tools`` raises
+    ``ModelRetry``. A refusal reads identically through both:
+    ``The books are closed. (code: books_closed)``.
+
+    Args:
+        server: The django-spec-mcp ``MCPServer`` whose registry is bridged.
+        request: The request carried into every call; its ``user`` is the
+            acting user.
+        exclude_names: Names the ``@tool`` registry has already claimed. A
+            colliding server tool is skipped, so the registry wins — the rule
+            ``build_tool_catalog`` applies — because pydantic-ai raises
+            ``UserError`` for a duplicate name at run time.
+        max_retries: Per-tool retry budget: how many times a ``ModelRetry`` is
+            fed back to the model before the run aborts. The default matches
+            pydantic-ai's own function-tool default.
+    """
 
     def __init__(
         self,
@@ -162,7 +223,15 @@ class MCPToolset(AbstractToolset[Any]):
         return "mcp"
 
     async def get_tools(self, ctx: Any) -> dict[str, ToolsetTool[Any]]:
-        """The tools this step may call: every definition, less the unavailable."""
+        """The tools this step may call: every definition, less the unavailable.
+
+        Definitions come from django-spec-mcp's ``tools/list`` once per toolset, which is
+        once per request. Availability is asked again here every step, because
+        pydantic-ai calls this once per step and a condition may flip between
+        two: offering a tool django-spec-mcp would leave out only invites a refusal, and
+        withholding one that became available hides an operation the model could
+        now perform. The call enforces every condition whatever was offered.
+        """
         if self._tool_defs is None:
             self._tool_defs = await sync_to_async(self._load_tool_defs)()
         unavailable = await self._unavailable_tools()
@@ -178,7 +247,20 @@ class MCPToolset(AbstractToolset[Any]):
         }
 
     async def get_instructions(self, ctx: Any) -> str | None:
-        """Name each tool left out this step, with the reason its condition gives."""
+        """Name each tool left out this step, with the reason its condition gives.
+
+        ``get_tools`` withholds such a tool, so without this the model sees
+        neither it nor any sign it exists, and a user asking for it gets a guess
+        where a sentence was available. ``None`` when nothing is left out, which
+        is every step for a server declaring no operation condition.
+
+        Asked separately from ``get_tools``, as the spec-tools route asks: the
+        run context carries no key that could safely scope one answer to one
+        step, and asking twice costs a second evaluation of conditions that read
+        only seeds. A condition flipping between the two reads can leave one
+        step's tools and instructions disagreeing about a tool; the call's own
+        enforcement is authoritative either way.
+        """
         unavailable = await self._unavailable_tools()
         if not unavailable:
             return None

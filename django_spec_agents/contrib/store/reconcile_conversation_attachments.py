@@ -10,7 +10,28 @@ from django_spec_agents.persistence.utils import message_field
 def reconcile_conversation_attachments(
     conversation: StoredConversation, messages: Iterable[Any]
 ) -> None:
-    """Point ``conversation`` at exactly the attachments its messages quote."""
+    """Point ``conversation`` at exactly the attachments its messages quote.
+
+    The resolver behind attachment lifecycle, needing no wire or client change:
+    the web component already augments each user message with an ``attachments``
+    array of the refs the composer uploaded, and that undeclared field survives
+    into the stored message list. Reading it here turns an id in some JSON into a
+    relation the database can enforce a lifecycle on.
+
+    Reconciled rather than appended, so a message dropped on a re-save drops its
+    reference too and the relation always describes the conversation as it
+    stands.
+
+    **Owner-scoped**, which is the load-bearing part: an id resolves only against
+    the attachments of the conversation's own owner, so a guessed or copied id
+    links nothing — the rule that makes ``AttachmentStore.open`` return ``None``
+    across owners.
+
+    The parse is total. A message that is not a mapping, an ``attachments`` field
+    of the wrong type, an entry with no usable ``id``, an id resolving to an
+    attachment since deleted: all degrade to "no reference" in silence. This runs
+    inside a conversation save, where an exception would lose the user's message.
+    """
     quoted = _quoted_ids(messages)
     conversation.attachments.set(
         StoredAttachment.objects.filter(owner_id=conversation.owner_id, attachment_id__in=quoted)

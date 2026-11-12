@@ -17,7 +17,12 @@ _SESSION_KEY = "django_pydantic_agent_conversations"
 
 
 class DjangoSessionConversationStore:
-    """Conversation persistence in the Django session, needing no migration."""
+    """Conversation persistence in the Django session, needing no migration.
+
+    Conversations are namespaced by ``thread_id`` inside the user's own session,
+    so owner scoping is implicit and durability lasts as long as that browser
+    session. For cross-device or audited persistence, use a model-backed store.
+    """
 
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
         return await sync_to_async(self._load)(thread_id, request)

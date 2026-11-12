@@ -6,7 +6,11 @@ from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 
 
 class LoggingAuditLogger:
-    """Writes audit events to the Python ``logging`` framework."""
+    """Writes audit events to the Python ``logging`` framework.
+
+    Successful invocations log at ``INFO``; failures log at ``WARNING``
+    with the error message included.
+    """
 
     def __init__(self, logger_name: str = "django_pydantic_agent.audit") -> None:
         self._logger = logging.getLogger(logger_name)

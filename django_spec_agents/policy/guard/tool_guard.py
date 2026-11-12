@@ -15,7 +15,58 @@ from django_spec_agents.types.x_destructive_key import X_DESTRUCTIVE_KEY
 
 
 class ToolGuard(AbstractCapability[Any]):
-    """Gates destructive server-side tools behind the AG-UI approval loop."""
+    """Gates destructive server-side tools behind the AG-UI approval loop.
+
+    pydantic-ai supplies the mechanism — a tool whose definition is
+    ``kind="unapproved"`` defers to an interrupt the client approves or denies —
+    and this supplies the policy, flipping a plain ``function`` tool to
+    ``unapproved`` at ``prepare_tools`` time when it is destructive. Server-side
+    tools thereby get the confirmation gate the web component already applies to
+    client-registered ones.
+
+    Destructiveness is read from every vocabulary a toolset might declare it in,
+    so one hook covers every tool the agent sees wherever it came from:
+
+    - **Registry** ``@tool(destructive=True)``, collected at construction: the
+      flag lives on the spec and never reaches pydantic-ai, which sees a bare
+      callable, so the capability reads it directly.
+    - **Bridged MCP tools**, through the
+      [`DESTRUCTIVE_METADATA_KEY`][django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY]
+      the bridge stamps into ``ToolDefinition.metadata``. The bridge marks a tool
+      unless its ``readOnlyHint`` is true or its ``destructiveHint`` is false, as
+      MCP reads the pair, so a mutation registered with
+      ``annotations={"destructiveHint": False}`` is not gated. A tool listed
+      with no ``annotations`` is not marked.
+    - **MCP tool annotations** — ``metadata["annotations"]``, read by the bridge's
+      rule: annotations that say something mark the tool unless ``readOnlyHint``
+      is true or ``destructiveHint`` is false, and a field that is ``None`` is
+      unsaid, as are annotations with nothing said. A toolset that speaks MCP's
+      own vocabulary rather than this package's key declares a mutation this
+      way, ``SpecToolset`` over a ``ServiceSpec`` and a remote MCP server among
+      them. Reading it gates a spec attached in process the way the bridge's key
+      gates the same spec over MCP, so a transport swap cannot silently
+      remove the gate.
+    - **The ``x-destructive`` schema stamp** at the root of
+      ``parameters_json_schema``, which is what
+      [`build_input_schema`][django_spec_agents.build_input_schema] writes,
+      so a project deriving a schema with the package's own helper and
+      attaching the tool through ``toolsets=`` is gated by it too.
+    - **Project overrides**: ``require_approval`` force-gates a name, ``exempt``
+      un-gates one, and ``exempt`` wins.
+
+    A hint has to *say* something. Annotations that say nothing, an absent stamp
+    or metadata of another shape entirely leave the tool alone — silence is not
+    a claim, and ``require_approval`` is the answer for a tool whose source
+    declares nothing. Annotations that say anything are read by MCP's defaults,
+    as the bridge reads them.
+
+    Only ``kind="function"`` tools are flipped — an ``external`` tool is already
+    gated client-side, and an ``output`` tool is not executed.
+
+    The guard touches only ``prepare_tools``, so it is orthogonal to
+    [`AuditCapability`][django_spec_agents.AuditCapability]
+    and audit still records the tool when an approved call finally runs.
+    """
 
     def __init__(self, registry: ToolRegistry, *, config: ToolGuardConfig) -> None:
         self._destructive_names = frozenset(

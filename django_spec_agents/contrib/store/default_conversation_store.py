@@ -18,7 +18,24 @@ from django_spec_agents.persistence.utils import derive_preview, derive_title
 
 
 class DefaultConversationStore(ModelConversationStore):
-    """A ready-to-use model-backed store over ``StoredConversation``."""
+    """A ready-to-use model-backed store over ``StoredConversation``.
+
+    Cross-device, per-user history with a cheap thread list. Add
+    ``"django_spec_agents.contrib.store"`` to ``INSTALLED_APPS``, run
+    ``migrate``, and pass an instance to your transport's
+    ``conversation_store=``. For a bespoke schema, subclass
+    [`ModelConversationStore`][django_spec_agents.ModelConversationStore] instead.
+
+    Every query filters by the ``owner_id`` the base resolves. A title is derived
+    from the first user message at first save and then left alone except by a
+    rename; the preview re-derives on every save.
+
+    Saving also reconciles which attachments the thread refers to, and deleting
+    it drops the ones nothing else refers to, so an attachment's lifetime is tied
+    to the conversations quoting it. An upload that was never sent belongs to no
+    conversation, and the ``agent_store_prune_attachments`` command collects
+    those instead.
+    """
 
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None:
         row = _thread_rows(thread_id, owner_id).first()

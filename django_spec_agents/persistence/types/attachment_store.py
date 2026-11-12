@@ -11,7 +11,29 @@ from django_spec_agents.persistence.types.opened_attachment import OpenedAttachm
 
 @runtime_checkable
 class AttachmentStore(Protocol):
-    """Pluggable server-side storage for files a user attaches to a conversation."""
+    """Pluggable server-side storage for files a user attaches to a conversation.
+
+    Handed to a transport. The package ships
+    [`NullAttachmentStore`][django_spec_agents.NullAttachmentStore] (uploads
+    off) and the abstract
+    [`ModelAttachmentStore`][django_spec_agents.ModelAttachmentStore]; the
+    opt-in ``django_spec_agents.contrib.store`` app adds a ready
+    ``DefaultAttachmentStore`` keeping bytes in Django ``Storage`` and metadata
+    in a row.
+
+    Every method is async and **owner-scoped**: a store filters by the acting
+    user so one user can never read or delete another's files, the security
+    boundary for the whole feature. ``save`` validates nothing about size or type
+    — the view does that from its own config — and just persists the bytes,
+    returning a durable [`AttachmentRef`][django_spec_agents.AttachmentRef].
+    ``open`` returns ``None`` for a missing *or cross-owner* id rather than
+    raising, so a caller maps both to a 404 and the two stay indistinguishable.
+
+    Attachments need no scoped wrapper of the kind conversations have: they are
+    id-referenced with no enumeration and already owner-scoped, so two endpoints
+    sharing a store expose nothing across the user boundary. Thread lists are the
+    case that leaks.
+    """
 
     async def save(self, upload: UploadedFile, *, request: HttpRequest) -> AttachmentRef: ...
     async def open(

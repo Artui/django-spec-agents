@@ -15,14 +15,30 @@ from django_spec_agents.types.schema_strategy import SchemaStrategy
 
 
 class ToolRegistry:
-    """An ordered, named collection of server-side tools."""
+    """An ordered, named collection of server-side tools.
+
+    State lives on the instance — a transport holds one, tests build a fresh one
+    per scenario. Each tool's JSON Schema is derived once at registration, with
+    the tool's own ``ToolSpec.schema_strategy`` when it sets one and the
+    registry's ``schema_strategy`` otherwise (see
+    [`build_input_schema`][django_spec_agents.build_input_schema]), and either
+    sync or async callables can be dispatched.
+
+    The strategy shapes ``ToolBinding.input_schema`` only. The schema the agent
+    offers the model for a registry tool is pydantic-ai's own, whichever is set.
+    """
 
     def __init__(self, *, schema_strategy: SchemaStrategy = SchemaStrategy.HAND_BUILT) -> None:
         self._bindings: dict[str, ToolBinding] = {}
         self._schema_strategy = SchemaStrategy(schema_strategy)
 
     def register(self, spec: ToolSpec) -> ToolBinding:
-        """Register ``spec`` and return its binding."""
+        """Register ``spec`` and return its binding.
+
+        Raises:
+            ValueError: when ``spec.name`` is already registered, or its
+                ``schema_strategy`` is not a ``SchemaStrategy``.
+        """
         if spec.name in self._bindings:
             raise ValueError(f"tool {spec.name!r} already registered")
         strategy = self._schema_strategy if spec.schema_strategy is None else spec.schema_strategy
@@ -57,7 +73,21 @@ class ToolRegistry:
             raise KeyError(f"tool {name!r} is not registered") from e
 
     def call(self, name: str, arguments: dict[str, Any], *, ctx: Any = None) -> Any:
-        """Dispatch a sync call to the registered tool."""
+        """Dispatch a sync call to the registered tool.
+
+        ``arguments`` is the model's payload and nothing else. A tool declaring a
+        leading ``ctx: RunContext[...]`` gets it from ``ctx`` here, the way
+        pydantic-ai would supply it from the run; passing one to a tool that
+        takes none is harmless.
+
+        Refuses coroutine functions to avoid silently returning an
+        un-awaited coroutine. Use
+        [`acall`][django_spec_agents.ToolRegistry.acall] for async tools.
+
+        Raises:
+            TypeError: when the tool is async, or declares a ``RunContext``
+                parameter and no ``ctx`` was given.
+        """
         fn = self.get(name).spec.fn
         if inspect.iscoroutinefunction(fn):
             raise TypeError(
@@ -66,7 +96,11 @@ class ToolRegistry:
         return _invoke(fn, name, arguments, ctx)
 
     async def acall(self, name: str, arguments: dict[str, Any], *, ctx: Any = None) -> Any:
-        """Dispatch an async call; transparently awaits sync callables."""
+        """Dispatch an async call; transparently awaits sync callables.
+
+        ``ctx`` is bound exactly as in
+        [`call`][django_spec_agents.ToolRegistry.call].
+        """
         fn = self.get(name).spec.fn
         if inspect.iscoroutinefunction(fn):
             return await _ainvoke(fn, name, arguments, ctx)
