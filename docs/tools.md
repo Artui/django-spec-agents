@@ -40,7 +40,7 @@ time, so **every parameter and the return need a concrete annotation**. There is
 no `**kwargs: Any` escape hatch: an untyped parameter has no schema, and the
 model would be guessing.
 
-Sync and async callables both work; the registry dispatches either.
+Sync and async callables both work. `ToolRegistry.acall` dispatches either; `ToolRegistry.call` is the sync entry point and raises `TypeError` for an async tool.
 
 ## Metadata, and where it surfaces
 
