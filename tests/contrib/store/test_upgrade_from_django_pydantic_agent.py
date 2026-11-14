@@ -72,7 +72,7 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
 
     assert [table for table in after["tables"] if table.startswith(OLD_LABEL)] == []
     assert len([table for table in after["tables"] if table.startswith(LABEL)]) == 9
-    assert after["recorded"] == [[LABEL, "0001_initial"]]
+    assert after["recorded"] == [[LABEL, "0001_initial"], [LABEL, "0002_text_columns"]]
     # The same rows, moved rather than recreated, so whatever points at them by key still does.
     assert after["content_types"] == before["content_types"]
     assert after["old_content_types"] == 0

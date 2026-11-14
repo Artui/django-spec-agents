@@ -7,8 +7,9 @@ from django.core.files.storage import default_storage
 
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.types.conversation import Conversation
-from tests.contrib.store.rows import stored_attachment
+from tests.contrib.store.rows import at_limit, refusal, stored_attachment, too_long
 
 pytestmark = pytest.mark.django_db
 
@@ -182,3 +183,39 @@ def test_remove_leaves_another_owners_attachments_alone() -> None:
 
     # The id was never resolvable across owners, so it was never referenced.
     assert StoredAttachment.objects.filter(attachment_id="a1").exists()
+
+
+# -- Identifier widths ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("field", ["owner_id", "thread_id"])
+def test_store_refuses_an_id_longer_than_its_column_before_writing(field: str) -> None:
+    value = too_long(StoredConversation, field)
+    conversation = _conv(thread_id=value if field == "thread_id" else "t1")
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredConversation, field)):
+        DefaultConversationStore()._store(conversation, value if field == "owner_id" else "7")
+
+    assert not StoredConversation.objects.exists()
+
+
+def test_store_writes_ids_exactly_as_wide_as_their_columns() -> None:
+    owner = at_limit(StoredConversation, "owner_id")
+    thread = at_limit(StoredConversation, "thread_id")
+
+    DefaultConversationStore()._store(_conv(thread_id=thread), owner)
+
+    assert StoredConversation.objects.filter(owner_id=owner, thread_id=thread).exists()
+
+
+def test_reads_with_an_over_long_id_find_nothing() -> None:
+    store = DefaultConversationStore()
+    store._store(_conv(), "7")
+    thread = too_long(StoredConversation, "thread_id")
+
+    assert store._fetch(thread, "7") is None
+    assert store._exists(thread, "7") is False
+    assert store._list(too_long(StoredConversation, "owner_id"), None) == []
+    store._rename(thread, "Renamed", "7")
+    store._remove(thread, "7")
+    assert StoredConversation.objects.get().title == "book a flight"

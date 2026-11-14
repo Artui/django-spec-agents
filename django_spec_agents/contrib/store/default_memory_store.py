@@ -16,7 +16,7 @@ from pydantic_ai_harness.memory import (
 )
 
 from django_spec_agents.contrib.store.models import StoredMemory, StoredMemoryOperation
-from django_spec_agents.contrib.store.utils import owner_or_none
+from django_spec_agents.contrib.store.utils import check_identifiers, owner_or_none
 
 # The two literal fence tags the harness wraps injected memory in
 # (``memory._capability._MEMORY_DATA_PREFIX`` / ``_SUFFIX``). Matched with
@@ -220,6 +220,7 @@ class DefaultMemoryStore:
         owner = self._owner(path)
         if owner is None:
             return _unpersisted_mutation()
+        _check_mutation_identifiers(owner, operation)
         with transaction.atomic():
             if operation is not None and (replay := self._receipt(owner, operation)) is not None:
                 return replay
@@ -253,6 +254,7 @@ class DefaultMemoryStore:
         owner = self._owner(path)
         if owner is None:
             return MemoryMutation(version=None, replayed=False, existed=False)
+        _check_mutation_identifiers(owner, operation)
         with transaction.atomic():
             if operation is not None and (replay := self._receipt(owner, operation)) is not None:
                 return replay
@@ -309,6 +311,13 @@ def _locked_row(
     if current_version != expected_version:
         raise MemoryConflictError(f"memory path {path!r} changed before it could be {verb}")
     return row
+
+
+def _check_mutation_identifiers(owner: str, operation: MemoryOperation | None) -> None:
+    """Refuse an owner or operation id too long for the memory or receipt row."""
+    operation_id = None if operation is None else operation.id
+    check_identifiers(StoredMemory, owner_id=owner, operation_id=operation_id)
+    check_identifiers(StoredMemoryOperation, owner_id=owner, operation_id=operation_id)
 
 
 def _validate_path(path: str) -> None:

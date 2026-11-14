@@ -13,6 +13,8 @@ from pydantic_ai_harness.memory import (
 
 from django_spec_agents.contrib.store.default_memory_store import DefaultMemoryStore
 from django_spec_agents.contrib.store.models import StoredMemory, StoredMemoryOperation
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
+from tests.contrib.store.rows import at_limit, refusal, too_long
 from tests.request_helpers import anonymous_request, authed_request
 
 # transaction=True: the store writes through ``sync_to_async``, so its ORM calls
@@ -578,3 +580,69 @@ async def test_purge_erases_a_namespace_scoped_owner() -> None:
 
     assert deleted == 1
     assert await store.list_paths("u-8/", limit=10) == ["u-8/main/a.md"]
+
+
+# -- Identifier widths ---------------------------------------------------------
+
+
+async def test_a_write_refuses_an_owner_longer_than_its_column() -> None:
+    store = _store(too_long(StoredMemory, "owner_id"))
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredMemory, "owner_id")):
+        await store.write(_PATH, "note", expected_version=None, operation=_operation())
+
+    assert await StoredMemory.objects.acount() == 0
+    assert await StoredMemoryOperation.objects.acount() == 0
+
+
+async def test_a_write_refuses_an_operation_id_longer_than_its_column() -> None:
+    operation = _operation(too_long(StoredMemoryOperation, "operation_id"))
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredMemory, "operation_id")):
+        await _store().write(_PATH, "note", expected_version=None, operation=operation)
+
+    assert await StoredMemory.objects.acount() == 0
+    assert await StoredMemoryOperation.objects.acount() == 0
+
+
+async def test_a_delete_refuses_an_operation_id_longer_than_its_column() -> None:
+    store = _store()
+    written = await store.write(_PATH, "note", expected_version=None)
+    operation = _operation(too_long(StoredMemoryOperation, "operation_id"))
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredMemory, "operation_id")):
+        await store.delete(_PATH, expected_version=written.version, operation=operation)
+
+    assert await StoredMemory.objects.acount() == 1
+    assert await StoredMemoryOperation.objects.acount() == 0
+
+
+async def test_namespace_mode_refuses_a_first_segment_longer_than_the_owner_column() -> None:
+    path = f"{too_long(StoredMemory, 'owner_id')}/main/MEMORY.md"
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredMemory, "owner_id")):
+        await DefaultMemoryStore().write(path, "note", expected_version=None)
+
+    assert await StoredMemory.objects.acount() == 0
+
+
+async def test_a_write_takes_ids_exactly_as_wide_as_their_columns() -> None:
+    store = _store(at_limit(StoredMemory, "owner_id"))
+    operation = _operation(at_limit(StoredMemoryOperation, "operation_id"))
+
+    await store.write(_PATH, "note", expected_version=None, operation=operation)
+
+    assert await StoredMemory.objects.acount() == 1
+    assert await StoredMemoryOperation.objects.acount() == 1
+
+
+async def test_reads_with_an_over_long_id_find_nothing() -> None:
+    store = _store()
+    await store.write(_PATH, "note", expected_version=None, operation=_operation())
+    path = f"{too_long(StoredMemory, 'owner_id')}/main/MEMORY.md"
+
+    assert await DefaultMemoryStore().read(path, max_chars=100) is None
+    assert await DefaultMemoryStore().list_paths(path, limit=10) == []
+    long_operation = _operation(too_long(StoredMemoryOperation, "operation_id"))
+    assert await store.get_operation(long_operation) is None
+    assert await _store(too_long(StoredMemory, "owner_id")).read(_PATH, max_chars=100) is None

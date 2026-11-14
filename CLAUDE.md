@@ -48,7 +48,7 @@ The host was published as `django-pydantic-agent` and `spec_tools` as
 | `policy/` | `audit/`, `guard/` and `failure/`: the capabilities composed around every tool call |
 | `persistence/` | the store protocols, the session, model, scoped and null stores, and the memory namespaces |
 | `integrations/` | the `[mcp]` bridge (`mcp.py`, with the wording it teaches the model), `build_spec_capability` and `resolve_spec_mapping` |
-| `contrib/store/` | the opt-in store app: models, the one migration, reference stores, management commands |
+| `contrib/store/` | the opt-in store app: models, its migrations, reference stores, management commands |
 | `types/` | the package-wide enums and constants, one per file |
 | `spec_tools/` | the tool half, with its own `types/` |
 | `testing.py`, `utils.py`, `version.py` | the test doubles, the request and authorization helpers, the version |
@@ -94,9 +94,10 @@ neither old package, nor djangorestframework-mcp-server.
 
 `django_spec_agents.contrib.store`, label **`django_spec_agents_store`**: its
 tables are `django_spec_agents_store_<model>` and its named constraints and
-indexes are named after the package. One migration, `0001_initial`, creates the
-schema on a fresh database and renames one migrated through
-`django-pydantic-agent`'s store in place;
+indexes are named after the package. Its first migration, `0001_initial`, creates
+the schema on a fresh database and renames one migrated through
+`django-pydantic-agent`'s store in place, and `0002_text_columns` lifts the
+descriptive columns to `TextField`;
 `tests/contrib/store/test_upgrade_from_django_pydantic_agent.py` holds the
 upgrade, on SQLite in the suite and on PostgreSQL in its own CI job. Never add a
 second migration that re-derives names from the old label.
