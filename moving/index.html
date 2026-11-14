@@ -1533,9 +1533,10 @@ imported from the root:</p>
 </span></code></pre></div>
 </li>
 <li>
-<p>Run <code>migrate</code> once. The app's label is <code>django_spec_agents_store</code>, and its one
+<p>Run <code>migrate</code> once. The app's label is <code>django_spec_agents_store</code>, and its first
    migration, <code>0001_initial</code>, renames the tables, their named constraints and
-   indexes, the content types and the migration records. Nothing is copied.</p>
+   indexes, the content types and the migration records. Nothing is copied. The
+   second, <code>0002_text_columns</code>, then lifts the descriptive columns to <code>TextField</code>.</p>
 </li>
 </ol>
 <p>What the rename touches, what it leaves under the old names on PostgreSQL and

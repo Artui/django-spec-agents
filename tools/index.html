@@ -1311,7 +1311,7 @@ tests build a fresh one per scenario. There is no global registry.</p>
 time, so <strong>every parameter and the return need a concrete annotation</strong>. There is
 no <code>**kwargs: Any</code> escape hatch: an untyped parameter has no schema, and the
 model would be guessing.</p>
-<p>Sync and async callables both work; the registry dispatches either.</p>
+<p>Sync and async callables both work. <code>ToolRegistry.acall</code> dispatches either; <code>ToolRegistry.call</code> is the sync entry point and raises <code>TypeError</code> for an async tool.</p>
 <h2 id="metadata-and-where-it-surfaces">Metadata, and where it surfaces<a class="headerlink" href="#metadata-and-where-it-surfaces" title="Permanent link">&para;</a></h2>
 <p><code>@tool</code> takes four pieces of metadata beyond name and description. All of them
 end up as JSON-Schema extension keys, because a schema is the one channel that

@@ -1921,11 +1921,12 @@ comes from the same spec's projected output path, and the <code>readOnlyHint</co
 annotation is derived from the spec kind (selectors read, services mutate).</p>
 <p><strong>The parameter schema asks for what a call needs and nothing the toolset
 fills.</strong> A selector parameter named after a pool seed or a key a typed
-<code>kwargs=</code> provider returns is not advertised; every other selector parameter without a default is required,
-except one the provider <em>may</em> fill, which stays advertised but optional:
-any parameter, beside a provider whose return annotation does not name a
-<code>TypedDict</code>, and a key the provider may decline with <code>UNSET</code>, both as
-the kernel's <code>provider_keys</code> reads the annotation. A name a
+<code>kwargs=</code> provider returns is not advertised; every other selector
+parameter without a default is required, except one the provider <em>may</em> fill,
+which stays advertised but optional: any parameter, beside a provider whose
+return annotation does not name a <code>TypedDict</code>, and a key the provider may
+decline with <code>UNSET</code>, both as the kernel's <code>provider_keys</code> reads the
+annotation. A name a
 <code>call_seeds</code> override fills is invisible here, so it has to be
 declared (see <code>call_seeds</code>). A single-item service also advertises its
 target lookup -- the parameters of its <code>collection_selector_spec</code>, or
@@ -2329,8 +2330,8 @@ pagination line of the derived instructions, the sentence on each
 read-shaping parameter and its render retry. Off by default. It
 costs no query: the count is the one taken before the slice. The
 flag is toolset-wide, and what is advertised follows it rather
-than any <code>shape_page</code> override. A project that wants <code>total</code> on some tools only leaves
-it off and has an override return a counting page for those
+than any <code>shape_page</code> override. A project that wants <code>total</code> on
+some tools only leaves it off and has an override return a counting page for those
 tools, so nothing advertised claims a key a page lacks; turning it
 on and dropping <code>total</code> from some tools would.</p>
               </div>
@@ -3056,6 +3057,15 @@ and the next step has nothing to key on. And an output field declaring
 from the field itself -- so "we marked nothing, so nothing is
 projected" is not true, and an override is how a project that means it
 says so.</p>
+<p><strong>A file is read the way <code>read_attachment</code> reads an attachment.</strong> A
+spec presenting a <code>FileResult</code> (through the kernel's
+<code>FilePresenter</code>) is answered with its text when its type is textual and
+it fits <code>AttachmentInlineConfig</code>'s <code>max_bytes</code>; with its bytes
+attached to the tool result, for that turn, when its type is one of the
+config's <code>media_types</code> and it fits; and otherwise with a one-line
+note giving its name, type and size. The default config's limits apply.
+A file over the limit is read no further than it, and one of a type the
+model cannot read is closed unread.</p>
 
 
     </div>
@@ -3078,7 +3088,9 @@ says so.</p>
     <div class="doc doc-contents ">
 
         <p>Return <code>payload</code>, or raise a model-readable refusal when it is over budget.</p>
-<p>Measured on the envelope, because the envelope is what is sent. Override to
+<p>Measured on the envelope, because the envelope is what is sent. A file
+is measured by its bytes: a text file by its text's UTF-8 length, an
+attached one by its bytes plus the note beside them, never by its repr. Override to
 bound on something other than serialized length -- a row count, a per-run
 running total read off <code>ctx.usage</code>, a taper against <code>ctx.usage_limits</code>
 as a run gets long -- or to shape the refusal differently.</p>
@@ -3626,7 +3638,7 @@ carry tools whose sorts are declared under different names.</p>
 <p>A read-shaping parameter is one of the spec's <code>shapes</code>, which no callable
 of the spec takes and its presenter reads instead; one a selector or
 provider takes, by name or through <code>**kwargs</code>, is that callable's
-argument and is not named here. <code>{names}</code> is every such name, sorted, each in backticks and joined with
+argument and is not named here. <code>{names}</code> is every such name, sorted, backticked, joined with
 <code>", "</code>. <code>None</code> drops the line and <code>read_shaping_on_pages</code> with it, since
 that sentence continues this one.</p>
 
@@ -3941,7 +3953,8 @@ these doubles. The package root never imports it.</p>
               <div class="doc-md-description">
                 <p>The tool to call. It must be one the toolset advertises --
 an unknown name is a retry from the tool manager, not a failure the
-model sees, so the run would loop.</p>
+model sees, so the run fails with "exceeded max retries" once that
+tool's retry budget is spent.</p>
               </div>
             </td>
             <td>

@@ -1201,6 +1201,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="AnonymousOperationError">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#identifiertoolongerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IdentifierTooLongError
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.IdentifierTooLongError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IdentifierTooLongError
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2147,6 +2175,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="AnonymousOperationError">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#identifiertoolongerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IdentifierTooLongError
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.IdentifierTooLongError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IdentifierTooLongError
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2611,9 +2667,15 @@ session. For cross-device or audited persistence, use a model-backed store.</p>
 
         <p>Abstract base for a model-backed (or any sync) <code>ConversationStore</code>.</p>
 <p>Provides the async wrapping and per-request owner scoping; a subclass
-implements the three <em>synchronous</em> row operations against its own Django
-model. Model-agnostic on purpose — the package ships no concrete model, so it
-forces no migration and consumers define the fields and the owner relation.</p>
+implements the three abstract <em>synchronous</em> row operations (<code>_fetch</code> /
+<code>_store</code> / <code>_remove</code>) against its own Django model, and may override
+<code>_list</code> / <code>_exists</code> / <code>_rename</code>. Model-agnostic on purpose — the package
+ships no concrete model, so it forces no migration and consumers define the
+fields and the owner relation.</p>
+<p>Each hook receives the resolved <code>owner_id</code> (the user's id, or
+<code>anon:&lt;session key&gt;</code> for an anonymous visitor when <code>allow_anonymous</code> is
+on; otherwise the request is refused before the hook runs) and <strong>must</strong>
+filter by it, so threads never cross users.</p>
 <p><code>allow_anonymous</code> governs whether anonymous requests are served. <code>False</code>
 refuses them rather than collapsing every anonymous visitor into one shared
 owner bucket where they could read and delete each other's data. It is a
@@ -3042,8 +3104,9 @@ configured.</p>
 <code>Storage</code> for the bytes, a model row for the metadata. The opt-in
 <code>django_spec_agents.contrib.store</code> app supplies a concrete pair.</p>
 <p>Each <code>_save</code> / <code>_open</code> / <code>_remove</code> receives the resolved <code>owner_id</code>
-(<code>None</code> for anonymous) and <strong>must</strong> filter by it, so files never cross
-users.</p>
+(the user's id, or <code>anon:&lt;session key&gt;</code> for an anonymous visitor when
+<code>allow_anonymous</code> is on; otherwise the request is refused before the hook
+runs) and <strong>must</strong> filter by it, so files never cross users.</p>
 <p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class MyStore(ModelAttachmentStore):
     def _save(self, upload, owner_id):
@@ -3191,6 +3254,39 @@ email-address primary key, a natural key with a slash, a pathological
 <code>allow_anonymous=True</code>, since otherwise every anonymous visitor would share
 one owner bucket and could read or delete the others' data. A transport's
 persistence views catch this and return 403.</p>
+
+
+
+
+
+
+
+
+
+    </div>
+
+</div><h3 id="identifiertoolongerror"><code>IdentifierTooLongError</code><a class="headerlink" href="#identifiertoolongerror" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.IdentifierTooLongError" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">IdentifierTooLongError</span>
+
+
+<a href="#django_spec_agents.IdentifierTooLongError" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="ValueError">ValueError</span></code></p>
+
+
+
+        <p>Raised before a store write when an id is longer than the column that holds it.</p>
+<p>Its message names the field and the limit; nothing was written.</p>
 
 
 

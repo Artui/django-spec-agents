@@ -1498,7 +1498,7 @@ and passing <code>projection=None</code> is <em>not</em> it, since that means "d
 the spec".</p>
 <h2 id="testing-it">Testing it<a class="headerlink" href="#testing-it" title="Permanent link">&para;</a></h2>
 <p>The run loop is where the interesting failures live, and it needs a model.
-<a href="../reference/#testing"><code>django_spec_agents.testing</code></a> ships the two
+<a href="../reference/#testing"><code>django_spec_agents.testing</code></a> ships the three
 doubles this package's own suite uses — no provider, no network, no key. The
 module imports pydantic-ai alone, so it works on an install without the
 <code>[specs]</code> extra too:</p>

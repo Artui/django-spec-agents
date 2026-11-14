@@ -574,6 +574,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#how-long-an-id-may-be" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How long an id may be
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-app-label-and-upgrading-from-django-pydantic-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1388,6 +1399,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#how-long-an-id-may-be" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How long an id may be
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-app-label-and-upgrading-from-django-pydantic-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1779,6 +1801,24 @@ is the natural guess and it does not exist. It cannot: this is a Django <em>app<
 models before the app registry is ready — <code>AppRegistryNotReady</code> at startup, for
 every project, whether or not it uses the stores. The leaf path is the price of the
 package being importable at all.</p>
+<h3 id="how-long-an-id-may-be">How long an id may be<a class="headerlink" href="#how-long-an-id-may-be" title="Permanent link">&para;</a></h3>
+<p>Each id the stores key on is a <code>CharField(max_length=255)</code>: <code>owner_id</code>, <code>thread_id</code>,
+<code>conversation_id</code>, <code>run_id</code>, <code>parent_run_id</code>, <code>tool_call_id</code> and <code>operation_id</code>,
+on every model that holds them. They sit in unique constraints and indexes, so they
+stay bounded. The default stores check each one against its column before they
+write, and raise <code>IdentifierTooLongError</code>, a <code>ValueError</code> exported from
+<code>django_spec_agents</code>, naming the field and its limit. Nothing is written. A read
+with an over-long id finds nothing, so <code>load</code> returns <code>None</code> and the step and
+memory reads come back empty, on every database.</p>
+<p>Without the check, SQLite would store the value and PostgreSQL would refuse the
+row with a <code>DataError</code> midway through a run, after the model call. A transport that
+takes <code>threadId</code> or <code>runId</code> from the client can answer the error as a bad request.
+In memory's namespace mode the owner is the path's first segment, so that segment
+is held to the same limit.</p>
+<p>The descriptive columns no index reads are <code>TextField</code>s and take any length: an
+attachment's <code>name</code> and <code>mime</code>, <code>agent_name</code>, <code>tool_name</code>, a tool effect's
+<code>idempotency_key</code> and a memory operation's <code>fingerprint</code>. Migration
+<code>0002_text_columns</code> widens them.</p>
 <h3 id="the-app-label-and-upgrading-from-django-pydantic-agent">The app label, and upgrading from django-pydantic-agent<a class="headerlink" href="#the-app-label-and-upgrading-from-django-pydantic-agent" title="Permanent link">&para;</a></h3>
 <p>The app's label is <code>django_spec_agents_store</code>, so its nine tables are
 <code>django_spec_agents_store_&lt;model&gt;</code> and its content types, and the permissions
@@ -1791,8 +1831,8 @@ swap the <code>INSTALLED_APPS</code> entry,</p>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="s2">"django_spec_agents.contrib.store"</span><span class="p">,</span>  <span class="c1"># was "django_pydantic_agent.contrib.store"</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">]</span>
 </span></code></pre></div>
-<p>and run <code>migrate</code>. The app's one migration sees the old tables and renames them in
-place: the tables, their constraints and named indexes, and the content types, so
+<p>and run <code>migrate</code>. The app's first migration, <code>0001_initial</code>, sees the old tables
+and renames them in place: the tables, their constraints and named indexes, and the content types, so
 permissions, group grants and admin log entries come along by key. The old app's
 rows in <code>django_migrations</code> are deleted, and nothing is copied, so the rows are
 the ones you had.</p>
@@ -1966,6 +2006,14 @@ does not redeclare it. Owner scoping is entirely ours; no harness record carries
 one, which is what makes the store multi-tenant rather than a single-user
 ledger.</p>
 <p>It needs the <code>[harness]</code> extra, since the protocol it satisfies lives there.</p>
+<p>Resuming a run reads its latest snapshot with <code>latest_snapshot(run_id=...)</code>. That
+is the newest snapshot by insertion order, not the highest <code>step_index</code>, and only
+<code>complete</code> ones unless you pass <code>include_interrupted=True</code>. A <code>complete</code> snapshot
+is a safe point to resume from. An <code>interrupted</code> one is a rescue point saved
+mid tool cycle, for example after a crash, so its pending tool calls may need to
+be re-run or closed out. Check <code>list_unresolved_tool_effects</code> for the run before
+resuming from one. Its <code>messages</code> are already a <code>list[ModelMessage]</code>, ready for
+<code>Agent.run(message_history=...)</code>.</p>
 <h3 id="list_runs-answers-oldest-first"><code>list_runs</code> answers oldest first<a class="headerlink" href="#list_runs-answers-oldest-first" title="Permanent link">&para;</a></h3>
 <p>Ascending <code>started_at</code> is upstream's documented protocol order — <code>StepStore</code>
 invites callers to take the most recent run with <code>[-1]</code> — so the store keeps it
@@ -2124,9 +2172,17 @@ composing <code>list_paths</code> with <code>delete</code> needs each path's cur
 unbounded read-then-delete loop a concurrent <code>write_memory</code> can lose to — so the
 store carries a non-protocol <code>purge(owner_id)</code> that is one statement, plus a
 command:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span><span class="m">42</span><span class="w"> </span>--dry-run
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span><span class="m">42</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
 </span></code></pre></div>
+<p>The argument is the owner id the memory was filed under, not the bare user key.
+With the usual mount-time namespace from <code>memory_namespace_for_user</code>, that is <code>u-</code>
+followed by the user's primary key, so <code>u-42</code> for user 42 (a digest of the key
+replaces it when the key is not a safe path segment). A store built per request
+files rows under the bare primary key, <code>42</code>. Anonymous memory is filed under
+<code>anon</code> in the mount-time mode and, where the store allows anonymous callers, under
+<code>anon:&lt;session key&gt;</code> in the per-request mode. Run the command with <code>--dry-run</code>
+first to see how many files the id matches.</p>
 <p>It is deliberately <strong>not</strong> wired to a <code>post_delete</code> signal on your user model.
 Whether deleting an account erases its memory is a product policy; a library's
 job here is to make the operation possible.</p>

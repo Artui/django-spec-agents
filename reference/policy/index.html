@@ -2919,8 +2919,8 @@ so one hook covers every tool the agent sees wherever it came from:</p>
 
   
       module-attribute
-  " href="../registry/#django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY"><code>DESTRUCTIVE_METADATA_KEY</code></a> the
-  bridge stamps into <code>ToolDefinition.metadata</code>. The bridge marks a tool
+  " href="../registry/#django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY"><code>DESTRUCTIVE_METADATA_KEY</code></a>
+  the bridge stamps into <code>ToolDefinition.metadata</code>. The bridge marks a tool
   unless its <code>readOnlyHint</code> is true or its <code>destructiveHint</code> is false, as
   MCP reads the pair, so a mutation registered with
   <code>annotations={"destructiveHint": False}</code> is not gated. A tool listed
@@ -3218,9 +3218,9 @@ is different: pydantic-ai checks its budget outside the error hooks, so it
 still ends the run when the budget is spent. The default carries a cost,
 since the tool keeps executing on later calls and its side effects repeat,
 bounded by the model taking the failed result's "do not retry" (with
-<code>include_detail</code> off) or by pydantic-ai's default request limit. Naming <code>UnexpectedModelBehavior</code> in
-<code>ToolFailureConfig.reraise</code> ends the run instead, and ends it for a
-sub-agent's exhausted budget a tool propagates too.</p>
+<code>include_detail</code> off) or by pydantic-ai's default request limit. Naming
+<code>UnexpectedModelBehavior</code> in <code>ToolFailureConfig.reraise</code> ends the run
+instead, and ends it for a sub-agent's exhausted budget a tool propagates too.</p>
 <p><strong>An authorization refusal is exempt</strong> and ends the run as it would without
 the policy — see <code>ToolFailureConfig.reraise</code>, which is also how a project
 exempts more, or nothing at all.</p>
