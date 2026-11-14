@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-11-14
+
+The floor on `django-service-specs` rises to 0.33.0, so a minor release. A spec
+tool's file is read into the model's turn, and the store refuses an over-long id
+before the write and lifts its descriptive columns to `TextField`, in a new
+migration to run.
+
 ### Added
 
 - **A spec tool reads a file result to the model.** A spec presenting a
@@ -926,7 +933,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...v0.11.0
