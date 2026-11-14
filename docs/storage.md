@@ -164,6 +164,28 @@ models before the app registry is ready — `AppRegistryNotReady` at startup, fo
 every project, whether or not it uses the stores. The leaf path is the price of the
 package being importable at all.
 
+### How long an id may be
+
+Each id the stores key on is a `CharField(max_length=255)`: `owner_id`, `thread_id`,
+`conversation_id`, `run_id`, `parent_run_id`, `tool_call_id` and `operation_id`,
+on every model that holds them. They sit in unique constraints and indexes, so they
+stay bounded. The default stores check each one against its column before they
+write, and raise `IdentifierTooLongError`, a `ValueError` exported from
+`django_spec_agents`, naming the field and its limit. Nothing is written. A read
+with an over-long id finds nothing, so `load` returns `None` and the step and
+memory reads come back empty, on every database.
+
+Without the check, SQLite would store the value and PostgreSQL would refuse the
+row with a `DataError` midway through a run, after the model call. A transport that
+takes `threadId` or `runId` from the client can answer the error as a bad request.
+In memory's namespace mode the owner is the path's first segment, so that segment
+is held to the same limit.
+
+The descriptive columns no index reads are `TextField`s and take any length: an
+attachment's `name` and `mime`, `agent_name`, `tool_name`, a tool effect's
+`idempotency_key` and a memory operation's `fingerprint`. Migration
+`0002_text_columns` widens them.
+
 ### The app label, and upgrading from django-pydantic-agent
 
 The app's label is `django_spec_agents_store`, so its nine tables are
@@ -181,8 +203,8 @@ INSTALLED_APPS = [
 ]
 ```
 
-and run `migrate`. The app's one migration sees the old tables and renames them in
-place: the tables, their constraints and named indexes, and the content types, so
+and run `migrate`. The app's first migration, `0001_initial`, sees the old tables
+and renames them in place: the tables, their constraints and named indexes, and the content types, so
 permissions, group grants and admin log entries come along by key. The old app's
 rows in `django_migrations` are deleted, and nothing is copied, so the rows are
 the ones you had.

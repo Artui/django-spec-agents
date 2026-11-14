@@ -7,7 +7,11 @@ from uuid import uuid4
 from django.core.files.uploadedfile import UploadedFile
 
 from django_spec_agents.contrib.store.models import StoredAttachment
-from django_spec_agents.contrib.store.utils import delete_attachments, hash_file
+from django_spec_agents.contrib.store.utils import (
+    check_identifiers,
+    delete_attachments,
+    hash_file,
+)
 from django_spec_agents.persistence.model_attachment_store import ModelAttachmentStore
 from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
@@ -51,6 +55,7 @@ class DefaultAttachmentStore(ModelAttachmentStore):
 
     def _save(self, upload: UploadedFile, owner_id: str | None) -> AttachmentRef:
         """Persist one upload, reusing an identical blob this owner already has."""
+        check_identifiers(StoredAttachment, owner_id=owner_id)
         attachment_id = uuid4().hex
         name = _basename(upload.name)
         mime = upload.content_type or ""

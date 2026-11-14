@@ -72,6 +72,10 @@ models.
 
 ::: django_spec_agents.AnonymousOperationError
 
+### `IdentifierTooLongError`
+
+::: django_spec_agents.IdentifierTooLongError
+
 ## Reference implementations
 
 The opt-in `django_spec_agents.contrib.store` app. Add it to

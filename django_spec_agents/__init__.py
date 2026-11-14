@@ -8,6 +8,7 @@ from django_spec_agents.persistence.anonymous_operation_error import AnonymousOp
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.memory_namespace import memory_namespace
 from django_spec_agents.persistence.memory_namespace_for_user import (
     memory_namespace_for_user,
@@ -62,6 +63,7 @@ __all__ = [
     "ConversationMeta",
     "ConversationStore",
     "DjangoSessionConversationStore",
+    "IdentifierTooLongError",
     "LoggingAuditLogger",
     "ModelAttachmentStore",
     "ModelConversationStore",

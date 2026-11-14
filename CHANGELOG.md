@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The default stores refuse an id too long for its column before they write.**
+  `owner_id`, `thread_id`, `conversation_id`, `run_id`, `parent_run_id`,
+  `tool_call_id` and `operation_id` stay `CharField(max_length=255)`, since they sit
+  in unique constraints and indexes. `DefaultConversationStore`,
+  `DefaultAttachmentStore`, `DefaultStepStore` and `DefaultMemoryStore` now raise
+  `IdentifierTooLongError`, a `ValueError` exported from `django_spec_agents`, which
+  names the field and its limit. The limit is read from the model field. PostgreSQL
+  used to raise `DataError` mid-run instead, and SQLite stored the value. A read
+  with an over-long id finds nothing.
+
 ### Changed
 
+- **The store's descriptive columns are `TextField`s.** `StoredAttachment.name` and
+  `.mime`, `agent_name` on `StoredRun`, `StoredStepEvent` and `StoredSnapshot`,
+  `tool_name` on `StoredStepEvent` and `StoredToolEffect`,
+  `StoredToolEffect.idempotency_key` and `StoredMemoryOperation.fingerprint` take
+  any length. A new migration, `0002_text_columns`, alters them; run `migrate`.
 - **The API reference's docstrings are restored.** The long docstrings that the
   comment-budget cut to one line are back on the classes and functions the
   reference pages render.
