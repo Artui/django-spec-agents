@@ -62,9 +62,10 @@ from django_spec_agents import DESTRUCTIVE_METADATA_KEY, ToolCategory, X_CONFIRM
     ]
     ```
 
-4. Run `migrate` once. The app's label is `django_spec_agents_store`, and its one
+4. Run `migrate` once. The app's label is `django_spec_agents_store`, and its first
    migration, `0001_initial`, renames the tables, their named constraints and
-   indexes, the content types and the migration records. Nothing is copied.
+   indexes, the content types and the migration records. Nothing is copied. The
+   second, `0002_text_columns`, then lifts the descriptive columns to `TextField`.
 
 What the rename touches, what it leaves under the old names on PostgreSQL and
 how to roll it back are on the [storage page](storage.md#the-app-label-and-upgrading-from-django-pydantic-agent).

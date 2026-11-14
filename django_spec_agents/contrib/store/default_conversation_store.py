@@ -7,7 +7,11 @@ from django_spec_agents.contrib.store.models import StoredAttachment, StoredConv
 from django_spec_agents.contrib.store.reconcile_conversation_attachments import (
     reconcile_conversation_attachments,
 )
-from django_spec_agents.contrib.store.utils import delete_attachments, unreferenced_attachments
+from django_spec_agents.contrib.store.utils import (
+    check_identifiers,
+    delete_attachments,
+    unreferenced_attachments,
+)
 from django_spec_agents.persistence.model_conversation_store import ModelConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import (
@@ -48,6 +52,7 @@ class DefaultConversationStore(ModelConversationStore):
         )
 
     def _store(self, conversation: Conversation, owner_id: str | None) -> None:
+        check_identifiers(StoredConversation, owner_id=owner_id, thread_id=conversation.thread_id)
         messages = conversation.messages
         defaults = {
             "messages": list(messages),

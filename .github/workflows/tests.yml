@@ -164,7 +164,8 @@ jobs:
   # The store's upgrade renames PostgreSQL's ``_like`` index, which Django drops by
   # a name it computes from the table rather than by looking it up, so a missed
   # rename leaves a duplicate index behind the next type change. SQLite makes no
-  # such index, so only a real server can show the rename happened.
+  # such index, so only a real server can show the rename happened. The column-width
+  # tests run here for the same reason: SQLite stores a string of any length.
   store-upgrade-postgresql:
     name: store upgrade on PostgreSQL
     runs-on: ubuntu-latest
@@ -198,6 +199,8 @@ jobs:
           STORE_UPGRADE_USER: postgres
         run: |
           uv run --no-sync pytest -q --no-cov \
+            --ds tests.contrib.store.postgresql_settings \
+            tests/contrib/store/test_column_widths.py \
             tests/contrib/store/test_upgrade_from_django_pydantic_agent.py
 
   test:

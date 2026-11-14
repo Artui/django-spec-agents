@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable
+from typing import Any, cast
 
 from django.core.files.base import File
-from django.db.models import QuerySet
+from django.db.models import Field, Model, QuerySet
 from django.http import HttpRequest
 
 from django_spec_agents.contrib.store.models import StoredAttachment
 from django_spec_agents.contrib.store.types.attachment_deletion import AttachmentDeletion
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.utils import resolve_owner_id
 
 # 64 KiB: Django's own default read size for a ``File``.
@@ -22,6 +24,17 @@ def owner_or_none(request: HttpRequest, *, allow_anonymous: bool) -> str | None:
         return resolve_owner_id(request, allow_anonymous=allow_anonymous)
     except AnonymousOperationError:
         return None
+
+
+def check_identifiers(model: type[Model], **values: str | None) -> None:
+    """Raise ``IdentifierTooLongError`` for a value longer than its column on ``model``."""
+    for name, value in values.items():
+        field = cast("Field[Any, Any]", model._meta.get_field(name))
+        limit = cast("int", field.max_length)
+        if value is not None and len(value) > limit:
+            raise IdentifierTooLongError(
+                f"{name} is {len(value)} characters, over its {limit}-character limit"
+            )
 
 
 def hash_file(handle: File) -> str:
@@ -71,6 +84,7 @@ def preview_attachment_deletion(attachments: list[StoredAttachment]) -> Attachme
 
 
 __all__ = [
+    "check_identifiers",
     "delete_attachments",
     "hash_file",
     "preview_attachment_deletion",

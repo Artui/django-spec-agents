@@ -21,7 +21,7 @@ from django_spec_agents.contrib.store.models import (
     StoredStepEvent,
     StoredToolEffect,
 )
-from django_spec_agents.contrib.store.utils import owner_or_none
+from django_spec_agents.contrib.store.utils import check_identifiers, owner_or_none
 
 
 class DefaultStepStore:
@@ -112,6 +112,13 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
+        check_identifiers(
+            StoredRun,
+            owner_id=owner,
+            run_id=record.run_id,
+            conversation_id=record.conversation_id,
+            parent_run_id=record.parent_run_id,
+        )
         StoredRun.objects.update_or_create(
             owner_id=owner,
             run_id=record.run_id,
@@ -146,6 +153,14 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
+        check_identifiers(
+            StoredStepEvent,
+            owner_id=owner,
+            run_id=event.run_id,
+            conversation_id=event.conversation_id,
+            parent_run_id=event.parent_run_id,
+            tool_call_id=event.tool_call_id,
+        )
         StoredStepEvent.objects.create(
             owner_id=owner,
             run_id=event.run_id,
@@ -172,6 +187,13 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
+        check_identifiers(
+            StoredSnapshot,
+            owner_id=owner,
+            run_id=snapshot.run_id,
+            conversation_id=snapshot.conversation_id,
+            parent_run_id=snapshot.parent_run_id,
+        )
         StoredSnapshot.objects.create(
             owner_id=owner,
             run_id=snapshot.run_id,
@@ -212,6 +234,12 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
+        check_identifiers(
+            StoredToolEffect,
+            owner_id=owner,
+            run_id=record.run_id,
+            tool_call_id=record.tool_call_id,
+        )
         StoredToolEffect.objects.update_or_create(
             owner_id=owner,
             run_id=record.run_id,

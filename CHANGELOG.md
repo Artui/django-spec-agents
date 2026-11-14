@@ -7,8 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-11-14
+
+The floor on `django-service-specs` rises to 0.33.0, so a minor release. A spec
+tool's file is read into the model's turn, and the store refuses an over-long id
+before the write and lifts its descriptive columns to `TextField`, in a new
+migration to run.
+
+### Added
+
+- **A spec tool reads a file result to the model.** A spec presenting a
+  `FileResult` through the kernel's `FilePresenter` is answered as
+  `read_attachment` answers an attachment: a textual type within
+  `AttachmentInlineConfig`'s `max_bytes` is its text, a type in its
+  `media_types` within the limit is attached to the tool result as file content,
+  and anything else is a one-line note giving the name, type and size. The
+  default config's limits apply; a file is read no further than the limit, and
+  one of a type the model cannot read is closed unread. A file spec the kernel's
+  `file_output` refuses is refused when the toolset is built, naming the tool.
+  `read_attachment`'s answers are unchanged: the two share the helpers that
+  decide and word an answer.
+- **A `many` tool serves a spec that names its collection.** A `many` spec with a
+  `collection_selector_spec`, which django-service-specs 0.33.0 allows, has the
+  selector's `reads` advertised beside the list and passed to dispatch, and the
+  service receives `collection`. Tests and the guide pin it. The toolset needed no
+  change, because it reads the kernel's caller schema.
+- **The default stores refuse an id too long for its column before they write.**
+  `owner_id`, `thread_id`, `conversation_id`, `run_id`, `parent_run_id`,
+  `tool_call_id` and `operation_id` stay `CharField(max_length=255)`, since they sit
+  in unique constraints and indexes. `DefaultConversationStore`,
+  `DefaultAttachmentStore`, `DefaultStepStore` and `DefaultMemoryStore` now raise
+  `IdentifierTooLongError`, a `ValueError` exported from `django_spec_agents`, which
+  names the field and its limit. The limit is read from the model field. PostgreSQL
+  used to raise `DataError` mid-run instead, and SQLite stored the value. A read
+  with an over-long id finds nothing.
+
 ### Changed
 
+- **`max_result_bytes` measures a file by its bytes.** A file's text is measured
+  by its UTF-8 length and attached bytes by their length, not by the JSON repr
+  of the result. Every other result is measured as before.
+- **The floor on `django-service-specs` rises to 0.33.0**, the release that ships
+  `FileResult`.
+- **The store's descriptive columns are `TextField`s.** `StoredAttachment.name` and
+  `.mime`, `agent_name` on `StoredRun`, `StoredStepEvent` and `StoredSnapshot`,
+  `tool_name` on `StoredStepEvent` and `StoredToolEffect`,
+  `StoredToolEffect.idempotency_key` and `StoredMemoryOperation.fingerprint` take
+  any length. A new migration, `0002_text_columns`, alters them; run `migrate`.
 - **The API reference's docstrings are restored.** The long docstrings that the
   comment-budget cut to one line are back on the classes and functions the
   reference pages render.
@@ -889,7 +934,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/django-spec-agents/compare/v0.10.1...v0.11.0

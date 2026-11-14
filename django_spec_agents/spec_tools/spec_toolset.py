@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from functools import cached_property, lru_cache
 from types import MappingProxyType
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
@@ -29,6 +29,8 @@ from django_service_specs import (
     AudienceProjection,
     DispatchResult,
     FieldAudience,
+    FileResult,
+    FileTooLarge,
     Grant,
     InvalidArguments,
     NotPermitted,
@@ -48,6 +50,7 @@ from django_service_specs import (
     build_call_context,
     check_server_arguments,
     dispatch,
+    file_output,
     kernel_spec,
     operation_affordances,
     paginate_output,
@@ -62,10 +65,19 @@ from django_service_specs import ServiceSpec as KernelServiceSpec
 from django_service_specs import SpecSource as KernelSpecSource
 from django_service_specs import server_owned_keys as kernel_server_owned_keys
 from pydantic_ai import ModelRetry, RunContext, ToolFailed
+from pydantic_ai.messages import BinaryContent, ToolReturn
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_core import SchemaValidator, core_schema
 
+from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.agent.utils import (
+    as_text,
+    attached_file,
+    is_textual,
+    over_limit_note,
+    unread_note,
+)
 from django_spec_agents.spec_tools.types.agent_conventions import AgentConventions
 from django_spec_agents.spec_tools.types.agent_transport import AGENT_TRANSPORT
 
@@ -634,6 +646,8 @@ class SpecToolset(AbstractToolset[Any]):
         for name, spec in self._specs.items():
             _validate_declared_reads(name, spec, seeds=pool_seeds)
             _validate_many_argument(name, spec, seeds=pool_seeds)
+            with _refusals_name_the_tool(name):
+                file_output(spec)
         _validate_inputs_pagination_takes(self._specs)
         self._projections: dict[str, AudienceProjection] = {}
         for name, spec in self._specs.items():
@@ -1104,16 +1118,31 @@ class SpecToolset(AbstractToolset[Any]):
         from the field itself -- so "we marked nothing, so nothing is
         projected" is not true, and an override is how a project that means it
         says so.
+
+        **A file is read the way ``read_attachment`` reads an attachment.** A
+        spec presenting a ``FileResult`` (through the kernel's
+        ``FilePresenter``) is answered with its text when its type is textual and
+        it fits ``AttachmentInlineConfig``'s ``max_bytes``; with its bytes
+        attached to the tool result, for that turn, when its type is one of the
+        config's ``media_types`` and it fits; and otherwise with a one-line
+        note giving its name, type and size. The default config's limits apply.
+        A file over the limit is read no further than it, and one of a type the
+        model cannot read is closed unread.
         """
         del ctx
-        return present_for_audience(spec, result, projection=projection)
+        presented = present_for_audience(spec, result, projection=projection)
+        if isinstance(presented, FileResult):
+            return _file_for_the_model(presented, _FILE_INLINE)
+        return presented
 
     def enforce_result_bytes(
         self, payload: Any, *, ctx: RunContext[Any], max_bytes: int | None, label: str
     ) -> Any:
         """Return ``payload``, or raise a model-readable refusal when it is over budget.
 
-        Measured on the envelope, because the envelope is what is sent. Override to
+        Measured on the envelope, because the envelope is what is sent. A file
+        is measured by its bytes: a text file by its text's UTF-8 length, an
+        attached one by its bytes plus the note beside them, never by its repr. Override to
         bound on something other than serialized length -- a row count, a per-run
         running total read off ``ctx.usage``, a taper against ``ctx.usage_limits``
         as a run gets long -- or to shape the refusal differently.
@@ -1964,11 +1993,23 @@ def _enforce_result_bytes(
     """Return ``payload``, or raise a model-readable refusal when it is over budget."""
     if max_bytes is None:
         return payload
-    size: int = len(json.dumps(payload, default=str).encode("utf-8"))
+    if isinstance(payload, FileResult) and payload.size is None:
+        try:
+            payload = replace(payload, content=payload.read(max_bytes))
+        except FileTooLarge:
+            _refuse_over_budget(f"more than {max_bytes}", max_bytes, label=label, extra=extra)
+    size = _payload_bytes(payload)
     if size <= max_bytes:
         return payload
+    _refuse_over_budget(str(size), max_bytes, label=label, extra=extra)
+
+
+def _refuse_over_budget(
+    size: str, max_bytes: int, *, label: str, extra: Mapping[str, Any]
+) -> NoReturn:
+    """Log the fired bound and raise the model-readable refusal."""
     logger.warning(
-        "Result bound exceeded: tool %r produced %d bytes over a %d byte ceiling",
+        "Result bound exceeded: tool %r produced %s bytes over a %d byte ceiling",
         label,
         size,
         max_bytes,
@@ -1980,6 +2021,62 @@ def _enforce_result_bytes(
         "select fewer fields — and call again. The result was not "
         "truncated: a partial payload would look complete."
     )
+
+
+def _payload_bytes(payload: Any) -> int:
+    """A payload's size as sent: a file's own bytes, anything else its JSON encoding."""
+    if isinstance(payload, FileResult):
+        return cast("int", payload.size)
+    if not isinstance(payload, ToolReturn):
+        return _json_bytes(payload)
+    value = payload.return_value
+    size = len(value.encode("utf-8")) if isinstance(value, str) else _json_bytes(value)
+    content = payload.content
+    parts: Sequence[Any] = (
+        [] if content is None else [content] if isinstance(content, str) else content
+    )
+    for part in parts:
+        if isinstance(part, BinaryContent):
+            size += len(part.data)
+        elif isinstance(part, str):
+            size += len(part.encode("utf-8"))
+        else:
+            size += _json_bytes(part)
+    return size
+
+
+def _json_bytes(payload: Any) -> int:
+    """The length of ``payload``'s JSON encoding, in bytes."""
+    return len(json.dumps(payload, default=str).encode("utf-8"))
+
+
+_FILE_INLINE = AttachmentInlineConfig()
+
+
+def _file_for_the_model(file: FileResult, inline: AttachmentInlineConfig) -> str | ToolReturn:
+    """A file as ``read_attachment`` answers one: its text, its bytes attached, or a note."""
+    name, mime = file.filename, file.content_type or ""
+    if not (is_textual(mime) or mime in inline.media_types):
+        file.close()
+        return unread_note(name, mime, _size_text(file.size))
+    try:
+        data = file.read(inline.max_bytes)
+    except FileTooLarge:
+        size = _size_text(file.size, at_least=inline.max_bytes + 1)
+        return over_limit_note(name, mime, size, inline.max_bytes, text=is_textual(mime))
+    text = as_text(data, mime)
+    if text is not None:
+        return ToolReturn(return_value=text)
+    if mime in inline.media_types:
+        return attached_file(data, name=name, mime=mime, again="")
+    return unread_note(name, mime, f"{len(data)} bytes")
+
+
+def _size_text(size: int | None, *, at_least: int | None = None) -> str:
+    """``N bytes``, or what is known of a size the file did not declare."""
+    if size is not None:
+        return f"{size} bytes"
+    return "size unknown" if at_least is None else f"at least {at_least} bytes"
 
 
 def _missing_input_prompt(exc: AdditionalInputRequired) -> str:

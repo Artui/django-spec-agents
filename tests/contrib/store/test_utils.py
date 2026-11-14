@@ -7,13 +7,20 @@ import pytest
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import default_storage
 
-from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
+from django_spec_agents.contrib.store.models import (
+    StoredAttachment,
+    StoredConversation,
+    StoredMemory,
+)
 from django_spec_agents.contrib.store.utils import (
+    check_identifiers,
     delete_attachments,
     hash_file,
     preview_attachment_deletion,
     unreferenced_attachments,
 )
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
+from tests.contrib.store.rows import at_limit, refusal, too_long
 
 pytestmark = pytest.mark.django_db
 
@@ -142,3 +149,21 @@ def test_preview_ignores_a_row_with_no_stored_file() -> None:
 
 def test_preview_of_nothing() -> None:
     assert preview_attachment_deletion([]).rows == 0
+
+
+@pytest.mark.parametrize("field", ["owner_id", "thread_id"])
+def test_check_identifiers_refuses_a_value_one_past_the_column(field: str) -> None:
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredConversation, field)):
+        check_identifiers(StoredConversation, **{field: too_long(StoredConversation, field)})
+
+
+def test_check_identifiers_accepts_a_value_at_the_column_width_and_skips_none() -> None:
+    check_identifiers(
+        StoredConversation, owner_id=None, thread_id=at_limit(StoredConversation, "thread_id")
+    )
+
+
+def test_check_identifiers_reads_the_limit_from_the_model_field() -> None:
+    check_identifiers(StoredMemory, path=at_limit(StoredMemory, "path"))
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredMemory, "path")):
+        check_identifiers(StoredMemory, path=too_long(StoredMemory, "path"))

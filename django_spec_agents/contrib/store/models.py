@@ -41,8 +41,8 @@ class StoredAttachment(models.Model):
     attachment_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
     thread_id = models.CharField(max_length=255, blank=True, default="")
-    name = models.CharField(max_length=255, blank=True, default="")
-    mime = models.CharField(max_length=255, blank=True, default="")
+    name = models.TextField(blank=True, default="")
+    mime = models.TextField(blank=True, default="")
     size = models.PositiveBigIntegerField(default=0)
     sha256 = models.CharField(max_length=64, blank=True, default="")
     # Indexed: deleting a row must ask whether another row still points at the same blob.
@@ -112,7 +112,7 @@ class StoredRun(models.Model):
     owner_id = models.CharField(max_length=255, blank=True, default="")
     conversation_id = models.CharField(max_length=255, null=True, blank=True, default=None)
     parent_run_id = models.CharField(max_length=255, null=True, blank=True, default=None)
-    agent_name = models.CharField(max_length=255, null=True, blank=True, default=None)
+    agent_name = models.TextField(null=True, blank=True, default=None)
     metadata = models.JSONField(default=dict)
     started_at = models.DateTimeField()
 
@@ -138,9 +138,9 @@ class StoredStepEvent(models.Model):
     timestamp = models.DateTimeField()
     conversation_id = models.CharField(max_length=255, null=True, blank=True, default=None)
     parent_run_id = models.CharField(max_length=255, null=True, blank=True, default=None)
-    agent_name = models.CharField(max_length=255, null=True, blank=True, default=None)
+    agent_name = models.TextField(null=True, blank=True, default=None)
     tool_call_id = models.CharField(max_length=255, null=True, blank=True, default=None)
-    tool_name = models.CharField(max_length=255, null=True, blank=True, default=None)
+    tool_name = models.TextField(null=True, blank=True, default=None)
     error = models.TextField(null=True, blank=True, default=None)
     metadata = models.JSONField(default=dict)
 
@@ -160,7 +160,7 @@ class StoredSnapshot(models.Model):
     messages = models.JSONField(default=list)
     conversation_id = models.CharField(max_length=255, null=True, blank=True, default=None)
     parent_run_id = models.CharField(max_length=255, null=True, blank=True, default=None)
-    agent_name = models.CharField(max_length=255, null=True, blank=True, default=None)
+    agent_name = models.TextField(null=True, blank=True, default=None)
     timestamp = models.DateTimeField()
     state = models.CharField(
         max_length=16,
@@ -181,11 +181,11 @@ class StoredToolEffect(models.Model):
     run_id = models.CharField(max_length=255)
     owner_id = models.CharField(max_length=255, blank=True, default="")
     tool_call_id = models.CharField(max_length=255)
-    tool_name = models.CharField(max_length=255)
+    tool_name = models.TextField()
     status = models.CharField(max_length=16)
     started_at = models.DateTimeField()
     ended_at = models.DateTimeField(null=True, blank=True, default=None)
-    idempotency_key = models.CharField(max_length=255, null=True, blank=True, default=None)
+    idempotency_key = models.TextField(null=True, blank=True, default=None)
     effect_summary = models.TextField(null=True, blank=True, default=None)
 
     class Meta:
@@ -229,7 +229,7 @@ class StoredMemoryOperation(models.Model):
 
     owner_id = models.CharField(max_length=255, blank=True, default="")
     operation_id = models.CharField(max_length=255)
-    fingerprint = models.CharField(max_length=255)
+    fingerprint = models.TextField()
     version = models.CharField(max_length=32, null=True, blank=True, default=None)
     existed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

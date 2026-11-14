@@ -1,4 +1,4 @@
-"""The store's one migration, driven both ways on the suite's own database.
+"""The store's first migration, driven both ways on the suite's own database.
 
 Every test database is built by this migration's fresh path, since no old table is
 there when pytest-django migrates. These tests drive the other two: unapplying it
@@ -41,6 +41,10 @@ def _migrate(target: str | None) -> None:
     ContentType.objects.clear_cache()
 
 
+def _latest() -> str:
+    return MigrationExecutor(connection).loader.graph.leaf_nodes(LABEL)[0][1]
+
+
 def _tables() -> set[str]:
     return set(connection.introspection.table_names())
 
@@ -65,6 +69,7 @@ def migrated_forward() -> Iterator[None]:
             recorder = MigrationRecorder(connection)
             recorder.record_applied(OLD_LABEL, migration.OLD_MIGRATIONS[-1])
             _migrate("0001_initial")
+        _migrate(_latest())
 
 
 @pytest.mark.django_db(transaction=True)

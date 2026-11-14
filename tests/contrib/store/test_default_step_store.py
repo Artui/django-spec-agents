@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from django.db.models import Model
 from django.test import override_settings
 from pydantic_ai.messages import (
     ModelMessagesTypeAdapter,
@@ -20,7 +21,14 @@ from pydantic_ai_harness.step_persistence import (
 )
 
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
-from django_spec_agents.contrib.store.models import StoredRun, StoredSnapshot, StoredToolEffect
+from django_spec_agents.contrib.store.models import (
+    StoredRun,
+    StoredSnapshot,
+    StoredStepEvent,
+    StoredToolEffect,
+)
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
+from tests.contrib.store.rows import at_limit, refusal, too_long
 from tests.request_helpers import anonymous_request, authed_request
 
 # transaction=True: the store writes through ``sync_to_async``, so its ORM calls
@@ -315,3 +323,80 @@ async def test_anonymous_allowed_persists_under_a_session_bucket() -> None:
     assert got is not None and got.agent_name == "anon-run"
     row = await StoredRun.objects.aget(run_id="r1")
     assert row.owner_id.startswith("anon:")
+
+
+# -- Identifier widths ---------------------------------------------------------
+
+
+def _write(model: type[Model], **ids: str) -> tuple[str, object]:
+    """The store method that writes ``model`` and the record it writes, carrying ``ids``."""
+    fields = {"run_id": "r1", **ids}
+    if model is StoredRun:
+        return "register_run", RunRecord(started_at=_T0, **fields)
+    if model is StoredStepEvent:
+        return "append_event", StepEvent(kind="run_started", step_index=0, **fields)
+    if model is StoredSnapshot:
+        return "save_snapshot", ContinuableSnapshot(step_index=0, messages=[], **fields)
+    effect = {"tool_call_id": "call-1", **fields}
+    return "record_tool_effect", ToolEffectRecord(tool_name="search", status="started", **effect)
+
+
+_GUARDED = [
+    (StoredRun, "run_id"),
+    (StoredRun, "conversation_id"),
+    (StoredRun, "parent_run_id"),
+    (StoredStepEvent, "run_id"),
+    (StoredStepEvent, "conversation_id"),
+    (StoredStepEvent, "parent_run_id"),
+    (StoredStepEvent, "tool_call_id"),
+    (StoredSnapshot, "run_id"),
+    (StoredSnapshot, "conversation_id"),
+    (StoredSnapshot, "parent_run_id"),
+    (StoredToolEffect, "run_id"),
+    (StoredToolEffect, "tool_call_id"),
+]
+
+
+@pytest.mark.parametrize(("model", "field"), _GUARDED)
+async def test_a_write_refuses_an_id_longer_than_its_column(model: type[Model], field: str) -> None:
+    method, record = _write(model, **{field: too_long(model, field)})
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(model, field)):
+        await getattr(_store(), method)(record)
+
+    assert await model.objects.acount() == 0
+
+
+@pytest.mark.parametrize("model", [StoredRun, StoredStepEvent, StoredSnapshot, StoredToolEffect])
+async def test_a_write_refuses_an_owner_longer_than_its_column(model: type[Model]) -> None:
+    method, record = _write(model)
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(model, "owner_id")):
+        await getattr(_store(too_long(model, "owner_id")), method)(record)
+
+    assert await model.objects.acount() == 0
+
+
+@pytest.mark.parametrize("model", [StoredRun, StoredStepEvent, StoredSnapshot, StoredToolEffect])
+async def test_a_write_takes_ids_exactly_as_wide_as_their_columns(model: type[Model]) -> None:
+    fields = [field for guarded, field in _GUARDED if guarded is model]
+    method, record = _write(model, **{field: at_limit(model, field) for field in fields})
+
+    await getattr(_store(at_limit(model, "owner_id")), method)(record)
+
+    assert await model.objects.acount() == 1
+
+
+async def test_reads_with_an_over_long_id_find_nothing() -> None:
+    store = _store()
+    await store.register_run(RunRecord(run_id="r1", started_at=_T0))
+    run = too_long(StoredRun, "run_id")
+    call = too_long(StoredToolEffect, "tool_call_id")
+
+    assert await store.get_run(run_id=run) is None
+    assert await store.list_runs(parent_run_id=run, conversation_id=run) == []
+    assert await store.list_events(run_id=run) == []
+    assert await store.latest_snapshot(run_id=run) is None
+    assert await store.get_tool_effect(run_id=run, tool_call_id=call) is None
+    assert await store.list_unresolved_tool_effects(run_id=run) == []
+    assert await _store(too_long(StoredRun, "owner_id")).get_run(run_id="r1") is None

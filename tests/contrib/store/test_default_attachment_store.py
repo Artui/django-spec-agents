@@ -11,6 +11,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile, UploadedFile
 
 from django_spec_agents.contrib.store.default_attachment_store import DefaultAttachmentStore
 from django_spec_agents.contrib.store.models import StoredAttachment
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
+from tests.contrib.store.rows import at_limit, refusal, too_long
 
 pytestmark = pytest.mark.django_db
 
@@ -120,7 +122,7 @@ def test_save_caps_long_filename_preserving_extension() -> None:
     ref = store._save(_upload(name="a" * 300 + ".txt"), "7")
     assert len(ref.name) == 255
     assert ref.name.endswith(".txt")
-    # The stored row honors the model's max_length too.
+    # Django's upload caps the name, and the row keeps it as given.
     assert StoredAttachment.objects.get(attachment_id=ref.id).name == ref.name
 
 
@@ -335,3 +337,35 @@ def test_the_store_logs_under_its_module_path() -> None:
     assert default_attachment_store.logger.name == (
         "django_spec_agents.contrib.store.default_attachment_store"
     )
+
+
+# -- Identifier widths ---------------------------------------------------------
+
+
+def test_save_refuses_an_owner_longer_than_its_column_before_writing() -> None:
+    owner = too_long(StoredAttachment, "owner_id")
+    blobs = default_storage.listdir("django_pydantic_agent/attachments/")[1]
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(StoredAttachment, "owner_id")):
+        DefaultAttachmentStore()._save(_upload(), owner)
+
+    assert not StoredAttachment.objects.exists()
+    assert default_storage.listdir("django_pydantic_agent/attachments/")[1] == blobs
+
+
+def test_save_writes_an_owner_exactly_as_wide_as_its_column() -> None:
+    owner = at_limit(StoredAttachment, "owner_id")
+
+    ref = DefaultAttachmentStore()._save(_upload(), owner)
+
+    assert _bytes_of(DefaultAttachmentStore(), ref.id, owner) == b"hello"
+
+
+def test_reads_with_an_over_long_owner_find_nothing() -> None:
+    store = DefaultAttachmentStore()
+    ref = store._save(_upload(), "7")
+    owner = too_long(StoredAttachment, "owner_id")
+
+    assert store._open(ref.id, owner) is None
+    store._remove(ref.id, owner)
+    assert StoredAttachment.objects.count() == 1
