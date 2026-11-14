@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one of a type the model cannot read is closed unread. A file spec the kernel's
   `file_output` refuses is refused when the toolset is built, naming the tool.
   `read_attachment`'s answers are unchanged: the two share one helper.
+- **A `many` tool serves a spec that names its collection.** A `many` spec with a
+  `collection_selector_spec`, which django-service-specs 0.33.0 allows, has the
+  selector's `reads` advertised beside the list and passed to dispatch, and the
+  service receives `collection`. Tests and the guide pin it. The toolset needed no
+  change, because it reads the kernel's caller schema.
 
 ### Changed
 

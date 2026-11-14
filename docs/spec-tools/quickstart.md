@@ -966,7 +966,31 @@ What the model is told when a call is wrong:
   as `note: Unknown argument.`, and under `IGNORE` it is dropped, since the
   service receives only the list and the argument would have nowhere to go.
 
-A tool that needs arguments **beside** its list cannot be `many=True`. Name the
+**A `many` spec may name the set its rows edit** with a
+`collection_selector_spec` (django-service-specs 0.33.0). The selector's `reads`
+are its lookup, advertised beside the list and required as the selector
+declares them; a call sends them at the top level, and the service receives the
+resolved set as `collection`:
+
+```python
+add_widgets = ServiceSpec(
+    service=add_widgets,  # (*, data, user, collection)
+    validator=widget_input,
+    many=True,
+    collection_selector_spec=SelectorSpec(
+        selector=owned_widgets,
+        kind=SelectorKind.LIST,
+        reads=Parameters.of(Parameter("owner_id", "integer", required=True)),
+    ),
+)
+```
+
+The model sends `{"owner_id": 7, "items": [...]}`, and a call leaving out
+`owner_id` is asked for it. A lookup the selector takes but does not declare in
+`reads` is not advertised. An `instance_selector_spec` on a `many` spec is still
+refused by the kernel.
+
+Any other argument a tool needs **beside** its list rules out `many=True`. Name the
 list as a field of the Validator's input instead, and loop over it:
 
 ```python
