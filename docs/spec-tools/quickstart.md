@@ -353,8 +353,10 @@ under `AttachmentInlineConfig`'s default limits:
 | A type in `media_types` (PDF, PNG, JPEG, GIF, WebP) within `max_bytes` | The bytes, attached to the tool result as file content for that turn, beside a one-line note. |
 | Anything else: another type, a file over `max_bytes`, undecodable "text" | A one-line note giving its name, type and size. |
 
-A file over the limit is read no further than the limit, and one of a type the
-model cannot read is closed without being read. Unlike `read_attachment`, the
+A file over the limit is read no further than the limit, so an over-limit
+textual file is described by its type without being read, where `read_attachment`
+reads an attachment whole and then measures it. One of a type the model cannot
+read is closed without being read. Unlike `read_attachment`, the
 note does not ask the model to call the tool again for a later turn: calling a
 service again runs it again.
 

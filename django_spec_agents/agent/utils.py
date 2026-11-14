@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pydantic_ai.messages import BinaryContent, ToolReturn
 
-from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
-
 # Non-``text/*`` content types whose bytes are still UTF-8 text worth inlining.
 _TEXTUAL_MIMES = frozenset(
     {
@@ -58,26 +56,3 @@ def attached_file(data: bytes, *, name: str, mime: str, again: str) -> ToolRetur
         ),
         content=[BinaryContent(data=data, media_type=mime)],
     )
-
-
-def render_file(
-    data: bytes,
-    *,
-    name: str,
-    mime: str,
-    declared_size: int,
-    inline: AttachmentInlineConfig,
-    again: str,
-) -> str | ToolReturn:
-    """Decoded text, else the bytes as file content, else a one-line manifest."""
-    size = f"{len(data)} bytes"
-    text = as_text(data, mime)
-    if text is not None:
-        if len(data) > inline.max_bytes:
-            return over_limit_note(name, mime, size, inline.max_bytes, text=True)
-        return text
-    if mime in inline.media_types:
-        if len(data) <= inline.max_bytes:
-            return attached_file(data, name=name, mime=mime, again=again)
-        return over_limit_note(name, mime, size, inline.max_bytes, text=False)
-    return unread_note(name, mime, f"{declared_size} bytes")

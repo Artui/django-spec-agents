@@ -626,6 +626,30 @@ async def test_namespace_mode_refuses_a_first_segment_longer_than_the_owner_colu
     assert await StoredMemory.objects.acount() == 0
 
 
+@pytest.mark.parametrize(
+    ("model", "field"),
+    [
+        (StoredMemory, "owner_id"),
+        (StoredMemory, "operation_id"),
+        (StoredMemoryOperation, "owner_id"),
+        (StoredMemoryOperation, "operation_id"),
+    ],
+)
+async def test_a_write_checks_each_row_against_its_own_column(
+    model: type[StoredMemory | StoredMemoryOperation], field: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Narrowing one column alone must refuse, so neither row's check stands in for the other."""
+    monkeypatch.setattr(model._meta.get_field(field), "max_length", 10)
+    owner = too_long(model, field) if field == "owner_id" else "7"
+    operation = _operation(too_long(model, field) if field == "operation_id" else "op-1")
+
+    with pytest.raises(IdentifierTooLongError, match=refusal(model, field)):
+        await _store(owner).write(_PATH, "note", expected_version=None, operation=operation)
+
+    assert await StoredMemory.objects.acount() == 0
+    assert await StoredMemoryOperation.objects.acount() == 0
+
+
 async def test_a_write_takes_ids_exactly_as_wide_as_their_columns() -> None:
     store = _store(at_limit(StoredMemory, "owner_id"))
     operation = _operation(at_limit(StoredMemoryOperation, "operation_id"))

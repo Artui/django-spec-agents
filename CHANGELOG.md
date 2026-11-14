@@ -25,7 +25,8 @@ migration to run.
   default config's limits apply; a file is read no further than the limit, and
   one of a type the model cannot read is closed unread. A file spec the kernel's
   `file_output` refuses is refused when the toolset is built, naming the tool.
-  `read_attachment`'s answers are unchanged: the two share one helper.
+  `read_attachment`'s answers are unchanged: the two share the helpers that
+  decide and word an answer.
 - **A `many` tool serves a spec that names its collection.** A `many` spec with a
   `collection_selector_spec`, which django-service-specs 0.33.0 allows, has the
   selector's `reads` advertised beside the list and passed to dispatch, and the

@@ -54,21 +54,23 @@ async def test_reads_textual_attachment_as_text() -> None:
 
 async def test_reads_non_text_mime_as_a_manifest() -> None:
     # A PNG declared as a generic byte stream: an unlisted type is described, not attached.
-    store = _FakeStore(_opened("application/octet-stream", b"\x89PNG\r\n", name="logo.png", size=6))
+    store = _FakeStore(
+        _opened("application/octet-stream", b"\x89PNG\r\n", name="logo.png", size=60)
+    )
     read = _read_attachment(store, RequestFactory().get("/"))
-    result = await read("a1")
-    assert "logo.png" in result
-    assert "application/octet-stream" in result
-    assert "6 bytes" in result
+    assert await read("a1") == (
+        "[logo.png] is a application/octet-stream file (60 bytes); "
+        "its content is not text and was not inlined."
+    )
 
 
 async def test_textual_mime_but_undecodable_bytes_is_a_manifest() -> None:
     # ``text/plain`` content type, but the bytes aren't valid UTF-8.
-    store = _FakeStore(_opened("text/plain", b"\xff\xfe", name="bad.txt", size=2))
+    store = _FakeStore(_opened("text/plain", b"\xff\xfe", name="bad.txt", size=20))
     read = _read_attachment(store, RequestFactory().get("/"))
-    result = await read("a1")
-    assert "bad.txt" in result
-    assert "not text" in result
+    assert await read("a1") == (
+        "[bad.txt] is a text/plain file (20 bytes); its content is not text and was not inlined."
+    )
 
 
 async def test_missing_attachment_reports_clearly() -> None:
@@ -108,12 +110,10 @@ async def test_oversized_inlineable_file_falls_back_to_a_note() -> None:
     read = _read_attachment(
         store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=1)
     )
-    result = await read("a1")
-    assert isinstance(result, str)
-    assert "huge.pdf" in result
-    # Names the limit, so the model can tell "too big" from "cannot be read".
-    assert "1-byte limit" in result
-    assert "not text" not in result
+    assert await read("a1") == (
+        "[huge.pdf] is a application/pdf file (8 bytes), over the 1-byte limit for "
+        "attaching a file's contents; it was described rather than attached."
+    )
 
 
 async def test_binary_type_outside_the_allowlist_is_not_inlined() -> None:
@@ -173,14 +173,13 @@ async def test_a_row_whose_blob_is_gone_reaches_the_graceful_branch() -> None:
 async def test_a_text_file_over_the_cap_is_described_rather_than_returned() -> None:
     """The cap bounds one request, and a decoded file costs what an inlined one does."""
     inline = AttachmentInlineConfig(max_bytes=1024)
-    store = _FakeStore(_opened("text/csv", b"a," * 2048, name="rows.csv", size=4096))
+    store = _FakeStore(_opened("text/csv", b"a," * 2048, name="rows.csv", size=9999))
     read = _read_attachment(store, RequestFactory().get("/"), inline=inline)
 
-    result = await read("a1")
-
-    assert isinstance(result, str)
-    assert "over the 1024-byte limit" in result
-    assert "a,a," not in result
+    assert await read("a1") == (
+        "[rows.csv] is a text/csv file (4096 bytes), over the 1024-byte limit for "
+        "returning a file's contents; it was described rather than read."
+    )
 
 
 @pytest.mark.django_db
@@ -201,6 +200,8 @@ async def test_the_attached_result_says_the_content_is_for_this_turn() -> None:
     result = await read("a1")
 
     assert isinstance(result, ToolReturn)
-    persisted = str(result.return_value)
-    assert "for this turn" in persisted
-    assert "read_attachment again" in persisted
+    assert result.return_value == (
+        "[doc.pdf] is a application/pdf file (8 bytes); its contents are attached to this "
+        "tool result, for this turn. Call read_attachment again with the same id if a later "
+        "turn needs them."
+    )

@@ -7,7 +7,7 @@ from pydantic_ai.messages import ToolReturn
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
-from django_spec_agents.agent.utils import render_file
+from django_spec_agents.agent.utils import as_text, attached_file, over_limit_note, unread_note
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
 from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
 
@@ -50,14 +50,18 @@ def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | T
     ref = opened.ref
     with opened.content as handle:
         data = handle.read()
-    return render_file(
-        data,
-        name=ref.name,
-        mime=ref.mime,
-        declared_size=ref.size,
-        inline=inline,
-        again=" Call read_attachment again with the same id if a later turn needs them.",
-    )
+    size = f"{len(data)} bytes"
+    text = as_text(data, ref.mime)
+    if text is not None:
+        if len(data) > inline.max_bytes:
+            return over_limit_note(ref.name, ref.mime, size, inline.max_bytes, text=True)
+        return text
+    if ref.mime in inline.media_types:
+        if len(data) <= inline.max_bytes:
+            again = " Call read_attachment again with the same id if a later turn needs them."
+            return attached_file(data, name=ref.name, mime=ref.mime, again=again)
+        return over_limit_note(ref.name, ref.mime, size, inline.max_bytes, text=False)
+    return unread_note(ref.name, ref.mime, f"{ref.size} bytes")
 
 
 __all__ = ["build_attachment_toolset"]

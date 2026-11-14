@@ -113,6 +113,8 @@ specs = [
     # checked-in schema dump assert; below it the schema is a bare ``enum``.
     # The listing builds a conditioned tool's pool with ``seeded_pool``, which
     # first exists there.
+    # 0.33.0: ``FileResult``, ``FileTooLarge`` and ``file_output``, which spec_toolset imports at
+    # module level; below it the [specs] extra does not import.
     "django-service-specs>=0.33.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):

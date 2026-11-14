@@ -85,7 +85,7 @@ async def test_a_call_leaving_out_the_lookup_is_asked_for_it():
     toolset = SpecToolset({"add": _collected()})
     tools = await toolset.get_tools(None)
 
-    with pytest.raises(ModelRetry, match="owner_id"):
+    with pytest.raises(ModelRetry, match=r"^Missing required argument\(s\): .*owner_id"):
         await toolset.call_tool(
             "add", {"items": [{"name": "a", "price": 2}]}, ctx_for(None), tools["add"]
         )
@@ -103,6 +103,19 @@ async def test_a_many_tool_without_a_collection_takes_the_list_alone():
         permissions=allow(),
         presenter=widget_presenter(),
     )
+    tools = await SpecToolset({"add": spec}).get_tools(None)
+    schema = tools["add"].tool_def.parameters_json_schema
+
+    assert list(schema["properties"]) == ["items"]
+    assert schema["required"] == ["items"]
+
+
+async def test_a_collection_selector_reading_nothing_adds_nothing_to_the_list():
+    def _all(user):
+        """Every widget."""
+        return Widget.objects.order_by("pk")
+
+    spec = _spec(collection_selector_spec=SelectorSpec(selector=_all, kind=SelectorKind.LIST))
     tools = await SpecToolset({"add": spec}).get_tools(None)
     schema = tools["add"].tool_def.parameters_json_schema
 
