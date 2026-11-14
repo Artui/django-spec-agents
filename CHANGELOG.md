@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A spec tool reads a file result to the model.** A spec presenting a
+  `FileResult` through the kernel's `FilePresenter` is answered as
+  `read_attachment` answers an attachment: a textual type within
+  `AttachmentInlineConfig`'s `max_bytes` is its text, a type in its
+  `media_types` within the limit is attached to the tool result as file content,
+  and anything else is a one-line note giving the name, type and size. The
+  default config's limits apply; a file is read no further than the limit, and
+  one of a type the model cannot read is closed unread. A file spec the kernel's
+  `file_output` refuses is refused when the toolset is built, naming the tool.
+  `read_attachment`'s answers are unchanged: the two share one helper.
+
 ### Changed
 
+- **`max_result_bytes` measures a file by its bytes.** A file's text is measured
+  by its UTF-8 length and attached bytes by their length, not by the JSON repr
+  of the result. Every other result is measured as before.
+- **The floor on `django-service-specs` rises to 0.33.0**, the release that ships
+  `FileResult`.
 - **The API reference's docstrings are restored.** The long docstrings that the
   comment-budget cut to one line are back on the classes and functions the
   reference pages render.

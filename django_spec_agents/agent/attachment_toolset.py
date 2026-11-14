@@ -3,23 +3,13 @@ from __future__ import annotations
 from typing import Any, cast
 
 from django.http import HttpRequest
-from pydantic_ai.messages import BinaryContent, ToolReturn
+from pydantic_ai.messages import ToolReturn
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.agent.utils import render_file
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
 from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
-
-# Non-``text/*`` content types whose bytes are still UTF-8 text worth inlining.
-_TEXTUAL_MIMES = frozenset(
-    {
-        "application/json",
-        "application/xml",
-        "application/javascript",
-        "application/x-yaml",
-        "image/svg+xml",
-    }
-)
 
 
 def build_attachment_toolset(
@@ -60,45 +50,14 @@ def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | T
     ref = opened.ref
     with opened.content as handle:
         data = handle.read()
-    text = _as_text(data, ref.mime)
-    if text is not None:
-        if len(data) > inline.max_bytes:
-            return (
-                f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes), over the "
-                f"{inline.max_bytes}-byte limit for returning a file's contents; "
-                "it was described rather than read."
-            )
-        return text
-    if ref.mime in inline.media_types:
-        if len(data) <= inline.max_bytes:
-            return ToolReturn(
-                return_value=(
-                    f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes); "
-                    "its contents are attached to this tool result, for this "
-                    "turn. Call read_attachment again with the same id if a "
-                    "later turn needs them."
-                ),
-                content=[BinaryContent(data=data, media_type=ref.mime)],
-            )
-        return (
-            f"[{ref.name}] is a {ref.mime} file ({len(data)} bytes), over the "
-            f"{inline.max_bytes}-byte limit for attaching a file's contents; "
-            "it was described rather than attached."
-        )
-    return (
-        f"[{ref.name}] is a {ref.mime or 'binary'} file ({ref.size} bytes); "
-        "its content is not text and was not inlined."
+    return render_file(
+        data,
+        name=ref.name,
+        mime=ref.mime,
+        declared_size=ref.size,
+        inline=inline,
+        again=" Call read_attachment again with the same id if a later turn needs them.",
     )
-
-
-def _as_text(content: bytes, mime: str) -> str | None:
-    """UTF-8 text for a textual content type, or ``None`` when binary/undecodable."""
-    if not (mime.startswith("text/") or mime in _TEXTUAL_MIMES):
-        return None
-    try:
-        return content.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
 
 
 __all__ = ["build_attachment_toolset"]

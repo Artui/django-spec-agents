@@ -33,10 +33,16 @@ NOT_FROM_THE_ROOT = (
     "django_spec_mcp",
 )
 
-# The one host name ``spec_tools`` may import, at its leaf path or the root's.
+# The host names ``spec_tools`` may import: ``AgentDeps``, and how a file is read to the model.
 SPEC_TOOLS_MAY_IMPORT = {
     "django_spec_agents.agent.types.agent_deps.AgentDeps",
     "django_spec_agents.AgentDeps",
+    "django_spec_agents.agent.types.attachment_inline_config.AttachmentInlineConfig",
+    "django_spec_agents.agent.utils.as_text",
+    "django_spec_agents.agent.utils.attached_file",
+    "django_spec_agents.agent.utils.is_textual",
+    "django_spec_agents.agent.utils.over_limit_note",
+    "django_spec_agents.agent.utils.unread_note",
 }
 
 STORE = "django_spec_agents.contrib.store"
@@ -161,7 +167,7 @@ def test_the_scan_reads_every_spec_tools_module() -> None:
     assert {"__init__.py", "spec_toolset.py", "spec_capability.py"} <= files
 
 
-def test_spec_tools_imports_nothing_from_the_host_but_agent_deps() -> None:
+def test_spec_tools_imports_nothing_from_the_host_but_agent_deps_and_file_rendering() -> None:
     imported = {
         f"{path.relative_to(ROOT).as_posix()}: {name}"
         for path in _spec_tools_files()

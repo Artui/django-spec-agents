@@ -72,9 +72,11 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
   carries the wording it teaches the model itself, so `integrations/mcp.py` is
   the one file the scan covers. django-spec-mcp needs a ready app registry to
   import, so it stays off every host import path.
-- **`spec_tools` imports nothing from the host but `AgentDeps`, and never
-  `contrib.store`.** It reads the acting user structurally, as `ctx.deps.user`, so
-  a project's own deps type works as long as it has a `user`.
+- **`spec_tools` imports nothing from the host but `AgentDeps` and the file
+  rendering it shares with `read_attachment`** (`AttachmentInlineConfig` and
+  `agent/utils.py`, which import pydantic-ai alone), **and never `contrib.store`.**
+  It reads the acting user structurally, as `ctx.deps.user`, so a project's own
+  deps type works as long as it has a `user`.
 - **`spec_tools` imports nothing from Django REST Framework or drf-services**,
   eagerly or in a function body. It reads every spec through the kernel.
 

@@ -340,6 +340,32 @@ service's own return as the list, and a return that is not a set of rows, such
 as the one row a create returns, raises `ImproperlyConfigured` out of the run.
 Return the rows, or declare `RETRIEVE` to present one.
 
+## A file result
+
+A spec presenting its result through the kernel's `FilePresenter` produces a
+`FileResult`, and the toolset reads it to the model the way
+[`read_attachment`](../storage.md#the-read_attachment-tool) reads an attachment,
+under `AttachmentInlineConfig`'s default limits:
+
+| The file | What the model gets |
+| --- | --- |
+| Textual (`text/*`, JSON, XML, JavaScript, YAML, SVG), valid UTF-8, within `max_bytes` | Its text. |
+| A type in `media_types` (PDF, PNG, JPEG, GIF, WebP) within `max_bytes` | The bytes, attached to the tool result as file content for that turn, beside a one-line note. |
+| Anything else: another type, a file over `max_bytes`, undecodable "text" | A one-line note giving its name, type and size. |
+
+A file over the limit is read no further than the limit, and one of a type the
+model cannot read is closed without being read. Unlike `read_attachment`, the
+note does not ask the model to call the tool again for a later turn: calling a
+service again runs it again.
+
+A file spec has no `return_schema`, since a file has no JSON shape. One the
+kernel's `file_output` refuses, such as a `LIST` selector presenting a file per
+row, is refused when the toolset is built, naming the tool.
+
+`max_result_bytes` measures a file by its bytes: a text file by its UTF-8
+length, an attached one by its bytes plus the note, never by the repr of the
+bytes. Handing the user a download of the file is not the toolset's to do.
+
 ## What a tool asks the model for
 
 A tool's parameter schema is the model's only account of what to send, and the
