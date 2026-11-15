@@ -10,6 +10,7 @@ from django_spec_agents.persistence.scoped_conversation_store import ScopedConve
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from tests.request_helpers import authed_request
 
 
 class _MemoryStore:
@@ -160,5 +161,67 @@ def test_the_prefix_counts_against_the_inner_column() -> None:
     room = StoredConversation._meta.get_field("thread_id").max_length - len("internal:")
 
     scoped.check_identifiers(thread_id="x" * room)
-    with pytest.raises(IdentifierTooLongError, match="^thread_id is 256 characters"):
+    with pytest.raises(IdentifierTooLongError, match=f"^thread_id is {room + 1} characters"):
         scoped.check_identifiers(thread_id="x" * (room + 1))
+
+
+def test_a_scoped_refusal_counts_the_thread_id_the_client_sent() -> None:
+    scoped = ScopedConversationStore(DefaultConversationStore(), scope="internal")
+    room = StoredConversation._meta.get_field("thread_id").max_length - len("internal:")
+
+    with pytest.raises(
+        IdentifierTooLongError,
+        match=f"^thread_id is {room + 1} characters, over its {room}-character limit in this",
+    ):
+        scoped.check_identifiers(thread_id="x" * (room + 1))
+
+
+async def test_a_scoped_save_refusal_counts_the_thread_id_the_client_sent() -> None:
+    scoped = ScopedConversationStore(DefaultConversationStore(), scope="internal")
+    room = StoredConversation._meta.get_field("thread_id").max_length - len("internal:")
+
+    with pytest.raises(IdentifierTooLongError, match=f"^thread_id is {room + 1} characters"):
+        await scoped.save(
+            Conversation(thread_id="x" * (room + 1), messages=[]), request=authed_request()
+        )
+
+
+def test_a_scoped_refusal_of_another_id_is_left_as_the_store_raised_it() -> None:
+    with pytest.raises(IdentifierTooLongError, match="^run_id is 256 characters"):
+        ScopedConversationStore(_RefusingStore(), scope="internal").check_identifiers(
+            thread_id="t1"
+        )
+
+
+class _RefusingStore(_MemoryStore):
+    def check_identifiers(self, **ids: str | None) -> None:  # noqa: ARG002
+        raise IdentifierTooLongError("run_id is 256 characters, over its 255-character limit")
+
+
+async def test_a_scoped_save_refusal_of_another_id_is_left_as_the_store_raised_it() -> None:
+    scoped = ScopedConversationStore(DefaultConversationStore(), scope="internal")
+
+    with pytest.raises(IdentifierTooLongError, match="^owner_id is 256 characters"):
+        await scoped.save(
+            Conversation(thread_id="t1", messages=[]), request=authed_request("x" * 256)
+        )
+
+
+class _VagueStore(_MemoryStore):
+    def check_identifiers(self, **ids: str | None) -> None:  # noqa: ARG002
+        raise IdentifierTooLongError("thread_id is too long", field="thread_id")
+
+
+def test_a_scoped_refusal_that_names_no_limit_is_left_as_the_store_raised_it() -> None:
+    with pytest.raises(IdentifierTooLongError, match="^thread_id is too long$"):
+        ScopedConversationStore(_VagueStore(), scope="internal").check_identifiers(thread_id="t1")
+
+
+class _StrictStore(_MemoryStore):
+    def check_identifiers(self, **ids: str | None) -> None:  # noqa: ARG002
+        raise IdentifierTooLongError("thread_id is required", field="thread_id", limit=5)
+
+
+def test_a_thread_id_refusal_without_a_thread_id_sent_is_left_as_the_store_raised_it() -> None:
+    with pytest.raises(IdentifierTooLongError, match="^thread_id is required$"):
+        ScopedConversationStore(_StrictStore(), scope="internal").check_identifiers(run_id="r1")

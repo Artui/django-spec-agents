@@ -26,6 +26,11 @@ id too long for a default store before it starts the run that would write it.
   `ConversationStore` or `MemoryStore`, and is preflighted as a no-op.
   `ScopedConversationStore` forwards the check, its prefix applied to `thread_id`,
   only when the store it wraps has it.
+- **`IdentifierTooLongError` says what it refused.** It carries `field`, `length` and
+  `limit`, which the default stores set and which are `None` when the raiser does
+  not. `ScopedConversationStore` uses them to report a refused `thread_id`, in the
+  preflight and in `save`, at the length the client sent and against the room its
+  prefix leaves, where it used to count the stored key.
 
 ## [0.14.0] — 2026-11-14
 

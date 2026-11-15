@@ -428,3 +428,20 @@ def test_check_identifiers_needs_no_owner() -> None:
         DefaultStepStore(anonymous_request()).check_identifiers(
             run_id=too_long(StoredRun, "run_id")
         )
+
+
+@pytest.mark.parametrize(
+    ("model", "field"),
+    [
+        (StoredRun, "run_id"),
+        (StoredStepEvent, "conversation_id"),
+        (StoredSnapshot, "parent_run_id"),
+        (StoredToolEffect, "tool_call_id"),
+    ],
+)
+def test_check_identifiers_reads_each_model_that_keeps_the_id(
+    model: type[Model], field: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(model._meta.get_field(field), "max_length", 10)
+    with pytest.raises(IdentifierTooLongError, match="over its 10-character limit"):
+        DefaultStepStore(authed_request("7")).check_identifiers(**{field: "x" * 11})

@@ -167,3 +167,10 @@ def test_check_column_widths_reads_the_limit_from_the_model_field() -> None:
     check_column_widths(StoredMemory, path=at_limit(StoredMemory, "path"))
     with pytest.raises(IdentifierTooLongError, match=refusal(StoredMemory, "path")):
         check_column_widths(StoredMemory, path=too_long(StoredMemory, "path"))
+
+
+def test_check_column_widths_sets_what_it_refused_on_the_error() -> None:
+    with pytest.raises(IdentifierTooLongError) as caught:
+        check_column_widths(StoredMemory, path=too_long(StoredMemory, "path"))
+
+    assert (caught.value.field, caught.value.length, caught.value.limit) == ("path", 501, 500)

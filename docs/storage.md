@@ -220,7 +220,14 @@ columns of their own.
 
 `ScopedConversationStore` offers `check_identifiers` only when the store it wraps
 has it, and applies its `scope:` prefix to `thread_id` before forwarding, so the
-prefix counts against the column.
+prefix counts against the column. A `thread_id` it refuses, there or in `save`, is
+reported as the client sent it, against the room the prefix leaves:
+`thread_id is 247 characters, over its 246-character limit in this scope` under
+`scope="internal"`.
+
+The default stores' errors carry `field`, `length` and `limit` beside the message,
+so a transport can build its own answer; each is `None` on an error raised without
+them.
 
 The descriptive columns no index reads are `TextField`s and take any length: an
 attachment's `name` and `mime`, `agent_name`, `tool_name`, a tool effect's

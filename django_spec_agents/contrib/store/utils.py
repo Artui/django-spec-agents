@@ -33,7 +33,10 @@ def check_column_widths(model: type[Model], **values: str | None) -> None:
         limit = cast("int", field.max_length)
         if value is not None and len(value) > limit:
             raise IdentifierTooLongError(
-                f"{name} is {len(value)} characters, over its {limit}-character limit"
+                f"{name} is {len(value)} characters, over its {limit}-character limit",
+                field=name,
+                length=len(value),
+                limit=limit,
             )
 
 
