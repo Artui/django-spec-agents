@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from django.db.models import Model
@@ -400,3 +401,30 @@ async def test_reads_with_an_over_long_id_find_nothing() -> None:
     assert await store.get_tool_effect(run_id=run, tool_call_id=call) is None
     assert await store.list_unresolved_tool_effects(run_id=run) == []
     assert await _store(too_long(StoredRun, "owner_id")).get_run(run_id="r1") is None
+
+
+@pytest.mark.parametrize("field", ["run_id", "conversation_id", "parent_run_id", "tool_call_id"])
+def test_check_identifiers_refuses_an_id_past_its_column_without_a_query(
+    field: str, django_assert_num_queries: Any
+) -> None:
+    store = DefaultStepStore(authed_request("7"))
+    with (
+        django_assert_num_queries(0),
+        pytest.raises(IdentifierTooLongError, match=refusal(StoredStepEvent, field)),
+    ):
+        store.check_identifiers(**{field: too_long(StoredStepEvent, field)})
+
+
+def test_check_identifiers_accepts_ids_at_their_column_width_and_skips_none() -> None:
+    DefaultStepStore(authed_request("7")).check_identifiers(
+        run_id=at_limit(StoredRun, "run_id"),
+        tool_call_id=at_limit(StoredToolEffect, "tool_call_id"),
+    )
+
+
+def test_check_identifiers_needs_no_owner() -> None:
+    DefaultStepStore(anonymous_request()).check_identifiers(run_id="r1")
+    with pytest.raises(IdentifierTooLongError):
+        DefaultStepStore(anonymous_request()).check_identifiers(
+            run_id=too_long(StoredRun, "run_id")
+        )

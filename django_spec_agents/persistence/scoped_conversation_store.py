@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import Any, cast
 
 from django.http import HttpRequest
 
@@ -40,6 +41,9 @@ class ScopedConversationStore:
     namespace would silently orphan the whole thread history of an existing
     single-endpoint project the moment it set one.
 
+    ``check_identifiers`` is forwarded, with the prefix applied to ``thread_id``,
+    only when the inner store has it; ``preflight_identifiers`` skips one without.
+
     The scope is invisible on the wire. Thread ids are echoed back to the client
     unchanged; only the storage key carries the prefix.
 
@@ -64,6 +68,15 @@ class ScopedConversationStore:
             )
         self._inner = inner
         self._scope = scope
+        # Offered only over a store that has it, so a scoped custom store never looks capable.
+        if callable(getattr(inner, "check_identifiers", None)):
+            self.check_identifiers = self._check_identifiers
+
+    def _check_identifiers(self, **ids: str | None) -> None:
+        thread_id = ids.get("thread_id")
+        if thread_id is not None:
+            ids["thread_id"] = self._key(thread_id)
+        cast("Any", self._inner).check_identifiers(**ids)
 
     def _key(self, thread_id: str) -> str:
         return f"{self._scope}:{thread_id}"

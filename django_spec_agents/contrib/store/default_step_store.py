@@ -21,7 +21,7 @@ from django_spec_agents.contrib.store.models import (
     StoredStepEvent,
     StoredToolEffect,
 )
-from django_spec_agents.contrib.store.utils import check_identifiers, owner_or_none
+from django_spec_agents.contrib.store.utils import check_column_widths, owner_or_none
 
 
 class DefaultStepStore:
@@ -55,6 +55,30 @@ class DefaultStepStore:
         """Pass ``allow_anonymous`` explicitly: this substrate reads no Django settings."""
         self._request = request
         self._allow_anonymous: bool = allow_anonymous
+
+    def check_identifiers(
+        self,
+        *,
+        run_id: str | None = None,
+        conversation_id: str | None = None,
+        parent_run_id: str | None = None,
+        tool_call_id: str | None = None,
+    ) -> None:
+        """Raise ``IdentifierTooLongError`` for an id a column of this store cannot hold.
+
+        Each id is checked against every model that keeps it. It resolves no owner
+        and writes nothing, so a transport can refuse the id before it starts a run;
+        ``preflight_identifiers`` calls it.
+        """
+        ids = {
+            "run_id": run_id,
+            "conversation_id": conversation_id,
+            "parent_run_id": parent_run_id,
+            "tool_call_id": tool_call_id,
+        }
+        for model in (StoredRun, StoredStepEvent, StoredSnapshot, StoredToolEffect):
+            kept = {field.name for field in model._meta.get_fields()}
+            check_column_widths(model, **{name: ids[name] for name in ids if name in kept})
 
     # -- Runs -----------------------------------------------------------------
 
@@ -112,7 +136,7 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
-        check_identifiers(
+        check_column_widths(
             StoredRun,
             owner_id=owner,
             run_id=record.run_id,
@@ -153,7 +177,7 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
-        check_identifiers(
+        check_column_widths(
             StoredStepEvent,
             owner_id=owner,
             run_id=event.run_id,
@@ -187,7 +211,7 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
-        check_identifiers(
+        check_column_widths(
             StoredSnapshot,
             owner_id=owner,
             run_id=snapshot.run_id,
@@ -234,7 +258,7 @@ class DefaultStepStore:
         owner = self._owner()
         if owner is None:
             return
-        check_identifiers(
+        check_column_widths(
             StoredToolEffect,
             owner_id=owner,
             run_id=record.run_id,

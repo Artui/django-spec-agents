@@ -13,7 +13,7 @@ from django_spec_agents.contrib.store.models import (
     StoredMemory,
 )
 from django_spec_agents.contrib.store.utils import (
-    check_identifiers,
+    check_column_widths,
     delete_attachments,
     hash_file,
     preview_attachment_deletion,
@@ -152,18 +152,18 @@ def test_preview_of_nothing() -> None:
 
 
 @pytest.mark.parametrize("field", ["owner_id", "thread_id"])
-def test_check_identifiers_refuses_a_value_one_past_the_column(field: str) -> None:
+def test_check_column_widths_refuses_a_value_one_past_the_column(field: str) -> None:
     with pytest.raises(IdentifierTooLongError, match=refusal(StoredConversation, field)):
-        check_identifiers(StoredConversation, **{field: too_long(StoredConversation, field)})
+        check_column_widths(StoredConversation, **{field: too_long(StoredConversation, field)})
 
 
-def test_check_identifiers_accepts_a_value_at_the_column_width_and_skips_none() -> None:
-    check_identifiers(
+def test_check_column_widths_accepts_a_value_at_the_column_width_and_skips_none() -> None:
+    check_column_widths(
         StoredConversation, owner_id=None, thread_id=at_limit(StoredConversation, "thread_id")
     )
 
 
-def test_check_identifiers_reads_the_limit_from_the_model_field() -> None:
-    check_identifiers(StoredMemory, path=at_limit(StoredMemory, "path"))
+def test_check_column_widths_reads_the_limit_from_the_model_field() -> None:
+    check_column_widths(StoredMemory, path=at_limit(StoredMemory, "path"))
     with pytest.raises(IdentifierTooLongError, match=refusal(StoredMemory, "path")):
-        check_identifiers(StoredMemory, path=too_long(StoredMemory, "path"))
+        check_column_widths(StoredMemory, path=too_long(StoredMemory, "path"))

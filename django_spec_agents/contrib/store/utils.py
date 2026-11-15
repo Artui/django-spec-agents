@@ -26,7 +26,7 @@ def owner_or_none(request: HttpRequest, *, allow_anonymous: bool) -> str | None:
         return None
 
 
-def check_identifiers(model: type[Model], **values: str | None) -> None:
+def check_column_widths(model: type[Model], **values: str | None) -> None:
     """Raise ``IdentifierTooLongError`` for a value longer than its column on ``model``."""
     for name, value in values.items():
         field = cast("Field[Any, Any]", model._meta.get_field(name))
@@ -84,7 +84,7 @@ def preview_attachment_deletion(attachments: list[StoredAttachment]) -> Attachme
 
 
 __all__ = [
-    "check_identifiers",
+    "check_column_widths",
     "delete_attachments",
     "hash_file",
     "preview_attachment_deletion",

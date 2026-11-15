@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import UploadedFile
 
 from django_spec_agents.contrib.store.models import StoredAttachment
 from django_spec_agents.contrib.store.utils import (
-    check_identifiers,
+    check_column_widths,
     delete_attachments,
     hash_file,
 )
@@ -55,7 +55,7 @@ class DefaultAttachmentStore(ModelAttachmentStore):
 
     def _save(self, upload: UploadedFile, owner_id: str | None) -> AttachmentRef:
         """Persist one upload, reusing an identical blob this owner already has."""
-        check_identifiers(StoredAttachment, owner_id=owner_id)
+        check_column_widths(StoredAttachment, owner_id=owner_id)
         attachment_id = uuid4().hex
         name = _basename(upload.name)
         mime = upload.content_type or ""

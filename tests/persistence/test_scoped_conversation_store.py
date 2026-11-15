@@ -3,9 +3,13 @@ from __future__ import annotations
 import pytest
 from django.test import RequestFactory
 
+from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
+from django_spec_agents.contrib.store.models import StoredConversation
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
+from django_spec_agents.persistence.types.conversation_store import ConversationStore
 
 
 class _MemoryStore:
@@ -113,3 +117,48 @@ async def test_the_partition_holds_for_a_scope_that_merely_shares_a_prefix(reque
 
     assert [m.thread_id for m in await admin.list(request=request_)] == []
     assert await admin.load("t1", request=request_) is None
+
+
+class _CheckingStore(_MemoryStore):
+    """A store that can preflight its ids, recording what it was asked to check."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.checked: list[dict[str, str | None]] = []
+
+    def check_identifiers(self, **ids: str | None) -> None:
+        self.checked.append(ids)
+
+
+def test_a_wrapper_over_a_store_without_the_check_does_not_offer_one() -> None:
+    scoped = ScopedConversationStore(_MemoryStore(), scope="internal")
+
+    assert not hasattr(scoped, "check_identifiers")
+    assert isinstance(scoped, ConversationStore)
+
+
+def test_the_check_is_forwarded_with_the_scope_applied_to_the_thread_id() -> None:
+    inner = _CheckingStore()
+    scoped = ScopedConversationStore(inner, scope="internal")
+
+    scoped.check_identifiers(thread_id="t1", run_id="r1")
+
+    assert inner.checked == [{"thread_id": "internal:t1", "run_id": "r1"}]
+    assert isinstance(scoped, ConversationStore)
+
+
+def test_the_check_without_a_thread_id_forwards_the_ids_untouched() -> None:
+    inner = _CheckingStore()
+
+    ScopedConversationStore(inner, scope="internal").check_identifiers(run_id="r1")
+
+    assert inner.checked == [{"run_id": "r1"}]
+
+
+def test_the_prefix_counts_against_the_inner_column() -> None:
+    scoped = ScopedConversationStore(DefaultConversationStore(), scope="internal")
+    room = StoredConversation._meta.get_field("thread_id").max_length - len("internal:")
+
+    scoped.check_identifiers(thread_id="x" * room)
+    with pytest.raises(IdentifierTooLongError, match="^thread_id is 256 characters"):
+        scoped.check_identifiers(thread_id="x" * (room + 1))

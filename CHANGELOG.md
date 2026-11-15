@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A store's ids can be refused before a run starts.** `preflight_identifiers(store,
+  **ids)`, exported from `django_spec_agents`, calls the store's `check_identifiers`
+  method when it has one and does nothing otherwise. `DefaultConversationStore`
+  (`thread_id`), `DefaultStepStore` (`run_id`, `conversation_id`, `parent_run_id`,
+  `tool_call_id`) and `DefaultMemoryStore` (`operation_id`) gain the method: it raises
+  `IdentifierTooLongError` for an id longer than its column, from the column widths
+  alone, with no query and no write. A transport can call it before a stream opens,
+  so an over-long `threadId` or `runId` is a bad request rather than an error mid-run.
+  The method is on no protocol, so a custom store without it is still a
+  `ConversationStore` or `MemoryStore`, and is preflighted as a no-op.
+  `ScopedConversationStore` forwards the check, its prefix applied to `thread_id`,
+  only when the store it wraps has it.
+
 ## [0.14.0] — 2026-11-14
 
 The floor on `django-service-specs` rises to 0.33.0, so a minor release. A spec

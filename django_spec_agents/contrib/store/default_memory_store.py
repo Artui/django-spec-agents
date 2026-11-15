@@ -16,7 +16,7 @@ from pydantic_ai_harness.memory import (
 )
 
 from django_spec_agents.contrib.store.models import StoredMemory, StoredMemoryOperation
-from django_spec_agents.contrib.store.utils import check_identifiers, owner_or_none
+from django_spec_agents.contrib.store.utils import check_column_widths, owner_or_none
 
 # The two literal fence tags the harness wraps injected memory in
 # (``memory._capability._MEMORY_DATA_PREFIX`` / ``_SUFFIX``). Matched with
@@ -141,6 +141,14 @@ class DefaultMemoryStore:
         if limit <= 0:
             raise ValueError("limit must be positive")
         return await sync_to_async(self._list_paths)(prefix, limit)
+
+    def check_identifiers(self, *, operation_id: str | None = None) -> None:
+        """Raise ``IdentifierTooLongError`` for an ``operation_id`` its columns cannot hold.
+
+        It resolves no owner and writes nothing; ``preflight_identifiers`` calls it.
+        """
+        check_column_widths(StoredMemory, operation_id=operation_id)
+        check_column_widths(StoredMemoryOperation, operation_id=operation_id)
 
     # -- Erasure, which the protocol does not cover ---------------------------
 
@@ -316,8 +324,8 @@ def _locked_row(
 def _check_mutation_identifiers(owner: str, operation: MemoryOperation | None) -> None:
     """Refuse an owner or operation id too long for the memory or receipt row."""
     operation_id = None if operation is None else operation.id
-    check_identifiers(StoredMemory, owner_id=owner, operation_id=operation_id)
-    check_identifiers(StoredMemoryOperation, owner_id=owner, operation_id=operation_id)
+    check_column_widths(StoredMemory, owner_id=owner, operation_id=operation_id)
+    check_column_widths(StoredMemoryOperation, owner_id=owner, operation_id=operation_id)
 
 
 def _validate_path(path: str) -> None:
