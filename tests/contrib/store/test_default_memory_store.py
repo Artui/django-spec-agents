@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from asgiref.sync import sync_to_async
 from django.test import override_settings
@@ -670,3 +672,34 @@ async def test_reads_with_an_over_long_id_find_nothing() -> None:
     long_operation = _operation(too_long(StoredMemoryOperation, "operation_id"))
     assert await store.get_operation(long_operation) is None
     assert await _store(too_long(StoredMemory, "owner_id")).read(_PATH, max_chars=100) is None
+
+
+def test_check_identifiers_refuses_an_operation_id_past_its_column_without_a_query(
+    django_assert_num_queries: Any,
+) -> None:
+    with (
+        django_assert_num_queries(0),
+        pytest.raises(IdentifierTooLongError, match=refusal(StoredMemoryOperation, "operation_id")),
+    ):
+        _store().check_identifiers(operation_id=too_long(StoredMemoryOperation, "operation_id"))
+
+
+def test_check_identifiers_accepts_an_operation_id_at_its_column_width_and_none() -> None:
+    _store().check_identifiers(operation_id=at_limit(StoredMemory, "operation_id"))
+    _store().check_identifiers(operation_id=None)
+
+
+def test_check_identifiers_needs_no_owner() -> None:
+    with pytest.raises(IdentifierTooLongError):
+        DefaultMemoryStore(anonymous_request()).check_identifiers(
+            operation_id=too_long(StoredMemoryOperation, "operation_id")
+        )
+
+
+@pytest.mark.parametrize("model", [StoredMemory, StoredMemoryOperation])
+def test_check_identifiers_reads_each_model_that_keeps_the_operation_id(
+    model: type[StoredMemory | StoredMemoryOperation], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(model._meta.get_field("operation_id"), "max_length", 10)
+    with pytest.raises(IdentifierTooLongError, match="over its 10-character limit"):
+        _store().check_identifiers(operation_id="x" * 11)

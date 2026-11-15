@@ -181,6 +181,54 @@ takes `threadId` or `runId` from the client can answer the error as a bad reques
 In memory's namespace mode the owner is the path's first segment, so that segment
 is held to the same limit.
 
+#### Refusing an id before the run starts
+
+The write-time check fires when the store writes, which a streaming transport
+reaches after the model and its tools have run. To refuse earlier, call
+`preflight_identifiers(store, **ids)`, exported from `django_spec_agents`, before
+the run starts:
+
+```python
+from django_spec_agents import IdentifierTooLongError, preflight_identifiers
+
+try:
+    preflight_identifiers(conversation_store, thread_id=thread_id)
+    preflight_identifiers(step_store, run_id=run_id, conversation_id=thread_id)
+except IdentifierTooLongError as error:
+    return HttpResponseBadRequest(str(error))
+```
+
+It calls the store's `check_identifiers` method when the store has one, and does
+nothing otherwise. The method reads the column widths only: it resolves no owner,
+runs no query and writes nothing, so it is safe on the event loop. It is on no
+protocol, so a custom store without it still satisfies `ConversationStore` and
+`MemoryStore`, and its ids are checked, if at all, when it writes. The keywords
+each default store takes:
+
+| Store | `check_identifiers` keywords |
+| --- | --- |
+| `DefaultConversationStore` | `thread_id` |
+| `DefaultStepStore` | `run_id`, `conversation_id`, `parent_run_id`, `tool_call_id` |
+| `DefaultMemoryStore` | `operation_id` |
+
+A keyword the store does not take is a `TypeError`, so a misspelt id fails loudly
+rather than passing the preflight. `DefaultAttachmentStore` has no method: the
+only id it keys on that a caller supplies is the owner, which the preflight leaves
+to the write. `ModelConversationStore`, `ModelAttachmentStore`,
+`DjangoSessionConversationStore` and the null stores have none either, having no
+columns of their own.
+
+`ScopedConversationStore` offers `check_identifiers` only when the store it wraps
+has it, and applies its `scope:` prefix to `thread_id` before forwarding, so the
+prefix counts against the column. A `thread_id` it refuses, there or in `save`, is
+reported as the client sent it, against the room the prefix leaves:
+`thread_id is 247 characters, over its 246-character limit in this scope` under
+`scope="internal"`.
+
+The default stores' errors carry `field`, `length` and `limit` beside the message,
+so a transport can build its own answer; each is `None` on an error raised without
+them.
+
 The descriptive columns no index reads are `TextField`s and take any length: an
 attachment's `name` and `mime`, `agent_name`, `tool_name`, a tool effect's
 `idempotency_key` and a memory operation's `fingerprint`. Migration

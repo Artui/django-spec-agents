@@ -17,6 +17,7 @@ from django_spec_agents.persistence.model_attachment_store import ModelAttachmen
 from django_spec_agents.persistence.model_conversation_store import ModelConversationStore
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
+from django_spec_agents.persistence.preflight_identifiers import preflight_identifiers
 from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
 from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
@@ -91,5 +92,6 @@ __all__ = [
     "build_tool_catalog",
     "memory_namespace",
     "memory_namespace_for_user",
+    "preflight_identifiers",
     "tool",
 ]

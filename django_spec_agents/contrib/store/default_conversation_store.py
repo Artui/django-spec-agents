@@ -8,7 +8,7 @@ from django_spec_agents.contrib.store.reconcile_conversation_attachments import 
     reconcile_conversation_attachments,
 )
 from django_spec_agents.contrib.store.utils import (
-    check_identifiers,
+    check_column_widths,
     delete_attachments,
     unreferenced_attachments,
 )
@@ -41,6 +41,14 @@ class DefaultConversationStore(ModelConversationStore):
     those instead.
     """
 
+    def check_identifiers(self, *, thread_id: str) -> None:
+        """Raise ``IdentifierTooLongError`` for a ``thread_id`` its column cannot hold.
+
+        It reads the column width and writes nothing, so a transport can refuse the
+        id before it starts a run; ``preflight_identifiers`` calls it.
+        """
+        check_column_widths(StoredConversation, thread_id=thread_id)
+
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None:
         row = _thread_rows(thread_id, owner_id).first()
         if row is None:
@@ -52,7 +60,7 @@ class DefaultConversationStore(ModelConversationStore):
         )
 
     def _store(self, conversation: Conversation, owner_id: str | None) -> None:
-        check_identifiers(StoredConversation, owner_id=owner_id, thread_id=conversation.thread_id)
+        check_column_widths(StoredConversation, owner_id=owner_id, thread_id=conversation.thread_id)
         messages = conversation.messages
         defaults = {
             "messages": list(messages),

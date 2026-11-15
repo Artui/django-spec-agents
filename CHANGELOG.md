@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-11-15
+
+A minor release with no floor moved and no migration: a transport can refuse an
+id too long for a default store before it starts the run that would write it.
+
+### Added
+
+- **A store's ids can be refused before a run starts.** `preflight_identifiers(store,
+  **ids)`, exported from `django_spec_agents`, calls the store's `check_identifiers`
+  method when it has one and does nothing otherwise. `DefaultConversationStore`
+  (`thread_id`), `DefaultStepStore` (`run_id`, `conversation_id`, `parent_run_id`,
+  `tool_call_id`) and `DefaultMemoryStore` (`operation_id`) gain the method: it raises
+  `IdentifierTooLongError` for an id longer than its column, from the column widths
+  alone, with no query and no write. A transport can call it before a stream opens,
+  so an over-long `threadId` or `runId` is a bad request rather than an error mid-run.
+  The method is on no protocol, so a custom store without it is still a
+  `ConversationStore` or `MemoryStore`, and is preflighted as a no-op.
+  `ScopedConversationStore` forwards the check, its prefix applied to `thread_id`,
+  only when the store it wraps has it.
+- **`IdentifierTooLongError` says what it refused.** It carries `field`, `length` and
+  `limit`, which the default stores set and which are `None` when the raiser does
+  not. `ScopedConversationStore` uses them to report a refused `thread_id`, in the
+  preflight and in `save`, at the length the client sent and against the room its
+  prefix leaves, where it used to count the stored key.
+
 ## [0.14.0] — 2026-11-14
 
 The floor on `django-service-specs` rises to 0.33.0, so a minor release. A spec
@@ -934,7 +959,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Artui/django-spec-agents/compare/v0.11.0...v0.12.0

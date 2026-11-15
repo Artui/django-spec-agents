@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import Any, cast
 
 from django.http import HttpRequest
 
+from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMetaList
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
@@ -40,6 +42,11 @@ class ScopedConversationStore:
     namespace would silently orphan the whole thread history of an existing
     single-endpoint project the moment it set one.
 
+    ``check_identifiers`` is forwarded, with the prefix applied to ``thread_id``,
+    only when the inner store has it; ``preflight_identifiers`` skips one without.
+    A ``thread_id`` refused there or by ``save`` is reported at the length the
+    client sent, against the room the prefix leaves.
+
     The scope is invisible on the wire. Thread ids are echoed back to the client
     unchanged; only the storage key carries the prefix.
 
@@ -64,6 +71,33 @@ class ScopedConversationStore:
             )
         self._inner = inner
         self._scope = scope
+        # Offered only over a store that has it, so a scoped custom store never looks capable.
+        if callable(getattr(inner, "check_identifiers", None)):
+            self.check_identifiers = self._check_identifiers
+
+    def _check_identifiers(self, **ids: str | None) -> None:
+        thread_id = ids.get("thread_id")
+        if thread_id is not None:
+            ids["thread_id"] = self._key(thread_id)
+        try:
+            cast("Any", self._inner).check_identifiers(**ids)
+        except IdentifierTooLongError as error:
+            raise self._as_sent(error, thread_id) from error
+
+    def _as_sent(
+        self, error: IdentifierTooLongError, thread_id: str | None
+    ) -> IdentifierTooLongError:
+        """``error`` counted against the id the client sent, when it is about ``thread_id``."""
+        if thread_id is None or error.field != "thread_id" or error.limit is None:
+            return error
+        limit = error.limit - len(self._key(""))
+        return IdentifierTooLongError(
+            f"thread_id is {len(thread_id)} characters, over its {limit}-character limit "
+            "in this scope",
+            field="thread_id",
+            length=len(thread_id),
+            limit=limit,
+        )
 
     def _key(self, thread_id: str) -> str:
         return f"{self._scope}:{thread_id}"
@@ -80,10 +114,13 @@ class ScopedConversationStore:
         return dataclasses.replace(conversation, thread_id=self._unkey(conversation.thread_id))
 
     async def save(self, conversation: Conversation, *, request: HttpRequest) -> None:
-        await self._inner.save(
-            dataclasses.replace(conversation, thread_id=self._key(conversation.thread_id)),
-            request=request,
-        )
+        try:
+            await self._inner.save(
+                dataclasses.replace(conversation, thread_id=self._key(conversation.thread_id)),
+                request=request,
+            )
+        except IdentifierTooLongError as error:
+            raise self._as_sent(error, conversation.thread_id) from error
 
     async def delete(self, thread_id: str, *, request: HttpRequest) -> None:
         await self._inner.delete(self._key(thread_id), request=request)

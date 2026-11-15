@@ -219,3 +219,26 @@ def test_reads_with_an_over_long_id_find_nothing() -> None:
     store._rename(thread, "Renamed", "7")
     store._remove(thread, "7")
     assert StoredConversation.objects.get().title == "book a flight"
+
+
+def test_check_identifiers_refuses_a_thread_id_past_its_column_without_a_query(
+    django_assert_num_queries: Any,
+) -> None:
+    with (
+        django_assert_num_queries(0),
+        pytest.raises(IdentifierTooLongError, match=refusal(StoredConversation, "thread_id")),
+    ):
+        DefaultConversationStore().check_identifiers(
+            thread_id=too_long(StoredConversation, "thread_id")
+        )
+
+
+def test_check_identifiers_accepts_a_thread_id_at_its_column_width() -> None:
+    DefaultConversationStore().check_identifiers(
+        thread_id=at_limit(StoredConversation, "thread_id")
+    )
+
+
+def test_check_identifiers_takes_only_the_ids_the_store_keeps() -> None:
+    with pytest.raises(TypeError):
+        DefaultConversationStore().check_identifiers(thread_id="t1", **{"run_id": "r1"})

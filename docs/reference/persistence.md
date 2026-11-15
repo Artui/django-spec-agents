@@ -76,6 +76,10 @@ models.
 
 ::: django_spec_agents.IdentifierTooLongError
 
+### `preflight_identifiers`
+
+::: django_spec_agents.preflight_identifiers
+
 ## Reference implementations
 
 The opt-in `django_spec_agents.contrib.store` app. Add it to

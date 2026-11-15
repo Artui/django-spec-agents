@@ -34,6 +34,7 @@ LEAF_PATHS_OF_ROOT_NAMES = [
         ["DjangoSessionConversationStore"],
     ),
     ("django_spec_agents.persistence.null_attachment_store", ["NullAttachmentStore"]),
+    ("django_spec_agents.persistence.preflight_identifiers", ["preflight_identifiers"]),
     ("django_spec_agents.persistence.null_conversation_store", ["NullConversationStore"]),
     ("django_spec_agents.persistence.types.attachment_ref", ["AttachmentRef"]),
     ("django_spec_agents.persistence.types.attachment_store", ["AttachmentStore"]),
