@@ -172,8 +172,14 @@ def test_a_scoped_refusal_counts_the_thread_id_the_client_sent() -> None:
     with pytest.raises(
         IdentifierTooLongError,
         match=f"^thread_id is {room + 1} characters, over its {room}-character limit in this",
-    ):
+    ) as caught:
         scoped.check_identifiers(thread_id="x" * (room + 1))
+
+    assert (caught.value.field, caught.value.length, caught.value.limit) == (
+        "thread_id",
+        room + 1,
+        room,
+    )
 
 
 async def test_a_scoped_save_refusal_counts_the_thread_id_the_client_sent() -> None:
