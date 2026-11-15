@@ -582,6 +582,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="How long an id may be">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#refusing-an-id-before-the-run-starts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refusing an id before the run starts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1407,6 +1424,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="How long an id may be">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#refusing-an-id-before-the-run-starts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refusing an id before the run starts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1815,6 +1849,62 @@ row with a <code>DataError</code> midway through a run, after the model call. A 
 takes <code>threadId</code> or <code>runId</code> from the client can answer the error as a bad request.
 In memory's namespace mode the owner is the path's first segment, so that segment
 is held to the same limit.</p>
+<h4 id="refusing-an-id-before-the-run-starts">Refusing an id before the run starts<a class="headerlink" href="#refusing-an-id-before-the-run-starts" title="Permanent link">&para;</a></h4>
+<p>The write-time check fires when the store writes, which a streaming transport
+reaches after the model and its tools have run. To refuse earlier, call
+<code>preflight_identifiers(store, **ids)</code>, exported from <code>django_spec_agents</code>, before
+the run starts:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">IdentifierTooLongError</span><span class="p">,</span> <span class="n">preflight_identifiers</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">preflight_identifiers</span><span class="p">(</span><span class="n">conversation_store</span><span class="p">,</span> <span class="n">thread_id</span><span class="o">=</span><span class="n">thread_id</span><span class="p">)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">preflight_identifiers</span><span class="p">(</span><span class="n">step_store</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="n">run_id</span><span class="p">,</span> <span class="n">conversation_id</span><span class="o">=</span><span class="n">thread_id</span><span class="p">)</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">except</span> <span class="n">IdentifierTooLongError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="k">return</span> <span class="n">HttpResponseBadRequest</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">))</span>
+</span></code></pre></div>
+<p>It calls the store's <code>check_identifiers</code> method when the store has one, and does
+nothing otherwise. The method reads the column widths only: it resolves no owner,
+runs no query and writes nothing, so it is safe on the event loop. It is on no
+protocol, so a custom store without it still satisfies <code>ConversationStore</code> and
+<code>MemoryStore</code>, and its ids are checked, if at all, when it writes. The keywords
+each default store takes:</p>
+<table>
+<thead>
+<tr>
+<th>Store</th>
+<th><code>check_identifiers</code> keywords</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DefaultConversationStore</code></td>
+<td><code>thread_id</code></td>
+</tr>
+<tr>
+<td><code>DefaultStepStore</code></td>
+<td><code>run_id</code>, <code>conversation_id</code>, <code>parent_run_id</code>, <code>tool_call_id</code></td>
+</tr>
+<tr>
+<td><code>DefaultMemoryStore</code></td>
+<td><code>operation_id</code></td>
+</tr>
+</tbody>
+</table>
+<p>A keyword the store does not take is a <code>TypeError</code>, so a misspelt id fails loudly
+rather than passing the preflight. <code>DefaultAttachmentStore</code> has no method: the
+only id it keys on that a caller supplies is the owner, which the preflight leaves
+to the write. <code>ModelConversationStore</code>, <code>ModelAttachmentStore</code>,
+<code>DjangoSessionConversationStore</code> and the null stores have none either, having no
+columns of their own.</p>
+<p><code>ScopedConversationStore</code> offers <code>check_identifiers</code> only when the store it wraps
+has it, and applies its <code>scope:</code> prefix to <code>thread_id</code> before forwarding, so the
+prefix counts against the column. A <code>thread_id</code> it refuses, there or in <code>save</code>, is
+reported as the client sent it, against the room the prefix leaves:
+<code>thread_id is 247 characters, over its 246-character limit in this scope</code> under
+<code>scope="internal"</code>.</p>
+<p>The default stores' errors carry <code>field</code>, <code>length</code> and <code>limit</code> beside the message,
+so a transport can build its own answer; each is <code>None</code> on an error raised without
+them.</p>
 <p>The descriptive columns no index reads are <code>TextField</code>s and take any length: an
 attachment's <code>name</code> and <code>mime</code>, <code>agent_name</code>, <code>tool_name</code>, a tool effect's
 <code>idempotency_key</code> and a memory operation's <code>fingerprint</code>. Migration
@@ -1826,10 +1916,10 @@ hanging off them, sit under that label.</p>
 <p>The same app shipped in django-pydantic-agent as <code>django_pydantic_agent_store</code>.
 A database that installed it upgrades with the <code>migrate</code> a deploy runs anyway:
 swap the <code>INSTALLED_APPS</code> entry,</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="s2">"django_spec_agents.contrib.store"</span><span class="p">,</span>  <span class="c1"># was "django_pydantic_agent.contrib.store"</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="s2">"django_spec_agents.contrib.store"</span><span class="p">,</span>  <span class="c1"># was "django_pydantic_agent.contrib.store"</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>and run <code>migrate</code>. The app's first migration, <code>0001_initial</code>, sees the old tables
 and renames them in place: the tables, their constraints and named indexes, and the content types, so
@@ -1875,13 +1965,13 @@ here beyond your normal Django storage backend.</p>
 private bucket rather than wherever its other media goes. Name a backend under
 the <code>django_pydantic_agent_attachments</code> alias and attachments use it; leave the
 alias out and they use <code>default</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">STORAGES</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="s2">"default"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"BACKEND"</span><span class="p">:</span> <span class="s2">"django.core.files.storage.FileSystemStorage"</span><span class="p">},</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="s2">"staticfiles"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"BACKEND"</span><span class="p">:</span> <span class="s2">"django.contrib.staticfiles.storage.StaticFilesStorage"</span><span class="p">},</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="s2">"django_pydantic_agent_attachments"</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="s2">"BACKEND"</span><span class="p">:</span> <span class="s2">"myproject.storages.PrivateMediaStorage"</span><span class="p">,</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">},</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">STORAGES</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="s2">"default"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"BACKEND"</span><span class="p">:</span> <span class="s2">"django.core.files.storage.FileSystemStorage"</span><span class="p">},</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="s2">"staticfiles"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"BACKEND"</span><span class="p">:</span> <span class="s2">"django.contrib.staticfiles.storage.StaticFilesStorage"</span><span class="p">},</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="s2">"django_pydantic_agent_attachments"</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="s2">"BACKEND"</span><span class="p">:</span> <span class="s2">"myproject.storages.PrivateMediaStorage"</span><span class="p">,</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="p">},</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>The alias is resolved once, when the model's field is constructed, so it has to
 be in <code>STORAGES</code> before the app's models are imported — settings, in other
@@ -1980,7 +2070,7 @@ cannot tell an upload abandoned last month from one sitting in a composer right
 now — both have zero. The threshold is the floor on how long an upload must
 survive before it counts as abandoned, so set it to comfortably more than the
 longest a message may sit unsent in your product:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_prune_attachments<span class="w"> </span>--older-than<span class="w"> </span>7d<span class="w"> </span>--dry-run
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_prune_attachments<span class="w"> </span>--older-than<span class="w"> </span>7d<span class="w"> </span>--dry-run
 </span></code></pre></div>
 <h3 id="reclaiming-space-from-threads-that-inlined-files">Reclaiming space from threads that inlined files<a class="headerlink" href="#reclaiming-space-from-threads-that-inlined-files" title="Permanent link">&para;</a></h3>
 <p>A transport that hands the model an attachment inline serialises the file into
@@ -1988,8 +2078,8 @@ the message list as base64, and the message list is persisted: a 2.6 MB PDF cost
 roughly 3.5 MB in one row, loaded whole every time the thread is opened.
 Transports have stopped writing them and strip them on the way in, but a row
 already written keeps its payload until something rewrites it:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_strip_inline_bytes<span class="w"> </span>--dry-run
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_strip_inline_bytes
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_strip_inline_bytes<span class="w"> </span>--dry-run
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_strip_inline_bytes
 </span></code></pre></div>
 <p>It edits the JSON structurally rather than round-tripping it through a message
 type, because that round trip is exactly what would drop each message's <code>id</code> and
@@ -2033,17 +2123,17 @@ it multi-tenant.</p>
 as <code>DefaultStepStore</code>'s: it <strong>structurally satisfies harness's <code>MemoryStore</code>
 protocol</strong>, which is upstream's and is not redeclared here. It needs the
 <code>[harness]</code> extra.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="p">)</span>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Hand it to your transport the way you would any other capability —
 <code>AGUIServer(capabilities=[capability])</code> for django-ag-ui. There is no settings
@@ -2172,8 +2262,8 @@ composing <code>list_paths</code> with <code>delete</code> needs each path's cur
 unbounded read-then-delete loop a concurrent <code>write_memory</code> can lose to — so the
 store carries a non-protocol <code>purge(owner_id)</code> that is one statement, plus a
 command:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
 </span></code></pre></div>
 <p>The argument is the owner id the memory was filed under, not the bare user key.
 With the usual mount-time namespace from <code>memory_namespace_for_user</code>, that is <code>u-</code>
