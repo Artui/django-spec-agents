@@ -7,6 +7,9 @@ from django.conf import settings
 from django.db import models
 
 from django_spec_agents.routines.parse_schedule import parse_schedule
+from django_spec_agents.routines.types.max_routine_agent_id_length import (
+    MAX_ROUTINE_AGENT_ID_LENGTH,
+)
 from django_spec_agents.routines.types.max_routine_name_length import MAX_ROUTINE_NAME_LENGTH
 from django_spec_agents.routines.types.preapproved_tool import PreapprovedTool
 from django_spec_agents.routines.types.routine_policy import RoutinePolicy
@@ -21,7 +24,7 @@ class AbstractRoutine(models.Model):
     """
 
     name = models.CharField(max_length=MAX_ROUTINE_NAME_LENGTH)
-    agent_id = models.CharField(max_length=255)
+    agent_id = models.CharField(max_length=MAX_ROUTINE_AGENT_ID_LENGTH)
     prompt = models.TextField()
     schedule = models.JSONField()
     timezone = models.CharField(max_length=64)

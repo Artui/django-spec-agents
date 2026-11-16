@@ -24,15 +24,17 @@ its startup check.
   `routine_policy()` returns the `RoutinePolicy` (`visible`, `can_write`, `can_run`,
   `new_routine`), which the consumer's code passes to every function; no setting names the
   model. A schedule is `WeeklySchedule` (weekdays at a wall time) or `IntervalSchedule`
-  (every N hours, at least `MIN_ROUTINE_INTERVAL`), with no cron strings; `next_fire_at`
-  reads it with `zoneinfo`, shifting a time a DST change skips and firing a repeated one
-  once. `create_routine` and `update_routine` ask `can_write`, cap a user at
-  `MAX_ROUTINES_PER_USER` routines, and never move the principal. `pin_preapproved_tools`
-  records each granted tool's `ToolGuard.requires_approval` answer at grant time, an edit
-  keeps it, and `preapproved_exempt` exempts only the tools gated when granted. The opt-in
-  app's check walks the app registry and fails with `django_spec_agents.E002` for every
-  installed `AbstractRoutine` subclass whose `routine_policy()` returns `None`. No
-  concrete model ships. A new docs page covers them: Routines.
+  (every N hours, from `MIN_ROUTINE_INTERVAL` to `MAX_ROUTINE_INTERVAL`), with no cron
+  strings; `next_fire_at` reads it with `zoneinfo`, shifting a time a DST change skips and
+  firing a repeated one once. `create_routine` and `update_routine` ask `can_write`,
+  `create_routine` caps a user at `MAX_ROUTINES_PER_USER` routines, and an update never
+  moves the principal. `pin_preapproved_tools` records each granted tool's
+  `ToolGuard.requires_approval` answer at grant time, an edit for the same agent keeps it,
+  every write checks each name against the agent's tools, and `preapproved_exempt` exempts
+  only the tools gated when granted. The opt-in app's check walks the app registry and
+  fails with `django_spec_agents.E002` for every installed `AbstractRoutine` subclass
+  whose `routine_policy()` returns `None`. No concrete model ships. A new docs page covers
+  them: Routines.
 
 ## [0.16.0] — 2026-11-16
 

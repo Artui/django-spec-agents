@@ -76,7 +76,7 @@ The vocabulary is closed, and there are no cron strings:
   wall time `at`, to the minute, in the routine's timezone.
 - `IntervalSchedule(every_hours)` fires every N hours of elapsed time, whatever the
   timezone's clock changes do. An interval shorter than `MIN_ROUTINE_INTERVAL`, an hour,
-  is refused.
+  or longer than `MAX_ROUTINE_INTERVAL`, 366 days, is refused.
 
 `parse_schedule(data)` reads a schedule from its JSON, `{"kind": "weekly", "weekdays":
 [0, 1, 2, 3, 4], "at": "08:00"}` or `{"kind": "interval", "every_hours": 6}`, and
@@ -115,15 +115,17 @@ create_routine(
 - `create_routine` makes the caller the principal and `created_by`, and refuses an
   anonymous caller with `RoutineWriteRefusedError`. It raises `InvalidRoutineError` once
   the caller holds `MAX_ROUTINES_PER_USER` (25) routines, counted on the model by
-  principal, disabled ones included.
+  principal, disabled ones included. The count is read before the insert, so two creates
+  racing at the cap can both pass it; a host that needs a hard cap holds a lock around
+  the call.
 - `update_routine` replaces the fields but never the principal, whoever edits.
   `next_fire_at` moves only when the schedule, the timezone or `enabled` changes, so an
-  edit to the prompt keeps an interval's cadence. Turning a routine back on clears its
-  `paused_reason`.
+  edit to the prompt keeps an interval's cadence. An enabled routine carries no
+  `paused_reason`, so turning one back on clears it.
 - Both ask `can_write`, and raise `RoutineWriteRefusedError` when the policy refuses.
-  An update asks twice, once about the row as stored and once about the result. A blank
-  name, agent or prompt, an oversized one, and a timezone `zoneinfo` cannot load raise
-  `InvalidRoutineError`.
+  An update asks twice, once about the row as stored and once about the result, and a
+  refusal leaves the instance it was given as it was. A blank name, agent or prompt, an
+  oversized one, and a timezone `zoneinfo` cannot load raise `InvalidRoutineError`.
 
 ## Pre-approved tools
 
@@ -135,9 +137,12 @@ The grant pins each tool's flag. `pin_preapproved_tools(guard, tool_defs, names)
 the agent's `ToolGuard.requires_approval` about each named definition and records the
 answer as `destructive`. A name none of `tool_defs` carries raises
 `InvalidRoutineError`, so a typo is never recorded as a grant. `create_routine` and
-`update_routine` pin through it. An update keeps the flag already pinned for a tool the
-routine held, so an unrelated edit never re-approves a tool declared destructive since.
-A tool dropped from the list is revoked, and pins afresh if named again.
+`update_routine` pin through it, checking every granted name against the agent's tools
+on each write. While the agent stays the same, an update keeps the flag already pinned
+for a tool the routine held, so an unrelated edit never re-approves a tool declared
+destructive since. Moving the routine to another agent pins every tool afresh against
+that agent's guard. A tool dropped from the list is revoked, and pins afresh if named
+again.
 
 `preapproved_exempt(routine)` returns the names a firing's guard exempts: only the
 tools that were gated when granted. A tool granted while ungated and declared

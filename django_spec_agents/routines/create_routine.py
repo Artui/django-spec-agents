@@ -43,7 +43,7 @@ def create_routine(
         raise InvalidRoutineError(f"A user holds at most {MAX_ROUTINES_PER_USER} routines.")
     routine.principal = user
     routine.created_by = user
-    grant = pin_grant(routine, cleaned.preapproved_tools, guard, tool_defs)
+    grant = pin_grant(routine, cleaned, guard, tool_defs)
     apply_draft(routine, cleaned, grant, timezone.now())
     require_write(policy, request, routine)
     routine.save()

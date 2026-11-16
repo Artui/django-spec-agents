@@ -15,7 +15,7 @@ def next_fire_at(schedule: Schedule, timezone: ZoneInfo, after: datetime) -> dat
     adds elapsed hours to `after`, so pass the firing just claimed, not the sweep's clock,
     or every late sweep pushes the cadence later. Raises `ValueError` for a naive `after`.
     """
-    if after.tzinfo is None or after.utcoffset() is None:
+    if after.utcoffset() is None:
         raise ValueError("next_fire_at needs an aware datetime.")
     instant = after.astimezone(UTC)
     if isinstance(schedule, IntervalSchedule):

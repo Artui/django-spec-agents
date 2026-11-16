@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta, tzinfo
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -109,3 +109,15 @@ def test_an_interval_adds_elapsed_hours_across_a_dst_change() -> None:
 def test_a_naive_instant_is_refused() -> None:
     with pytest.raises(ValueError, match="aware"):
         next_fire_at(IntervalSchedule(every_hours=1), NEW_YORK, datetime(2026, 1, 1))
+
+
+class _NoOffset(tzinfo):
+    def utcoffset(self, dt: datetime | None) -> None:
+        return None
+
+
+def test_an_instant_whose_zone_gives_no_offset_is_refused() -> None:
+    with pytest.raises(ValueError, match="aware"):
+        next_fire_at(
+            IntervalSchedule(every_hours=1), NEW_YORK, datetime(2026, 1, 1, tzinfo=_NoOffset())
+        )

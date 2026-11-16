@@ -29,8 +29,14 @@ def parse_schedule(data: object) -> Schedule:
     kind = data.get("kind")
     if kind == "weekly" and set(data) == {"kind", "weekdays", "at"}:
         weekdays = data["weekdays"]
-        if not isinstance(weekdays, list) or len(set(weekdays)) != len(weekdays):
-            raise InvalidRoutineError("A weekly schedule's weekdays are a list without repeats.")
+        if (
+            not isinstance(weekdays, list)
+            or not all(type(day) is int for day in weekdays)
+            or len(set(weekdays)) != len(weekdays)
+        ):
+            raise InvalidRoutineError(
+                "A weekly schedule's weekdays are a list of integers without repeats."
+            )
         return WeeklySchedule(weekdays=frozenset(weekdays), at=_time(data["at"]))
     if kind == "interval" and set(data) == {"kind", "every_hours"}:
         return IntervalSchedule(every_hours=data["every_hours"])

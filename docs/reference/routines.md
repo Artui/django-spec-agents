@@ -63,3 +63,25 @@ The routine model, its policy, the schedule vocabulary and the functions over th
 ## `RoutineWriteRefusedError`
 
 ::: django_spec_agents.routines.RoutineWriteRefusedError
+
+## Limits
+
+`MIN_ROUTINE_INTERVAL` (an hour) and `MAX_ROUTINE_INTERVAL` (366 days) bound an interval.
+`MAX_ROUTINES_PER_USER` (25) caps a principal's routines. `MAX_ROUTINE_NAME_LENGTH`,
+`MAX_ROUTINE_AGENT_ID_LENGTH` and `MAX_ROUTINE_PROMPT_LENGTH` bound a draft's text.
+
+::: django_spec_agents.routines.MIN_ROUTINE_INTERVAL
+
+::: django_spec_agents.routines.MAX_ROUTINE_INTERVAL
+
+::: django_spec_agents.routines.MAX_ROUTINES_PER_USER
+
+::: django_spec_agents.routines.MAX_ROUTINE_NAME_LENGTH
+
+::: django_spec_agents.routines.MAX_ROUTINE_AGENT_ID_LENGTH
+
+::: django_spec_agents.routines.MAX_ROUTINE_PROMPT_LENGTH
+
+## `Schedule`
+
+::: django_spec_agents.routines.Schedule

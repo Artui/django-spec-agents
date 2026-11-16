@@ -5,6 +5,7 @@ from datetime import UTC, time, timedelta, timezone
 import pytest
 
 from django_spec_agents.routines import (
+    MAX_ROUTINE_INTERVAL,
     MIN_ROUTINE_INTERVAL,
     IntervalSchedule,
     InvalidRoutineError,
@@ -38,8 +39,13 @@ def test_the_minimum_interval_is_an_hour() -> None:
     assert IntervalSchedule(every_hours=1).every_hours == 1
 
 
-@pytest.mark.parametrize("hours", [0, -3, True, 1.5, "2"])
-def test_an_interval_below_the_minimum_or_not_whole_hours_is_refused(hours: object) -> None:
+def test_the_maximum_interval_is_366_days() -> None:
+    assert timedelta(days=366) == MAX_ROUTINE_INTERVAL
+    assert IntervalSchedule(every_hours=366 * 24).every_hours == 366 * 24
+
+
+@pytest.mark.parametrize("hours", [0, -3, True, 1.5, "2", 366 * 24 + 1, 10**12])
+def test_an_interval_outside_the_bounds_or_not_whole_hours_is_refused(hours: object) -> None:
     with pytest.raises(InvalidRoutineError, match="whole number of hours"):
         IntervalSchedule(every_hours=hours)
 
@@ -74,6 +80,8 @@ def test_a_weekly_schedule_outside_the_vocabulary_is_refused(
         ({"kind": "weekly", "weekdays": [0]}, "nothing else"),
         ({"kind": "weekly", "weekdays": "01234", "at": "08:00"}, "without repeats"),
         ({"kind": "weekly", "weekdays": [0, 0], "at": "08:00"}, "without repeats"),
+        ({"kind": "weekly", "weekdays": [[0]], "at": "08:00"}, "without repeats"),
+        ({"kind": "weekly", "weekdays": [{}], "at": "08:00"}, "without repeats"),
         ({"kind": "weekly", "weekdays": [0], "at": "8:00"}, "'HH:MM'"),
         ({"kind": "weekly", "weekdays": [0], "at": "08:00:00"}, "'HH:MM'"),
         ({"kind": "weekly", "weekdays": [0], "at": "25:00"}, "'HH:MM'"),

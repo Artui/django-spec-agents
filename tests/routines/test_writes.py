@@ -10,6 +10,7 @@ from django.contrib.auth.models import AnonymousUser
 
 from django_spec_agents.policy.guard.tool_guard import ToolGuard
 from django_spec_agents.routines import (
+    MAX_ROUTINE_AGENT_ID_LENGTH,
     MAX_ROUTINE_NAME_LENGTH,
     MAX_ROUTINE_PROMPT_LENGTH,
     MAX_ROUTINES_PER_USER,
@@ -103,11 +104,13 @@ def test_a_user_holds_at_most_the_cap_and_others_are_unaffected(
         ({"name": "  "}, "needs a name"),
         ({"name": "x" * (MAX_ROUTINE_NAME_LENGTH + 1)}, "needs a name"),
         ({"agent_id": " "}, "names the agent"),
+        ({"agent_id": "x" * (MAX_ROUTINE_AGENT_ID_LENGTH + 1)}, "names the agent"),
         ({"prompt": "\n"}, "needs a prompt"),
         ({"prompt": "x" * (MAX_ROUTINE_PROMPT_LENGTH + 1)}, "needs a prompt"),
         ({"timezone": "Mars/Olympus"}, "not an IANA timezone"),
         ({"timezone": "../etc/passwd"}, "not an IANA timezone"),
         ({"timezone": ""}, "not an IANA timezone"),
+        ({"timezone": 5}, "not an IANA timezone"),
     ],
 )
 def test_a_draft_that_breaks_a_rule_is_refused(
@@ -186,6 +189,38 @@ def test_an_update_asks_can_write_of_the_result_too(
             tool_defs=[],
         )
     assert TeamRoutine.objects.get().name == "Overdue digest"
+    assert routine.name == "Overdue digest"
+
+
+def test_an_update_asks_can_write_of_the_row_as_stored(
+    member: AbstractBaseUser, guard: ToolGuard
+) -> None:
+    policy = OwnRoutinesPolicy()
+    routine = create(policy, member, guard)
+    refusing = mock.Mock(wraps=policy)
+    refusing.can_write.side_effect = lambda request, row: row.name != "Overdue digest"
+
+    with pytest.raises(RoutineWriteRefusedError, match="Overdue digest"):
+        update_routine(
+            refusing,
+            request_as(member),
+            routine,
+            draft(name="Renamed"),
+            guard=guard,
+            tool_defs=[],
+        )
+    assert TeamRoutine.objects.get().name == "Overdue digest"
+
+
+def test_an_enabled_routine_carries_no_pause_reason(
+    policy: OwnRoutinesPolicy, member: AbstractBaseUser, guard: ToolGuard
+) -> None:
+    routine = create(policy, member, guard)
+    routine.paused_reason = "set by hand"
+
+    update_routine(policy, request_as(member), routine, draft(), guard=guard, tool_defs=[])
+
+    assert routine.paused_reason == ""
 
 
 def test_an_edit_that_keeps_the_schedule_keeps_the_next_firing(

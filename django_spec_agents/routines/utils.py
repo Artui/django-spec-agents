@@ -15,6 +15,9 @@ from django_spec_agents.routines.next_fire_at import next_fire_at
 from django_spec_agents.routines.pin_preapproved_tools import pin_preapproved_tools
 from django_spec_agents.routines.routine_write_refused_error import RoutineWriteRefusedError
 from django_spec_agents.routines.schedule_to_json import schedule_to_json
+from django_spec_agents.routines.types.max_routine_agent_id_length import (
+    MAX_ROUTINE_AGENT_ID_LENGTH,
+)
 from django_spec_agents.routines.types.max_routine_name_length import MAX_ROUTINE_NAME_LENGTH
 from django_spec_agents.routines.types.max_routine_prompt_length import (
     MAX_ROUTINE_PROMPT_LENGTH,
@@ -46,8 +49,11 @@ def clean_draft(draft: RoutineDraft) -> RoutineDraft:
         raise InvalidRoutineError(
             f"A routine needs a name of at most {MAX_ROUTINE_NAME_LENGTH} characters."
         )
-    if not cleaned.agent_id:
-        raise InvalidRoutineError("A routine names the agent it runs.")
+    if not cleaned.agent_id or len(cleaned.agent_id) > MAX_ROUTINE_AGENT_ID_LENGTH:
+        raise InvalidRoutineError(
+            f"A routine names the agent it runs in at most {MAX_ROUTINE_AGENT_ID_LENGTH} "
+            "characters."
+        )
     if not cleaned.prompt or len(cleaned.prompt) > MAX_ROUTINE_PROMPT_LENGTH:
         raise InvalidRoutineError(
             f"A routine needs a prompt of at most {MAX_ROUTINE_PROMPT_LENGTH} characters."
@@ -92,7 +98,7 @@ def apply_draft(
     routine.schedule = schedule
     routine.timezone = draft.timezone
     routine.preapproved_tools = [asdict(tool) for tool in grant]
-    if draft.enabled and not routine.enabled:
+    if draft.enabled:
         routine.paused_reason = ""
     routine.enabled = draft.enabled
     if not draft.enabled:
@@ -103,12 +109,13 @@ def apply_draft(
 
 def pin_grant(
     routine: AbstractRoutine,
-    names: tuple[str, ...],
+    draft: RoutineDraft,
     guard: ToolGuard,
     tool_defs: Iterable[ToolDefinition],
 ) -> tuple[PreapprovedTool, ...]:
-    """The grant for `names`: the flag already pinned for a name `routine` held, a new pin else."""
+    """Every name checked and pinned; a name held for the same agent keeps its earlier flag."""
+    fresh = pin_preapproved_tools(guard, tool_defs, draft.preapproved_tools)
+    if routine.agent_id != draft.agent_id:
+        return fresh
     held = {tool.name: tool for tool in routine.get_preapproved_tools()}
-    fresh = pin_preapproved_tools(guard, tool_defs, (name for name in names if name not in held))
-    pinned = {tool.name: tool for tool in fresh}
-    return tuple(held.get(name) or pinned[name] for name in names)
+    return tuple(held.get(tool.name, tool) for tool in fresh)

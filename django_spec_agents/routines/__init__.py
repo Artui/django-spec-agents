@@ -8,6 +8,10 @@ from django_spec_agents.routines.preapproved_exempt import preapproved_exempt
 from django_spec_agents.routines.routine_write_refused_error import RoutineWriteRefusedError
 from django_spec_agents.routines.schedule_to_json import schedule_to_json
 from django_spec_agents.routines.types.interval_schedule import IntervalSchedule
+from django_spec_agents.routines.types.max_routine_agent_id_length import (
+    MAX_ROUTINE_AGENT_ID_LENGTH,
+)
+from django_spec_agents.routines.types.max_routine_interval import MAX_ROUTINE_INTERVAL
 from django_spec_agents.routines.types.max_routine_name_length import MAX_ROUTINE_NAME_LENGTH
 from django_spec_agents.routines.types.max_routine_prompt_length import (
     MAX_ROUTINE_PROMPT_LENGTH,
@@ -23,6 +27,8 @@ from django_spec_agents.routines.update_routine import update_routine
 
 __all__ = [
     "MAX_ROUTINES_PER_USER",
+    "MAX_ROUTINE_AGENT_ID_LENGTH",
+    "MAX_ROUTINE_INTERVAL",
     "MAX_ROUTINE_NAME_LENGTH",
     "MAX_ROUTINE_PROMPT_LENGTH",
     "MIN_ROUTINE_INTERVAL",

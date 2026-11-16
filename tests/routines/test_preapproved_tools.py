@@ -126,3 +126,52 @@ def test_a_name_dropped_from_the_grant_is_revoked_and_pins_afresh_when_named_aga
     )
 
     assert preapproved_exempt(routine) == frozenset({"archive"})
+
+
+def test_an_edit_refuses_a_held_tool_the_agent_no_longer_offers(
+    policy: OwnRoutinesPolicy, member: AbstractBaseUser, guard: ToolGuard
+) -> None:
+    request = request_as(member)
+    routine = create_routine(
+        policy,
+        request,
+        draft(preapproved_tools=("delete",)),
+        guard=guard,
+        tool_defs=[tool("delete", destructive=True)],
+    )
+
+    with pytest.raises(InvalidRoutineError, match="no tool named delete"):
+        update_routine(
+            policy,
+            request,
+            routine,
+            draft(preapproved_tools=("delete",)),
+            guard=guard,
+            tool_defs=[],
+        )
+    routine.refresh_from_db()
+    assert preapproved_exempt(routine) == frozenset({"delete"})
+
+
+def test_moving_to_another_agent_pins_every_tool_afresh(
+    policy: OwnRoutinesPolicy, member: AbstractBaseUser, guard: ToolGuard
+) -> None:
+    request = request_as(member)
+    routine = create_routine(
+        policy,
+        request,
+        draft(preapproved_tools=("archive",)),
+        guard=guard,
+        tool_defs=[tool("archive")],
+    )
+
+    update_routine(
+        policy,
+        request,
+        routine,
+        draft(agent_id="bookkeeper", preapproved_tools=("archive",)),
+        guard=guard,
+        tool_defs=[tool("archive", destructive=True)],
+    )
+
+    assert preapproved_exempt(routine) == frozenset({"archive"})
