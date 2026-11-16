@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.http import HttpRequest
 
+from django_spec_agents.skills.skill_write_refused_error import SkillWriteRefusedError
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
 from django_spec_agents.skills.types.skill_t import SkillT
@@ -15,9 +16,17 @@ def update_skill(
 
     `can_write` is asked twice, of the row as stored and of the result, so a policy can refuse
     both touching a skill and a change to it. Raises `InvalidSkillError` for a broken rule and
-    `SkillWriteRefusedError` when the policy refuses; a refused update leaves the row unsaved.
+    `SkillWriteRefusedError` when the policy refuses; a refused update leaves both the row and
+    `skill` as they were.
     """
     cleaned = clean_draft(draft)
     require_write(policy, request, skill)
+    before = SkillDraft(
+        skill.name, skill.description, skill.body, skill.user_invocable, skill.model_invocable
+    )
     apply_draft(skill, cleaned)
-    return write_skill(policy, request, skill)
+    try:
+        return write_skill(policy, request, skill)
+    except SkillWriteRefusedError:
+        apply_draft(skill, before)
+        raise

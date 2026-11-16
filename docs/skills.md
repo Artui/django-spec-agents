@@ -93,11 +93,17 @@ list_visible_skills(policy, request)
 - `create_skill`, `update_skill` and `disable_skill` write. Each one asks `can_write`
   and raises `SkillWriteRefusedError` when the policy refuses. That error is a Django
   `PermissionDenied`. A create asks about the new skill. An update and a disable ask
-  twice, once about the row as stored and once about the result.
+  twice, once about the row as stored and once about the result. A refused update or
+  disable leaves both the row and the instance you passed as they were.
 - A name that is not kebab-case raises `InvalidSkillError`. So do a blank or oversized
   description or body, and a create by a caller who already sees `MAX_VISIBLE_SKILLS`
-  (100) enabled skills. The count cap is measured on what the caller sees, because that
-  is the catalog that reaches the model.
+  (100) enabled skills.
+- `list_visible_skills` stops at `MAX_VISIBLE_SKILLS`, in the policy's order, because its
+  list is the catalog that reaches the model. A create can be admitted while other
+  callers already see the cap, for example when staff add a company skill that a member
+  with many personal skills also sees. The list still holds, and since personal skills
+  come first in the policy's order, the member's own skills and their shadows survive the
+  cut.
 
 Descriptions are stripped, and bodies lose their leading and trailing blank lines and
 take LF line endings. The harness's `Skills` loads a `SKILL.md` the same way.

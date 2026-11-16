@@ -45,7 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   create may write. `list_visible_skills` and `resolve_skill` let a personal skill shadow
   a company one of the same name. `create_skill`, `update_skill` and `disable_skill` ask
   `can_write` and raise `SkillWriteRefusedError` when the policy refuses. Names are
-  kebab-case, and caps hold on description, body and the number of skills a caller sees.
+  kebab-case, and caps hold on description and body. `list_visible_skills` stops at
+  `MAX_VISIBLE_SKILLS` in the policy's order, and a create is refused once the caller
+  already sees that many.
   `export_skill_md` and `import_skill_md` round-trip a skill through a `SKILL.md` that
   the harness's `Skills` loads to the same fields. No concrete model ships, and no
   default policy. A new docs page covers them: User skills.

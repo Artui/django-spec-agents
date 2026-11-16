@@ -107,6 +107,7 @@ def test_the_flags_default_as_the_harness_defaults_them() -> None:
         ("---\ndescription: d\n---\nb\n", "no 'name'"),
         ('---\nname: x\ndescription: "open\n---\nb\n', "not a closed quoted string"),
         ("---\nname: x\ndescription: 'it's'\n---\nb\n", "unescaped single quote"),
+        ("---\nname: x\ndescription: 'abc\n---\nb\n", "needs quotes"),
         ("---\nname: x\ndescription: a: b\n---\nb\n", "needs quotes"),
         ("---\nname: x\ndescription: a # b\n---\nb\n", "needs quotes"),
         ("---\nname: x\ndescription: d\nuser-invocable: yes\n---\nb\n", "true or false"),
