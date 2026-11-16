@@ -143,16 +143,22 @@ A tool dropped from the list is revoked, and pins afresh if named again.
 tools that were gated when granted. A tool granted while ungated and declared
 destructive later is not among them, so its call parks.
 
-## Refusing a model with no policy at startup
+## Finding the model, and refusing one with no policy at startup
 
-Name your model in the `SPEC_AGENTS_ROUTINE_MODEL` setting, and add the package's opt-in
-app to `INSTALLED_APPS`, as for [user skills](skills.md#refusing-a-model-with-no-policy-at-startup):
+There is no setting naming the routine model: the core reads no Django settings. Your
+code holds the model and its policy, and passes the policy to every function above and
+to whatever transport serves routines, as a constructor argument.
+
+Add the package's opt-in app to `INSTALLED_APPS`, as for
+[user skills](skills.md#refusing-a-model-with-no-policy-at-startup). Its system check
+walks Django's app registry: every installed concrete model that subclasses
+`AbstractRoutine` must bring a policy, so `manage.py check`, `runserver` and `migrate`
+fail otherwise:
 
 | Id | When |
 | --- | --- |
-| `django_spec_agents.E003` | The setting names no installed model, or names one that does not subclass `AbstractRoutine` |
-| `django_spec_agents.E004` | The model's `routine_policy()` returns `None`, which is `AbstractRoutine`'s default |
+| `django_spec_agents.E003` | An installed `AbstractRoutine` subclass's `routine_policy()` returns `None`, which is `AbstractRoutine`'s default |
 
-`get_routine_model()` returns the configured model, or `None` when the setting is unset.
-Import `django_spec_agents.routines` once the app registry is ready, because it defines
-an abstract model.
+An abstract layer between `AbstractRoutine` and your model is not checked, because it
+has no table. Import `django_spec_agents.routines` once the app registry is ready,
+because it defines an abstract model.

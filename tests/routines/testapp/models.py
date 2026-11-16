@@ -19,10 +19,6 @@ class TeamRoutine(AbstractRoutine):
         return OwnRoutinesPolicy()
 
 
-class UnguardedRoutine(AbstractRoutine):
-    """Configured with no policy: the system check refuses it."""
-
-
 class OwnRoutinesPolicy:
     """A user sees and writes their own routines; staff may edit anyone's on the team."""
 

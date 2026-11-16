@@ -58,19 +58,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Routines: `AbstractRoutine`, `RoutinePolicy`, the schedule vocabulary and
   `next_fire_at`**, in `django_spec_agents.routines`. A routine is a stored prompt for one
   agent, a schedule, a timezone and its principal, always the user who created it. A
-  consumer subclasses the abstract model with its tenant relation and names it in
-  `SPEC_AGENTS_ROUTINE_MODEL`; its `routine_policy()` returns the `RoutinePolicy`
-  (`visible`, `can_write`, `can_run`, `new_routine`). A schedule is `WeeklySchedule`
-  (weekdays at a wall time) or `IntervalSchedule` (every N hours, at least
-  `MIN_ROUTINE_INTERVAL`), with no cron strings; `next_fire_at` reads it with `zoneinfo`,
-  shifting a time a DST change skips and firing a repeated one once. `create_routine` and
-  `update_routine` ask `can_write`, cap a user at `MAX_ROUTINES_PER_USER` routines, and
-  never move the principal. `pin_preapproved_tools` records each granted tool's
-  `ToolGuard.requires_approval` answer at grant time, an edit keeps it, and
-  `preapproved_exempt` exempts only the tools gated when granted. The opt-in app's checks
-  fail with `django_spec_agents.E003` when the setting names no `AbstractRoutine`
-  subclass and `E004` when `routine_policy()` returns `None`. No concrete model ships. A
-  new docs page covers them: Routines.
+  consumer subclasses the abstract model with its tenant relation, and its
+  `routine_policy()` returns the `RoutinePolicy` (`visible`, `can_write`, `can_run`,
+  `new_routine`), which the consumer's code passes to every function; no setting names the
+  model. A schedule is `WeeklySchedule` (weekdays at a wall time) or `IntervalSchedule`
+  (every N hours, at least `MIN_ROUTINE_INTERVAL`), with no cron strings; `next_fire_at`
+  reads it with `zoneinfo`, shifting a time a DST change skips and firing a repeated one
+  once. `create_routine` and `update_routine` ask `can_write`, cap a user at
+  `MAX_ROUTINES_PER_USER` routines, and never move the principal. `pin_preapproved_tools`
+  records each granted tool's `ToolGuard.requires_approval` answer at grant time, an edit
+  keeps it, and `preapproved_exempt` exempts only the tools gated when granted. The opt-in
+  app's check walks the app registry and fails with `django_spec_agents.E003` for every
+  installed `AbstractRoutine` subclass whose `routine_policy()` returns `None`. No
+  concrete model ships. A new docs page covers them: Routines.
 
 ### Changed
 

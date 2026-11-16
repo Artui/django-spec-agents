@@ -28,10 +28,6 @@ The routine model, its policy, the schedule vocabulary and the functions over th
 
 ::: django_spec_agents.routines.PreapprovedTool
 
-## `get_routine_model`
-
-::: django_spec_agents.routines.get_routine_model
-
 ## `next_fire_at`
 
 ::: django_spec_agents.routines.next_fire_at

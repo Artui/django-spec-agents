@@ -4,13 +4,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from django.apps import AppConfig
+from django.apps import AppConfig, apps
 from django.core.checks import CheckMessage, Error
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 
-from django_spec_agents.routines.get_routine_model import get_routine_model
-from django_spec_agents.routines.types.routine_model_setting import ROUTINE_MODEL_SETTING
+from django_spec_agents.routines.abstract_routine import AbstractRoutine
 from django_spec_agents.skills.get_skill_model import get_skill_model
 from django_spec_agents.skills.types.skill_model_setting import SKILL_MODEL_SETTING
 
@@ -36,21 +35,13 @@ _CONFIGURED_MODELS = (
         unresolved_id="django_spec_agents.E001",
         no_policy_id="django_spec_agents.E002",
     ),
-    _ConfiguredModel(
-        setting=ROUTINE_MODEL_SETTING,
-        resolve=get_routine_model,
-        policy=lambda model: model.routine_policy(),
-        hint="Override routine_policy() on the model to return its RoutinePolicy.",
-        unresolved_id="django_spec_agents.E003",
-        no_policy_id="django_spec_agents.E004",
-    ),
 )
 
 
 def check_configured_models(
     app_configs: Sequence[AppConfig] | None = None, **kwargs: object
 ) -> list[CheckMessage]:
-    """An `Error` for each configured model that does not resolve or brings no policy."""
+    """An `Error` per configured skill model or installed routine model that lacks a policy."""
     errors: list[CheckMessage] = []
     for row in _CONFIGURED_MODELS:
         try:
@@ -67,4 +58,14 @@ def check_configured_models(
                     id=row.no_policy_id,
                 )
             )
+    errors.extend(
+        Error(
+            f"{model._meta.label} subclasses AbstractRoutine and brings no policy.",
+            hint="Override routine_policy() on the model to return its RoutinePolicy.",
+            obj=model,
+            id="django_spec_agents.E003",
+        )
+        for model in apps.get_models()
+        if issubclass(model, AbstractRoutine) and model.routine_policy() is None
+    )
     return errors
