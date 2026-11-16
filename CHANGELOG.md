@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-11-16
+
+A minor release that moves floors and adds a migration. pydantic-ai-slim floors at 2.66
+for its security fixes, and the `[harness]` extra at pydantic-ai-harness 0.66. Migration
+`0003_run_store` in `django_spec_agents.contrib.store` adds the run store's tables, so run
+`migrate` after upgrading. The skills app is opt-in: add `django_spec_agents` to
+`INSTALLED_APPS` for its startup checks.
+
 ### Added
 
 - **A slow model double for run deadlines.** `django_spec_agents.testing.slow_model(delay,
@@ -1023,7 +1031,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...v0.13.0
