@@ -82,10 +82,14 @@ def test_an_update_the_policy_refuses_for_its_result_is_not_saved(
     refusing_after = mock.Mock(wraps=policy)
     refusing_after.can_write.side_effect = [True, False]
 
+    changed = SkillDraft(name="triage", description="Sort it.", body="Refused body.")
+
     with pytest.raises(SkillWriteRefusedError):
-        update_skill(policy=refusing_after, request=request_as(member), skill=skill, draft=DRAFT)
+        update_skill(refusing_after, request_as(member), skill, changed)
 
     assert refusing_after.can_write.call_count == 2
+    skill.refresh_from_db()
+    assert skill.body == "Read, then sort."
 
 
 def test_an_update_replaces_the_fields_and_keeps_the_scope(
