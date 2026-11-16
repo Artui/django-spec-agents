@@ -80,6 +80,55 @@ models.
 
 ::: django_spec_agents.preflight_identifiers
 
+## Runs
+
+A run's status and event log, and the protocol a transport implements to start
+runs on the server. See [Storage](../storage.md#run-status-and-event-logs).
+
+### `RunStore`
+
+::: django_spec_agents.RunStore
+
+### `RunClaim`
+
+::: django_spec_agents.RunClaim
+
+### `RunOutcome`
+
+::: django_spec_agents.RunOutcome
+
+### `RunWaiting`
+
+::: django_spec_agents.RunWaiting
+
+### `ThreadRunState`
+
+::: django_spec_agents.ThreadRunState
+
+### `ThreadRunStatus`
+
+::: django_spec_agents.ThreadRunStatus
+
+### `RunEndReason`
+
+::: django_spec_agents.RunEndReason
+
+### `RunLogEntry`
+
+::: django_spec_agents.RunLogEntry
+
+### `HeadlessRunner`
+
+::: django_spec_agents.HeadlessRunner
+
+### `HeadlessStart`
+
+::: django_spec_agents.HeadlessStart
+
+### `RunStop`
+
+::: django_spec_agents.RunStop
+
 ## Reference implementations
 
 The opt-in `django_spec_agents.contrib.store` app. Add it to
@@ -93,6 +142,8 @@ that don't opt in get no migration.
 ::: django_spec_agents.contrib.store.default_step_store.DefaultStepStore
 
 ::: django_spec_agents.contrib.store.default_memory_store.DefaultMemoryStore
+
+::: django_spec_agents.contrib.store.default_run_store.DefaultRunStore
 
 ### Attachment lifecycle
 

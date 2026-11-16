@@ -12,6 +12,7 @@ STORES = (
     "DefaultAttachmentStore",
     "DefaultStepStore",
     "DefaultMemoryStore",
+    "DefaultRunStore",
 )
 
 # An import statement inside a fenced Python block, over one line or several.

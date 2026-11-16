@@ -82,13 +82,20 @@ class ToolGuard(AbstractCapability[Any]):
     ) -> list[ToolDefinition]:
         return [
             dataclasses.replace(tool_def, kind="unapproved")
-            if tool_def.kind == "function" and self._requires_approval(tool_def)
+            if tool_def.kind == "function" and self.requires_approval(tool_def)
             else tool_def
             for tool_def in tool_defs
         ]
 
-    def _requires_approval(self, tool_def: ToolDefinition) -> bool:
-        """Whether ``tool_def`` should be gated, applying the policy precedence."""
+    def requires_approval(self, tool_def: ToolDefinition) -> bool:
+        """Whether ``tool_def`` is gated, by the guard's precedence, whatever its ``kind``.
+
+        ``exempt`` wins, then ``require_approval``, then a registry
+        ``@tool(destructive=True)``, then a mutation the definition declares in
+        any of the vocabularies above. ``prepare_tools`` flips a ``function``
+        tool on this answer; a caller recording whether a parked call is
+        destructive, or pre-approving a routine's tools, asks the same question.
+        """
         if tool_def.name in self._exempt:
             return False
         if tool_def.name in self._require_approval:

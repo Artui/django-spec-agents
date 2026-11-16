@@ -9,8 +9,11 @@ from django_spec_agents.contrib.store.models import (
     StoredMemory,
     StoredMemoryOperation,
     StoredRun,
+    StoredRunEvent,
+    StoredRunLog,
     StoredSnapshot,
     StoredStepEvent,
+    StoredThreadRun,
     StoredToolEffect,
 )
 
@@ -35,6 +38,9 @@ from django_spec_agents.contrib.store.models import (
         (StoredToolEffect(run_id="run-1", tool_call_id="c1", status="started"), "run-1:c1:started"),
         (StoredMemory(path="u-7/main/MEMORY.md"), "u-7/main/MEMORY.md"),
         (StoredMemoryOperation(operation_id="op-1"), "op-1"),
+        (StoredThreadRun(thread_id="t1", status="waiting"), "t1:waiting"),
+        (StoredRunLog(run_id="r1"), "r1"),
+        (StoredRunEvent(log=StoredRunLog(run_id="r1"), seq=3), "r1#3"),
     ],
     ids=[
         "conversation-title",
@@ -48,6 +54,9 @@ from django_spec_agents.contrib.store.models import (
         "tool-effect-run-call-status",
         "memory-path",
         "memory-operation-id",
+        "thread-run-status",
+        "run-log-id",
+        "run-event-run-and-seq",
     ],
 )
 def test_str_names_the_row(instance: object, expected: str) -> None:

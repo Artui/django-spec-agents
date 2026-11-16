@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A run's status and event log have a store of their own.** `RunStore`, exported
+  from `django_spec_agents`, is a new protocol for runs that outlive their request:
+  per thread a status (`idle`, `running`, `waiting`, `failed`), the reason a run ended
+  badly (`error`, `timed_out`, `interrupted`), what a parked run waits on
+  (`RunWaiting`), the active run and a lease, a cancel request and `last_read_at`;
+  per run a numbered, append-only log of opaque JSON events. `claim` takes a thread's
+  `active_run_id` in one conditional update, and a second claim loses with the
+  holder's id; a run whose lease has lapsed reads as `failed` with reason
+  `interrupted`, and can no longer renew, append or finish. The transcript stays in
+  the `ConversationStore`, which gains no method. `DefaultRunStore`, in
+  `django_spec_agents.contrib.store.default_run_store`, implements it over three new
+  models (migration `0003_run_store`); `prune()` deletes logs `log_retention` after
+  their run ended, a day by default.
+- **`HeadlessRunner`**, a protocol a transport implements to start an agent run on
+  the server with no browser: `start` returns once the run has claimed its thread,
+  `run_to_first_stop` waits until it ends or parks (a `RunStop`), and `cancel`
+  records a cancel. The principal is an authenticated user, whose `pk` is the run's
+  owner.
+- **`ToolGuard.requires_approval(tool_def)`** is public: the guard's precedence
+  (`exempt`, then `require_approval`, then a registry `@tool(destructive=True)`, then
+  a mutation the definition declares) for any tool definition, whatever its `kind`.
+
 ## [0.15.0] — 2026-11-15
 
 A minor release with no floor moved and no migration: a transport can refuse an
