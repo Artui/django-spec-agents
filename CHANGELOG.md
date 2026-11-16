@@ -50,7 +50,8 @@ for its security fixes, and the `[harness]` extra at pydantic-ai-harness 0.66. M
   a mutation the definition declares) for any tool definition, whatever its `kind`.
 - **User skills: `AbstractSkill`, `SkillPolicy` and the functions over them**, in
   `django_spec_agents.skills`. A consumer subclasses the abstract model with its tenant
-  relation and names it in `SPEC_AGENTS_SKILL_MODEL`. Its `skill_policy()` returns the
+  relation and registers it with `register_skill_model` from its own
+  `AppConfig.ready()`; no setting names it. Its `skill_policy()` returns the
   `SkillPolicy`, which decides what the caller sees, in precedence order, and where a
   create may write. `list_visible_skills` and `resolve_skill` let a personal skill shadow
   a company one of the same name. `create_skill`, `update_skill` and `disable_skill` ask
@@ -61,12 +62,13 @@ for its security fixes, and the `[harness]` extra at pydantic-ai-harness 0.66. M
   `export_skill_md` and `import_skill_md` round-trip a skill through a `SKILL.md` that
   the harness's `Skills` loads to the same fields. No concrete model ships, and no
   default policy. A new docs page covers them: User skills.
-- **An opt-in `django_spec_agents` app whose system checks refuse a skill model with no
-  policy.** A project that adds the app to `INSTALLED_APPS` fails `check` with
-  `django_spec_agents.E001` when `SPEC_AGENTS_SKILL_MODEL` names no `AbstractSkill`
-  subclass, and with `E002` when the model's `skill_policy()` returns `None`. The app
-  has no models, and its label does not clash with the store's. A project that leaves it
-  out sees no change.
+- **An opt-in `django_spec_agents` app that holds the registered skill model, and whose
+  system check refuses one with no policy.** `register_skill_model` raises
+  `ImproperlyConfigured` when the app is not in `INSTALLED_APPS`, when the argument is
+  not a concrete `AbstractSkill` subclass, and when a different model is already
+  registered. `check` fails with `django_spec_agents.E001` when the registered model's
+  `skill_policy()` returns `None`. The app has no models, and its label does not clash
+  with the store's. A project that leaves it out sees no change.
 
 ### Changed
 

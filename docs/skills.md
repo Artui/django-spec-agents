@@ -122,10 +122,10 @@ The import reads a strict subset of YAML: one-line entries for `name`, `descript
 double-quoted. Any other field, such as `allowed-tools`, raises `InvalidSkillError`, and
 so does a multi-line value. Dropping either one silently would lose part of the file.
 
-## Refusing a model with no policy at startup
+## Registering the model, and refusing one with no policy
 
-Name your model in the `SPEC_AGENTS_SKILL_MODEL` setting, and add the package's
-opt-in app to `INSTALLED_APPS`:
+Add the package's opt-in app to `INSTALLED_APPS`, and register your model from your own
+app's `AppConfig.ready()`. The model is passed in code: no setting names it.
 
 ```python
 INSTALLED_APPS = [
@@ -133,23 +133,39 @@ INSTALLED_APPS = [
     "django_spec_agents",
     "myproject.skills",
 ]
-
-SPEC_AGENTS_SKILL_MODEL = "skills.Skill"
 ```
 
-The app registers Django system checks, so `manage.py check`, `runserver` and `migrate`
-fail when the configuration is broken:
+```python
+from django.apps import AppConfig
+
+
+class SkillsConfig(AppConfig):
+    name = "myproject.skills"
+    label = "skills"
+
+    def ready(self) -> None:
+        from django_spec_agents.skills import register_skill_model
+        from myproject.skills.models import Skill
+
+        register_skill_model(Skill)
+```
+
+`register_skill_model` raises `ImproperlyConfigured` when the app is not installed, when
+the argument is not a concrete `AbstractSkill` subclass, and when a different model is
+already registered. Registering the same model again does nothing.
+
+The app registers a Django system check, so `manage.py check`, `runserver` and `migrate`
+fail when the registered model is unguarded:
 
 | Id | When |
 | --- | --- |
-| `django_spec_agents.E001` | The setting names no installed model, or names one that does not subclass `AbstractSkill` |
-| `django_spec_agents.E002` | The model's `skill_policy()` returns `None`, which is `AbstractSkill`'s default |
+| `django_spec_agents.E001` | The registered model's `skill_policy()` returns `None`, which is `AbstractSkill`'s default |
 
 The app has no models and no migrations. Its label, `django_spec_agents`, does not clash
-with the store app's label, `django_spec_agents_store`. A project that configures no
-skills leaves the app out, and nothing changes for it. `get_skill_model()` returns the
-configured model, or `None` when the setting is unset, so a transport can find the
-policy as `get_skill_model().skill_policy()`.
+with the store app's label, `django_spec_agents_store`. A project that has no skills
+leaves the app out, and nothing changes for it. `get_skill_model()` returns the
+registered model, or `None` when there is none, so a transport can find the policy as
+`get_skill_model().skill_policy()`.
 
 Import `django_spec_agents.skills` once the app registry is ready, for example from a
 `models.py`, a view or a policy, because it defines an abstract model.
