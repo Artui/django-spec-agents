@@ -15,6 +15,7 @@ from django_spec_agents.skills import (
     SkillWriteRefusedError,
     create_skill,
     disable_skill,
+    list_visible_skills,
     update_skill,
 )
 from tests.skills.conftest import request_as
@@ -196,3 +197,63 @@ def test_a_caller_who_sees_the_cap_of_enabled_skills_cannot_create_another(
 
     with pytest.raises(InvalidSkillError, match=f"at most {MAX_VISIBLE_SKILLS}"):
         create_skill(policy, request_as(member), SkillDraft("one-more", "d", "b"))
+
+
+def test_a_refused_update_leaves_the_callers_instance_as_it_was(
+    policy: PersonalFirstPolicy, member: AbstractBaseUser
+) -> None:
+    skill = create_skill(policy, request_as(member), DRAFT)
+    refusing_after = mock.Mock(wraps=policy)
+    refusing_after.can_write.side_effect = [True, False]
+    changed = SkillDraft("renamed", "Other.", "Other body.", False, False)
+
+    with pytest.raises(SkillWriteRefusedError):
+        update_skill(refusing_after, request_as(member), skill, changed)
+
+    assert (
+        skill.name,
+        skill.description,
+        skill.body,
+        skill.user_invocable,
+        skill.model_invocable,
+    ) == ("triage", "Sort the inbox.", "Read, then sort.", True, True)
+
+
+@pytest.mark.parametrize("refuse_enabled", [True, False], ids=["stored-row", "result"])
+def test_a_disable_asks_about_the_stored_row_and_the_result(
+    policy: PersonalFirstPolicy, member: AbstractBaseUser, refuse_enabled: bool
+) -> None:
+    skill = create_skill(policy, request_as(member), DRAFT)
+    refusing = mock.Mock(wraps=policy)
+    refusing.can_write.side_effect = lambda request, skill: skill.enabled is not refuse_enabled
+
+    with pytest.raises(SkillWriteRefusedError):
+        disable_skill(refusing, request_as(member), skill)
+
+    assert skill.enabled is True
+    skill.refresh_from_db()
+    assert skill.enabled is True
+
+
+def test_the_visible_list_stops_at_the_cap_and_keeps_personal_skills_and_shadows(
+    policy: PersonalFirstPolicy, member: AbstractBaseUser
+) -> None:
+    TenantSkill.objects.bulk_create(
+        [
+            *(
+                TenantSkill(owner=member, name=f"p{index}", description="d", body="mine")
+                for index in range(60)
+            ),
+            *(
+                TenantSkill(owner=None, name=f"c{index}", description="d", body="company")
+                for index in range(100)
+            ),
+            TenantSkill(owner=None, name="p0", description="d", body="company"),
+        ]
+    )
+
+    visible = list_visible_skills(policy, request_as(member))
+
+    assert len(visible) == MAX_VISIBLE_SKILLS
+    assert [skill.name for skill in visible[:60]] == [f"p{index}" for index in range(60)]
+    assert all(skill.body == "mine" for skill in visible[:60])
