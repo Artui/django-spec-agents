@@ -9,6 +9,8 @@ from django.core.checks import CheckMessage, Error
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 
+from django_spec_agents.routines.get_routine_model import get_routine_model
+from django_spec_agents.routines.types.routine_model_setting import ROUTINE_MODEL_SETTING
 from django_spec_agents.skills.get_skill_model import get_skill_model
 from django_spec_agents.skills.types.skill_model_setting import SKILL_MODEL_SETTING
 
@@ -33,6 +35,14 @@ _CONFIGURED_MODELS = (
         hint="Override skill_policy() on the model to return its SkillPolicy.",
         unresolved_id="django_spec_agents.E001",
         no_policy_id="django_spec_agents.E002",
+    ),
+    _ConfiguredModel(
+        setting=ROUTINE_MODEL_SETTING,
+        resolve=get_routine_model,
+        policy=lambda model: model.routine_policy(),
+        hint="Override routine_policy() on the model to return its RoutinePolicy.",
+        unresolved_id="django_spec_agents.E003",
+        no_policy_id="django_spec_agents.E004",
     ),
 )
 

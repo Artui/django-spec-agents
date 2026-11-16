@@ -7,7 +7,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.test import override_settings
 
 from django_spec_agents.checks import check_configured_models
+from django_spec_agents.routines import get_routine_model
 from django_spec_agents.skills import get_skill_model
+from tests.routines.testapp.models import TeamRoutine, UnguardedRoutine
 from tests.skills.testapp.models import TenantSkill, UnguardedSkill
 
 
@@ -59,4 +61,55 @@ def test_a_setting_that_names_no_skill_model_fails_the_check(label: object, mess
         errors = check_configured_models()
 
     assert [error.id for error in errors] == ["django_spec_agents.E001"]
+    assert message in errors[0].msg
+
+
+def test_no_routine_setting_means_no_routine_messages() -> None:
+    assert get_routine_model() is None
+
+
+@override_settings(SPEC_AGENTS_ROUTINE_MODEL="routines_testapp.TeamRoutine")
+def test_a_configured_routine_model_with_a_policy_passes() -> None:
+    assert get_routine_model() is TeamRoutine
+    assert check_configured_models() == []
+
+
+@override_settings(SPEC_AGENTS_ROUTINE_MODEL="routines_testapp.UnguardedRoutine")
+def test_a_configured_routine_model_with_no_policy_fails_the_check() -> None:
+    errors = check_configured_models()
+
+    assert [(error.id, error.obj, error.level) for error in errors] == [
+        ("django_spec_agents.E004", UnguardedRoutine, checks.ERROR)
+    ]
+    assert "routines_testapp.UnguardedRoutine" in errors[0].msg
+    assert "routine_policy()" in errors[0].hint
+
+
+@override_settings(
+    SPEC_AGENTS_SKILL_MODEL="skills_testapp.UnguardedSkill",
+    SPEC_AGENTS_ROUTINE_MODEL="routines_testapp.UnguardedRoutine",
+)
+def test_both_settings_are_checked_in_one_pass() -> None:
+    assert [error.id for error in check_configured_models()] == [
+        "django_spec_agents.E002",
+        "django_spec_agents.E004",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("label", "message"),
+    [
+        ("routines_testapp.Missing", "of an installed model"),
+        ("not-a-label", "of an installed model"),
+        (5, "of an installed model"),
+        ("skills_testapp.TenantSkill", "does not subclass AbstractRoutine"),
+    ],
+)
+def test_a_setting_that_names_no_routine_model_fails_the_check(label: object, message: str) -> None:
+    with override_settings(SPEC_AGENTS_ROUTINE_MODEL=label):
+        with pytest.raises(ImproperlyConfigured, match=message):
+            get_routine_model()
+        errors = check_configured_models()
+
+    assert [error.id for error in errors] == ["django_spec_agents.E003"]
     assert message in errors[0].msg
