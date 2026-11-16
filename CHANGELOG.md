@@ -50,9 +50,8 @@ for its security fixes, and the `[harness]` extra at pydantic-ai-harness 0.66. M
   a mutation the definition declares) for any tool definition, whatever its `kind`.
 - **User skills: `AbstractSkill`, `SkillPolicy` and the functions over them**, in
   `django_spec_agents.skills`. A consumer subclasses the abstract model with its tenant
-  relation and names it in `SPEC_AGENTS_SKILL_MODEL`. Its `skill_policy()` returns the
-  `SkillPolicy`, which decides what the caller sees, in precedence order, and where a
-  create may write. `list_visible_skills` and `resolve_skill` let a personal skill shadow
+  relation, and its `skill_policy()` classmethod returns the `SkillPolicy`, which
+  decides what the caller sees, in precedence order, and where a create may write. `list_visible_skills` and `resolve_skill` let a personal skill shadow
   a company one of the same name. `create_skill`, `update_skill` and `disable_skill` ask
   `can_write` and raise `SkillWriteRefusedError` when the policy refuses. Names are
   kebab-case, and caps hold on description and body. `list_visible_skills` stops at
@@ -61,12 +60,12 @@ for its security fixes, and the `[harness]` extra at pydantic-ai-harness 0.66. M
   `export_skill_md` and `import_skill_md` round-trip a skill through a `SKILL.md` that
   the harness's `Skills` loads to the same fields. No concrete model ships, and no
   default policy. A new docs page covers them: User skills.
-- **An opt-in `django_spec_agents` app whose system checks refuse a skill model with no
-  policy.** A project that adds the app to `INSTALLED_APPS` fails `check` with
-  `django_spec_agents.E001` when `SPEC_AGENTS_SKILL_MODEL` names no `AbstractSkill`
-  subclass, and with `E002` when the model's `skill_policy()` returns `None`. The app
-  has no models, and its label does not clash with the store's. A project that leaves it
-  out sees no change.
+- **An opt-in `django_spec_agents` app whose system check refuses a skill model with no
+  policy.** No setting names the model: callers pass its policy to every function. A
+  project that adds the app to `INSTALLED_APPS` fails `check` with
+  `django_spec_agents.E001` for each installed `AbstractSkill` subclass whose
+  `skill_policy()` returns `None`. The app has no models, and its label does not clash
+  with the store's. A project that leaves it out sees no change.
 
 ### Changed
 

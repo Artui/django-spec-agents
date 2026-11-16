@@ -4,35 +4,29 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from django.apps import AppConfig
+from django.apps import AppConfig, apps
 from django.core.checks import CheckMessage, Error
-from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 
-from django_spec_agents.skills.get_skill_model import get_skill_model
-from django_spec_agents.skills.types.skill_model_setting import SKILL_MODEL_SETTING
+from django_spec_agents.skills.abstract_skill import AbstractSkill
 
 
 @dataclass(frozen=True)
-class _ConfiguredModel:
-    """A setting naming a consumer's model, and the policy that model must bring."""
+class _GuardedBase:
+    """An abstract model whose installed subclasses must each bring a policy."""
 
-    setting: str
-    resolve: Callable[[], type[models.Model] | None]
+    base: type[models.Model]
     policy: Callable[[Any], object]
     hint: str
-    unresolved_id: str
     no_policy_id: str
 
 
-_CONFIGURED_MODELS = (
-    _ConfiguredModel(
-        setting=SKILL_MODEL_SETTING,
-        resolve=get_skill_model,
+_GUARDED_BASES = (
+    _GuardedBase(
+        base=AbstractSkill,
         policy=lambda model: model.skill_policy(),
         hint="Override skill_policy() on the model to return its SkillPolicy.",
-        unresolved_id="django_spec_agents.E001",
-        no_policy_id="django_spec_agents.E002",
+        no_policy_id="django_spec_agents.E001",
     ),
 )
 
@@ -40,21 +34,15 @@ _CONFIGURED_MODELS = (
 def check_configured_models(
     app_configs: Sequence[AppConfig] | None = None, **kwargs: object
 ) -> list[CheckMessage]:
-    """An `Error` for each configured model that does not resolve or brings no policy."""
-    errors: list[CheckMessage] = []
-    for row in _CONFIGURED_MODELS:
-        try:
-            model = row.resolve()
-        except ImproperlyConfigured as error:
-            errors.append(Error(str(error), id=row.unresolved_id))
-            continue
-        if model is not None and row.policy(model) is None:
-            errors.append(
-                Error(
-                    f"{row.setting} names {model._meta.label}, which brings no policy.",
-                    hint=row.hint,
-                    obj=model,
-                    id=row.no_policy_id,
-                )
-            )
-    return errors
+    """An `Error` per installed model of a guarded base that brings no policy."""
+    return [
+        Error(
+            f"{model._meta.label} subclasses {row.base.__name__} and brings no policy.",
+            hint=row.hint,
+            obj=model,
+            id=row.no_policy_id,
+        )
+        for model in apps.get_models()
+        for row in _GUARDED_BASES
+        if issubclass(model, row.base) and row.policy(model) is None
+    ]

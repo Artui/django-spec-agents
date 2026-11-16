@@ -124,8 +124,9 @@ so does a multi-line value. Dropping either one silently would lose part of the 
 
 ## Refusing a model with no policy at startup
 
-Name your model in the `SPEC_AGENTS_SKILL_MODEL` setting, and add the package's
-opt-in app to `INSTALLED_APPS`:
+No setting names your model. Your code holds it and passes `Skill.skill_policy()` to
+every function, and to a transport as a constructor argument. To have startup refuse a
+model with no policy, add the package's opt-in app to `INSTALLED_APPS`:
 
 ```python
 INSTALLED_APPS = [
@@ -133,23 +134,19 @@ INSTALLED_APPS = [
     "django_spec_agents",
     "myproject.skills",
 ]
-
-SPEC_AGENTS_SKILL_MODEL = "skills.Skill"
 ```
 
-The app registers Django system checks, so `manage.py check`, `runserver` and `migrate`
-fail when the configuration is broken:
+The app registers a Django system check that walks the app registry for every installed
+model subclassing `AbstractSkill`, so `manage.py check`, `runserver` and `migrate` fail
+when one of them is unguarded. An abstract layer has no table and is not checked.
 
 | Id | When |
 | --- | --- |
-| `django_spec_agents.E001` | The setting names no installed model, or names one that does not subclass `AbstractSkill` |
-| `django_spec_agents.E002` | The model's `skill_policy()` returns `None`, which is `AbstractSkill`'s default |
+| `django_spec_agents.E001` | An installed `AbstractSkill` subclass's `skill_policy()` returns `None`, which is `AbstractSkill`'s default |
 
 The app has no models and no migrations. Its label, `django_spec_agents`, does not clash
-with the store app's label, `django_spec_agents_store`. A project that configures no
-skills leaves the app out, and nothing changes for it. `get_skill_model()` returns the
-configured model, or `None` when the setting is unset, so a transport can find the
-policy as `get_skill_model().skill_policy()`.
+with the store app's label, `django_spec_agents_store`. A project that has no skills
+leaves the app out, and nothing changes for it.
 
 Import `django_spec_agents.skills` once the app registry is ready, for example from a
 `models.py`, a view or a policy, because it defines an abstract model.
