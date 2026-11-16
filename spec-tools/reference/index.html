@@ -335,6 +335,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -501,6 +505,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeouts and caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../integrations/" class="md-nav__link">
         
   
@@ -545,6 +605,8 @@
       
         
       
+        
+      
     
     
     
@@ -557,7 +619,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_8" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -579,14 +641,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -725,6 +787,34 @@
     
   
     Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
   
 
     
@@ -1403,6 +1493,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.testing.slow_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        slow_model
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1837,6 +1938,17 @@
     <span class="md-ellipsis">
       
         instruction_capturing_model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.testing.slow_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        slow_model
       
     </span>
   </a>
@@ -4123,6 +4235,38 @@ reads worse at every call site than a name that is already in scope:</p>
 anything here, so this is the only way to assert the conventions a
 <code>SpecToolset</code> contributes actually arrive -- and they arrive on the
 request, not on the toolset.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.testing.slow_model" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">slow_model</span>
+
+
+<a href="#django_spec_agents.testing.slow_model" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">slow_model</span><span class="p">(</span><span class="n">delay</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'done'</span><span class="p">,))</span> <span class="o">-&gt;</span> <span class="n">FunctionModel</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A model that answers <code>chunks</code> after <code>delay</code> seconds; streamed, all but the last first.</p>
+<p>For a run's <code>timeout=</code>: the wait is in the request, where a provider's is,
+and the double never raises <code>TimeoutError</code> itself, so a <code>RunTimedOut</code>
+is the run's deadline and nothing else. Streamed, every chunk but the last
+arrives before the wait, so a timed-out run keeps them as its partial
+response, as it does when a provider's stream stalls mid-answer.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="django_spec_agents.testing.slow_model--__span-0-1"><a id="django_spec_agents.testing.slow_model--__codelineno-0-1" name="django_spec_agents.testing.slow_model--__codelineno-0-1" href="#django_spec_agents.testing.slow_model--__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunTimedOut</span>
+</span><span id="django_spec_agents.testing.slow_model--__span-0-2"><a id="django_spec_agents.testing.slow_model--__codelineno-0-2" name="django_spec_agents.testing.slow_model--__codelineno-0-2" href="#django_spec_agents.testing.slow_model--__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">slow_model</span>
+</span><span id="django_spec_agents.testing.slow_model--__span-0-3"><a id="django_spec_agents.testing.slow_model--__codelineno-0-3" name="django_spec_agents.testing.slow_model--__codelineno-0-3" href="#django_spec_agents.testing.slow_model--__codelineno-0-3"></a>
+</span><span id="django_spec_agents.testing.slow_model--__span-0-4"><a id="django_spec_agents.testing.slow_model--__codelineno-0-4" name="django_spec_agents.testing.slow_model--__codelineno-0-4" href="#django_spec_agents.testing.slow_model--__codelineno-0-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="n">slow_model</span><span class="p">(</span><span class="mf">10.0</span><span class="p">))</span>
+</span><span id="django_spec_agents.testing.slow_model--__span-0-5"><a id="django_spec_agents.testing.slow_model--__codelineno-0-5" name="django_spec_agents.testing.slow_model--__codelineno-0-5" href="#django_spec_agents.testing.slow_model--__codelineno-0-5"></a><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="n">RunTimedOut</span><span class="p">):</span>
+</span><span id="django_spec_agents.testing.slow_model--__span-0-6"><a id="django_spec_agents.testing.slow_model--__codelineno-0-6" name="django_spec_agents.testing.slow_model--__codelineno-0-6" href="#django_spec_agents.testing.slow_model--__codelineno-0-6"></a>    <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"go"</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)</span>
+</span></code></pre></div>
 
 
     </div>

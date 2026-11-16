@@ -339,6 +339,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -503,6 +507,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeouts and caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../integrations/" class="md-nav__link">
         
   
@@ -549,6 +609,8 @@
       
         
       
+        
+      
     
     
     
@@ -559,7 +621,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_8" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -581,14 +643,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1098,6 +1160,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="ToolGuard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ToolGuard.requires_approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        requires_approval
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1241,6 +1320,34 @@
     
   
     Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
   
 
     
@@ -1868,6 +1975,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="ToolGuard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ToolGuard.requires_approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        requires_approval
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2973,6 +3097,31 @@ and audit still records the tool when an approved call finally runs.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.ToolGuard.requires_approval" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">requires_approval</span>
+
+
+<a href="#django_spec_agents.ToolGuard.requires_approval" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">requires_approval</span><span class="p">(</span><span class="n">tool_def</span><span class="p">:</span> <span class="n">ToolDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether <code>tool_def</code> is gated, by the guard's precedence, whatever its <code>kind</code>.</p>
+<p><code>exempt</code> wins, then <code>require_approval</code>, then a registry
+<code>@tool(destructive=True)</code>, then a mutation the definition declares in
+any of the vocabularies above. <code>prepare_tools</code> flips a <code>function</code>
+tool on this answer; a caller recording whether a parked call is
+destructive, or pre-approving a routine's tools, asks the same question.</p>
+
+
+    </div>
+
+</div>
 
 
 

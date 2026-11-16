@@ -339,6 +339,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -707,6 +711,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#run-status-and-event-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run status and event logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#per-user-memory" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -844,6 +859,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeouts and caching
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../integrations/" class="md-nav__link">
         
   
@@ -888,6 +959,8 @@
       
         
       
+        
+      
     
     
     
@@ -900,7 +973,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_8" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -922,14 +995,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1068,6 +1141,34 @@
     
   
     Integrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
   
 
     
@@ -1549,6 +1650,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#run-status-and-event-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run status and event logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#per-user-memory" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1673,12 +1785,14 @@ core because every transport needs the same persistence semantics; the HTTP
 <em>views</em> over them are not — a browser thread drawer and an agent-to-agent peer
 model the same history completely differently.</p>
 <h2 id="the-contracts">The contracts<a class="headerlink" href="#the-contracts" title="Permanent link">&para;</a></h2>
-<p>Two <code>Protocol</code>s, both <code>runtime_checkable</code>, both fully async so an implementation
+<p>Three <code>Protocol</code>s, all <code>runtime_checkable</code>, all fully async so an implementation
 can use the async ORM or a network backend:</p>
 <ul>
 <li><strong><code>ConversationStore</code></strong> — <code>load</code> / <code>save</code> / <code>delete</code> a conversation, plus
   listing metadata for a history drawer.</li>
 <li><strong><code>AttachmentStore</code></strong> — <code>save</code> / <code>open</code> / <code>delete</code> files a user attached.</li>
+<li><strong><code>RunStore</code></strong> — a thread's run status and each run's event log, for runs
+  that outlive their request (<a href="#run-status-and-event-logs">below</a>).</li>
 </ul>
 <p>You pass an instance to your transport; nothing is resolved from a dotted path.</p>
 <h2 id="owner-scoping-is-the-security-boundary">Owner scoping is the security boundary<a class="headerlink" href="#owner-scoping-is-the-security-boundary" title="Permanent link">&para;</a></h2>
@@ -1816,8 +1930,8 @@ get no migration. To use the ready-made ones:</p>
 </span></code></pre></div>
 <p>Then <code>migrate</code>, and pass the matching store to your transport
 (<code>conversation_store=</code> / <code>attachment_store=</code> / <code>step_store=</code>). The app provides
-<code>DefaultConversationStore</code>, <code>DefaultAttachmentStore</code>, <code>DefaultStepStore</code> and
-<code>DefaultMemoryStore</code>, and each is imported <strong>from its own module</strong>:</p>
+<code>DefaultConversationStore</code>, <code>DefaultAttachmentStore</code>, <code>DefaultStepStore</code>,
+<code>DefaultMemoryStore</code> and <code>DefaultRunStore</code>, and each is imported <strong>from its own module</strong>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_attachment_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">DefaultAttachmentStore</span><span class="p">,</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">)</span>
@@ -1827,7 +1941,8 @@ get no migration. To use the ready-made ones:</p>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
 </span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_step_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultStepStore</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_run_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultRunStore</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_step_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultStepStore</span>
 </span></code></pre></div>
 <p>The shorter <code>from django_spec_agents.contrib.store import DefaultConversationStore</code>
 is the natural guess and it does not exist. It cannot: this is a Django <em>app</em>, so
@@ -2112,6 +2227,83 @@ recent runs first sorts where it renders; a store that reversed the contract
 would hand that idiom the oldest run instead, silently, and only where more than
 one run exists.</p>
 <p>Full signatures in the <a href="../reference/persistence/">persistence reference</a>.</p>
+<h2 id="run-status-and-event-logs">Run status and event logs<a class="headerlink" href="#run-status-and-event-logs" title="Permanent link">&para;</a></h2>
+<p>A run started on the server with no stream, or one whose browser leaves, has
+to be visible from anywhere: which thread is busy, which is waiting on an
+answer, what the run has said so far. A <code>RunStore</code> holds that, apart from the
+transcript, which stays in the <code>ConversationStore</code> with any partial output. It
+is a separate protocol, so a <code>ConversationStore</code> written before it still
+satisfies its own. A transport with no run store behaves as it always has: no
+claim, no conflict, no detach.</p>
+<p><code>DefaultRunStore</code> is the reference implementation, one instance for every
+request, keyed by the owner it resolves from each request:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_run_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultRunStore</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">run_store</span> <span class="o">=</span> <span class="n">DefaultRunStore</span><span class="p">(</span><span class="n">log_retention</span><span class="o">=</span><span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="mi">6</span><span class="p">))</span>
+</span></code></pre></div>
+<p><strong>One run per thread.</strong> <code>claim(thread_id, run_id, request=..., lease=...)</code>
+takes the thread in one conditional update: it wins when no run holds the
+thread or the holder's lease has lapsed, and a second claim loses with the
+holder's id in the answer, for a transport's 409. The holder keeps its claim
+with <code>renew</code> and gives it up with <code>finish</code>. A run that is no longer the live
+holder cannot renew, append or finish, so an owner presumed dead never
+overwrites the run that replaced it.</p>
+<p><strong>How a run ended</strong> goes to <code>finish</code> as a <code>RunOutcome</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Thread status</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>completed</code></td>
+<td><code>idle</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>waiting</code></td>
+<td><code>waiting</code>, with the <code>RunWaiting</code> it parked on</td>
+<td></td>
+</tr>
+<tr>
+<td><code>cancelled</code></td>
+<td><code>idle</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>timed_out</code></td>
+<td><code>idle</code></td>
+<td><code>timed_out</code></td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td><code>failed</code></td>
+<td><code>error</code></td>
+</tr>
+</tbody>
+</table>
+<p>A thread still <code>running</code> after its lease lapses, as after a restart, reads as
+<code>failed</code> with reason <code>interrupted</code>. The run's id stays on the thread as
+<code>last_run_id</code> after it ends: a parked run's id is what a resume answers to.</p>
+<p><strong>Run ids are single-use per owner.</strong> The resumed run, like a retried one,
+claims the thread under a fresh id; <code>claim</code> refuses an id its owner has claimed
+before with <code>RunIdReusedError</code>, writing nothing, so a transport can answer it as
+a client error rather than a server one.</p>
+<p><strong>The log is append-only and numbered.</strong> <code>append(run_id, events, request=...)</code>
+numbers a batch of opaque JSON events on from the run's last, starting at 1,
+and <code>read(run_id, after=n)</code> pages from any number, so a reader that reconnects
+asks for what it has not seen. Nothing edits an entry. <code>prune()</code> deletes whole
+logs once their run has been over for <code>log_retention</code> (a day by default),
+counting a run that never finished from its last write and never touching one
+under a live lease. Call it from a periodic task; it reads no setting.</p>
+<p><code>request_cancel</code> records a cancel for the live run, for its owner to act on
+from wherever it runs, and <code>mark_read</code> stamps <code>last_read_at</code> for an unread
+marker. <code>get_many</code> reads a page of threads' states at once.</p>
 <h2 id="per-user-memory">Per-user memory<a class="headerlink" href="#per-user-memory" title="Permanent link">&para;</a></h2>
 <p><code>pydantic-ai-harness</code> ships a complete memory capability — four tools
 (<code>write_memory</code>, <code>read_memory</code>, <code>delete_memory</code>, <code>search_memory</code>), a
@@ -2123,17 +2315,17 @@ it multi-tenant.</p>
 as <code>DefaultStepStore</code>'s: it <strong>structurally satisfies harness's <code>MemoryStore</code>
 protocol</strong>, which is upstream's and is not redeclared here. It needs the
 <code>[harness]</code> extra.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="p">)</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Hand it to your transport the way you would any other capability —
 <code>AGUIServer(capabilities=[capability])</code> for django-ag-ui. There is no settings
@@ -2262,8 +2454,8 @@ composing <code>list_paths</code> with <code>delete</code> needs each path's cur
 unbounded read-then-delete loop a concurrent <code>write_memory</code> can lose to — so the
 store carries a non-protocol <code>purge(owner_id)</code> that is one statement, plus a
 command:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
 </span></code></pre></div>
 <p>The argument is the owner id the memory was filed under, not the bare user key.
 With the usual mount-time namespace from <code>memory_namespace_for_user</code>, that is <code>u-</code>
