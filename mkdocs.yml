@@ -87,6 +87,7 @@ nav:
       - Tools: tools.md
       - Storage: storage.md
       - Policy: policy.md
+      - Timeouts and caching: runs.md
       - Integrations: integrations.md
       - Reference:
           - reference/index.md

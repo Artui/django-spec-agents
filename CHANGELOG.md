@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A slow model double for run deadlines.** `django_spec_agents.testing.slow_model(delay,
+  chunks)` answers after `delay` seconds; streamed, every chunk but the last arrives
+  before the wait, so a run past its `timeout=` ends with `RunTimedOut` and keeps them as
+  its partial answer, as a stalled provider stream does. A new docs page, Timeouts and
+  caching, covers a run's `timeout=`, `RunContext.deadline`, `request_timeout` and
+  `max_retries`, and the `cache` setting; tests hold that the capabilities `build_agent`
+  composes neither turn a deadline into a failed tool call nor perturb the cached prefix.
+
+### Changed
+
+- **pydantic-ai-slim's floor is 2.63, and the `[harness]` extra's is
+  pydantic-ai-harness 0.63.** Harness 0.63 is the first `CodeMode` that defaults to
+  `dynamic_catalog=True`, which keeps the prompt cache warm across tool discoveries, and
+  it pins pydantic-ai-slim 2.63, so the base requirement and the `anthropic`, `openai` and
+  `google` extras move with it. No code path in the package reads a 2.63 symbol.
+
 ## [0.15.0] — 2026-11-15
 
 A minor release with no floor moved and no migration: a transport can refuse an
