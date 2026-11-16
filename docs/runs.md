@@ -86,8 +86,8 @@ The capabilities `build_agent` composes, `AuditCapability`, `ToolGuard` and
 `ToolFailurePolicy`, leave the tool definitions and instructions unchanged from one
 request to the next. So the cached prefix stays valid for the whole run.
 
-With the `[harness]` extra, `CodeMode` (pydantic-ai-harness 0.63 and later, the
-extra's floor) defaults to `dynamic_catalog=True`. Its catalog of sandboxed tools
+With the `[harness]` extra, `CodeMode` (pydantic-ai-harness 0.63 and later; the
+extra's floor is 0.66) defaults to `dynamic_catalog=True`. Its catalog of sandboxed tools
 then goes into the instructions, and a newly discovered tool is appended to the
 history rather than rewriting `run_code`'s description, so a discovery keeps the cache
 warm.

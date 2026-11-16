@@ -62,11 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **pydantic-ai-slim's floor is 2.63, and the `[harness]` extra's is
-  pydantic-ai-harness 0.63.** Harness 0.63 is the first `CodeMode` that defaults to
-  `dynamic_catalog=True`, which keeps the prompt cache warm across tool discoveries, and
-  it pins pydantic-ai-slim 2.63, so the base requirement and the `anthropic`, `openai` and
-  `google` extras move with it. No code path in the package reads a 2.63 symbol.
+- **pydantic-ai-slim's floor is 2.66, and the `[harness]` extra's is
+  pydantic-ai-harness 0.66.** pydantic-ai 2.66.0 fixes GHSA-r879-rxgj-3g75,
+  GHSA-4cj4-hgwf-4hc4 and GHSA-7494-925c-rrxv, so installers can no longer resolve an
+  affected release. Harness 0.N pins pydantic-ai-slim 2.N, so the base requirement, the
+  `anthropic`, `openai` and `google` extras and `[harness]` move together; the harness
+  floor also guarantees a `CodeMode` that defaults to `dynamic_catalog=True` (first in
+  0.63), which keeps the prompt cache warm across tool discoveries. No code path in the
+  package reads a 2.66 symbol.
 
 ## [0.15.0] — 2026-11-15
 
