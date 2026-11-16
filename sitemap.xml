@@ -21,6 +21,10 @@
          <lastmod>2026-11-16</lastmod>
     </url>
     <url>
+         <loc>https://artui.github.io/django-spec-agents/routines/</loc>
+         <lastmod>2026-11-16</lastmod>
+    </url>
+    <url>
          <loc>https://artui.github.io/django-spec-agents/runs/</loc>
          <lastmod>2026-11-16</lastmod>
     </url>
@@ -58,6 +62,10 @@
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/registry/</loc>
+         <lastmod>2026-11-16</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-spec-agents/reference/routines/</loc>
          <lastmod>2026-11-16</lastmod>
     </url>
     <url>
