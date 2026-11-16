@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-11-16
+
+A minor release that moves floors and adds a migration. pydantic-ai-slim floors at 2.66
+for its security fixes, and the `[harness]` extra at pydantic-ai-harness 0.66. Migration
+`0003_run_store` in `django_spec_agents.contrib.store` adds the run store's tables, so run
+`migrate` after upgrading. The skills app is opt-in: add `django_spec_agents` to
+`INSTALLED_APPS` for its startup checks.
+
+### Added
+
+- **A slow model double for run deadlines.** `django_spec_agents.testing.slow_model(delay,
+  chunks)` answers after `delay` seconds; streamed, every chunk but the last arrives
+  before the wait, so a run past its `timeout=` ends with `RunTimedOut` and keeps them as
+  its partial answer, as a stalled provider stream does. A new docs page, Timeouts and
+  caching, covers a run's `timeout=`, `RunContext.deadline`, `request_timeout` and
+  `max_retries`, and the `cache` setting; tests hold that the capabilities `build_agent`
+  composes neither turn a deadline into a failed tool call nor perturb the cached prefix.
+- **A run's status and event log have a store of their own.** `RunStore`, exported
+  from `django_spec_agents`, is a new protocol for runs that outlive their request:
+  per thread a status (`idle`, `running`, `waiting`, `failed`), the reason a run ended
+  badly (`error`, `timed_out`, `interrupted`), what a parked run waits on
+  (`RunWaiting`), the active run and a lease, a cancel request and `last_read_at`;
+  per run a numbered, append-only log of opaque JSON events. `claim` takes a thread's
+  `active_run_id` in one conditional update, and a second claim loses with the
+  holder's id; a run whose lease has lapsed reads as `failed` with reason
+  `interrupted`, and can no longer renew, append or finish. Run ids are single-use per
+  owner: a resumed or retried run claims a fresh id, and `claim` refuses a used one
+  with `RunIdReusedError`, writing nothing. The transcript stays in
+  the `ConversationStore`, which gains no method. `DefaultRunStore`, in
+  `django_spec_agents.contrib.store.default_run_store`, implements it over three new
+  models (migration `0003_run_store`); `prune()` deletes logs `log_retention` after
+  their run ended, a day by default.
+- **`HeadlessRunner`**, a protocol a transport implements to start an agent run on
+  the server with no browser: `start` returns once the run has claimed its thread,
+  `run_to_first_stop` waits until it ends or parks (a `RunStop`), and `cancel`
+  records a cancel. The principal is an authenticated user, whose `pk` is the run's
+  owner. `start` and `run_to_first_stop` require `timeout=`, the run's deadline in
+  seconds; a run past it ends `RunOutcome.TIMED_OUT`, its partial kept.
+- **`ToolGuard.requires_approval(tool_def)`** is public: the guard's precedence
+  (`exempt`, then `require_approval`, then a registry `@tool(destructive=True)`, then
+  a mutation the definition declares) for any tool definition, whatever its `kind`.
+- **User skills: `AbstractSkill`, `SkillPolicy` and the functions over them**, in
+  `django_spec_agents.skills`. A consumer subclasses the abstract model with its tenant
+  relation, and its `skill_policy()` classmethod returns the `SkillPolicy`, which
+  decides what the caller sees, in precedence order, and where a create may write. `list_visible_skills` and `resolve_skill` let a personal skill shadow
+  a company one of the same name. `create_skill`, `update_skill` and `disable_skill` ask
+  `can_write` and raise `SkillWriteRefusedError` when the policy refuses. Names are
+  kebab-case, and caps hold on description and body. `list_visible_skills` stops at
+  `MAX_VISIBLE_SKILLS` in the policy's order, and a create is refused once the caller
+  already sees that many.
+  `export_skill_md` and `import_skill_md` round-trip a skill through a `SKILL.md` that
+  the harness's `Skills` loads to the same fields. No concrete model ships, and no
+  default policy. A new docs page covers them: User skills.
+- **An opt-in `django_spec_agents` app whose system check refuses a skill model with no
+  policy.** No setting names the model: callers pass its policy to every function. A
+  project that adds the app to `INSTALLED_APPS` fails `check` with
+  `django_spec_agents.E001` for each installed `AbstractSkill` subclass whose
+  `skill_policy()` returns `None`. The app has no models, and its label does not clash
+  with the store's. A project that leaves it out sees no change.
+
+### Changed
+
+- **pydantic-ai-slim's floor is 2.66, and the `[harness]` extra's is
+  pydantic-ai-harness 0.66.** pydantic-ai 2.66.0 fixes GHSA-r879-rxgj-3g75,
+  GHSA-4cj4-hgwf-4hc4 and GHSA-7494-925c-rrxv, so installers can no longer resolve an
+  affected release. Harness 0.N pins pydantic-ai-slim 2.N, so the base requirement, the
+  `anthropic`, `openai` and `google` extras and `[harness]` move together; the harness
+  floor also guarantees a `CodeMode` that defaults to `dynamic_catalog=True` (first in
+  0.63), which keeps the prompt cache warm across tool discoveries. No code path in the
+  package reads a 2.66 symbol.
+
 ## [0.15.0] — 2026-11-15
 
 A minor release with no floor moved and no migration: a transport can refuse an
@@ -959,7 +1030,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/django-spec-agents/compare/v0.12.0...v0.13.0

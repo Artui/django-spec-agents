@@ -19,6 +19,7 @@ SPEC_TOOLS = ROOT / "django_spec_agents" / "spec_tools"
 # ``_modules_after``.
 HOST_ONLY = "host_only_settings"
 HOST_ONLY_WITH_STORE = "host_only_store_settings"
+HOST_ONLY_WITH_APP = "host_only_app_settings"
 
 # What a bare root import must leave unloaded: the tool half, what only the
 # ``[specs]`` and ``[mcp]`` extras install, Django REST Framework and drf-services,
@@ -100,6 +101,18 @@ def test_a_bare_root_import_loads_neither_spec_tools_nor_the_specs_extra(setting
 
     # An empty offender list cannot come from a process that never imported the host.
     assert {"django_spec_agents", "django_spec_agents.agent"} <= modules
+    loaded = sorted(p for p in NOT_FROM_THE_ROOT if any(_is_or_under(m, p) for m in modules))
+    assert loaded == []
+
+
+def test_the_opt_in_app_loads_skills_and_checks_and_nothing_an_extra_installs() -> None:
+    modules = _modules_after(
+        HOST_ONLY_WITH_APP,
+        "import django\ndjango.setup()\n"
+        "import django_spec_agents.skills\nimport django_spec_agents.checks",
+    )
+
+    assert {"django_spec_agents.skills", "django_spec_agents.checks"} <= modules
     loaded = sorted(p for p in NOT_FROM_THE_ROOT if any(_is_or_under(m, p) for m in modules))
     assert loaded == []
 

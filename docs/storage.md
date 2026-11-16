@@ -7,12 +7,14 @@ model the same history completely differently.
 
 ## The contracts
 
-Two `Protocol`s, both `runtime_checkable`, both fully async so an implementation
+Three `Protocol`s, all `runtime_checkable`, all fully async so an implementation
 can use the async ORM or a network backend:
 
 - **`ConversationStore`** — `load` / `save` / `delete` a conversation, plus
   listing metadata for a history drawer.
 - **`AttachmentStore`** — `save` / `open` / `delete` files a user attached.
+- **`RunStore`** — a thread's run status and each run's event log, for runs
+  that outlive their request ([below](#run-status-and-event-logs)).
 
 You pass an instance to your transport; nothing is resolved from a dotted path.
 
@@ -141,8 +143,8 @@ INSTALLED_APPS = [
 
 Then `migrate`, and pass the matching store to your transport
 (`conversation_store=` / `attachment_store=` / `step_store=`). The app provides
-`DefaultConversationStore`, `DefaultAttachmentStore`, `DefaultStepStore` and
-`DefaultMemoryStore`, and each is imported **from its own module**:
+`DefaultConversationStore`, `DefaultAttachmentStore`, `DefaultStepStore`,
+`DefaultMemoryStore` and `DefaultRunStore`, and each is imported **from its own module**:
 
 ```python
 from django_spec_agents.contrib.store.default_attachment_store import (
@@ -154,6 +156,7 @@ from django_spec_agents.contrib.store.default_conversation_store import (
 from django_spec_agents.contrib.store.default_memory_store import (
     DefaultMemoryStore,
 )
+from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.default_step_store import DefaultStepStore
 ```
 
@@ -463,6 +466,66 @@ would hand that idiom the oldest run instead, silently, and only where more than
 one run exists.
 
 Full signatures in the [persistence reference](reference/persistence.md).
+
+## Run status and event logs
+
+A run started on the server with no stream, or one whose browser leaves, has
+to be visible from anywhere: which thread is busy, which is waiting on an
+answer, what the run has said so far. A `RunStore` holds that, apart from the
+transcript, which stays in the `ConversationStore` with any partial output. It
+is a separate protocol, so a `ConversationStore` written before it still
+satisfies its own. A transport with no run store behaves as it always has: no
+claim, no conflict, no detach.
+
+`DefaultRunStore` is the reference implementation, one instance for every
+request, keyed by the owner it resolves from each request:
+
+```python
+from datetime import timedelta
+
+from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
+
+run_store = DefaultRunStore(log_retention=timedelta(hours=6))
+```
+
+**One run per thread.** `claim(thread_id, run_id, request=..., lease=...)`
+takes the thread in one conditional update: it wins when no run holds the
+thread or the holder's lease has lapsed, and a second claim loses with the
+holder's id in the answer, for a transport's 409. The holder keeps its claim
+with `renew` and gives it up with `finish`. A run that is no longer the live
+holder cannot renew, append or finish, so an owner presumed dead never
+overwrites the run that replaced it.
+
+**How a run ended** goes to `finish` as a `RunOutcome`:
+
+| Outcome | Thread status | Reason |
+| --- | --- | --- |
+| `completed` | `idle` | |
+| `waiting` | `waiting`, with the `RunWaiting` it parked on | |
+| `cancelled` | `idle` | |
+| `timed_out` | `idle` | `timed_out` |
+| `error` | `failed` | `error` |
+
+A thread still `running` after its lease lapses, as after a restart, reads as
+`failed` with reason `interrupted`. The run's id stays on the thread as
+`last_run_id` after it ends: a parked run's id is what a resume answers to.
+
+**Run ids are single-use per owner.** The resumed run, like a retried one,
+claims the thread under a fresh id; `claim` refuses an id its owner has claimed
+before with `RunIdReusedError`, writing nothing, so a transport can answer it as
+a client error rather than a server one.
+
+**The log is append-only and numbered.** `append(run_id, events, request=...)`
+numbers a batch of opaque JSON events on from the run's last, starting at 1,
+and `read(run_id, after=n)` pages from any number, so a reader that reconnects
+asks for what it has not seen. Nothing edits an entry. `prune()` deletes whole
+logs once their run has been over for `log_retention` (a day by default),
+counting a run that never finished from its last write and never touching one
+under a live lease. Call it from a periodic task; it reads no setting.
+
+`request_cancel` records a cancel for the live run, for its owner to act on
+from wherever it runs, and `mark_read` stamps `last_read_at` for an unread
+marker. `get_many` reads a page of threads' states at once.
 
 ## Per-user memory
 

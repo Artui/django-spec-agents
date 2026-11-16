@@ -32,7 +32,8 @@ result = await agent.run("go", deps=AgentDeps(user=user))
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping
+import asyncio
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
@@ -181,8 +182,45 @@ def instruction_capturing_model(
     return FunctionModel(model_fn)
 
 
+def slow_model(delay: float, chunks: Sequence[str] = ("done",)) -> FunctionModel:
+    """A model that answers ``chunks`` after ``delay`` seconds; streamed, all but the last first.
+
+    For a run's ``timeout=``: the wait is in the request, where a provider's is,
+    and the double never raises ``TimeoutError`` itself, so a ``RunTimedOut``
+    is the run's deadline and nothing else. Streamed, every chunk but the last
+    arrives before the wait, so a timed-out run keeps them as its partial
+    response, as it does when a provider's stream stalls mid-answer.
+
+    ```python
+    from pydantic_ai.exceptions import RunTimedOut
+    from django_spec_agents.testing import slow_model
+
+    agent = Agent(slow_model(10.0))
+    with pytest.raises(RunTimedOut):
+        await agent.run("go", timeout=0.05)
+    ```
+    """
+
+    if not chunks:
+        raise ValueError("slow_model needs at least one chunk to answer with")
+
+    async def model_fn(messages: Any, info: Any) -> ModelResponse:
+        await asyncio.sleep(delay)
+        return ModelResponse(parts=[TextPart("".join(chunks))])
+
+    async def stream_fn(messages: Any, info: Any) -> AsyncIterator[str]:
+        *early, last = chunks
+        for chunk in early:
+            yield chunk
+        await asyncio.sleep(delay)
+        yield last
+
+    return FunctionModel(model_fn, stream_function=stream_fn)
+
+
 __all__ = [
     "instruction_capturing_model",
+    "slow_model",
     "streaming_tool_calling_model",
     "tool_calling_model",
 ]

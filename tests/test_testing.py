@@ -25,6 +25,7 @@ from django_spec_agents import AgentDeps
 from django_spec_agents.spec_tools import SpecToolset
 from django_spec_agents.testing import (
     instruction_capturing_model,
+    slow_model,
     streaming_tool_calling_model,
     tool_calling_model,
 )
@@ -244,3 +245,19 @@ def test_a_successful_tool_return_still_ends_the_run() -> None:
 
     assert isinstance(part, TextPart)
     assert part.content == "finished"
+
+
+async def test_slow_model_answers_once_its_wait_is_over():
+    result = await Agent(slow_model(0.0, ("par", "tial"))).run("go")
+    assert result.output == "partial"
+
+
+async def test_slow_model_streams_its_chunks_in_order():
+    async with Agent(slow_model(0.0, ("par", "tial"))).run_stream("go") as stream:
+        chunks = [chunk async for chunk in stream.stream_text(delta=True)]
+    assert "".join(chunks) == "partial"
+
+
+def test_slow_model_refuses_an_empty_answer():
+    with pytest.raises(ValueError, match="at least one chunk"):
+        slow_model(0.0, ())

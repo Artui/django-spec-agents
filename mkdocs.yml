@@ -87,6 +87,8 @@ nav:
       - Tools: tools.md
       - Storage: storage.md
       - Policy: policy.md
+      - Timeouts and caching: runs.md
+      - User skills: skills.md
       - Integrations: integrations.md
       - Reference:
           - reference/index.md
@@ -95,6 +97,7 @@ nav:
           - Persistence: reference/persistence.md
           - Policy: reference/policy.md
           - Integrations: reference/integrations.md
+          - Skills: reference/skills.md
   - Spec tools:
       - spec-tools/index.md
       - Quickstart: spec-tools/quickstart.md

@@ -82,7 +82,7 @@ def test_unapplying_restores_the_old_names_and_applying_renames_them_again() -> 
         content_type.model: content_type.pk
         for content_type in ContentType.objects.filter(app_label=LABEL)
     }
-    assert len(content_types) == 9
+    assert len(content_types) == 12
     permission = Permission.objects.get(codename="view_storedconversation")
     group = Group.objects.create(name="readers")
     group.permissions.add(permission)

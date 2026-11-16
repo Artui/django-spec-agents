@@ -244,3 +244,82 @@ class StoredMemoryOperation(models.Model):
 
     def __str__(self) -> str:
         return self.operation_id
+
+
+class StoredThreadRun(models.Model):
+    """One thread's run status for ``DefaultRunStore``: its claim, lease, park and read mark."""
+
+    owner_id = models.CharField(max_length=255, blank=True, default="")
+    thread_id = models.CharField(max_length=255)
+    status = models.CharField(
+        max_length=16,
+        default="idle",
+        choices=[(s, s) for s in ("idle", "running", "waiting", "failed")],
+    )
+    reason = models.CharField(
+        max_length=16,
+        null=True,
+        blank=True,
+        default=None,
+        choices=[(r, r) for r in ("error", "timed_out", "interrupted")],
+    )
+    waiting = models.JSONField(null=True, blank=True, default=None)
+    active_run_id = models.CharField(max_length=255, null=True, blank=True, default=None)
+    last_run_id = models.CharField(max_length=255, null=True, blank=True, default=None)
+    lease_expires_at = models.DateTimeField(null=True, blank=True, default=None)
+    cancel_requested_at = models.DateTimeField(null=True, blank=True, default=None)
+    last_read_at = models.DateTimeField(null=True, blank=True, default=None)
+    updated_at = models.DateTimeField(null=True, blank=True, default=None)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_id", "thread_id"],
+                name="django_spec_agents_thread_run_owner_thread_unique",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.thread_id}:{self.status}"
+
+
+class StoredRunLog(models.Model):
+    """One run's event log for ``DefaultRunStore``: its thread, next number and end."""
+
+    owner_id = models.CharField(max_length=255, blank=True, default="")
+    run_id = models.CharField(max_length=255)
+    thread_id = models.CharField(max_length=255)
+    next_seq = models.PositiveIntegerField(default=1)
+    started_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True, default=None)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_id", "run_id"], name="django_spec_agents_run_log_owner_run_unique"
+            )
+        ]
+        indexes = [models.Index(fields=["updated_at"])]
+
+    def __str__(self) -> str:
+        return self.run_id
+
+
+class StoredRunEvent(models.Model):
+    """One numbered, opaque entry in a run's log."""
+
+    log = models.ForeignKey(StoredRunLog, on_delete=models.CASCADE, related_name="events")
+    seq = models.PositiveIntegerField()
+    event = models.JSONField()
+    created_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["log", "seq"], name="django_spec_agents_run_event_log_seq_unique"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.log.run_id}#{self.seq}"

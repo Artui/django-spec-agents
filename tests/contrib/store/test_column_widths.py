@@ -12,8 +12,10 @@ from django_spec_agents.contrib.store.models import (
     StoredMemory,
     StoredMemoryOperation,
     StoredRun,
+    StoredRunLog,
     StoredSnapshot,
     StoredStepEvent,
+    StoredThreadRun,
     StoredToolEffect,
 )
 from tests.contrib.store.rows import too_long
@@ -48,6 +50,9 @@ _GUARDED = [
     (StoredToolEffect, "tool_call_id"),
     (StoredMemory, "operation_id"),
     (StoredMemoryOperation, "operation_id"),
+    (StoredThreadRun, "thread_id"),
+    (StoredThreadRun, "active_run_id"),
+    (StoredRunLog, "run_id"),
 ]
 
 
