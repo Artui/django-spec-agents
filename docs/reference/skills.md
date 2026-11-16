@@ -16,10 +16,6 @@ The stored-skill model, its policy and the functions over them. See
 
 ::: django_spec_agents.skills.SkillDraft
 
-## `get_skill_model`
-
-::: django_spec_agents.skills.get_skill_model
-
 ## `list_visible_skills`
 
 ::: django_spec_agents.skills.list_visible_skills

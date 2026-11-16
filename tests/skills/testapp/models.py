@@ -22,10 +22,6 @@ class TenantSkill(AbstractSkill):
         return PersonalFirstPolicy()
 
 
-class UnguardedSkill(AbstractSkill):
-    """Configured with no policy: the system check refuses it."""
-
-
 class PersonalFirstPolicy:
     """Members write personal skills, staff write company ones; a personal skill wins a name."""
 
