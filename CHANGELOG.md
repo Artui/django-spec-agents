@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-11-16
+
+A minor release with no floor moved and no migration: routines, a stored prompt for one
+agent run on a schedule as the user who created it, land as an abstract model, a policy,
+a schedule vocabulary and the functions that write them. Nothing fires a routine yet. A
+host that subclasses `AbstractRoutine` adds `django_spec_agents` to `INSTALLED_APPS` for
+its startup check.
+
 ### Added
 
 - **Routines: `AbstractRoutine`, `RoutinePolicy`, the schedule vocabulary and
@@ -1049,7 +1057,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...v0.14.0
