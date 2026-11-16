@@ -33,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the server with no browser: `start` returns once the run has claimed its thread,
   `run_to_first_stop` waits until it ends or parks (a `RunStop`), and `cancel`
   records a cancel. The principal is an authenticated user, whose `pk` is the run's
-  owner.
+  owner. `start` and `run_to_first_stop` require `timeout=`, the run's deadline in
+  seconds; a run past it ends `RunOutcome.TIMED_OUT`, its partial kept.
 - **`ToolGuard.requires_approval(tool_def)`** is public: the guard's precedence
   (`exempt`, then `require_approval`, then a registry `@tool(destructive=True)`, then
   a mutation the definition declares) for any tool definition, whatever its `kind`.

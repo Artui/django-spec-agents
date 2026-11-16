@@ -25,6 +25,10 @@ class HeadlessRunner(Protocol):
     transport: a routine by its own permission check, a child by its parent's
     run.
 
+    **Every headless run has a deadline.** ``timeout`` is passed to the run as
+    pydantic-ai's ``timeout=``, in seconds; a run past it ends ``RunTimedOut``,
+    which the runner records as ``RunOutcome.TIMED_OUT`` with the partial kept.
+
     ``capabilities`` are composed into the run beside the mount's own, such as
     a guard that pre-approves a routine's tools. ``parent`` names the thread a
     child run belongs to.
@@ -36,6 +40,7 @@ class HeadlessRunner(Protocol):
         prompt: str,
         principal: Any,
         *,
+        timeout: float,
         thread_id: str | None = None,
         parent: str | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
@@ -49,6 +54,7 @@ class HeadlessRunner(Protocol):
         prompt: str,
         principal: Any,
         *,
+        timeout: float,
         thread_id: str | None = None,
         parent: str | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
