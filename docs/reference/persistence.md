@@ -76,6 +76,10 @@ models.
 
 ::: django_spec_agents.IdentifierTooLongError
 
+### `RunIdReusedError`
+
+::: django_spec_agents.RunIdReusedError
+
 ### `preflight_identifiers`
 
 ::: django_spec_agents.preflight_identifiers

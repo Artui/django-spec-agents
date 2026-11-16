@@ -508,7 +508,12 @@ overwrites the run that replaced it.
 
 A thread still `running` after its lease lapses, as after a restart, reads as
 `failed` with reason `interrupted`. The run's id stays on the thread as
-`last_run_id` after it ends: a parked run's id is the record a resume answers.
+`last_run_id` after it ends: a parked run's id is what a resume answers to.
+
+**Run ids are single-use per owner.** The resumed run, like a retried one,
+claims the thread under a fresh id; `claim` refuses an id its owner has claimed
+before with `RunIdReusedError`, writing nothing, so a transport can answer it as
+a client error rather than a server one.
 
 **The log is append-only and numbered.** `append(run_id, events, request=...)`
 numbers a batch of opaque JSON events on from the run's last, starting at 1,

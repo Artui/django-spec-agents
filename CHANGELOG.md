@@ -24,7 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per run a numbered, append-only log of opaque JSON events. `claim` takes a thread's
   `active_run_id` in one conditional update, and a second claim loses with the
   holder's id; a run whose lease has lapsed reads as `failed` with reason
-  `interrupted`, and can no longer renew, append or finish. The transcript stays in
+  `interrupted`, and can no longer renew, append or finish. Run ids are single-use per
+  owner: a resumed or retried run claims a fresh id, and `claim` refuses a used one
+  with `RunIdReusedError`, writing nothing. The transcript stays in
   the `ConversationStore`, which gains no method. `DefaultRunStore`, in
   `django_spec_agents.contrib.store.default_run_store`, implements it over three new
   models (migration `0003_run_store`); `prune()` deletes logs `log_retention` after

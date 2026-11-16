@@ -21,6 +21,7 @@ from django_spec_agents.persistence.model_conversation_store import ModelConvers
 from django_spec_agents.persistence.null_attachment_store import NullAttachmentStore
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.preflight_identifiers import preflight_identifiers
+from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
 from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
@@ -87,6 +88,7 @@ __all__ = [
     "OpenedAttachment",
     "RunClaim",
     "RunEndReason",
+    "RunIdReusedError",
     "RunLogEntry",
     "RunOutcome",
     "RunStop",

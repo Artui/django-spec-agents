@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from django_spec_agents.contrib.store.models import StoredRunEvent, StoredRunLog, StoredThreadRun
 from django_spec_agents.contrib.store.utils import check_column_widths
+from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
@@ -122,6 +123,8 @@ class DefaultRunStore:
         self.check_identifiers(thread_id=thread_id, run_id=run_id)
         now = self._clock()
         with transaction.atomic():
+            if _log(owner_id, run_id).exists():
+                raise RunIdReusedError(f"run id {run_id!r} was claimed before", run_id=run_id)
             StoredThreadRun.objects.get_or_create(owner_id=owner_id, thread_id=thread_id)
             rows = _thread(owner_id, thread_id)
             won = rows.filter(Q(active_run_id__isnull=True) | Q(lease_expires_at__lt=now)).update(
