@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-11-16
+
+A minor release with no floor moved and no migration: routines, a stored prompt for one
+agent run on a schedule as the user who created it, land as an abstract model, a policy,
+a schedule vocabulary and the functions that write them. Nothing fires a routine yet. A
+host that subclasses `AbstractRoutine` adds `django_spec_agents` to `INSTALLED_APPS` for
+its startup check.
+
+### Added
+
+- **Routines: `AbstractRoutine`, `RoutinePolicy`, the schedule vocabulary and
+  `next_fire_at`**, in `django_spec_agents.routines`. A routine is a stored prompt for one
+  agent, a schedule, a timezone and its principal, always the user who created it. A
+  consumer subclasses the abstract model with its tenant relation, and its
+  `routine_policy()` returns the `RoutinePolicy` (`visible`, `can_write`, `can_run`,
+  `new_routine`), which the consumer's code passes to every function; no setting names the
+  model. A schedule is `WeeklySchedule` (weekdays at a wall time) or `IntervalSchedule`
+  (every N hours, from `MIN_ROUTINE_INTERVAL` to `MAX_ROUTINE_INTERVAL`), with no cron
+  strings; `next_fire_at` reads it with `zoneinfo`, shifting a time a DST change skips and
+  firing a repeated one once. `create_routine` and `update_routine` ask `can_write`,
+  `create_routine` caps a user at `MAX_ROUTINES_PER_USER` routines, and an update never
+  moves the principal. `pin_preapproved_tools` records each granted tool's
+  `ToolGuard.requires_approval` answer at grant time, an edit for the same agent keeps it,
+  every write checks each name against the agent's tools, and `preapproved_exempt` exempts
+  only the tools gated when granted. The opt-in app's check walks the app registry and
+  fails with `django_spec_agents.E002` for every installed `AbstractRoutine` subclass
+  whose `routine_policy()` returns `None`. No concrete model ships. A new docs page covers
+  them: Routines.
+
 ## [0.16.0] — 2026-11-16
 
 A minor release that moves floors and adds a migration. pydantic-ai-slim floors at 2.66
@@ -1030,7 +1059,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Artui/django-spec-agents/compare/v0.13.0...v0.14.0

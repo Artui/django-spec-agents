@@ -15,14 +15,20 @@ INSTALLED_APPS = [
     "django_spec_agents.contrib.store",
     # The models the spec_tools half's kernel specs serve.
     "tests.spec_tools.testapp",
-    # The opt-in app whose system checks guard the skill setting, and a concrete skill model.
+    # The opt-in app whose checks guard the skill and routine models, and concrete models.
     "django_spec_agents",
     "tests.skills.testapp",
+    "tests.routines.testapp",
 ]
 
 # Skip migrations for the spec_tools test app — pytest-django builds the schema
 # from models.
-MIGRATION_MODULES = {"testapp": None, "skills_testapp": None}
+MIGRATION_MODULES = {
+    "testapp": None,
+    "skills_testapp": None,
+    "routines_testapp": None,
+    "routines_unguarded": None,
+}
 
 # ``TEST["NAME"]`` is what makes a connection genuinely closable, and it is load
 # bearing rather than a preference. Django's SQLite backend *ignores* ``close()``

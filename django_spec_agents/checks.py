@@ -8,6 +8,7 @@ from django.apps import AppConfig, apps
 from django.core.checks import CheckMessage, Error
 from django.db import models
 
+from django_spec_agents.routines.abstract_routine import AbstractRoutine
 from django_spec_agents.skills.abstract_skill import AbstractSkill
 
 
@@ -27,6 +28,12 @@ _GUARDED_BASES = (
         policy=lambda model: model.skill_policy(),
         hint="Override skill_policy() on the model to return its SkillPolicy.",
         no_policy_id="django_spec_agents.E001",
+    ),
+    _GuardedBase(
+        base=AbstractRoutine,
+        policy=lambda model: model.routine_policy(),
+        hint="Override routine_policy() on the model to return its RoutinePolicy.",
+        no_policy_id="django_spec_agents.E002",
     ),
 )
 
