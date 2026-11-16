@@ -11,6 +11,7 @@ from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.contrib.store.models import StoredRunEvent, StoredRunLog, StoredThreadRun
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
+from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
@@ -390,3 +391,65 @@ def test_check_identifiers_takes_either_id_alone(store: DefaultRunStore) -> None
 
     with pytest.raises(IdentifierTooLongError):
         store.check_identifiers(run_id=too_long(StoredThreadRun, "active_run_id"))
+
+
+async def test_a_used_run_id_is_refused_and_the_thread_left_as_it_was(
+    store: DefaultRunStore,
+) -> None:
+    await _claim(store)
+    await store.finish("t1", "r1", RunOutcome.WAITING, request=authed_request(), waiting=_WAITING)
+
+    with pytest.raises(RunIdReusedError) as raised:
+        await _claim(store)
+
+    assert raised.value.run_id == "r1"
+    state = await store.get("t1", request=authed_request())
+    assert state is not None
+    assert (state.status, state.waiting, state.active_run_id) == (
+        ThreadRunStatus.WAITING,
+        _WAITING,
+        None,
+    )
+
+
+async def test_a_used_run_id_is_refused_on_another_thread(store: DefaultRunStore) -> None:
+    await _claim(store)
+
+    with pytest.raises(RunIdReusedError):
+        await store.claim("t2", "r1", request=authed_request(), lease=_LEASE)
+
+    assert await store.get("t2", request=authed_request()) is None
+
+
+async def test_another_owner_may_use_the_same_run_id(store: DefaultRunStore) -> None:
+    await _claim(store)
+
+    assert (await _claim(store, pk="8")).claimed
+
+
+async def test_prune_drops_an_ended_log_while_its_owner_runs_another_thread(
+    clock: _Clock,
+) -> None:
+    store = DefaultRunStore(clock=clock, log_retention=timedelta(hours=1))
+    await _claim(store)
+    await store.finish("t1", "r1", RunOutcome.COMPLETED, request=authed_request())
+    await store.claim("t2", "r2", request=authed_request(), lease=timedelta(hours=3))
+
+    clock.now = _T0 + timedelta(hours=2)
+
+    assert await store.prune() == 1
+    assert not await StoredRunLog.objects.filter(run_id="r1").aexists()
+
+
+async def test_a_claim_over_a_lapsed_lease_does_not_inherit_its_cancel(
+    store: DefaultRunStore, clock: _Clock
+) -> None:
+    await _claim(store)
+    await store.request_cancel("t1", request=authed_request())
+    clock.now = _T0 + _LEASE + timedelta(seconds=1)
+
+    await _claim(store, "r2")
+
+    state = await store.get("t1", request=authed_request())
+    assert state is not None
+    assert not state.cancel_requested

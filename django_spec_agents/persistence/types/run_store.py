@@ -46,7 +46,13 @@ class RunStore(Protocol):
     async def claim(
         self, thread_id: str, run_id: str, *, request: HttpRequest, lease: timedelta
     ) -> RunClaim:
-        """Take the thread for ``run_id`` with a lease of ``lease``, unless a live run holds it."""
+        """Take the thread for ``run_id`` with a lease of ``lease``, unless a live run holds it.
+
+        Run ids are single-use per owner: a resumed or retried run claims under
+        a fresh id, and an id the owner has claimed before raises
+        [`RunIdReusedError`][django_spec_agents.RunIdReusedError] with nothing
+        written.
+        """
         ...
 
     async def renew(
