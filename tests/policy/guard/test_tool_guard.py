@@ -284,3 +284,38 @@ async def test_gates_the_same_service_spec_a_spec_toolset_exposes() -> None:
 
     assert kinds["create_order"] == "unapproved"
     assert kinds["list_orders"] == "function"
+
+
+@pytest.mark.parametrize(
+    ("config", "definition", "expected"),
+    [
+        pytest.param(_ENABLED, _def("delete_thing"), True, id="registry-destructive"),
+        pytest.param(_ENABLED, _def("read_thing"), False, id="registry-safe"),
+        pytest.param(
+            _ENABLED,
+            _def("bridged", metadata={DESTRUCTIVE_METADATA_KEY: True}),
+            True,
+            id="declared-mutation",
+        ),
+        pytest.param(
+            ToolGuardConfig(enabled=True, require_approval=frozenset({"read_thing"})),
+            _def("read_thing"),
+            True,
+            id="forced",
+        ),
+        pytest.param(
+            ToolGuardConfig(
+                enabled=True,
+                require_approval=frozenset({"delete_thing"}),
+                exempt=frozenset({"delete_thing"}),
+            ),
+            _def("delete_thing"),
+            False,
+            id="exempt-wins",
+        ),
+    ],
+)
+def test_requires_approval_is_the_public_precedence(
+    config: ToolGuardConfig, definition: ToolDefinition, expected: bool
+) -> None:
+    assert ToolGuard(_registry(), config=config).requires_approval(definition) is expected

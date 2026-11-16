@@ -4,6 +4,9 @@ from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.headless.types.headless_runner import HeadlessRunner
+from django_spec_agents.headless.types.headless_start import HeadlessStart
+from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
@@ -25,6 +28,14 @@ from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.persistence.types.run_claim import RunClaim
+from django_spec_agents.persistence.types.run_end_reason import RunEndReason
+from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
+from django_spec_agents.persistence.types.run_outcome import RunOutcome
+from django_spec_agents.persistence.types.run_store import RunStore
+from django_spec_agents.persistence.types.run_waiting import RunWaiting
+from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
+from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.logging_audit_logger import LoggingAuditLogger
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
@@ -64,6 +75,8 @@ __all__ = [
     "ConversationMeta",
     "ConversationStore",
     "DjangoSessionConversationStore",
+    "HeadlessRunner",
+    "HeadlessStart",
     "IdentifierTooLongError",
     "LoggingAuditLogger",
     "ModelAttachmentStore",
@@ -72,8 +85,17 @@ __all__ = [
     "NullAuditLogger",
     "NullConversationStore",
     "OpenedAttachment",
+    "RunClaim",
+    "RunEndReason",
+    "RunLogEntry",
+    "RunOutcome",
+    "RunStop",
+    "RunStore",
+    "RunWaiting",
     "SchemaStrategy",
     "ScopedConversationStore",
+    "ThreadRunState",
+    "ThreadRunStatus",
     "ToolBinding",
     "ToolCategory",
     "ToolFailureConfig",
