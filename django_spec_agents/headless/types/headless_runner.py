@@ -28,6 +28,12 @@ class HeadlessRunner(Protocol):
     ``capabilities`` are composed into the run beside the mount's own, such as
     a guard that pre-approves a routine's tools. ``parent`` names the thread a
     child run belongs to.
+
+    **Every headless run has a deadline.** ``timeout`` is required, in seconds,
+    and goes to the run as pydantic-ai's ``timeout=``. A run past it ends as
+    ``RunOutcome.TIMED_OUT``: the thread goes ``idle`` with reason
+    ``timed_out``, its partial output kept. Since ``RunTimedOut`` subclasses
+    ``RunCancelled``, an implementation catches it first.
     """
 
     async def start(
@@ -36,6 +42,7 @@ class HeadlessRunner(Protocol):
         prompt: str,
         principal: Any,
         *,
+        timeout: float,
         thread_id: str | None = None,
         parent: str | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
@@ -49,6 +56,7 @@ class HeadlessRunner(Protocol):
         prompt: str,
         principal: Any,
         *,
+        timeout: float,
         thread_id: str | None = None,
         parent: str | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),

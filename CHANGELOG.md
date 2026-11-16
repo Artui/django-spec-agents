@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`HeadlessRunner`**, a protocol a transport implements to start an agent run on
   the server with no browser: `start` returns once the run has claimed its thread,
   `run_to_first_stop` waits until it ends or parks (a `RunStop`), and `cancel`
-  records a cancel. The principal is an authenticated user, whose `pk` is the run's
+  records a cancel. Both runs take a required `timeout` in seconds; a run past it
+  ends `timed_out`, its thread `idle` with the partial output kept. The principal is an authenticated user, whose `pk` is the run's
   owner.
 - **`ToolGuard.requires_approval(tool_def)`** is public: the guard's precedence
   (`exempt`, then `require_approval`, then a registry `@tool(destructive=True)`, then
