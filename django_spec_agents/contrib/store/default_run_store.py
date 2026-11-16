@@ -257,14 +257,15 @@ def _log(owner_id: str, run_id: str) -> QuerySet[StoredRunLog]:
 def _state(row: StoredThreadRun, now: datetime) -> ThreadRunState:
     status = ThreadRunStatus(row.status)
     reason = None if row.reason is None else RunEndReason(row.reason)
+    active_run_id = row.active_run_id
     if row.lease_expires_at is not None and row.lease_expires_at < now:
-        status, reason = ThreadRunStatus.FAILED, RunEndReason.INTERRUPTED
+        status, reason, active_run_id = ThreadRunStatus.FAILED, RunEndReason.INTERRUPTED, None
     return ThreadRunState(
         thread_id=row.thread_id,
         status=status,
         reason=reason,
         waiting=None if row.waiting is None else RunWaiting(**row.waiting),
-        active_run_id=row.active_run_id,
+        active_run_id=active_run_id,
         last_run_id=row.last_run_id,
         lease_expires_at=row.lease_expires_at,
         cancel_requested=row.cancel_requested_at is not None,

@@ -121,6 +121,7 @@ async def test_a_lapsed_lease_reads_as_interrupted(store: DefaultRunStore, clock
 
     assert state is not None
     assert (state.status, state.reason) == (ThreadRunStatus.FAILED, RunEndReason.INTERRUPTED)
+    assert (state.active_run_id, state.last_run_id) == (None, "r1")
 
 
 async def test_renew_extends_only_the_live_holder(store: DefaultRunStore, clock: _Clock) -> None:

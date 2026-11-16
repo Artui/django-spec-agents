@@ -12,7 +12,8 @@ from django_spec_agents.persistence.types.thread_run_status import ThreadRunStat
 class ThreadRunState:
     """One thread's run status, as a [`RunStore`][django_spec_agents.RunStore] reads it.
 
-    ``active_run_id`` is the run holding the claim, ``None`` once it ends.
+    ``active_run_id`` is the run holding the claim, ``None`` once it ends or
+    its lease lapses.
     ``last_run_id`` outlives it: a parked run's id is the record a resume
     answers. A ``running`` thread whose lease has lapsed reads as ``failed``
     with reason ``interrupted``. ``cancel_requested`` is set by a cancel the

@@ -18,5 +18,9 @@ class RunStop:
     outcome: RunOutcome
     waiting: RunWaiting | None = None
 
+    def __post_init__(self) -> None:
+        if (self.outcome is RunOutcome.WAITING) != (self.waiting is not None):
+            raise ValueError("waiting is given exactly when the outcome is WAITING")
+
 
 __all__ = ["RunStop"]
