@@ -40,15 +40,14 @@ dependencies = [
     # the AG-UI adapter (and its ag-ui-protocol floor) belongs to django-ag-ui,
     # A2A's belongs to django-a2a. The substrate just builds the agent.
     #
-    # The floor is the family's shared 2.58: pydantic-ai 2.55 requires Python
-    # 3.11, and the lock follows the floor rather than a 3.10-capped release.
-    # Nothing here needs 2.58's own fix, which is in the AG-UI adapter that
-    # django-ag-ui serves. Raise it whenever a new default reaches for a newer
-    # upstream symbol.
-    "pydantic-ai-slim>=2.58,<3",
+    # 2.63 is the release pydantic-ai-harness 0.63 pins, the first whose
+    # ``CodeMode`` defaults to ``dynamic_catalog=True``, which keeps the prompt
+    # cache warm across tool discoveries. No code path here reads a 2.63 symbol:
+    # the floor moves with the [harness] extra's so the two cannot disagree.
+    "pydantic-ai-slim>=2.63,<3",
     # The schema derivation imports pydantic and pydantic_core itself, so it is
     # declared rather than left to arrive through pydantic-ai-slim. The floor is
-    # the one pydantic-ai-slim 2.58 requires; nothing here needs a newer one.
+    # the one pydantic-ai-slim 2.63 requires; nothing here needs a newer one.
     "pydantic>=2.12",
 ]
 
@@ -56,9 +55,9 @@ dependencies = [
 # Model-provider extras (slim ships none). Install one to use a "provider:model"
 # string, e.g. `pip install django-spec-agents[anthropic]`.
 # The three extras share the core's floor.
-anthropic = ["pydantic-ai-slim[anthropic]>=2.58,<3"]
-openai = ["pydantic-ai-slim[openai]>=2.58,<3"]
-google = ["pydantic-ai-slim[google]>=2.58,<3"]
+anthropic = ["pydantic-ai-slim[anthropic]>=2.63,<3"]
+openai = ["pydantic-ai-slim[openai]>=2.63,<3"]
+google = ["pydantic-ai-slim[google]>=2.63,<3"]
 # In-process bridge exposing a django-spec-mcp tool registry as a Pydantic-AI
 # toolset, ``MCPToolset``: the agent calls the server's kernel-spec tools
 # without a network hop. 0.2.0 is the surface the bridge calls: ``MCPServer``,
@@ -118,8 +117,9 @@ specs = [
     "django-service-specs>=0.33.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):
-# CodeMode batching, compaction, step persistence, sub-agents.
-harness = ["pydantic-ai-harness[code-mode]>=0.13"]
+# CodeMode batching, compaction, step persistence, sub-agents. 0.63 is the first
+# ``CodeMode`` whose catalog defaults to the instructions (``dynamic_catalog=True``).
+harness = ["pydantic-ai-harness[code-mode]>=0.63"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/django-spec-agents"
@@ -154,13 +154,13 @@ dev = [
     # FilterSet, which the kernel derives the tool's filter arguments from.
     "django-filter>=23",
     # The [harness] extra's backing package, so the harness capabilities run in dev.
-    "pydantic-ai-harness[code-mode]>=0.13",
+    "pydantic-ai-harness[code-mode]>=0.63",
     # Provider libs so the api_key / provider model-building path is exercised
     # in dev/CI (the extras above ship to consumers, not the dev env).
     # Floored with the extras above. ``mcp`` brings the FastMCP client behind
     # pydantic-ai's ``MCPToolset``, which the end-to-end ToolGuard test drives a
     # django-spec-mcp server through.
-    "pydantic-ai-slim[anthropic,openai,google,mcp]>=2.58",
+    "pydantic-ai-slim[anthropic,openai,google,mcp]>=2.63",
 ]
 docs = [
     "mkdocs>=1.6",
