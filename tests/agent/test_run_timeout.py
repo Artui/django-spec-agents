@@ -112,3 +112,17 @@ async def test_a_tool_reads_the_run_deadline() -> None:
     (left,) = seen
     assert left is not None
     assert 0 < left <= 60.0
+
+
+async def test_a_run_without_a_timeout_has_no_deadline() -> None:
+    toolset = FunctionToolset()
+    seen: list[Any] = []
+
+    @toolset.tool
+    def deadline(ctx: RunContext[AgentDeps]) -> str:
+        """Report the deadline."""
+        seen.append((ctx.deadline, ctx.remaining_time()))
+        return "ok"
+
+    await _agent(tool_calling_model("deadline"), [toolset]).run("go", deps=AgentDeps(user=None))
+    assert seen == [(None, None)]

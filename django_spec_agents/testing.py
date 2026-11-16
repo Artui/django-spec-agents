@@ -201,6 +201,9 @@ def slow_model(delay: float, chunks: Sequence[str] = ("done",)) -> FunctionModel
     ```
     """
 
+    if not chunks:
+        raise ValueError("slow_model needs at least one chunk to answer with")
+
     async def model_fn(messages: Any, info: Any) -> ModelResponse:
         await asyncio.sleep(delay)
         return ModelResponse(parts=[TextPart("".join(chunks))])

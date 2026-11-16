@@ -41,8 +41,9 @@ Two limits apply to each model request rather than to the run, through `model_se
 AgentConfig(model=..., model_settings={"request_timeout": 30.0, "max_retries": 2})
 ```
 
-`request_timeout` bounds one request, its retries included. `max_retries` replaces
-the provider client's own retry count.
+`request_timeout` bounds one model request and `max_retries` sets how often the
+provider client retries it; pydantic-ai's `ModelSettings` reference has the exact
+semantics per provider.
 
 ### Testing a deadline
 

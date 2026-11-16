@@ -256,3 +256,8 @@ async def test_slow_model_streams_its_chunks_in_order():
     async with Agent(slow_model(0.0, ("par", "tial"))).run_stream("go") as stream:
         chunks = [chunk async for chunk in stream.stream_text(delta=True)]
     assert "".join(chunks) == "partial"
+
+
+def test_slow_model_refuses_an_empty_answer():
+    with pytest.raises(ValueError, match="at least one chunk"):
+        slow_model(0.0, ())
