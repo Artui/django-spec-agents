@@ -284,3 +284,7 @@ def test_an_edit_to_an_enabled_routine_with_no_firing_schedules_one(
     update_routine(policy, request_as(member), routine, draft(), guard=guard, tool_defs=[])
 
     assert routine.next_fire_at == TUESDAY_EIGHT
+
+
+def test_the_next_firing_is_an_indexed_column_on_the_subclass() -> None:
+    assert TeamRoutine._meta.get_field("next_fire_at").db_index is True

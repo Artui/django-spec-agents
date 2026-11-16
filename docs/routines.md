@@ -91,6 +91,8 @@ than the clock, or every late sweep pushes the cadence later.
 ## Writing
 
 ```python
+from datetime import time
+
 from django_spec_agents.routines import RoutineDraft, WeeklySchedule, create_routine
 
 policy = Routine.routine_policy()
