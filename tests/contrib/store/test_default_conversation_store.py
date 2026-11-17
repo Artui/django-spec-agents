@@ -9,6 +9,7 @@ from django.core.files.storage import default_storage
 from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
 from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from tests.contrib.store.rows import at_limit, refusal, stored_attachment, too_long
@@ -298,6 +299,46 @@ def test_a_later_save_with_a_parent_replaces_the_link() -> None:
     fetched = store._fetch("t1", "7")
     assert fetched is not None
     assert fetched.parent == ThreadRef(thread_id="p2", scope=None)
+
+
+_LINEAGE = ChildLineageRecord(
+    ThreadRef("root1", "main"), 2, frozenset({"search", "delete"}), frozenset({"delete"})
+)
+
+
+def test_a_lineage_is_kept_as_json_and_read_back() -> None:
+    store = DefaultConversationStore()
+
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1"), lineage=_LINEAGE), "7")
+
+    assert StoredConversation.objects.get(thread_id="t1").lineage == {
+        "root": {"thread_id": "root1", "scope": "main"},
+        "depth": 2,
+        "tools": ["delete", "search"],
+        "gated": ["delete"],
+    }
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.lineage == _LINEAGE
+
+
+def test_a_later_save_without_a_lineage_keeps_it() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1"), lineage=_LINEAGE), "7")
+
+    store._store(_conv(text="a browser turn in the child"), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.lineage == _LINEAGE
+
+
+def test_a_thread_saved_without_a_lineage_has_none() -> None:
+    store = DefaultConversationStore()
+    store._store(_conv(), "7")
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.lineage is None
 
 
 @pytest.mark.parametrize("field", ["parent_thread_id", "parent_scope"])

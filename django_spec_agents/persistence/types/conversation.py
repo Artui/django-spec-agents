@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 
@@ -17,14 +18,16 @@ class Conversation:
     survive a round trip untouched; another transport stores its own.
 
     ``owner_id`` scopes the conversation to a user for authorization. ``parent`` is
-    the thread that started this one as a child session; a store that keeps it
-    writes it when given and leaves the stored link alone when it is ``None``.
+    the thread that started this one as a child session, and ``lineage`` the bounds it
+    runs under; a store that keeps either writes it when given and leaves it alone when
+    it is ``None``.
     """
 
     thread_id: str
     messages: list[Any] = field(default_factory=list)
     owner_id: str | None = None
     parent: ThreadRef | None = None
+    lineage: ChildLineageRecord | None = None
 
 
 __all__ = ["Conversation"]

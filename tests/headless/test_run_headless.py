@@ -17,6 +17,7 @@ from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
@@ -71,6 +72,7 @@ class _Runner:
         timeout: float,
         thread_id: str | None = None,
         parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[Any] = (),
     ) -> RunStop:
         self.calls.append((agent_id, prompt, principal, timeout, thread_id, parent, capabilities))

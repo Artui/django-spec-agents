@@ -5,6 +5,8 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
 from django_spec_agents.child_sessions.child_lineage import ChildLineage
+from django_spec_agents.child_sessions.child_lineage_for import child_lineage_for
+from django_spec_agents.child_sessions.child_report import ChildReport
 from django_spec_agents.child_sessions.child_sessions_toolset import ChildSessionsToolset
 from django_spec_agents.child_sessions.model_inbound_queue import ModelInboundQueue
 from django_spec_agents.child_sessions.report_frame import report_frame
@@ -42,6 +44,7 @@ from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
 from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
@@ -88,6 +91,8 @@ from django_spec_agents.version import __version__
 
 __all__ = [
     "ChildLineage",
+    "ChildLineageRecord",
+    "ChildReport",
     "ChildSession",
     "ChildSessionIndex",
     "ChildSessionLimits",
@@ -163,6 +168,7 @@ __all__ = [
     "build_input_schema",
     "build_run_waiting",
     "build_tool_catalog",
+    "child_lineage_for",
     "memory_namespace",
     "memory_namespace_for_user",
     "preflight_identifiers",

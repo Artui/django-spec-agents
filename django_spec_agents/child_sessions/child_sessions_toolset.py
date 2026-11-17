@@ -9,6 +9,8 @@ from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import FunctionToolset
 
 from django_spec_agents.child_sessions.child_lineage import ChildLineage
+from django_spec_agents.child_sessions.child_report import ChildReport
+from django_spec_agents.child_sessions.child_session_budgets import child_session_budgets
 from django_spec_agents.child_sessions.types.child_session import ChildSession
 from django_spec_agents.child_sessions.types.child_session_index import ChildSessionIndex
 from django_spec_agents.child_sessions.types.child_session_limits import ChildSessionLimits
@@ -18,6 +20,7 @@ from django_spec_agents.child_sessions.types.child_session_spend import ChildSes
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 _LINEAGE_ID = "child_session_lineage"
@@ -105,11 +108,13 @@ class ChildSessionsToolset(FunctionToolset[Any]):
         if await self._index.live_count(request=request) >= self._limits.max_running_per_user:
             return ChildSessionRefusal("max_running_per_user", "your child sessions are busy")
         root = here if lineage is None else lineage.root
+        record = ChildLineageRecord(root, depth, _tool_names(ctx), _tool_names(ctx, "unapproved"))
         capabilities: list[AbstractCapability[Any]] = [
-            ChildLineage(root, here, depth, _tool_names(ctx), _tool_names(ctx, "unapproved"))
+            ChildLineage(root, here, depth, record.tools, record.gated),
+            ChildReport(here, agent, self._queue),
         ]
         if self._spend is not None:
-            budgets = _spend_limits(self._spend, root, _owner(ctx))
+            budgets = child_session_budgets(self._spend, root, _owner(ctx))
             if refused := await _exhausted(budgets):
                 return ChildSessionRefusal(refused, "the spend budget is exhausted")
             capabilities.extend(budgets)
@@ -119,6 +124,7 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             ctx.deps.user,
             timeout=self._limits.timeout,
             parent=here,
+            lineage=record,
             capabilities=capabilities,
         )
         return ChildSessionReceipt(
@@ -238,40 +244,6 @@ def _owner(ctx: RunContext[Any]) -> str:
 
 def _not_a_child(thread_id: str) -> ChildSessionRefusal:
     return ChildSessionRefusal("thread_id", f"{thread_id!r} is not a child of this conversation")
-
-
-def _spend_limits(
-    spend: ChildSessionSpend, root: ThreadRef, owner: str
-) -> list[AbstractCapability[Any]]:
-    from pydantic_ai_harness.spend_limits import Budget, SpendLimits
-
-    tree = f"{root.scope or ''}:{root.thread_id}"
-    return [
-        SpendLimits(
-            budgets=[
-                Budget(
-                    name="child_sessions_tree",
-                    usd=spend.tree_usd,
-                    window="total",
-                    scope=lambda _: tree,
-                )
-            ],
-            store=spend.store,
-            id="child_sessions_tree_spend",
-        ),
-        SpendLimits(
-            budgets=[
-                Budget(
-                    name="child_sessions_day",
-                    usd=spend.day_usd,
-                    window="day",
-                    scope=lambda _: owner,
-                )
-            ],
-            store=spend.store,
-            id="child_sessions_day_spend",
-        ),
-    ]
 
 
 async def _exhausted(budgets: list[Any]) -> str | None:

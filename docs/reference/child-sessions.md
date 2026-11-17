@@ -2,7 +2,8 @@
 
 The toolset, the lineage a child carries, the report frame and the types around them. See
 [Child sessions](../child-sessions.md) for the narrative. Each imports from its own module
-under `django_spec_agents.child_sessions`.
+under `django_spec_agents.child_sessions`, except `ChildLineageRecord`, which a
+`Conversation` holds and so lives under `django_spec_agents.persistence.types`.
 
 ## `ChildSessionsToolset`
 
@@ -11,6 +12,18 @@ under `django_spec_agents.child_sessions`.
 ## `ChildLineage`
 
 ::: django_spec_agents.child_sessions.child_lineage.ChildLineage
+
+## `ChildReport`
+
+::: django_spec_agents.child_sessions.child_report.ChildReport
+
+## `child_lineage_for`
+
+::: django_spec_agents.child_sessions.child_lineage_for.child_lineage_for
+
+## `ChildLineageRecord`
+
+::: django_spec_agents.persistence.types.child_lineage_record.ChildLineageRecord
 
 ## `report_frame`
 

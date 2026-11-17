@@ -5,10 +5,10 @@ gets its own thread, runs headless, and can outlive the run that started it. The
 can message it, answer it and cancel it. The user opens it like any other thread.
 `ChildSessionsToolset` gives the parent's model the tools to do this.
 
-This page covers starting a child and the limits on it. A parent that is already running
-hears a child's report at its next model request, and an idle parent is woken to hear it.
-That delivery is a later piece. Until it lands, a report waits in the parent's inbound
-queue.
+This page covers starting a child, the limits on it, and its report. A settled child's
+report lands in the parent's inbound queue. Handing it to the parent's model, at its next
+request or by waking an idle parent, is a later piece. Until it lands, the report waits
+there.
 
 ## Mounting the toolset
 
@@ -114,8 +114,46 @@ child's conversation stores and the run status kept beside it. A child must be l
 `HeadlessRunner.start` returns, or the per-thread limit cannot count it. The limits use it, and so
 does `cancel_task`, which walks the tree from the child down.
 
+## Later runs of a child's thread
+
+The bounds a child starts under ride the capabilities of its first run. `start_session`
+also hands the runner a `ChildLineageRecord` (the root, the depth, the parent's tools and
+the ones it gated) beside `parent`, and the runner saves both on the child's
+conversation. `DefaultConversationStore` keeps the record in a JSON column and, as with
+`parent`, leaves it alone on a save that names none.
+
+Every later run of that thread (the user typing into it, a resume after an approval, a
+wake) has to carry the same bounds, or it runs with the child mount's full tools.
+A transport composes them on each run of a thread that has a parent:
+
+```python
+capabilities = child_lineage_for(
+    conversation, agent_id="research", owner=str(user.pk), queue=queue, spend=spend
+)
+```
+
+It returns nothing for a thread with no stored lineage, so a transport can call it on
+every run.
+
 ## Reports
 
-`report_frame(child, agent_id=..., output=..., outcome=...)` frames a settled child's
-output as upstream's `<task_output>` data, through `DelegationTask.report()`. The output
-stays in the user channel, never in system voice, and it cannot close its own frame.
+`ChildReport` is composed into every child run, by `start_session` and by
+`child_lineage_for`. When the run settles it enqueues a `REPORT` on the parent's queue,
+with the body `{"text": ..., "outcome": ...}`, sent from the child's thread:
+
+| The run | Outcome |
+| --- | --- |
+| ends with output | `ok` |
+| stops at a usage or spend limit | `budget` |
+| passes its deadline | `timeout` |
+| raises | `failed` |
+| parks, on a gated call or `ask_parent` | no report |
+| is cancelled before its deadline | no report, since whoever cancelled it knows |
+
+The report needs the run's request in `call_context["request"]`, as the toolset does. A
+report that cannot be sent is logged, and the run's own result or error stands.
+
+`report_frame(child, agent_id=..., output=..., outcome=...)` builds the text: a settled
+child's output as upstream's `<task_output>` data, through `DelegationTask.report()`. The
+output stays in the user channel, never in system voice, and it cannot close its own
+frame.

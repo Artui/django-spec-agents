@@ -23,6 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a per-user day budget (`[harness]`). The `ChildSessionIndex` protocol answers which
   children a thread has and how many are live. `report_frame` frames a settled child's
   output as upstream's `<task_output>`. See [Child sessions](https://artui.github.io/django-spec-agents/child-sessions/).
+- **A child's bounds survive a later run of its thread.** `start_session` hands the
+  runner a `ChildLineageRecord` (the root, the depth, the parent's tools and the ones it
+  gated), which `Conversation.lineage` carries and `DefaultConversationStore` keeps,
+  leaving it alone on a save that names none, as it does `parent`.
+  `child_lineage_for(conversation, agent_id=, owner=, queue=, spend=)` rebuilds the
+  capabilities `start_session` gave the first run, for a transport to compose on a user
+  turn, a resume or a wake.
+  **Migrate step:** `0005_child_lineage` adds the nullable `lineage` column to
+  `StoredConversation`; run `migrate`.
+- **`ChildReport`: a settled child reports to its parent.** Composed into every child
+  run, it enqueues a `REPORT` on the parent's inbound queue when the run ends with
+  output (`ok`), at a usage or spend limit (`budget`), past its deadline (`timeout`) or
+  with an error (`failed`). A run that parks, or that is cancelled before its deadline,
+  sends nothing. A report that cannot be sent is logged and never replaces the run's own
+  result or error.
 
 ### Changed
 
@@ -30,11 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   takes pydantic-ai-harness 0.69, the first whose modules are named `spend_limits` and
   `sub_agents`, which the child sessions import. Harness pins slim exactly, so the base
   install and every provider extra take pydantic-ai-slim 2.69 with it.
-- **`HeadlessRunner` takes the parent as a `ThreadRef`.** `start` and `run_to_first_stop`
-  take `parent: ThreadRef | None` in place of `str | None`, so a child run on another
-  agent keeps its parent's scope, and `ChildSessionsToolset` passes its own thread with
-  its agent id. A transport's runner changes its signature to match; django-ag-ui's
-  `AGUIHeadlessRunner` follows. `HeadlessFiring.parent` changes with it, so the
+- **`HeadlessRunner` takes the parent as a `ThreadRef`, and the child's lineage.**
+  `start` and `run_to_first_stop` take `parent: ThreadRef | None` in place of
+  `str | None`, so a child run on another agent keeps its parent's scope, and a new
+  `lineage: ChildLineageRecord | None` for the runner to save beside it.
+  `ChildSessionsToolset` passes its own thread with its agent id. A transport's runner
+  changes its signature to match; django-ag-ui's `AGUIHeadlessRunner` follows. `HeadlessFiring.parent` changes with it, so the
   `run_headless` spec's `parent` argument is now an object,
   `{"thread_id": ..., "scope": ...}`, where it was a string.
 

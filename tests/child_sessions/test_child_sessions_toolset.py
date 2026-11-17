@@ -20,6 +20,7 @@ from pydantic_ai_harness.sub_agents import SubAgent, SubAgents, TaskControl
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.child_sessions.child_lineage import ChildLineage
+from django_spec_agents.child_sessions.child_lineage_for import child_lineage_for
 from django_spec_agents.child_sessions.child_sessions_toolset import ChildSessionsToolset
 from django_spec_agents.child_sessions.types.child_session import ChildSession
 from django_spec_agents.child_sessions.types.child_session_limits import ChildSessionLimits
@@ -29,6 +30,8 @@ from django_spec_agents.child_sessions.types.child_session_spend import ChildSes
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.persistence.build_run_waiting import build_run_waiting
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.testing import tool_calling_model
@@ -89,10 +92,17 @@ class _Runner:
         timeout: float,
         thread_id: str | None = None,
         parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> HeadlessStart:
         self.starts.append(
-            dict(agent_id=agent_id, principal=principal, timeout=timeout, parent=parent)
+            dict(
+                agent_id=agent_id,
+                principal=principal,
+                timeout=timeout,
+                parent=parent,
+                lineage=lineage,
+            )
         )
         self.starts[-1]["capabilities"] = list(capabilities)
         if self.index is not None:
@@ -190,8 +200,10 @@ async def test_the_receipt_names_the_child_thread() -> None:
     [start] = runner.starts
     assert (start["agent_id"], start["parent"], start["timeout"]) == ("research", _HERE, 90.0)
     assert start["principal"] == _User()
-    [lineage] = start["capabilities"]
+    [lineage, report] = start["capabilities"]
     assert (lineage.root, lineage.parent, lineage.depth) == (_HERE, _HERE, 1)
+    assert (report.parent, report.agent_id) == (_HERE, "research")
+    assert start["lineage"] == ChildLineageRecord(_HERE, 1, lineage.tools, lineage.gated)
 
 
 async def test_the_child_gets_the_parents_tools_and_no_others() -> None:
@@ -373,7 +385,7 @@ async def test_the_child_carries_the_tree_and_day_budgets() -> None:
         lineage=_lineage(1),
     )
 
-    _, tree, day = runner.starts[0]["capabilities"]
+    _, _, tree, day = runner.starts[0]["capabilities"]
     assert isinstance(tree, SpendLimits) and isinstance(day, SpendLimits)
     assert tree.store is day.store is spend.store
     [tree_budget], [day_budget] = tree.budgets, day.budgets
@@ -492,3 +504,23 @@ async def test_a_run_without_its_request_is_refused() -> None:
 
     with pytest.raises(RuntimeError, match="call_context"):
         await agent.run("go", deps=AgentDeps(user=None), conversation_id="p1")
+
+
+async def test_a_later_run_of_the_child_rebuilds_what_its_start_composed() -> None:
+    runner, queue = _Runner(), _Queue()
+    spend = ChildSessionSpend(InMemorySpendStore(), tree_usd=Decimal("5"), day_usd=Decimal("2"))
+    await _call(
+        _toolset(runner=runner, queue=queue, spend=spend),
+        "start_session",
+        {"agent": "research", "prompt": "L"},
+        lineage=_lineage(1),
+    )
+    [start] = runner.starts
+    stored = Conversation("c-new", parent=start["parent"], lineage=start["lineage"])
+
+    rebuilt = child_lineage_for(stored, agent_id="research", owner="7", queue=queue, spend=spend)
+
+    lineage, report, tree, day = start["capabilities"]
+    assert rebuilt[:2] == [lineage, report]
+    assert [b.budgets[0].scope(None) for b in rebuilt[2:]] == ["main:root1", "7"]
+    assert [b.budgets[0].scope(None) for b in (tree, day)] == ["main:root1", "7"]
