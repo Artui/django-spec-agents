@@ -9,6 +9,7 @@ from django.db.models import Model
 from django_spec_agents.contrib.store.models import (
     StoredAttachment,
     StoredConversation,
+    StoredInboundMessage,
     StoredMemory,
     StoredMemoryOperation,
     StoredRun,
@@ -53,6 +54,9 @@ _GUARDED = [
     (StoredThreadRun, "thread_id"),
     (StoredThreadRun, "active_run_id"),
     (StoredRunLog, "run_id"),
+    (StoredConversation, "parent_thread_id"),
+    (StoredInboundMessage, "scope"),
+    (StoredInboundMessage, "thread_id"),
 ]
 
 

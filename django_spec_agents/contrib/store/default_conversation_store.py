@@ -18,6 +18,7 @@ from django_spec_agents.persistence.types.conversation_meta import (
     ConversationMeta,
     ConversationMetaList,
 )
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.utils import derive_preview, derive_title
 
 
@@ -57,15 +58,25 @@ class DefaultConversationStore(ModelConversationStore):
             thread_id=row.thread_id,
             messages=list(row.messages),
             owner_id=row.owner_id or None,
+            parent=_parent(row.parent_thread_id, row.parent_scope),
         )
 
     def _store(self, conversation: Conversation, owner_id: str | None) -> None:
-        check_column_widths(StoredConversation, owner_id=owner_id, thread_id=conversation.thread_id)
+        parent = conversation.parent
+        check_column_widths(
+            StoredConversation,
+            owner_id=owner_id,
+            thread_id=conversation.thread_id,
+            parent_thread_id=None if parent is None else parent.thread_id,
+            parent_scope=None if parent is None else parent.scope,
+        )
         messages = conversation.messages
-        defaults = {
+        defaults: dict[str, object] = {
             "messages": list(messages),
             "preview": derive_preview(messages),
         }
+        if parent is not None:
+            defaults.update(parent_thread_id=parent.thread_id, parent_scope=parent.scope)
         row, created = StoredConversation.objects.get_or_create(
             owner_id=owner_id or "",
             thread_id=conversation.thread_id,
@@ -95,7 +106,15 @@ class DefaultConversationStore(ModelConversationStore):
         rows = (
             StoredConversation.objects.filter(owner_id=owner_id or "")
             .order_by("-updated_at")
-            .values("thread_id", "title", "preview", "updated_at", "owner_id")
+            .values(
+                "thread_id",
+                "title",
+                "preview",
+                "updated_at",
+                "owner_id",
+                "parent_thread_id",
+                "parent_scope",
+            )
         )
         if limit is not None:
             rows = rows[:limit]
@@ -106,6 +125,7 @@ class DefaultConversationStore(ModelConversationStore):
                 updated_at=row["updated_at"],
                 preview=row["preview"],
                 owner_id=row["owner_id"] or None,
+                parent=_parent(row["parent_thread_id"], row["parent_scope"]),
             )
             for row in rows
         ]
@@ -116,6 +136,10 @@ class DefaultConversationStore(ModelConversationStore):
 
     def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
         _thread_rows(thread_id, owner_id).update(title=title)
+
+
+def _parent(thread_id: str | None, scope: str | None) -> ThreadRef | None:
+    return None if thread_id is None else ThreadRef(thread_id=thread_id, scope=scope)
 
 
 def _thread_rows(thread_id: str, owner_id: str | None) -> QuerySet[StoredConversation]:

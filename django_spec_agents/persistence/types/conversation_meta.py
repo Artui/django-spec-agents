@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TypeAlias
 
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
+
 
 @dataclass(frozen=True)
 class ConversationMeta:
@@ -14,7 +16,8 @@ class ConversationMeta:
     of the first user message unless a store records a rename, ``preview`` is a
     one-line excerpt of the latest message, and ``updated_at`` is ``None`` in a
     store that does not track it. ``owner_id`` scopes the conversation to a user
-    and is not surfaced on the wire.
+    and is not surfaced on the wire. ``parent`` is the thread that started this
+    one as a child session, in any scope; ``None`` for a thread of its own.
     """
 
     thread_id: str
@@ -22,6 +25,7 @@ class ConversationMeta:
     updated_at: datetime | None = None
     preview: str = ""
     owner_id: str | None = None
+    parent: ThreadRef | None = None
 
 
 # Return type for ``ConversationStore.list``. Aliased because a store names that

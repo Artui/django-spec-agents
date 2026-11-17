@@ -82,7 +82,7 @@ def test_unapplying_restores_the_old_names_and_applying_renames_them_again() -> 
         content_type.model: content_type.pk
         for content_type in ContentType.objects.filter(app_label=LABEL)
     }
-    assert len(content_types) == 12
+    assert len(content_types) == 13
     permission = Permission.objects.get(codename="view_storedconversation")
     group = Group.objects.create(name="readers")
     group.permissions.add(permission)
@@ -114,7 +114,8 @@ def test_unapplying_restores_the_old_names_and_applying_renames_them_again() -> 
     assert not ContentType.objects.filter(app_label=OLD_LABEL).exists()
     # The grant hangs off the content type by key, so it followed the label.
     assert list(Group.objects.get(name="readers").permissions.all()) == [permission]
-    assert StoredConversation.objects.get().attachments.get() == attachment
+    # Only the columns 0001 creates: a later migration adds others to this table.
+    assert StoredConversation.objects.only("pk").get().attachments.get() == attachment
     names = {name for model in migration.MODELS for name in _object_names(f"{LABEL}_{model}")}
     assert set(migration.INDEXES.values()) <= names
     assert not set(migration.INDEXES) & names

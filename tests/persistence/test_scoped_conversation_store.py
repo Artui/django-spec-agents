@@ -10,6 +10,7 @@ from django_spec_agents.persistence.scoped_conversation_store import ScopedConve
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from tests.request_helpers import authed_request
 
 
@@ -231,3 +232,24 @@ class _StrictStore(_MemoryStore):
 def test_a_thread_id_refusal_without_a_thread_id_sent_is_left_as_the_store_raised_it() -> None:
     with pytest.raises(IdentifierTooLongError, match="^thread_id is required$"):
         ScopedConversationStore(_StrictStore(), scope="internal").check_identifiers(run_id="r1")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_parent_link_round_trips_across_two_scopes() -> None:
+    store = DefaultConversationStore()
+    request = authed_request("7")
+    parents = ScopedConversationStore(store, scope="a")
+    children = ScopedConversationStore(store, scope="b")
+    await parents.save(Conversation(thread_id="t1", messages=[]), request=request)
+    link = ThreadRef(thread_id="t1", scope="a")
+
+    await children.save(Conversation(thread_id="t1", messages=[], parent=link), request=request)
+
+    loaded = await children.load("t1", request=request)
+    assert loaded is not None
+    assert loaded.parent == link
+    assert [meta.parent for meta in await children.list(request=request)] == [link]
+    assert [meta.parent for meta in await parents.list(request=request)] == [None]
+    assert await ScopedConversationStore(store, scope=link.scope).exists(
+        link.thread_id, request=request
+    )
