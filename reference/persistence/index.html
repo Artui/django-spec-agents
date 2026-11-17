@@ -345,6 +345,8 @@
       
         
       
+        
+      
     
     
     
@@ -593,6 +595,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../child-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Child sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../integrations/" class="md-nav__link">
         
   
@@ -643,6 +673,8 @@
       
         
       
+        
+      
     
     
     
@@ -653,7 +685,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_9" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_10" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -675,14 +707,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_9" id="__nav_3_9_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_10" id="__nav_3_10_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_9_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2354,7 +2386,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="DefaultInboundQueue">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_child_session_index.DefaultChildSessionIndex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DefaultChildSessionIndex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DefaultChildSessionIndex">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2514,6 +2557,34 @@
     
   
     Routines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../child-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Child sessions
   
 
     
@@ -4332,7 +4403,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="DefaultInboundQueue">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_child_session_index.DefaultChildSessionIndex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DefaultChildSessionIndex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DefaultChildSessionIndex">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -4506,8 +4588,9 @@ interprets them, which is what keeps the storage contract neutral. The AG-UI
 transport stores its own wire <code>Message</code> shape, so client message ids
 survive a round trip untouched; another transport stores its own.</p>
 <p><code>owner_id</code> scopes the conversation to a user for authorization. <code>parent</code> is
-the thread that started this one as a child session; a store that keeps it
-writes it when given and leaves the stored link alone when it is <code>None</code>.</p>
+the thread that started this one as a child session, and <code>lineage</code> the bounds it
+runs under; a store that keeps either writes it when given and leaves it alone when
+it is <code>None</code>.</p>
 
 
 
@@ -6263,7 +6346,10 @@ pydantic-ai's <code>timeout=</code>, in seconds; a run past it ends <code>RunTim
 which the runner records as <code>RunOutcome.TIMED_OUT</code> with the partial kept.</p>
 <p><code>capabilities</code> are composed into the run beside the mount's own, such as
 a guard that pre-approves a routine's tools. <code>parent</code> names the thread a
-child run belongs to.</p>
+child run belongs to, with its scope, since a child often runs on another agent.
+<code>lineage</code> is the bounds the child runs under: the runner saves both on the child's
+conversation, so a later run of its thread can compose
+<a class="autorefs autorefs-internal" title="child_lineage_for" href="../child-sessions/#django_spec_agents.child_sessions.child_lineage_for.child_lineage_for"><code>child_lineage_for</code></a>.</p>
 
 
 
@@ -6305,9 +6391,10 @@ child run belongs to.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">parent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -6338,9 +6425,10 @@ child run belongs to.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">parent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7622,6 +7710,53 @@ is never pruned. <code>clock</code> supplies "now" and exists for tests.</p>
         <p>A durable, owner-scoped inbound queue over <code>StoredInboundMessage</code>.</p>
 <p>A thread's queue is its rows under <code>(owner_id, scope, thread_id)</code>, an absent scope
 stored as NULL and kept apart from <code>""</code>; <code>ack</code> deletes exactly the ids it is given.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.contrib.store.default_child_session_index.DefaultChildSessionIndex" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">DefaultChildSessionIndex</span>
+
+
+<a href="#django_spec_agents.contrib.store.default_child_session_index.DefaultChildSessionIndex" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The owner's child sessions from the parent columns and a run store.</p>
+<p>A scoped store's <code>scope:thread_id</code> is un-keyed at its first <code>:</code>.</p>
 
 
 

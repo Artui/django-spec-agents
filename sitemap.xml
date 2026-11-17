@@ -5,6 +5,10 @@
          <lastmod>2026-11-17</lastmod>
     </url>
     <url>
+         <loc>https://artui.github.io/django-spec-agents/child-sessions/</loc>
+         <lastmod>2026-11-17</lastmod>
+    </url>
+    <url>
          <loc>https://artui.github.io/django-spec-agents/concepts/</loc>
          <lastmod>2026-11-17</lastmod>
     </url>
@@ -46,6 +50,10 @@
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/agent/</loc>
+         <lastmod>2026-11-17</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/django-spec-agents/reference/child-sessions/</loc>
          <lastmod>2026-11-17</lastmod>
     </url>
     <url>
