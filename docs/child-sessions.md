@@ -64,16 +64,18 @@ field names the rule that refused, and the model reads the reason. The tools ref
 
 ## The child's principal and tools
 
-A child runs as the parent's user. It sees only the tools its parent had when it started,
-plus the child-session tools, and never any others. The child's own mount guards each call
-as it would guard any call. When a call needs approval, the child parks as `waiting`, and
-the parent is not asked to approve it. `ask_parent` parks the child the same way, on a
-deferred call of kind `question`.
+A child runs as the parent's user, so a run with no signed-in user cannot start one: it is
+refused as `principal`. The child sees only the tools its parent had when it started, plus
+the child-session tools, and never any others. A tool that needed approval in the parent
+needs approval in the child too, and the child's own mount guards each call as well. When
+a call needs approval, the child parks as `waiting`, and the parent is not asked to
+approve it. `ask_parent` parks the child the same way, on a deferred call of kind
+`question`.
 
-The parent passes the tool set to the child, along with the child's place in the tree, as
-a `ChildLineage` capability. Both are composed into the child's run when it starts. So
-they hold only for runs this toolset starts. A later run on the child's thread, such as
-the user typing into it, carries neither.
+The parent passes these tool names to the child, along with the child's place in the
+tree, as a `ChildLineage` capability. All of it is composed into the child's run when it
+starts. So it holds only for runs this toolset starts. A later run on the child's thread,
+such as the user typing into it, carries none of it.
 
 ## Limits
 
@@ -87,7 +89,8 @@ the user typing into it, carries neither.
 | Each child run's deadline | `timeout`, required, in seconds | the run ends `timed_out` |
 
 A child counts as live while it is running and while it waits. A parked child keeps its
-slot until someone answers it or cancels it.
+slot until someone answers it or cancels it. When the model asks for several children in one response,
+the starts run one at a time, so each start counts the children before it.
 
 `ChildSessionSpend` adds two `pydantic-ai-harness` `SpendLimits` to every child:
 
@@ -104,7 +107,8 @@ extra.
 
 No store can say which threads a thread started, or how many of one user's children are
 live. A `ChildSessionIndex` answers those two questions, reading the `parent` link each
-child's conversation stores and the run status kept beside it. The limits use it, and so
+child's conversation stores and the run status kept beside it. A child must be listed from the moment
+`HeadlessRunner.start` returns, or the per-thread limit cannot count it. The limits use it, and so
 does `cancel_task`, which walks the tree from the child down.
 
 ## Reports

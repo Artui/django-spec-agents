@@ -37,7 +37,9 @@ class ChildSessionsToolset(FunctionToolset[Any]):
     refused by pydantic-ai's duplicate-name check; ``ask_parent`` is offered in a child
     only, and parks it as waiting on a question.
 
-    A child carries a [`ChildLineage`][django_spec_agents.child_sessions.child_lineage.ChildLineage]
+    Starts run one at a time, so each reads the index after the last; an anonymous run
+    is refused. A child carries a
+    [`ChildLineage`][django_spec_agents.child_sessions.child_lineage.ChildLineage]
     and, with ``spend``, two ``SpendLimits``. Each limit in ``limits`` refuses a start
     with a
     [`ChildSessionRefusal`][django_spec_agents.child_sessions.types.child_session_refusal.ChildSessionRefusal].
@@ -70,6 +72,7 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             self.start_session,
             name="start_session",
             description=f"{_START_DESCRIPTION}\n\nThe agents:\n{listed}",
+            sequential=True,
         )
         self.add_function(self.list_tasks, name="list_tasks")
         self.add_function(self.message_task, name="message_task")
@@ -89,6 +92,8 @@ class ChildSessionsToolset(FunctionToolset[Any]):
         if agent not in self._agents:
             known = ", ".join(sorted(self._agents)) or "none"
             return ChildSessionRefusal("agent", f"no agent {agent!r}; the agents are: {known}")
+        if not getattr(ctx.deps.user, "is_authenticated", False):
+            return ChildSessionRefusal("principal", "a child session needs a signed-in user")
         request, here = _request(ctx), self._here(ctx)
         lineage = _lineage(ctx)
         depth = 1 if lineage is None else lineage.depth + 1
@@ -101,7 +106,7 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             return ChildSessionRefusal("max_running_per_user", "your child sessions are busy")
         root = here if lineage is None else lineage.root
         capabilities: list[AbstractCapability[Any]] = [
-            ChildLineage(root=root, parent=here, depth=depth, tools=_tool_names(ctx))
+            ChildLineage(root, here, depth, _tool_names(ctx), _tool_names(ctx, "unapproved"))
         ]
         if self._spend is not None:
             budgets = _spend_limits(self._spend, root, _owner(ctx))
@@ -222,9 +227,9 @@ def _request(ctx: RunContext[Any]) -> HttpRequest:
     return request
 
 
-def _tool_names(ctx: RunContext[Any]) -> frozenset[str]:
-    tools = ctx.tool_manager.tools if ctx.tool_manager is not None else None
-    return frozenset(tools or ())
+def _tool_names(ctx: RunContext[Any], kind: str | None = None) -> frozenset[str]:
+    tools = (ctx.tool_manager.tools if ctx.tool_manager is not None else None) or {}
+    return frozenset(n for n, t in tools.items() if kind in (None, t.tool_def.kind))
 
 
 def _owner(ctx: RunContext[Any]) -> str:

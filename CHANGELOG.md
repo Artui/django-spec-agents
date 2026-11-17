@@ -15,8 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   naming the child's `agent_id` and `thread_id` as its tool result. `list_tasks`,
   `message_task`, `answer_task` and `cancel_task` keep upstream `TaskControl`'s names,
   so a mount carrying both is refused. A child sees only the tools its parent had, through
-  the `ChildLineage` capability, and parks as `waiting` on a gated call or on
-  `ask_parent`. `ChildSessionLimits` refuses a start past a depth of 2, a fourth live
+  the `ChildLineage` capability, a tool its parent gated stays gated, and it parks as
+  `waiting` on a gated call or on `ask_parent`. A run with no signed-in user cannot start
+  one. `ChildSessionLimits` refuses a start past a depth of 2, a fourth live
   child of one thread or an eleventh of one user, and puts a required deadline on each
   child run. `ChildSessionSpend` adds a `SpendLimits` budget over the root thread's tree
   and a per-user day budget (`[harness]`). The `ChildSessionIndex` protocol answers which

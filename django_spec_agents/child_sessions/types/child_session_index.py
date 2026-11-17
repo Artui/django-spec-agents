@@ -15,7 +15,9 @@ class ChildSessionIndex(Protocol):
     Keyed like a [`ConversationStore`][django_spec_agents.ConversationStore], by the owner
     each method resolves from its request. A child's link to its parent is the
     ``parent`` its conversation stores, in any scope, so an index reads those links and
-    the children's run status beside them.
+    the children's run status beside them. A child must be listed from the moment
+    [`HeadlessRunner.start`][django_spec_agents.HeadlessRunner.start] returns, or two
+    starts in a row both pass the per-thread limit.
     """
 
     async def children(self, parent: ThreadRef, *, request: HttpRequest) -> list[ChildSession]:
