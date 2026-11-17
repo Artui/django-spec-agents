@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 
@@ -19,6 +20,7 @@ class HeadlessFiring:
     timeout: float
     thread_id: str | None = None
     parent: ThreadRef | None = None
+    lineage: ChildLineageRecord | None = None
 
 
 __all__ = ["HeadlessFiring"]

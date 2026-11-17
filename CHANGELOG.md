@@ -61,9 +61,12 @@ kept across later runs and a report when each settles.
   `str | None`, so a child run on another agent keeps its parent's scope, and a new
   `lineage: ChildLineageRecord | None` for the runner to save beside it.
   `ChildSessionsToolset` passes its own thread with its agent id. A transport's runner
-  changes its signature to match; django-ag-ui's `AGUIHeadlessRunner` follows. `HeadlessFiring.parent` changes with it, so the
-  `run_headless` spec's `parent` argument is now an object,
-  `{"thread_id": ..., "scope": ...}`, where it was a string.
+  changes its signature to match; django-ag-ui's `AGUIHeadlessRunner` follows.
+  `HeadlessFiring.parent` changes with it, so the `run_headless` spec's `parent`
+  argument is now an object, `{"thread_id": ..., "scope": ...}`, where it was a string,
+  and the spec takes a `lineage` object (`{"root": ..., "depth": ..., "tools": [...],
+  "gated": [...]}`) that it passes to the runner, so a child queued through
+  `FiringQueue` keeps its parent's bounds on later runs too.
 
 ## [0.19.0] — 2026-11-17
 

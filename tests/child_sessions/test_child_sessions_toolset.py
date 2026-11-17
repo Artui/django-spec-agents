@@ -204,7 +204,9 @@ async def test_the_receipt_names_the_child_thread() -> None:
     [lineage, report] = start["capabilities"]
     assert (lineage.root, lineage.parent, lineage.depth) == (_HERE, _HERE, 1)
     assert (report.parent, report.agent_id) == (_HERE, "research")
-    assert start["lineage"] == ChildLineageRecord(_HERE, 1, lineage.tools, lineage.gated)
+    assert start["lineage"] == ChildLineageRecord(
+        _HERE, 1, sorted(lineage.tools), sorted(lineage.gated)
+    )
 
 
 async def test_the_child_gets_the_parents_tools_and_no_others() -> None:

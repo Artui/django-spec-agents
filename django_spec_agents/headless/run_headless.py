@@ -41,6 +41,7 @@ def run_headless(runner: HeadlessRunner, *, permissions: Sequence[PermissionChec
             timeout=data.timeout,
             thread_id=data.thread_id,
             parent=data.parent,
+            lineage=data.lineage,
         )
 
     return ServiceSpec(

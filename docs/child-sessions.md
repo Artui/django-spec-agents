@@ -129,7 +129,9 @@ The bounds a child starts under ride the capabilities of its first run. `start_s
 also hands the runner a `ChildLineageRecord` (the root, the depth, the parent's tools and
 the ones it gated) beside `parent`, and the runner saves both on the child's
 conversation. `DefaultConversationStore` keeps the record in a JSON column and, as with
-`parent`, leaves it alone on a save that names none.
+`parent`, leaves it alone on a save that names none. A child started through the
+`run_headless` spec carries the record too: `HeadlessFiring.lineage` crosses the queue as
+JSON, with `tools` and `gated` as sorted lists, and the runner saves it the same way.
 
 Every later run of that thread (the user typing into it, a resume after an approval, a
 wake) has to carry the same bounds, or it runs with the child mount's full tools.

@@ -30,7 +30,9 @@ def child_lineage_for(
     if record is None or parent is None:
         return []
     capabilities: list[AbstractCapability[Any]] = [
-        ChildLineage(record.root, parent, record.depth, record.tools, record.gated),
+        ChildLineage(
+            record.root, parent, record.depth, frozenset(record.tools), frozenset(record.gated)
+        ),
         ChildReport(parent, agent_id, queue),
     ]
     if spend is not None:

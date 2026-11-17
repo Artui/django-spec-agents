@@ -301,9 +301,7 @@ def test_a_later_save_with_a_parent_replaces_the_link() -> None:
     assert fetched.parent == ThreadRef(thread_id="p2", scope=None)
 
 
-_LINEAGE = ChildLineageRecord(
-    ThreadRef("root1", "main"), 2, frozenset({"search", "delete"}), frozenset({"delete"})
-)
+_LINEAGE = ChildLineageRecord(ThreadRef("root1", "main"), 2, ["delete", "search"], ["delete"])
 
 
 def test_a_lineage_is_kept_as_json_and_read_back() -> None:

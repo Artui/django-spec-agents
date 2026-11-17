@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
@@ -10,22 +10,22 @@ from django_spec_agents.persistence.types.thread_ref import ThreadRef
 class ChildLineageRecord:
     """What a child thread keeps of its lineage, so a later run of it rebuilds the same bounds.
 
-    ``root`` and ``depth`` place it in its tree, ``tools`` and ``gated`` are its parent's
-    tools and the ones the parent gated. The parent itself is ``Conversation.parent``.
+    ``root`` and ``depth`` place it in its tree; ``tools`` and ``gated`` are its parent's
+    tools and the ones the parent gated, as sorted lists so the record crosses a queue.
     """
 
     root: ThreadRef
     depth: int
-    tools: frozenset[str]
-    gated: frozenset[str] = frozenset()
+    tools: list[str]
+    gated: list[str] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
-        """The record as the JSON a store keeps, its sets as sorted lists."""
+        """The record as the JSON a store keeps."""
         return {
             "root": {"thread_id": self.root.thread_id, "scope": self.root.scope},
             "depth": self.depth,
-            "tools": sorted(self.tools),
-            "gated": sorted(self.gated),
+            "tools": list(self.tools),
+            "gated": list(self.gated),
         }
 
     @classmethod
@@ -35,8 +35,8 @@ class ChildLineageRecord:
         return cls(
             root=ThreadRef(root["thread_id"], root["scope"]),
             depth=data["depth"],
-            tools=frozenset(data["tools"]),
-            gated=frozenset(data["gated"]),
+            tools=list(data["tools"]),
+            gated=list(data["gated"]),
         )
 
 

@@ -110,9 +110,10 @@ class ChildSessionsToolset(FunctionToolset[Any]):
         if await self._index.live_count(request=request) >= self._limits.max_running_per_user:
             return ChildSessionRefusal("max_running_per_user", "your child sessions are busy")
         root = here if lineage is None else lineage.root
-        record = ChildLineageRecord(root, depth, _tool_names(ctx), _tool_names(ctx, "unapproved"))
+        tools, gated = _tool_names(ctx), _tool_names(ctx, "unapproved")
+        record = ChildLineageRecord(root, depth, sorted(tools), sorted(gated))
         capabilities: list[AbstractCapability[Any]] = [
-            ChildLineage(root, here, depth, record.tools, record.gated),
+            ChildLineage(root, here, depth, tools, gated),
             ChildReport(here, agent, self._queue),
         ]
         if self._spend is not None:

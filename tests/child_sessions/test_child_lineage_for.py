@@ -12,7 +12,7 @@ from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 _ROOT, _PARENT = ThreadRef("root1", "main"), ThreadRef("p1", "main")
-_RECORD = ChildLineageRecord(_ROOT, 2, frozenset({"search", "delete"}), frozenset({"delete"}))
+_RECORD = ChildLineageRecord(_ROOT, 2, ["delete", "search"], ["delete"])
 
 
 @pytest.mark.parametrize(("parent", "lineage"), [(None, None), (_PARENT, None), (None, _RECORD)])
@@ -31,6 +31,6 @@ def test_a_child_gets_its_bounds_and_its_report_back_without_spend() -> None:
     rebuilt = child_lineage_for(conversation, agent_id="research", owner="7", queue=queue)
 
     assert rebuilt == [
-        ChildLineage(_ROOT, _PARENT, 2, _RECORD.tools, _RECORD.gated),
+        ChildLineage(_ROOT, _PARENT, 2, frozenset({"delete", "search"}), frozenset({"delete"})),
         ChildReport(_PARENT, "research", queue),
     ]
