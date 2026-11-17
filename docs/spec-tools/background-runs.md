@@ -262,3 +262,56 @@ and a spec that reports progress calls it wherever it runs. This package never
 constructs one: picking a sink would be picking a transport it does not own.
 Off HTTP, the useful sinks are the ones a worker already has — a task-state
 update, a row, a log line.
+
+## Queuing a headless run
+
+A transport's [`HeadlessRunner`](../reference/persistence.md#headlessrunner) runs
+an agent with no browser. By default the run's owner is a task in the process that
+started it, so a restart of that process ends the run. A host with a task queue
+can move the owner to a worker instead: it fills a
+[`FiringQueue`](../reference/persistence.md#firingqueue) and registers
+[`run_headless`](../reference/persistence.md#run_headless), a kernel spec whose
+body is the runner's `run_to_first_stop`, in the registry the worker reads.
+
+```python title="spec_tasks.py"
+from datetime import timedelta
+
+from django_service_specs import SpecRegistry
+from django_spec_agents.headless.run_headless import run_headless
+from django_spec_agents.headless.types.firing_state import FiringState
+from django_spec_tasks import TaskBinding, enqueue, state_of
+
+registry = SpecRegistry()
+registry.register("run_headless", run_headless(runner, permissions=[IsMember()]))
+binding = TaskBinding(
+    name="agents", registry=registry, backend=backend, lease=timedelta(minutes=20)
+)
+
+_LAPSED = {"ABANDONED", "AUTHORIZATION_LAPSED", "SPEC_UNAVAILABLE"}
+
+
+class SpecTasksQueue:
+    def enqueue(self, spec_name, params, *, actor):
+        return enqueue(binding, spec_name, params, actor=actor)
+
+    def state(self, run_id):
+        state = state_of(binding, run_id)
+        if state is None:
+            return None
+        if state in {"PENDING", "RUNNING"}:
+            return FiringState.PENDING
+        return FiringState.LAPSED if state in _LAPSED else FiringState.FINISHED
+```
+
+`runner` is the transport's `HeadlessRunner`, `IsMember` your own
+`PermissionCheck` (the worker checks it again before the run), and `backend` is
+django-spec-tasks' Celery or Django Tasks backend. The binding's `lease` must
+outlast the longest `timeout` a headless run is given, or the worker is refused
+its terminal write for a run still going.
+
+The spec declares `atomic=False`, so no transaction spans the agent run and what
+the run wrote before a crash stands, and `idempotent=False`: a worker that dies
+mid-run is not run again, which would be a second paid run. Its thread's lease
+lapses instead, so the thread reads `failed` with reason `interrupted`, and the
+queue reports the firing `lapsed`. A queued run carries no `capabilities`, since
+they cannot cross a queue as JSON; the runner composes what the mount declares.

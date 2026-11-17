@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-11-17
+
+A minor release with no floor moved and one migration: child sessions get a parent link on
+a thread and a durable inbound queue, stored skills reach the agent as deferred
+capabilities with gated authoring tools, and a headless run can be queued to a worker
+through `FiringQueue` and the `run_headless` spec. A project using the store app runs
+`migrate` for `0004_child_sessions`.
+
+### Added
+
+- **Child sessions: a parent link on a thread and a durable inbound queue.** `Conversation`
+  and `ConversationMeta` gain an optional `parent`, a `ThreadRef` of `(thread_id, scope)`:
+  the thread that started this one as a child session, with the agent id or
+  `ScopedConversationStore` scope it lives in (`None` for an unscoped store), so a child
+  under one agent names a parent under another. Both fields default to `None` and come
+  last, so a store written before them still constructs both and still satisfies
+  `ConversationStore`. `DefaultConversationStore` keeps the link in two new columns, writes
+  it when a save names one and leaves it alone when a save does not, so a later turn typed
+  in the child keeps it. `InboundQueue` is a durable per-thread queue of reports,
+  questions, answers and steering (`InboundKind`), its own protocol so `ConversationStore`
+  gains no method: `enqueue`, then `pending(thread, after=, limit=)` reads without removing
+  and `ack(thread, ids)` removes exactly the ids it is given, so delivery is at least once.
+  Ids are allocated at insert and seen at commit, so `pending(after=n)` used as a cursor can
+  miss one that becomes visible behind it; a reader that must see everything calls `pending`
+  without `after` and acks what it read. Messages are addressed
+  by `ThreadRef` and owner-scoped; an anonymous request is refused unless
+  `allow_anonymous`. `ModelInboundQueue` is the sync base for a queue over your own model
+  and `DefaultInboundQueue` the reference one over `StoredInboundMessage`. `ThreadRef`,
+  `InboundQueue`, `InboundMessage`, `InboundKind` and `ModelInboundQueue` are exported from
+  the root. A project using the store app runs `migrate`: `0004_child_sessions` adds the
+  two parent columns to `StoredConversation` and the `StoredInboundMessage` table.
+- **Stored skills reach the agent: `StoredSkills` and `build_skill_tools`**, in
+  `django_spec_agents.skills`. `StoredSkills(policy, request)` goes in a run's
+  `capabilities=`. On every run it reads the caller's visible skills through the policy
+  and offers each enabled, model-invocable one as a deferred capability whose id is its
+  name. A skill written between two runs is therefore live on the next run, and the model
+  sees only the name and description until it calls `load_capability`. A loaded skill adds
+  instructions only: no tool and no permission. The tool guard, the approval policy and
+  the policy's `can_write` apply whatever its body says. `authoring=True` adds the five
+  tools `build_skill_tools(policy, request)` returns. `list_skills` returns no bodies.
+  `create_skill`, `update_skill`, `disable_skill` and `enable_skill` carry the destructive
+  marker, so with `ToolGuardConfig(enabled=True)`, which `authoring=True` should go with
+  (it is off by default, and the writes then run at once), `ToolGuard` defers them for
+  approval with the body on the card. A broken draft goes back to the model to retry, and
+  a refused write, or a create or an enable at the cap, is reported as text. It also
+  adds a bundled `create-skill` skill that interviews the user and saves the draft with
+  `create_skill`. A visible stored skill named `create-skill` shadows it.
+  `enable_skill(policy, request, skill)` turns a disabled skill back on, mirroring
+  `disable_skill`: `can_write` is asked of the row and the result, a refusal changes
+  nothing, and like `create_skill` it refuses a caller who already sees
+  `MAX_VISIBLE_SKILLS` enabled skills with `SkillLimitError`, an `InvalidSkillError`.
+- **`FiringQueue` and the `run_headless` spec: a headless run whose owner lives in a
+  worker.** `FiringQueue` is the seam a host fills from its task queue, such as
+  django-spec-tasks' `enqueue` and `state_of`: `enqueue(spec_name, params, *, actor)`
+  checks the call and returns the run's id, and `state(run_id)` answers a `FiringState`,
+  `pending`, `lapsed` (its worker died, or its principal lost the right) or `finished`.
+  `run_headless(runner, permissions=...)`, in `django_spec_agents.headless.run_headless`
+  and needing the `[specs]` extra, builds the kernel spec a worker runs: its body is
+  `HeadlessRunner.run_to_first_stop` with the arguments of a `HeadlessFiring` (no
+  `capabilities`, which cannot cross a queue), and it presents the `RunStop`. It declares
+  `atomic=False`, so no transaction spans the agent run, and `idempotent=False`, so a
+  worker that dies mid-run is not run again: the run's lease lapses, its thread reads
+  `failed` with reason `interrupted`, and the queue reports the firing `lapsed`. The
+  Running from a worker page shows the django-spec-tasks adapter. `FiringQueue`,
+  `FiringState` and `HeadlessFiring` are exported from the root; `run_headless` is not.
+
 ## [0.17.0] — 2026-11-16
 
 A minor release with no floor moved and no migration: routines, a stored prompt for one
@@ -1059,7 +1125,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...v0.15.0

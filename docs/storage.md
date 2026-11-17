@@ -527,6 +527,64 @@ under a live lease. Call it from a periodic task; it reads no setting.
 from wherever it runs, and `mark_read` stamps `last_read_at` for an unread
 marker. `get_many` reads a page of threads' states at once.
 
+## Child sessions: the parent link and the inbound queue
+
+A child session is a thread one agent starts on another, or on itself. Two
+things in the store make it durable.
+
+**The parent link.** `Conversation.parent` and `ConversationMeta.parent` name
+the thread that started this one, as a `ThreadRef`: the parent's `thread_id`, as
+its client sees it, and the `scope` it lives in (the agent id or
+`ScopedConversationStore` scope; `None` for an unscoped store). The scope is
+spelled out because a child usually lives under another agent:
+`ScopedConversationStore` passes the link through untouched, so a child in scope
+`b` reads back a parent in scope `a`.
+
+```python
+from django_spec_agents import Conversation, ScopedConversationStore, ThreadRef
+
+children = ScopedConversationStore(store, scope="b")
+await children.save(
+    Conversation(thread_id="c1", parent=ThreadRef("t1", scope="a")), request=request
+)
+```
+
+`DefaultConversationStore` writes the link when a save names one and leaves it
+alone when a save does not, so a later turn typed in the child, which saves
+with `parent=None`, keeps it. A store written before the field existed still
+satisfies `ConversationStore`; its threads read back with no parent.
+
+**The inbound queue.** Reports, questions, answers and steering reach a thread
+through an `InboundQueue`, its own protocol so `ConversationStore` gains no
+method. Messages are addressed by `ThreadRef` and owner-scoped like every
+store. Delivery is at least once: `pending(thread)` reads without removing, and
+`ack(thread, ids)` removes exactly the ids the reader has handed on, so a message
+read by a process that then died is read again. Ids are allocated at insert and
+seen at commit, so one can become visible behind a higher id already read, and
+`pending(after=n)` used as a cursor can miss it. A reader that must see every
+message calls `pending` without `after` and acks what it read.
+
+```python
+from django_spec_agents import InboundKind
+from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
+
+queue = DefaultInboundQueue()
+await queue.enqueue(
+    ThreadRef("t1", scope="a"),
+    InboundKind.REPORT,
+    {"text": "done"},
+    request=request,
+    sender=ThreadRef("c1", scope="b"),
+)
+messages = await queue.pending(ThreadRef("t1", scope="a"), request=request)
+await queue.ack(ThreadRef("t1", scope="a"), [m.id for m in messages], request=request)
+```
+
+`DefaultInboundQueue` keeps the queue in `StoredInboundMessage` rows, added by
+the store app's `0004_child_sessions` migration with the two parent columns on
+`StoredConversation`; `ModelInboundQueue` is the base for a queue over a model
+of your own.
+
 ## Per-user memory
 
 `pydantic-ai-harness` ships a complete memory capability — four tools

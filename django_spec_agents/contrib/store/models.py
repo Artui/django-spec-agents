@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import models
 
+from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.contrib.store.attachment_storage import attachment_storage
 
 
@@ -13,6 +14,8 @@ class StoredConversation(models.Model):
     title = models.CharField(max_length=255, blank=True, default="")
     preview = models.TextField(blank=True, default="")
     messages = models.JSONField(default=list)
+    parent_thread_id = models.CharField(max_length=255, null=True, blank=True, default=None)
+    parent_scope = models.CharField(max_length=255, null=True, blank=True, default=None)
     attachments = models.ManyToManyField(
         "StoredAttachment",
         through="ConversationAttachment",
@@ -323,3 +326,24 @@ class StoredRunEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.log.run_id}#{self.seq}"
+
+
+class StoredInboundMessage(models.Model):
+    """One message waiting in a thread's inbound queue; ``id`` orders the queue."""
+
+    owner_id = models.CharField(max_length=255, blank=True, default="")
+    scope = models.CharField(max_length=255, null=True, blank=True, default=None)
+    thread_id = models.CharField(max_length=255)
+    kind = models.CharField(
+        max_length=16, choices=[(kind.value, kind.value) for kind in InboundKind]
+    )
+    body = models.JSONField(null=True, blank=True, default=None)
+    sender_thread_id = models.CharField(max_length=255, null=True, blank=True, default=None)
+    sender_scope = models.CharField(max_length=255, null=True, blank=True, default=None)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["owner_id", "scope", "thread_id", "id"])]
+
+    def __str__(self) -> str:
+        return f"{self.scope or ''}:{self.thread_id}#{self.pk}"

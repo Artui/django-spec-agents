@@ -4,6 +4,13 @@ from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.child_sessions.model_inbound_queue import ModelInboundQueue
+from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
+from django_spec_agents.child_sessions.types.inbound_message import InboundMessage
+from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
+from django_spec_agents.headless.types.firing_queue import FiringQueue
+from django_spec_agents.headless.types.firing_state import FiringState
+from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
@@ -35,6 +42,7 @@ from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
@@ -76,12 +84,19 @@ __all__ = [
     "ConversationMeta",
     "ConversationStore",
     "DjangoSessionConversationStore",
+    "FiringQueue",
+    "FiringState",
+    "HeadlessFiring",
     "HeadlessRunner",
     "HeadlessStart",
     "IdentifierTooLongError",
+    "InboundKind",
+    "InboundMessage",
+    "InboundQueue",
     "LoggingAuditLogger",
     "ModelAttachmentStore",
     "ModelConversationStore",
+    "ModelInboundQueue",
     "NullAttachmentStore",
     "NullAuditLogger",
     "NullConversationStore",
@@ -96,6 +111,7 @@ __all__ = [
     "RunWaiting",
     "SchemaStrategy",
     "ScopedConversationStore",
+    "ThreadRef",
     "ThreadRunState",
     "ThreadRunStatus",
     "ToolBinding",

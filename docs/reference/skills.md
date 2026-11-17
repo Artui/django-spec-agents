@@ -36,6 +36,18 @@ The stored-skill model, its policy and the functions over them. See
 
 ::: django_spec_agents.skills.disable_skill
 
+## `enable_skill`
+
+::: django_spec_agents.skills.enable_skill
+
+## `StoredSkills`
+
+::: django_spec_agents.skills.StoredSkills
+
+## `build_skill_tools`
+
+::: django_spec_agents.skills.build_skill_tools
+
 ## `export_skill_md`
 
 ::: django_spec_agents.skills.export_skill_md
@@ -51,6 +63,10 @@ The stored-skill model, its policy and the functions over them. See
 ## `InvalidSkillError`
 
 ::: django_spec_agents.skills.InvalidSkillError
+
+## `SkillLimitError`
+
+::: django_spec_agents.skills.SkillLimitError
 
 ## `SkillWriteRefusedError`
 
