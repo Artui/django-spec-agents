@@ -14,6 +14,7 @@ from django_spec_agents.skills.list_visible_skills import list_visible_skills
 from django_spec_agents.skills.parse_skill_md import parse_skill_md
 from django_spec_agents.skills.skill_capability import SkillCapability
 from django_spec_agents.skills.types.create_skill_name import CREATE_SKILL_NAME
+from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
 
 
@@ -41,17 +42,17 @@ class StoredSkills(AbstractCapability[Any]):
         ]
         if self.authoring:
             if all(skill.name != CREATE_SKILL_NAME for skill in skills):
-                offered.append(_bundled_create_skill())
+                draft = _bundled_create_skill()
+                offered.append(SkillCapability(draft.name, draft.description, draft.body))
             offered.append(Capability(toolsets=[build_skill_tools(self.policy, self.request)]))
         return CombinedCapability(offered) if offered else self
 
 
 @cache
-def _bundled_create_skill() -> SkillCapability:
+def _bundled_create_skill() -> SkillDraft:
     text = (
         files("django_spec_agents.skills")
         .joinpath("bundled", CREATE_SKILL_NAME, "SKILL.md")
         .read_text()
     )
-    draft = parse_skill_md(text)
-    return SkillCapability(draft.name, draft.description, draft.body)
+    return parse_skill_md(text)

@@ -188,3 +188,20 @@ async def test_a_stored_create_skill_shadows_the_bundled_one(member: AbstractBas
     assert "- create-skill: Our own way." in recorder.requests[0]
     assert "Help the user write a new skill" not in recorder.requests[0]
     assert "House rules." in recorder.requests[1]
+
+
+async def test_a_create_waits_for_approval_with_the_body_on_the_card(
+    member: AbstractBaseUser,
+) -> None:
+    args = {"name": "triage", "description": "Triage.", "body": "Sort the inbox."}
+    recorder = Recorder(ModelResponse(parts=[ToolCallPart("create_skill", args)]))
+
+    output = await _run(
+        recorder, StoredSkills(PersonalFirstPolicy(), request_as(member), authoring=True)
+    )
+
+    assert isinstance(output, DeferredToolRequests)
+    [call] = output.approvals
+    assert call.tool_name == "create_skill"
+    assert call.args_as_dict()["body"] == "Sort the inbox."
+    assert not await sync_to_async(TenantSkill.objects.exists)()
