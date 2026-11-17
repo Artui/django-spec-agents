@@ -43,12 +43,14 @@ def test_context_fields_ride_the_log_line_when_set(caplog) -> None:  # noqa: ANN
             target_type="order",
             target_id="42",
             ip_address="10.0.0.7",
+            answered_by="routine:7",
         )
     )
     message = caplog.records[0].message
     assert "org=acme" in message
     assert "target=order:42" in message
     assert "ip=10.0.0.7" in message
+    assert "answered_by=routine:7" in message
 
 
 def test_partial_target_renders_with_placeholder(caplog) -> None:  # noqa: ANN001

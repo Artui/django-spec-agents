@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **In-run answers to a gated call, with who answered on the record.** Two answerers on
+  pydantic-ai's `handle_deferred_tool_calls` approve a gated call in the run it was made
+  in, so it runs without parking. `GrantedApprovals(names, answered_by)` approves a fixed
+  grant, such as a routine's pre-approved tools marked `routine:<id>`. `ReviewedApprovals`,
+  composed from the new `AgentConfig.approval_reviewer` (`ApprovalReviewerConfig`: `model`,
+  `question`, and `tools`, a name list or `"all"`), wraps pydantic-ai-harness's
+  `ApprovalReviewer` (the `[harness]` extra): a reviewer's `no` runs the call marked
+  `reviewer:<model>`, while `yes`, `unsure` or a failed review parks it as before. A grant
+  answers first whatever the list order. `NEVER_AUTO_APPROVED` (`create_routine`,
+  `update_routine` and the four skill-authoring tools) is never answered in the run, under
+  a list, `"all"` or a grant. Each answerer sets `DeferredToolResults.answered_by` and the
+  call's `answered_by` metadata; `build_agent` now always composes `AnsweredByMetadata`,
+  which copies the mark onto `ToolReturnPart.metadata`, merged into a tool's own dict
+  metadata. `AuditEvent` gains `answered_by`, last and defaulting to `None`, and
+  `LoggingAuditLogger` writes it. A reviewer departs from the rule that a person approves
+  every destructive call; `docs/policy.md` says where.
+
 ### Changed
 
 - **Floors: `pydantic-ai-slim>=2.68`, `pydantic-ai-harness>=0.68`, `django-spec-mcp>=0.14.0`.**

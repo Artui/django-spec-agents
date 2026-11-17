@@ -6,6 +6,8 @@ from pydantic_ai import Agent, DeferredToolRequests, Tool
 
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.policy.approvals.answered_by_metadata import AnsweredByMetadata
+from django_spec_agents.policy.approvals.reviewed_approvals import ReviewedApprovals
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
@@ -40,6 +42,11 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
     to a single run, can still reach the record; ``AuditCapability`` states
     that exception.
 
+    Two more are composed: ``config.approval_reviewer``'s
+    [`ReviewedApprovals`][django_spec_agents.ReviewedApprovals], when set, and always an
+    [`AnsweredByMetadata`][django_spec_agents.AnsweredByMetadata], which copies an in-run
+    answerer's ``answered_by`` mark onto the call's result.
+
     **A destructive tool is not confirmed unless a config asks for it.** The
     approval interrupt exists only when ``config.tool_guard`` is enabled, and
     even then it reaches a tool only if that tool's source declares the mutation
@@ -63,6 +70,9 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
         )
     if config.tool_guard is not None and config.tool_guard.enabled:
         capabilities.append(ToolGuard(registry, config=config.tool_guard))
+    if config.approval_reviewer is not None:
+        capabilities.append(ReviewedApprovals(config.approval_reviewer))
+    capabilities.append(AnsweredByMetadata())
     if config.tool_failure.enabled:
         capabilities.insert(0, ToolFailurePolicy(config.tool_failure))
     return Agent(

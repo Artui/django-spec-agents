@@ -38,6 +38,7 @@ from pydantic_ai_harness import guardrails as harness_guardrails
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
 from django_spec_agents.policy.audit import audit_capability as audit_module
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
@@ -48,6 +49,7 @@ from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardCon
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import SpecCapability
+from tests.policy.approvals.approval_runs import returns
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 
 # Every scenario below is a real agent run: a real ``Agent``, real capabilities
@@ -1742,3 +1744,40 @@ async def test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls(
     assert [name for name, _, _ in plain] == ["lookup", "run_code"]
     assert padded[0] == plain[0]
     assert abs(padded[1][2] - plain[1][2]) < 100
+
+
+def _delete_order(order_id: int) -> str:
+    """Delete an order."""
+    return f"deleted {order_id}"
+
+
+async def test_an_approved_call_that_runs_records_who_approved_it() -> None:
+    audit = CapturingAuditLogger()
+    registry = ToolRegistry()
+    tool(registry, name="delete_order", destructive=True)(_delete_order)
+    agent = build_agent(
+        registry,
+        AgentConfig(
+            model=TestModel(call_tools=["delete_order"]),
+            audit_logger=audit,
+            tool_guard=ToolGuardConfig(enabled=True),
+            capabilities=[GrantedApprovals(["delete_order"], "routine:7")],
+        ),
+    )
+
+    result = await agent.run("go", deps=_deps())
+
+    [event] = audit.events
+    assert (event.tool_name, event.success) == ("delete_order", True)
+    assert event.answered_by == "routine:7"
+    assert returns(result)["delete_order"].metadata == {"answered_by": "routine:7"}
+
+
+async def test_a_call_that_needed_no_approval_records_no_answerer() -> None:
+    audit = CapturingAuditLogger()
+    agent = _agent(_delete_order, sink=audit)
+
+    await agent.run("go", deps=_deps())
+
+    [event] = audit.events
+    assert event.answered_by is None
