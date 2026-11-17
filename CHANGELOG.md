@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-11-17
+
+A minor release with no floor moved and one migration: child sessions get a parent link on
+a thread and a durable inbound queue, stored skills reach the agent as deferred
+capabilities with gated authoring tools, and a headless run can be queued to a worker
+through `FiringQueue` and the `run_headless` spec. A project using the store app runs
+`migrate` for `0004_child_sessions`.
+
 ### Added
 
 - **Child sessions: a parent link on a thread and a durable inbound queue.** `Conversation`
@@ -1112,7 +1120,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Artui/django-spec-agents/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Artui/django-spec-agents/compare/v0.14.0...v0.15.0
