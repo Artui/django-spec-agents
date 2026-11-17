@@ -3,11 +3,24 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from pydantic_ai import Agent, Tool, ToolReturn
+from django.contrib.auth.models import AnonymousUser
+from pydantic_ai import Agent, DeferredToolRequests, Tool, ToolReturn
+from pydantic_ai._mcp_apps import get_mcp_app_tool_result
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
+from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.integrations.mcp import MCPToolset
 from django_spec_agents.policy.approvals.answered_by_metadata import AnsweredByMetadata
 from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
+from tests.integrations.test_mcp_apps import VIEW, _request, apps_server
 from tests.policy.approvals.approval_runs import gated_tool, returns, run_calls
 
 
@@ -66,3 +79,25 @@ async def test_an_unmarked_call_keeps_its_result() -> None:
     part = returns(result)["plain"]
     assert part.content == "ok"
     assert part.metadata is None
+
+
+async def test_an_mcp_apps_record_survives_an_approval_answered_in_the_run() -> None:
+    def model_fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if any(isinstance(part, ToolReturnPart) for m in messages for part in m.parts):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(parts=[ToolCallPart(tool_name="both", args={"a": 1, "b": 2})])
+
+    gated = MCPToolset(apps_server, _request()).approval_required(lambda *_: True)
+    agent = Agent(
+        FunctionModel(model_fn),
+        deps_type=AgentDeps,
+        toolsets=[gated],
+        output_type=[str, DeferredToolRequests],
+        capabilities=[GrantedApprovals(["both"], "routine:7"), AnsweredByMetadata()],
+    )
+    result = await agent.run("add", deps=AgentDeps(user=AnonymousUser()))
+
+    part = returns(result)["both"]
+    assert part.content == {"result": 3}
+    assert get_mcp_app_tool_result(part.metadata)["resource_uri"] == VIEW  # ty: ignore[not-subscriptable]
+    assert part.metadata["answered_by"] == "routine:7"  # ty: ignore[not-subscriptable]
