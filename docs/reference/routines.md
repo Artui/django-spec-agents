@@ -48,6 +48,18 @@ The routine model, its policy, the schedule vocabulary and the functions over th
 
 ::: django_spec_agents.routines.update_routine
 
+## `due_routines`
+
+::: django_spec_agents.routines.due_routines
+
+## `RoutineSweep`
+
+::: django_spec_agents.routines.RoutineSweep
+
+## `SweepResult`
+
+::: django_spec_agents.routines.SweepResult
+
 ## `pin_preapproved_tools`
 
 ::: django_spec_agents.routines.pin_preapproved_tools

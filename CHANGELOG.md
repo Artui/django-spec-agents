@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Routines fire on schedule: `due_routines` and the `run_due_routines` command.** A
+  routine model opts in by returning a `RoutineSweep` (its `FiringQueue`, the firing
+  spec's name, an optional grace) from the new `AbstractRoutine.routine_sweep()`
+  classmethod, which defaults to `None`, so no model is swept until it does; it adds no
+  field, so no migration. The project schedules the command; the package ships no beat
+  entry. A sweep claims the due rows with `select_for_update(skip_locked=True)` and moves
+  each to its next firing in the transaction that enqueues it, so overlapping sweeps fire
+  a routine once on a database that honours the lock. It enqueues the firing spec as the
+  routine's principal with `{"routine_id": <pk>}` and keeps the run id as `last_run_id`.
+  A lapsed last firing, or a principal the policy's `can_run` refuses, pauses the routine
+  with its reason; a firing still pending skips this one; a firing missed by more than
+  its grace (default one schedule period) is skipped and logged rather than run late, and
+  `next_fire_at` always lands on the first firing after now. `due_routines` returns a
+  `SweepResult` of what it fired, missed, skipped, paused and failed.
+
 ### Changed
 
 - **Floors: `pydantic-ai-slim>=2.68`, `pydantic-ai-harness>=0.68`, `django-spec-mcp>=0.14.0`.**

@@ -13,6 +13,7 @@ from django_spec_agents.routines.types.max_routine_agent_id_length import (
 from django_spec_agents.routines.types.max_routine_name_length import MAX_ROUTINE_NAME_LENGTH
 from django_spec_agents.routines.types.preapproved_tool import PreapprovedTool
 from django_spec_agents.routines.types.routine_policy import RoutinePolicy
+from django_spec_agents.routines.types.routine_sweep import RoutineSweep
 from django_spec_agents.routines.types.schedule import Schedule
 
 
@@ -67,4 +68,9 @@ class AbstractRoutine(models.Model):
     @classmethod
     def routine_policy(cls) -> RoutinePolicy[Self] | None:
         """The policy every read, write and firing goes through; `None` fails the system check."""
+        return None
+
+    @classmethod
+    def routine_sweep(cls) -> RoutineSweep | None:
+        """The queue and spec `run_due_routines` fires this model with; `None` leaves it unswept."""
         return None

@@ -7,8 +7,8 @@ and the functions that write a routine. You bring the concrete model, its tenant
 relation, its migration and the policy. No concrete routine model ships in the package,
 and no default policy.
 
-This page covers the storage and the rules. Firing a routine on schedule and showing its
-thread are later pieces.
+This page covers the storage, the rules and the sweep that fires a routine on schedule.
+The spec a firing runs and showing its thread are later pieces.
 
 ## The model
 
@@ -147,6 +147,59 @@ again.
 `preapproved_exempt(routine)` returns the names a firing's guard exempts: only the
 tools that were gated when granted. A tool granted while ungated and declared
 destructive later is not among them, so its call parks.
+
+## Firing due routines
+
+The package ships no schedule of its own. Your project runs the `run_due_routines`
+management command every minute or so, from cron, a systemd timer or its task scheduler,
+and each run fires the routines that have come due since the last. It needs
+`django_spec_agents` in `INSTALLED_APPS`.
+
+The command sweeps every installed routine model whose `routine_sweep()` returns a
+`RoutineSweep`; a model that keeps the default `None` is left alone:
+
+```python
+from django_spec_agents.routines import AbstractRoutine, RoutineSweep
+
+
+class Routine(AbstractRoutine):
+    ...
+
+    @classmethod
+    def routine_sweep(cls) -> RoutineSweep:
+        return RoutineSweep(queue=firing_queue, spec_name="run_routine")
+```
+
+- `queue` is your [`FiringQueue`](reference/persistence.md#firingqueue), the same seam a queued headless
+  run goes through, filled from django-spec-tasks or another task queue.
+- `spec_name` is the name your queue's registry holds the firing spec under. The sweep
+  enqueues it as the routine's principal with `{"routine_id": <pk>}`.
+- `grace` is how late a missed firing may still run. Leave it `None` for one schedule
+  period, measured from the firing that was missed: a day for a daily routine, three days
+  for a weekday routine's Friday firing.
+
+`due_routines(model, sweep, now=None, limit=100)` is what the command calls, for a project
+that would rather call it from its own task. It claims the due rows in one query on the
+indexed `next_fire_at`, with `select_for_update(skip_locked=True)`, and moves each to its
+next firing in the transaction that enqueues it. Two sweeps that overlap therefore fire a
+routine once: the second passes over the rows the first holds. Run it on a database that
+honours `skip_locked`, such as PostgreSQL; SQLite ignores the lock.
+
+For each claimed routine, in this order:
+
+| The routine | The sweep |
+| --- | --- |
+| Its last firing `lapsed`: the worker died, or the principal or the spec went away | Pauses it: `enabled` off, `next_fire_at` cleared, `paused_reason` naming the run |
+| It is later than its grace, say after downtime | Skips it, logs it, and counts it as missed |
+| Its last firing is still `pending` | Skips it |
+| The policy's `can_run` refuses its principal | Pauses it with that reason |
+| Otherwise | Enqueues the firing and stores the run id as `last_run_id` |
+
+However late the sweep, `next_fire_at` moves to the first firing after now, stepped from
+the one claimed, so an outage fires a missed routine at most once and an interval keeps
+its cadence. A routine whose handling raises is rolled back, logged and left for the next
+sweep, and the others go on. The command prints one line per model, and `due_routines`
+returns the same counts as a `SweepResult` of primary keys.
 
 ## Finding the model, and refusing one with no policy at startup
 
