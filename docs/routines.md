@@ -53,7 +53,8 @@ class OwnRoutinesPolicy:
 | `enabled`, `paused_reason` | Off means it does not fire; a pause by the system says why |
 | `preapproved_tools` | The tools a firing may call without parking, each with its pinned flag |
 | `next_fire_at` | The next firing, in UTC, indexed; `None` while the routine is disabled |
-| `last_run_id` | The run the last firing started |
+| `last_run_id` | The queue's run id for the last firing |
+| `last_thread_id` | The thread the last firing ran into |
 | `created_by`, `created_at`, `updated_at` | Who wrote it, and when |
 
 ## The policy
@@ -173,7 +174,8 @@ class Routine(AbstractRoutine):
 - `queue` is your [`FiringQueue`](reference/persistence.md#firingqueue), the same seam a queued headless
   run goes through, filled from django-spec-tasks or another task queue.
 - `spec_name` is the name your queue's registry holds the firing spec under. The sweep
-  enqueues it as the routine's principal with `{"routine_id": <pk>}`.
+  enqueues it as the routine's principal with `{"routine_id": <pk>, "thread_id": <id>}`,
+  a fresh thread id per firing, which the spec runs into.
 - `grace` is how late a missed firing may still run. Leave it `None` for one schedule
   period, measured from the firing that was missed: a day for a daily routine, three days
   for a weekday routine's Friday firing.
@@ -191,7 +193,7 @@ For each claimed routine, in this order:
 | --- | --- |
 | Its last firing `lapsed`: the worker died, or the principal or the spec went away | Pauses it: `enabled` off, `next_fire_at` and `last_run_id` cleared, `paused_reason` naming the run |
 | It is later than its grace, say after downtime | Skips it, logs it, and counts it as missed |
-| Its last firing is still `pending` | Skips it |
+| Its last firing is still `pending`, or its thread still waits (below) | Skips it |
 | The policy's `can_run` refuses its principal | Pauses it with that reason |
 | Otherwise | Enqueues the firing and stores the run id as `last_run_id` |
 
@@ -200,6 +202,27 @@ the one claimed, so an outage fires a missed routine at most once and an interva
 its cadence. A routine whose handling raises is rolled back, logged and left for the next
 sweep, and the others go on. The command prints one line per model, and `due_routines`
 returns the same counts as a `SweepResult` of primary keys.
+
+### A firing parked on a person
+
+A firing that reaches a gated tool it was not granted parks its thread until someone
+answers the approval card. Starting the next firing beside it would leave two threads
+waiting on the same question, so the sweep asks the model first:
+
+```python
+class Routine(AbstractRoutine):
+    ...
+
+    @classmethod
+    def thread_waits(cls, thread_id, principal) -> bool:
+        state = run_store_state(thread_id, principal)
+        return state is not None and state.status == ThreadRunStatus.WAITING
+```
+
+`thread_waits(thread_id, principal)` is asked about `last_thread_id`, as the routine's
+principal, and a `True` skips this firing. Read it from your run store, whose rows are
+scoped by the owner a request carries. The default returns `False`, so a project that
+does not fill it fires on schedule whatever its last thread is doing.
 
 ## Finding the model, and refusing one with no policy at startup
 

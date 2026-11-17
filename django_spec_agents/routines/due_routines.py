@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -24,7 +25,14 @@ _LAPSED = (
     "to run it, or its spec is gone."
 )
 _REFUSED = "Its principal may no longer run it."
-_FIELDS = ["enabled", "paused_reason", "next_fire_at", "last_run_id", "updated_at"]
+_FIELDS = [
+    "enabled",
+    "paused_reason",
+    "next_fire_at",
+    "last_run_id",
+    "last_thread_id",
+    "updated_at",
+]
 
 
 def _following(schedule: Schedule, zone: ZoneInfo, after: datetime, now: datetime) -> datetime:
@@ -39,6 +47,12 @@ def _pause(routine: AbstractRoutine, reason: str) -> None:
     routine.enabled = False
     routine.next_fire_at = None
     routine.paused_reason = reason
+
+
+def _waits(routine: AbstractRoutine) -> bool:
+    """Whether the host says the last firing's thread is still parked."""
+    thread_id = routine.last_thread_id
+    return thread_id is not None and type(routine).thread_waits(thread_id, routine.principal)
 
 
 def _sweep_one(
@@ -64,14 +78,16 @@ def _sweep_one(
     elif now - due > grace:
         logger.info("Routine %s missed its firing at %s, past its grace.", routine.pk, due)
         outcome = result.missed
-    elif state is FiringState.PENDING:
+    elif state is FiringState.PENDING or _waits(routine):
         outcome = result.busy
     elif not policy.can_run(routine.principal, routine):
         _pause(routine, _REFUSED)
         outcome = result.paused
     else:
-        params = {"routine_id": routine.pk}
+        thread_id = uuid.uuid4().hex
+        params = {"routine_id": routine.pk, "thread_id": thread_id}
         routine.last_run_id = sweep.queue.enqueue(sweep.spec_name, params, actor=routine.principal)
+        routine.last_thread_id = thread_id
         outcome = result.fired
     routine.save(update_fields=_FIELDS)
     return outcome
@@ -95,10 +111,12 @@ def due_routines(
       is cleared so the routine fires again once turned back on;
     - it is later than its grace (`sweep.grace`, by default one schedule period): it is
       skipped, logged and counted as missed, so downtime runs a missed firing at most once;
-    - its last firing is still `pending`: it is skipped;
+    - its last firing is still `pending`, or the model's `thread_waits` says its thread still
+      waits on a person: it is skipped;
     - the policy's `can_run` refuses its principal: it is paused with the reason;
     - otherwise the spec `sweep.spec_name` is enqueued as the principal with
-      `{"routine_id": pk}`, and the run id it returns becomes `last_run_id`.
+      `{"routine_id": pk, "thread_id": <a fresh uuid hex>}`; the firing spec runs into that
+      thread, which becomes `last_thread_id`, and the run id the queue returns `last_run_id`.
 
     However late the sweep, `next_fire_at` moves to the first firing after `now`, stepped
     from the one claimed. A routine whose handling raises is rolled back, logged and left

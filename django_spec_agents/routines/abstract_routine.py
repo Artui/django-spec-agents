@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Self
+from typing import Any, Self
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -37,6 +37,7 @@ class AbstractRoutine(models.Model):
     preapproved_tools = models.JSONField(blank=True, default=list)
     next_fire_at = models.DateTimeField(null=True, blank=True, db_index=True)
     last_run_id = models.CharField(max_length=255, null=True, blank=True, default=None)
+    last_thread_id = models.CharField(max_length=255, null=True, blank=True, default=None)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -74,3 +75,13 @@ class AbstractRoutine(models.Model):
     def routine_sweep(cls) -> RoutineSweep | None:
         """The queue and spec `run_due_routines` fires this model with; `None` leaves it unswept."""
         return None
+
+    @classmethod
+    def thread_waits(cls, thread_id: str, principal: Any) -> bool:
+        """Whether the last firing's thread still waits on a person; the host reads its run store.
+
+        Return `True` while `principal`'s thread `thread_id` is parked on an approval or a
+        question, and the sweep skips the next firing rather than start another beside it. The
+        default, `False`, never skips, so a host without a run store fires on schedule.
+        """
+        return False

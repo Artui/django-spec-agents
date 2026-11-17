@@ -45,7 +45,9 @@ def test_a_due_routine_is_enqueued_as_its_principal_and_moved_on(
     result = due_routines(TeamRoutine, sweep(queue), now=MONDAY_8 + timedelta(minutes=1))
 
     due.refresh_from_db()
-    assert queue.enqueued == [Enqueued(FIRE, {"routine_id": due.pk}, member)]
+    assert due.last_thread_id
+    params = {"routine_id": due.pk, "thread_id": due.last_thread_id}
+    assert queue.enqueued == [Enqueued(FIRE, params, member)]
     assert result.fired == [due.pk]
     assert due.last_run_id == "run-1"
     assert due.next_fire_at == TUESDAY_8
@@ -254,3 +256,68 @@ def test_a_routine_paused_for_a_lapse_fires_again_once_turned_back_on(
     result = due_routines(TeamRoutine, sweep(queue), now=TUESDAY_8)
 
     assert result.fired == [lapsed.pk]
+
+
+def test_each_firing_runs_into_a_thread_of_its_own(
+    member: AbstractBaseUser, queue: RecordingQueue
+) -> None:
+    routine(member, MONDAY_8)
+    due_routines(TeamRoutine, sweep(queue), now=MONDAY_8)
+    due_routines(TeamRoutine, sweep(queue), now=TUESDAY_8)
+
+    first, second = (entry.params["thread_id"] for entry in queue.enqueued)
+    assert first != second
+
+
+@pytest.mark.parametrize("state", [FiringState.FINISHED, None])
+def test_a_firing_whose_thread_still_waits_skips_this_one(
+    member: AbstractBaseUser,
+    queue: RecordingQueue,
+    monkeypatch: pytest.MonkeyPatch,
+    state: FiringState | None,
+) -> None:
+    asked: list[tuple[str, AbstractBaseUser]] = []
+
+    def thread_waits(cls: type[TeamRoutine], thread_id: str, principal: AbstractBaseUser) -> bool:
+        asked.append((thread_id, principal))
+        return True
+
+    monkeypatch.setattr(TeamRoutine, "thread_waits", classmethod(thread_waits))
+    waiting = routine(member, MONDAY_8, last_run_id="run-7", last_thread_id="thread-7")
+    if state is not None:
+        queue.states["run-7"] = state
+
+    result = due_routines(TeamRoutine, sweep(queue), now=MONDAY_8)
+
+    waiting.refresh_from_db()
+    assert queue.enqueued == []
+    assert result.busy == [waiting.pk]
+    assert asked == [("thread-7", member)]
+    assert (waiting.next_fire_at, waiting.last_thread_id) == (TUESDAY_8, "thread-7")
+
+
+def test_a_thread_the_host_says_is_done_lets_the_next_firing_run(
+    member: AbstractBaseUser, queue: RecordingQueue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(TeamRoutine, "thread_waits", classmethod(lambda cls, thread, user: False))
+    done = routine(member, MONDAY_8, last_run_id="run-7", last_thread_id="thread-7")
+    queue.states["run-7"] = FiringState.FINISHED
+
+    result = due_routines(TeamRoutine, sweep(queue), now=MONDAY_8)
+
+    assert result.fired == [done.pk]
+
+
+def test_no_thread_waits_by_default(member: AbstractBaseUser) -> None:
+    assert AbstractRoutine.thread_waits("thread-7", member) is False
+
+
+def test_a_routine_that_never_fired_asks_about_no_thread(
+    member: AbstractBaseUser, queue: RecordingQueue, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(TeamRoutine, "thread_waits", classmethod(lambda cls, thread, user: True))
+    fresh = routine(member, MONDAY_8)
+
+    result = due_routines(TeamRoutine, sweep(queue), now=MONDAY_8)
+
+    assert result.fired == [fresh.pk]
