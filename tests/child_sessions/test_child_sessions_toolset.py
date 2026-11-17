@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
@@ -12,6 +13,7 @@ from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.exceptions import UserError
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_harness.spend_limits import InMemorySpendStore, SpendLimits, Spent
 from pydantic_ai_harness.sub_agents import SubAgent, SubAgents, TaskControl
@@ -37,6 +39,7 @@ _RUNNING, _WAITING, _IDLE = ThreadRunStatus.RUNNING, ThreadRunStatus.WAITING, Th
 @dataclass
 class _User:
     pk: int = 7
+    is_authenticated: bool = True
 
 
 @dataclass
@@ -45,7 +48,9 @@ class _Index:
     live: int = 0
 
     async def children(self, parent: ThreadRef, *, request: HttpRequest) -> list[ChildSession]:
-        return self.tree.get(parent, [])
+        read = list(self.tree.get(parent, []))
+        await asyncio.sleep(0)
+        return read
 
     async def live_count(self, *, request: HttpRequest) -> int:
         return self.live
@@ -72,6 +77,7 @@ class _Queue:
 class _Runner:
     starts: list[dict[str, Any]] = field(default_factory=list)
     cancelled: list[str] = field(default_factory=list)
+    index: _Index | None = None
 
     async def start(
         self,
@@ -88,6 +94,8 @@ class _Runner:
             dict(agent_id=agent_id, principal=principal, timeout=timeout, parent=parent)
         )
         self.starts[-1]["capabilities"] = list(capabilities)
+        if self.index is not None:
+            self.index.tree.setdefault(_HERE, []).append(_child(f"c{len(self.starts)}"))
         return HeadlessStart(thread_id="c-new", run_id="r-new")
 
     async def run_to_first_stop(self, *args: Any, **kwargs: Any) -> Any: ...
@@ -104,6 +112,14 @@ class _SpentStore(InMemorySpendStore):
 
     async def get_many(self, keys: Sequence[str]) -> dict[str, Spent]:
         return {k: Spent(usd=Decimal(9) * (f"|{self.spent_scope}|" in k)) for k in keys}
+
+
+@dataclass
+class _GateLookup(AbstractCapability[Any]):
+    async def prepare_tools(
+        self, ctx: Any, tool_defs: list[ToolDefinition]
+    ) -> list[ToolDefinition]:
+        return [replace(d, kind="unapproved") if d.name == "_lookup" else d for d in tool_defs]
 
 
 def _child(thread_id: str, status: ThreadRunStatus = _RUNNING) -> ChildSession:
@@ -142,11 +158,11 @@ async def _call(
     agent = Agent(
         tool_calling_model(tool, args),
         toolsets=[toolset, FunctionToolset([_lookup])],
-        capabilities=[lineage] if lineage else [],
         output_type=[str, DeferredToolRequests],
     )
     deps = AgentDeps(user=user or _User(), call_context={"request": HttpRequest()})
-    result = await agent.run("go", deps=deps, conversation_id="p1")
+    capabilities = [lineage] if lineage else []
+    result = await agent.run("go", deps=deps, conversation_id="p1", capabilities=capabilities)
     returns = [
         part.content
         for message in result.all_messages()
@@ -197,15 +213,70 @@ async def test_a_child_cannot_call_a_tool_its_parent_lacks() -> None:
     def _wider() -> str:
         return "ran"
 
-    agent = Agent(
-        FunctionModel(model),
-        toolsets=[FunctionToolset([_lookup, _wider])],
-        capabilities=[_lineage(1)],
-    )
+    agent = Agent(FunctionModel(model), toolsets=[FunctionToolset([_lookup, _wider])])
 
     with pytest.raises(Exception, match="_wider"):
-        await agent.run("go", deps=AgentDeps(user=None))
+        await agent.run("go", deps=AgentDeps(user=None), capabilities=[_lineage(1)])
     assert offered[0] == {"_lookup"}
+
+
+async def test_a_tool_the_parent_gated_is_gated_in_the_child() -> None:
+    runner = _Runner()
+    agent = Agent(
+        tool_calling_model("start_session", {"agent": "research", "prompt": "L"}),
+        toolsets=[_toolset(runner=runner), FunctionToolset([_lookup])],
+        capabilities=[_GateLookup()],
+    )
+    deps = AgentDeps(user=_User(), call_context={"request": HttpRequest()})
+
+    await agent.run("go", deps=deps, conversation_id="p1")
+    lineage = runner.starts[0]["capabilities"][0]
+    names = [("_lookup", "function"), ("_lookup", "output"), ("start_session", "function")]
+    defs = [ToolDefinition(name=n, kind=k) for n, k in names]  # ty: ignore[invalid-argument-type]
+    prepared = await lineage.prepare_tools(None, defs)  # ty: ignore[invalid-argument-type]
+
+    assert lineage.gated == {"_lookup"}
+    assert [(d.name, d.kind) for d in prepared] == [
+        ("_lookup", "unapproved"),
+        ("_lookup", "output"),
+        ("start_session", "function"),
+    ]
+
+
+async def test_parallel_starts_read_the_index_one_after_another() -> None:
+    index = _Index()
+    runner = _Runner(index=index)
+    calls = [ToolCallPart("start_session", {"agent": "research", "prompt": "L"}) for _ in range(4)]
+
+    def model(messages: Any, info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("ok")] if len(messages) > 1 else calls)
+
+    agent = Agent(FunctionModel(model), toolsets=[_toolset(index=index, runner=runner)])
+    deps = AgentDeps(user=_User(), call_context={"request": HttpRequest()})
+    result = await agent.run("go", deps=deps, conversation_id="p1")
+
+    returns = [
+        p.content for m in result.all_messages() for p in m.parts if isinstance(p, ToolReturnPart)
+    ]
+    assert len(runner.starts) == 3
+    assert [getattr(r, "refused", None) for r in returns].count("max_running_per_thread") == 1
+
+
+@pytest.mark.parametrize("user", [None, _User(is_authenticated=False)])
+async def test_an_anonymous_run_cannot_start_a_child(user: Any) -> None:
+    runner = _Runner()
+    agent = Agent(
+        tool_calling_model("start_session", {"agent": "research", "prompt": "L"}),
+        toolsets=[_toolset(runner=runner)],
+    )
+    deps = AgentDeps(user=user, call_context={"request": HttpRequest()})
+    result = await agent.run("go", deps=deps, conversation_id="p1")
+
+    [refusal] = [
+        p.content for m in result.all_messages() for p in m.parts if isinstance(p, ToolReturnPart)
+    ]
+    assert refusal == ChildSessionRefusal("principal", "a child session needs a signed-in user")
+    assert runner.starts == []
 
 
 async def test_an_unknown_agent_is_refused() -> None:
