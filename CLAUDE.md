@@ -303,9 +303,9 @@ Change a rule here and change the config with it, or they drift apart again.
 | --- | --- | --- |
 | Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
-| Pydantic-AI | 2.66 (its security fixes), the release `pydantic-ai-harness` 0.66 pins (the `[harness]` floor; `CodeMode` defaults to `dynamic_catalog=True` from 0.63); the extras share it | latest in matrix |
+| Pydantic-AI | 2.68 (`DeferredToolRequests.kind()`, `DeferredToolResults.answered_by`), the release `pydantic-ai-harness` 0.68 pins (the `[harness]` floor; `CodeMode` defaults to `dynamic_catalog=True` from 0.63); the extras share it | latest in matrix |
 | `[specs]` | django-service-specs, at the floor `pyproject.toml` declares and says the reason for | latest in matrix; the floor in the `lowest declared versions` job |
-| `[mcp]` | django-spec-mcp 0.9.0, the wire the bridge reads (a list under `items`, a scalar with no `structuredContent`); it brings the kernel at the floor it requires | latest in matrix; the floor in the `lowest declared versions` job |
+| `[mcp]` | django-spec-mcp 0.14.0 (`aread_resource`); 0.9.0 was the wire the bridge reads (a list under `items`, a scalar with no `structuredContent`); it brings the kernel at the floor it requires | latest in matrix; the floor in the `lowest declared versions` job |
 
 ## Branching
 

@@ -49,7 +49,6 @@ from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import SpecCapability
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
-from tests.tool_retries import is_tool_retry
 
 # Every scenario below is a real agent run: a real ``Agent``, real capabilities
 # and pydantic-ai's own hook dispatch. Which hook encloses which is the
@@ -1493,15 +1492,15 @@ async def _run_lookup_under_code_mode(
         capabilities=[CodeMode(), AuditCapability(audit), *capabilities],
     )
     result = await agent.run("lookup")
-    retries = [
+    seen = [
         str(part.content)
         for message in result.all_messages()
         if isinstance(message, ModelRequest)
         for part in message.parts
-        if is_tool_retry(part) and part.tool_name == "run_code"
+        if part.part_kind == "tool-return" and part.tool_name == "run_code"
     ]
     failures = [e.error for e in audit.events if not e.success and e.tool_name == "lookup"]
-    return failures, "\n".join(retries)
+    return failures, "\n".join(seen)
 
 
 async def _run_lookup_directly(lookup: Callable[[], str]) -> list[str | None]:
@@ -1563,7 +1562,7 @@ async def test_under_code_mode_a_tools_model_retry_is_recorded_as_raised() -> No
 
 
 async def test_under_code_mode_the_policys_translation_records_the_exception() -> None:
-    """The record names the exception; the sandbox sees a plain ``Exception`` with its message."""
+    """The record names the exception; ``run_code`` carries the policy's message alone."""
 
     def lookup() -> str:
         """Look up order 42."""
@@ -1572,7 +1571,7 @@ async def test_under_code_mode_the_policys_translation_records_the_exception() -
     failures, sandbox_saw = await _run_lookup_under_code_mode(lookup, ToolFailurePolicy())
 
     assert failures == ["RuntimeError: hunter2"]
-    assert "Exception: The lookup tool failed and returned no result." in sandbox_saw
+    assert "The lookup tool failed and returned no result." in sandbox_saw
     assert "PolicyToolFailed" not in sandbox_saw
     assert "hunter2" not in sandbox_saw
 

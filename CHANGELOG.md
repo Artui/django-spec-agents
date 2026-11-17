@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Floors: `pydantic-ai-slim>=2.68`, `pydantic-ai-harness>=0.68`, `django-spec-mcp>=0.14.0`.**
+  The base install and every provider extra take pydantic-ai-slim 2.68, the first with
+  `DeferredToolRequests.kind()` and `DeferredToolResults.answered_by`; the `[harness]`
+  extra moves with it, since harness pins slim exactly. The `[mcp]` extra takes
+  django-spec-mcp 0.14.0, the first with `aread_resource`.
+
 ## [0.18.0] — 2026-11-17
 
 A minor release with no floor moved and one migration: child sessions get a parent link on
