@@ -11,6 +11,7 @@ from pydantic_ai.toolsets.function import FunctionToolset
 
 from django_spec_agents.skills.create_skill import create_skill
 from django_spec_agents.skills.disable_skill import disable_skill
+from django_spec_agents.skills.enable_skill import enable_skill
 from django_spec_agents.skills.invalid_skill_error import InvalidSkillError
 from django_spec_agents.skills.list_visible_skills import list_visible_skills
 from django_spec_agents.skills.resolve_skill import resolve_skill
@@ -36,10 +37,14 @@ _UPDATE = (
     "Send the whole skill, not only what changes; a skill cannot be renamed."
 )
 _DISABLE = "Turn off the enabled skill this user reaches by name. The user approves it first."
+_ENABLE = (
+    "Turn back on a disabled skill this user can see, by name; where several share the name, "
+    "the one that would win it. The user approves it first."
+)
 
 
 def build_skill_tools(policy: SkillPolicy[Any], request: HttpRequest) -> FunctionToolset[Any]:
-    """Build a per-request toolset of `list_skills` and three writes the tool guard gates."""
+    """Build a per-request toolset of `list_skills` and four writes the tool guard gates."""
 
     async def list_skills() -> list[dict[str, Any]]:
         return await sync_to_async(_listing, thread_sensitive=True)(policy, request)
@@ -67,12 +72,16 @@ def build_skill_tools(policy: SkillPolicy[Any], request: HttpRequest) -> Functio
     async def disable(name: str) -> str:
         return await _write(lambda: _on_reached(policy, request, name, "Disabled", None))
 
+    async def enable(name: str) -> str:
+        return await _write(lambda: _enabled(policy, request, name))
+
     return FunctionToolset(
         [
             Tool(list_skills, name="list_skills", description=_LIST),
             Tool(create, name="create_skill", description=_CREATE, metadata=_GATED),
             Tool(update, name="update_skill", description=_UPDATE, metadata=_GATED),
             Tool(disable, name="disable_skill", description=_DISABLE, metadata=_GATED),
+            Tool(enable, name="enable_skill", description=_ENABLE, metadata=_GATED),
         ],
         id="django-spec-agents-skill-tools",
     )
@@ -122,3 +131,11 @@ def _on_reached(
     else:
         update_skill(policy, request, skill, draft)
     return f"{verb} the skill {name!r}."
+
+
+def _enabled(policy: SkillPolicy[Any], request: HttpRequest, name: str) -> str:
+    skill = next((s for s in policy.visible(request) if s.name == name and not s.enabled), None)
+    if skill is None:
+        return f"No disabled skill named {name!r} is visible to this user."
+    enable_skill(policy, request, skill)
+    return f"Enabled the skill {name!r}."
