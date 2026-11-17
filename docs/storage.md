@@ -541,8 +541,7 @@ spelled out because a child usually lives under another agent:
 `b` reads back a parent in scope `a`.
 
 ```python
-from django_spec_agents import Conversation, ScopedConversationStore
-from django_spec_agents.persistence.types.thread_ref import ThreadRef
+from django_spec_agents import Conversation, ScopedConversationStore, ThreadRef
 
 children = ScopedConversationStore(store, scope="b")
 await children.save(
@@ -563,7 +562,7 @@ removing, and `ack(thread, through=id)` removes what the reader has handed on,
 so a message read by a process that then died is read again.
 
 ```python
-from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
+from django_spec_agents import InboundKind
 from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
 
 queue = DefaultInboundQueue()

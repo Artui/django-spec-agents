@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Child sessions: a parent link on a thread and a durable inbound queue.** `Conversation`
+  and `ConversationMeta` gain an optional `parent`, a `ThreadRef` of `(thread_id, scope)`:
+  the thread that started this one as a child session, with the agent id or
+  `ScopedConversationStore` scope it lives in (`None` for an unscoped store), so a child
+  under one agent names a parent under another. Both fields default to `None` and come
+  last, so a store written before them still constructs both and still satisfies
+  `ConversationStore`. `DefaultConversationStore` keeps the link in two new columns, writes
+  it when a save names one and leaves it alone when a save does not, so a later turn typed
+  in the child keeps it. `InboundQueue` is a durable per-thread queue of reports,
+  questions, answers and steering (`InboundKind`), its own protocol so `ConversationStore`
+  gains no method: `enqueue`, then `pending(thread, after=, limit=)` reads without removing
+  and `ack(thread, through=)` removes, so delivery is at least once. Messages are addressed
+  by `ThreadRef` and owner-scoped; an anonymous request is refused unless
+  `allow_anonymous`. `ModelInboundQueue` is the sync base for a queue over your own model
+  and `DefaultInboundQueue` the reference one over `StoredInboundMessage`. `ThreadRef`,
+  `InboundQueue`, `InboundMessage`, `InboundKind` and `ModelInboundQueue` are exported from
+  the root. A project using the store app runs `migrate`: `0004_child_sessions` adds the
+  two parent columns to `StoredConversation` and the `StoredInboundMessage` table.
 - **Stored skills reach the agent: `StoredSkills` and `build_skill_tools`**, in
   `django_spec_agents.skills`. `StoredSkills(policy, request)` goes in a run's
   `capabilities=`. On every run it reads the caller's visible skills through the policy and
