@@ -808,11 +808,11 @@ requires-dist = [
     { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.33.0" },
     { name = "django-spec-mcp", marker = "extra == 'mcp'", specifier = ">=0.14.0" },
     { name = "pydantic", specifier = ">=2.12" },
-    { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.68" },
-    { name = "pydantic-ai-slim", specifier = ">=2.68,<3" },
-    { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2.68,<3" },
-    { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2.68,<3" },
-    { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2.68,<3" },
+    { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.69" },
+    { name = "pydantic-ai-slim", specifier = ">=2.69,<3" },
+    { name = "pydantic-ai-slim", extras = ["anthropic"], marker = "extra == 'anthropic'", specifier = ">=2.69,<3" },
+    { name = "pydantic-ai-slim", extras = ["google"], marker = "extra == 'google'", specifier = ">=2.69,<3" },
+    { name = "pydantic-ai-slim", extras = ["openai"], marker = "extra == 'openai'", specifier = ">=2.69,<3" },
 ]
 provides-extras = ["anthropic", "google", "harness", "mcp", "openai", "specs"]
 
@@ -824,8 +824,8 @@ dev = [
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "pre-commit", specifier = ">=3.8.0" },
-    { name = "pydantic-ai-harness", extras = ["code-mode"], specifier = ">=0.68" },
-    { name = "pydantic-ai-slim", extras = ["anthropic", "openai", "google", "mcp"], specifier = ">=2.68" },
+    { name = "pydantic-ai-harness", extras = ["code-mode"], specifier = ">=0.69" },
+    { name = "pydantic-ai-slim", extras = ["anthropic", "openai", "google", "mcp"], specifier = ">=2.69" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-cov", specifier = ">=5.0" },
@@ -2225,6 +2225,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "typing-inspection" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/fe/0c/48ec1a5a68ccd8c5819ffcc2567635ec5b231d12f9881ed50e73a6f4f504/pydantic_graph-2.69.0.tar.gz", hash = "sha256:de750c4b671a60b4648f0357cc713418c64f57703c873bde3ceacfd58da9a42f", size = 47714, upload-time = "2026-11-17T01:53:06.284Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7b/35/34b37f3bb73140c6ba58fa5c242b798c7632da3a509f66767f7fe13d0e39/pydantic_graph-2.69.0-py3-none-any.whl", hash = "sha256:bef3065672c6cfaf93c09d7c7ada858fa4475ecdd6f77eafd8a26b3643368f9a", size = 54877, upload-time = "2026-11-17T01:52:55.958Z" },
 ]

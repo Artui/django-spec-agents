@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   children a thread has and how many are live. `report_frame` frames a settled child's
   output as upstream's `<task_output>`. See [Child sessions](https://artui.github.io/django-spec-agents/child-sessions/).
 
+### Changed
+
+- **Floors: `pydantic-ai-slim>=2.69`, `pydantic-ai-harness>=0.69`.** The `[harness]` extra
+  takes pydantic-ai-harness 0.69, the first whose modules are named `spend_limits` and
+  `sub_agents`, which the child sessions import. Harness pins slim exactly, so the base
+  install and every provider extra take pydantic-ai-slim 2.69 with it.
+
 ## [0.19.0] — 2026-11-17
 
 ### Added
