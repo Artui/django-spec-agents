@@ -724,6 +724,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#child-sessions-the-parent-link-and-the-inbound-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child sessions: the parent link and the inbound queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#per-user-memory" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1721,6 +1732,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#child-sessions-the-parent-link-and-the-inbound-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child sessions: the parent link and the inbound queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#per-user-memory" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2364,6 +2386,54 @@ under a live lease. Call it from a periodic task; it reads no setting.</p>
 <p><code>request_cancel</code> records a cancel for the live run, for its owner to act on
 from wherever it runs, and <code>mark_read</code> stamps <code>last_read_at</code> for an unread
 marker. <code>get_many</code> reads a page of threads' states at once.</p>
+<h2 id="child-sessions-the-parent-link-and-the-inbound-queue">Child sessions: the parent link and the inbound queue<a class="headerlink" href="#child-sessions-the-parent-link-and-the-inbound-queue" title="Permanent link">&para;</a></h2>
+<p>A child session is a thread one agent starts on another, or on itself. Two
+things in the store make it durable.</p>
+<p><strong>The parent link.</strong> <code>Conversation.parent</code> and <code>ConversationMeta.parent</code> name
+the thread that started this one, as a <code>ThreadRef</code>: the parent's <code>thread_id</code>, as
+its client sees it, and the <code>scope</code> it lives in (the agent id or
+<code>ScopedConversationStore</code> scope; <code>None</code> for an unscoped store). The scope is
+spelled out because a child usually lives under another agent:
+<code>ScopedConversationStore</code> passes the link through untouched, so a child in scope
+<code>b</code> reads back a parent in scope <code>a</code>.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">Conversation</span><span class="p">,</span> <span class="n">ScopedConversationStore</span><span class="p">,</span> <span class="n">ThreadRef</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">children</span> <span class="o">=</span> <span class="n">ScopedConversationStore</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"b"</span><span class="p">)</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">await</span> <span class="n">children</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">Conversation</span><span class="p">(</span><span class="n">thread_id</span><span class="o">=</span><span class="s2">"c1"</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">)),</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>DefaultConversationStore</code> writes the link when a save names one and leaves it
+alone when a save does not, so a later turn typed in the child, which saves
+with <code>parent=None</code>, keeps it. A store written before the field existed still
+satisfies <code>ConversationStore</code>; its threads read back with no parent.</p>
+<p><strong>The inbound queue.</strong> Reports, questions, answers and steering reach a thread
+through an <code>InboundQueue</code>, its own protocol so <code>ConversationStore</code> gains no
+method. Messages are addressed by <code>ThreadRef</code> and owner-scoped like every
+store. Delivery is at least once: <code>pending(thread)</code> reads without removing, and
+<code>ack(thread, ids)</code> removes exactly the ids the reader has handed on, so a message
+read by a process that then died is read again. Ids are allocated at insert and
+seen at commit, so one can become visible behind a higher id already read, and
+<code>pending(after=n)</code> used as a cursor can miss it. A reader that must see every
+message calls <code>pending</code> without <code>after</code> and acks what it read.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">InboundKind</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_inbound_queue</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultInboundQueue</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">DefaultInboundQueue</span><span class="p">()</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">enqueue</span><span class="p">(</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">InboundKind</span><span class="o">.</span><span class="n">REPORT</span><span class="p">,</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">"done"</span><span class="p">},</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="n">sender</span><span class="o">=</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"c1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"b"</span><span class="p">),</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="p">)</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="n">messages</span> <span class="o">=</span> <span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">pending</span><span class="p">(</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">ack</span><span class="p">(</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="p">[</span><span class="n">m</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">],</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+</span></code></pre></div>
+<p><code>DefaultInboundQueue</code> keeps the queue in <code>StoredInboundMessage</code> rows, added by
+the store app's <code>0004_child_sessions</code> migration with the two parent columns on
+<code>StoredConversation</code>; <code>ModelInboundQueue</code> is the base for a queue over a model
+of your own.</p>
 <h2 id="per-user-memory">Per-user memory<a class="headerlink" href="#per-user-memory" title="Permanent link">&para;</a></h2>
 <p><code>pydantic-ai-harness</code> ships a complete memory capability — four tools
 (<code>write_memory</code>, <code>read_memory</code>, <code>delete_memory</code>, <code>search_memory</code>), a
@@ -2375,17 +2445,17 @@ it multi-tenant.</p>
 as <code>DefaultStepStore</code>'s: it <strong>structurally satisfies harness's <code>MemoryStore</code>
 protocol</strong>, which is upstream's and is not redeclared here. It needs the
 <code>[harness]</code> extra.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="p">)</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">)</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Hand it to your transport the way you would any other capability —
 <code>AGUIServer(capabilities=[capability])</code> for django-ag-ui. There is no settings
@@ -2514,8 +2584,8 @@ composing <code>list_paths</code> with <code>delete</code> needs each path's cur
 unbounded read-then-delete loop a concurrent <code>write_memory</code> can lose to — so the
 store carries a non-protocol <code>purge(owner_id)</code> that is one statement, plus a
 command:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
 </span></code></pre></div>
 <p>The argument is the owner id the memory was filed under, not the bare user key.
 With the usual mount-time namespace from <code>memory_namespace_for_user</code>, that is <code>u-</code>

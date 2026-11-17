@@ -641,6 +641,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#offering-stored-skills-to-the-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Offering stored skills to the agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#refusing-a-model-with-no-policy-at-startup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1304,6 +1315,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#offering-stored-skills-to-the-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Offering stored skills to the agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#refusing-a-model-with-no-policy-at-startup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1446,14 +1468,15 @@ owner.</p>
 <li><code>list_visible_skills</code> returns the caller's enabled skills, one per name.
   <code>resolve_skill</code> returns the one a name reaches, or <code>None</code>. A disabled skill shadows
   nothing, so disabling a personal skill brings back the company one of the same name.</li>
-<li><code>create_skill</code>, <code>update_skill</code> and <code>disable_skill</code> write. Each one asks <code>can_write</code>
-  and raises <code>SkillWriteRefusedError</code> when the policy refuses. That error is a Django
-  <code>PermissionDenied</code>. A create asks about the new skill. An update and a disable ask
-  twice, once about the row as stored and once about the result. A refused update or
-  disable leaves both the row and the instance you passed as they were.</li>
+<li><code>create_skill</code>, <code>update_skill</code>, <code>disable_skill</code> and <code>enable_skill</code> write. Each one asks
+  <code>can_write</code> and raises <code>SkillWriteRefusedError</code> when the policy refuses. That error is a
+  Django <code>PermissionDenied</code>. A create asks about the new skill. An update, a disable and
+  an enable ask twice, once about the row as stored and once about the result. A refused
+  update, disable or enable leaves both the row and the instance you passed as they were.</li>
 <li>A name that is not kebab-case raises <code>InvalidSkillError</code>. So do a blank or oversized
-  description or body, and a create by a caller who already sees <code>MAX_VISIBLE_SKILLS</code>
-  (100) enabled skills.</li>
+  description or body. A create or an enable by a caller who already sees
+  <code>MAX_VISIBLE_SKILLS</code> (100) enabled skills raises <code>SkillLimitError</code>, a subclass of it. An
+  enable asks <code>can_write</code> before it counts the cap, so a refused caller sees the refusal.</li>
 <li><code>list_visible_skills</code> stops at <code>MAX_VISIBLE_SKILLS</code>, in the policy's order, because its
   list is the catalog that reaches the model. A create can be admitted while other
   callers already see the cap, for example when staff add a company skill that a member
@@ -1474,15 +1497,75 @@ named after the skill. <code>enabled</code> and the scope are not part of the fi
 <code>user-invocable</code> and <code>disable-model-invocation</code>. A value may be plain, single-quoted or
 double-quoted. Any other field, such as <code>allowed-tools</code>, raises <code>InvalidSkillError</code>, and
 so does a multi-line value. Dropping either one silently would lose part of the file.</p>
+<h2 id="offering-stored-skills-to-the-agent">Offering stored skills to the agent<a class="headerlink" href="#offering-stored-skills-to-the-agent" title="Permanent link">&para;</a></h2>
+<p>Pass <code>StoredSkills</code> in the per-run <code>capabilities=</code>, built for the request the run serves:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoredSkills</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="p">[</span><span class="n">StoredSkills</span><span class="p">(</span><span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">authoring</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+</span></code></pre></div>
+<p>On every run it reads the caller's visible skills through the policy, and offers each
+enabled skill with <code>model_invocable</code> set as a deferred capability. The capability's id is
+the skill's name. Until the model calls <code>load_capability</code> with that id, it sees only the
+name and the description. After that, the body joins its instructions. A skill created or
+changed between two runs is offered on the next run, with no agent rebuild.</p>
+<p>A skill grants nothing. It has no tools, and it cannot lift an approval. With the tool
+guard enabled, a destructive tool waits for approval, and the policy's <code>can_write</code> refuses
+a write, whatever a body says.</p>
+<p><code>authoring=True</code> adds <code>build_skill_tools</code>' five tools:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Gated</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_skills</code></td>
+<td>no</td>
+<td>the visible skills: name, description, the two flags, and <code>writable</code>. No body</td>
+</tr>
+<tr>
+<td><code>create_skill</code></td>
+<td>yes</td>
+<td><code>create_skill</code> with the name, description, body and flags given</td>
+</tr>
+<tr>
+<td><code>update_skill</code></td>
+<td>yes</td>
+<td>replaces the draft of the enabled skill the caller reaches by name</td>
+</tr>
+<tr>
+<td><code>disable_skill</code></td>
+<td>yes</td>
+<td><code>disable_skill</code> on that skill</td>
+</tr>
+<tr>
+<td><code>enable_skill</code></td>
+<td>yes</td>
+<td><code>enable_skill</code> on the first disabled skill of that name the policy yields</td>
+</tr>
+</tbody>
+</table>
+<p>The four writes carry the destructive marker, so when the tool guard is enabled <code>ToolGuard</code>
+defers them for approval and the approval card shows the body. <code>ToolGuardConfig.enabled</code>
+is off by default, and with it off the writes run at once, so pair <code>authoring=True</code> with
+<code>ToolGuardConfig(enabled=True)</code>. A draft that breaks a rule is sent back to the model to
+retry. A write the policy refuses is reported to the model as text, and nothing changes,
+and so is a create or an enable by a caller at <code>MAX_VISIBLE_SKILLS</code>: a retry cannot clear it.</p>
+<p>It also adds the bundled <code>create-skill</code> skill, which interviews the user, drafts a name,
+description and body, and calls <code>create_skill</code>. A visible stored skill named <code>create-skill</code>
+replaces the bundled one, by the same rule that lets a personal skill replace a company one.</p>
 <h2 id="refusing-a-model-with-no-policy-at-startup">Refusing a model with no policy at startup<a class="headerlink" href="#refusing-a-model-with-no-policy-at-startup" title="Permanent link">&para;</a></h2>
 <p>No setting names your model. Your code holds it and passes <code>Skill.skill_policy()</code> to
 every function, and to a transport as a constructor argument. To have startup refuse a
 model with no policy, add the package's opt-in app to <code>INSTALLED_APPS</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>The app registers a Django system check that walks the app registry for every installed
 model subclassing <code>AbstractSkill</code>, so <code>manage.py check</code>, <code>runserver</code> and <code>migrate</code> fail

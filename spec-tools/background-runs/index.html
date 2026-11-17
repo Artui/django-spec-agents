@@ -1256,6 +1256,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#queuing-a-headless-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Queuing a headless run
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1442,6 +1453,17 @@
     <span class="md-ellipsis">
       
         Progress, when there is no browser
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queuing-a-headless-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Queuing a headless run
       
     </span>
   </a>
@@ -1715,6 +1737,53 @@ and a spec that reports progress calls it wherever it runs. This package never
 constructs one: picking a sink would be picking a transport it does not own.
 Off HTTP, the useful sinks are the ones a worker already has — a task-state
 update, a row, a log line.</p>
+<h2 id="queuing-a-headless-run">Queuing a headless run<a class="headerlink" href="#queuing-a-headless-run" title="Permanent link">&para;</a></h2>
+<p>A transport's <a href="../../reference/persistence/#headlessrunner"><code>HeadlessRunner</code></a> runs
+an agent with no browser. By default the run's owner is a task in the process that
+started it, so a restart of that process ends the run. A host with a task queue
+can move the owner to a worker instead: it fills a
+<a href="../../reference/persistence/#firingqueue"><code>FiringQueue</code></a> and registers
+<a href="../../reference/persistence/#run_headless"><code>run_headless</code></a>, a kernel spec whose
+body is the runner's <code>run_to_first_stop</code>, in the registry the worker reads.</p>
+<div class="language-python highlight"><span class="filename">spec_tasks.py</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecRegistry</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.headless.run_headless</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_headless</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.headless.types.firing_state</span><span class="w"> </span><span class="kn">import</span> <span class="n">FiringState</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_tasks</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskBinding</span><span class="p">,</span> <span class="n">enqueue</span><span class="p">,</span> <span class="n">state_of</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">"run_headless"</span><span class="p">,</span> <span class="n">run_headless</span><span class="p">(</span><span class="n">runner</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">IsMember</span><span class="p">()]))</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">binding</span> <span class="o">=</span> <span class="n">TaskBinding</span><span class="p">(</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">"agents"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">registry</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="n">backend</span><span class="p">,</span> <span class="n">lease</span><span class="o">=</span><span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="p">)</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="n">_LAPSED</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"ABANDONED"</span><span class="p">,</span> <span class="s2">"AUTHORIZATION_LAPSED"</span><span class="p">,</span> <span class="s2">"SPEC_UNAVAILABLE"</span><span class="p">}</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="k">class</span><span class="w"> </span><span class="nc">SpecTasksQueue</span><span class="p">:</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">enqueue</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spec_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">actor</span><span class="p">):</span>
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>        <span class="k">return</span> <span class="n">enqueue</span><span class="p">(</span><span class="n">binding</span><span class="p">,</span> <span class="n">spec_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">actor</span><span class="o">=</span><span class="n">actor</span><span class="p">)</span>
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>
+</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_id</span><span class="p">):</span>
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>        <span class="n">state</span> <span class="o">=</span> <span class="n">state_of</span><span class="p">(</span><span class="n">binding</span><span class="p">,</span> <span class="n">run_id</span><span class="p">)</span>
+</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>        <span class="k">if</span> <span class="n">state</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>            <span class="k">return</span> <span class="kc">None</span>
+</span><span id="__span-4-25"><a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>        <span class="k">if</span> <span class="n">state</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"PENDING"</span><span class="p">,</span> <span class="s2">"RUNNING"</span><span class="p">}:</span>
+</span><span id="__span-4-26"><a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>            <span class="k">return</span> <span class="n">FiringState</span><span class="o">.</span><span class="n">PENDING</span>
+</span><span id="__span-4-27"><a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>        <span class="k">return</span> <span class="n">FiringState</span><span class="o">.</span><span class="n">LAPSED</span> <span class="k">if</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">_LAPSED</span> <span class="k">else</span> <span class="n">FiringState</span><span class="o">.</span><span class="n">FINISHED</span>
+</span></code></pre></div>
+<p><code>runner</code> is the transport's <code>HeadlessRunner</code>, <code>IsMember</code> your own
+<code>PermissionCheck</code> (the worker checks it again before the run), and <code>backend</code> is
+django-spec-tasks' Celery or Django Tasks backend. The binding's <code>lease</code> must
+outlast the longest <code>timeout</code> a headless run is given, or the worker is refused
+its terminal write for a run still going.</p>
+<p>The spec declares <code>atomic=False</code>, so no transaction spans the agent run and what
+the run wrote before a crash stands, and <code>idempotent=False</code>: a worker that dies
+mid-run is not run again, which would be a second paid run. Its thread's lease
+lapses instead, so the thread reads <code>failed</code> with reason <code>interrupted</code>, and the
+queue reports the firing <code>lapsed</code>. A queued run carries no <code>capabilities</code>, since
+they cannot cross a queue as JSON; the runner composes what the mount declares.</p>
 
 
 
