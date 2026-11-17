@@ -90,7 +90,10 @@ such as the user typing into it, carries none of it.
 
 A child counts as live while it is running and while it waits. A parked child keeps its
 slot until someone answers it or cancels it. When the model asks for several children in one response,
-the starts run one at a time, so each start counts the children before it.
+the starts run one at a time, so each start counts the children before it. Starts in two
+processes at once are not serialised: each reads the index before the other's child is
+listed, so the per-thread and per-user counts can overshoot by the number of processes
+starting at that moment. The limits bound the common case, not a race between workers.
 
 `ChildSessionSpend` adds two `pydantic-ai-harness` `SpendLimits` to every child:
 

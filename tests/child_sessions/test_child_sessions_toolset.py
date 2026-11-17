@@ -28,6 +28,7 @@ from django_spec_agents.child_sessions.types.child_session_refusal import ChildS
 from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.headless.types.headless_start import HeadlessStart
+from django_spec_agents.persistence.build_run_waiting import build_run_waiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.testing import tool_calling_model
@@ -87,7 +88,7 @@ class _Runner:
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> HeadlessStart:
         self.starts.append(
@@ -187,7 +188,7 @@ async def test_the_receipt_names_the_child_thread() -> None:
 
     assert receipt == ChildSessionReceipt("research", "c-new", "r-new")
     [start] = runner.starts
-    assert (start["agent_id"], start["parent"], start["timeout"]) == ("research", "p1", 90.0)
+    assert (start["agent_id"], start["parent"], start["timeout"]) == ("research", _HERE, 90.0)
     assert start["principal"] == _User()
     [lineage] = start["capabilities"]
     assert (lineage.root, lineage.parent, lineage.depth) == (_HERE, _HERE, 1)
@@ -450,6 +451,14 @@ async def test_ask_parent_parks_the_child_on_a_question() -> None:
     [call] = output.calls
     assert output.kind(call.tool_call_id) == "question"
     assert queue.sent == [(ThreadRef("p0"), InboundKind.QUESTION, {"text": "Which year?"}, _HERE)]
+
+
+async def test_a_child_parked_on_ask_parent_is_recorded_waiting_on_a_question() -> None:
+    output = await _call(_toolset(), "ask_parent", {"question": "Which year?"}, lineage=_lineage(1))
+
+    [call] = output.calls
+    waiting = build_run_waiting(output, call.tool_call_id, summary="ask_parent", destructive=False)
+    assert waiting.kind == "question"
 
 
 async def test_a_root_is_offered_start_session_with_the_agents_and_no_ask_parent() -> None:

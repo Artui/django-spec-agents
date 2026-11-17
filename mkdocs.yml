@@ -90,6 +90,7 @@ nav:
       - Timeouts and caching: runs.md
       - User skills: skills.md
       - Routines: routines.md
+      - Child sessions: child-sessions.md
       - Integrations: integrations.md
       - Reference:
           - reference/index.md
@@ -100,6 +101,7 @@ nav:
           - Integrations: reference/integrations.md
           - Skills: reference/skills.md
           - Routines: reference/routines.md
+          - Child sessions: reference/child-sessions.md
   - Spec tools:
       - spec-tools/index.md
       - Quickstart: spec-tools/quickstart.md

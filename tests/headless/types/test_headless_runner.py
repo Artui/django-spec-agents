@@ -11,6 +11,7 @@ from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 
 class _Runner:
@@ -22,7 +23,7 @@ class _Runner:
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> HeadlessStart:
         return HeadlessStart(thread_id=thread_id or "t1", run_id="r1")
@@ -35,7 +36,7 @@ class _Runner:
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> RunStop:
         return RunStop(thread_id=thread_id or "t1", run_id="r1", outcome=RunOutcome.COMPLETED)

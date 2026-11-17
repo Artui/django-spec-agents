@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   takes pydantic-ai-harness 0.69, the first whose modules are named `spend_limits` and
   `sub_agents`, which the child sessions import. Harness pins slim exactly, so the base
   install and every provider extra take pydantic-ai-slim 2.69 with it.
+- **`HeadlessRunner` takes the parent as a `ThreadRef`.** `start` and `run_to_first_stop`
+  take `parent: ThreadRef | None` in place of `str | None`, so a child run on another
+  agent keeps its parent's scope, and `ChildSessionsToolset` passes its own thread with
+  its agent id. A transport's runner changes its signature to match; django-ag-ui's
+  `AGUIHeadlessRunner` follows. `HeadlessFiring.parent` changes with it, so the
+  `run_headless` spec's `parent` argument is now an object,
+  `{"thread_id": ..., "scope": ...}`, where it was a string.
 
 ## [0.19.0] — 2026-11-17
 

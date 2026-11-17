@@ -7,6 +7,7 @@ from pydantic_ai.capabilities import AbstractCapability
 
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 
 @runtime_checkable
@@ -31,7 +32,7 @@ class HeadlessRunner(Protocol):
 
     ``capabilities`` are composed into the run beside the mount's own, such as
     a guard that pre-approves a routine's tools. ``parent`` names the thread a
-    child run belongs to.
+    child run belongs to, with its scope, since a child often runs on another agent.
     """
 
     async def start(
@@ -42,7 +43,7 @@ class HeadlessRunner(Protocol):
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> HeadlessStart:
         """Start the run and return once it has claimed its thread; it goes on in the background."""
@@ -56,7 +57,7 @@ class HeadlessRunner(Protocol):
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
     ) -> RunStop:
         """Run until the run ends or parks, for a caller that waits on the answer."""

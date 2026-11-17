@@ -118,7 +118,7 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             prompt,
             ctx.deps.user,
             timeout=self._limits.timeout,
-            parent=here.thread_id,
+            parent=here,
             capabilities=capabilities,
         )
         return ChildSessionReceipt(

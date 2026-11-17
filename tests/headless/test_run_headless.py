@@ -20,6 +20,7 @@ from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from tests.headless.task_worker import TaskWorker
 
@@ -69,7 +70,7 @@ class _Runner:
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
         capabilities: Sequence[Any] = (),
     ) -> RunStop:
         self.calls.append((agent_id, prompt, principal, timeout, thread_id, parent, capabilities))
@@ -124,7 +125,7 @@ def test_a_worker_runs_the_spec_to_its_first_stop(
 ) -> None:
     runner = _Runner(store)
     worker = _worker(runner, clock)
-    params = {**_PARAMS, "thread_id": "t1", "parent": "t0"}
+    params = {**_PARAMS, "thread_id": "t1", "parent": {"thread_id": "t0", "scope": "main"}}
 
     run_id = worker.enqueue("run_headless", params, actor=user)
     assert worker.state(run_id) is FiringState.PENDING
@@ -148,7 +149,7 @@ def test_a_worker_runs_the_spec_to_its_first_stop(
         "Summarise the inbox.",
         17.5,
         "t1",
-        "t0",
+        ThreadRef("t0", "main"),
     )
     assert principal is not user and principal.pk == user.pk
     assert capabilities == ()

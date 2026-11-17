@@ -4,7 +4,16 @@ from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.child_sessions.child_lineage import ChildLineage
+from django_spec_agents.child_sessions.child_sessions_toolset import ChildSessionsToolset
 from django_spec_agents.child_sessions.model_inbound_queue import ModelInboundQueue
+from django_spec_agents.child_sessions.report_frame import report_frame
+from django_spec_agents.child_sessions.types.child_session import ChildSession
+from django_spec_agents.child_sessions.types.child_session_index import ChildSessionIndex
+from django_spec_agents.child_sessions.types.child_session_limits import ChildSessionLimits
+from django_spec_agents.child_sessions.types.child_session_receipt import ChildSessionReceipt
+from django_spec_agents.child_sessions.types.child_session_refusal import ChildSessionRefusal
+from django_spec_agents.child_sessions.types.child_session_spend import ChildSessionSpend
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.types.inbound_message import InboundMessage
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
@@ -78,6 +87,14 @@ from django_spec_agents.types.x_summary_key import X_SUMMARY_KEY
 from django_spec_agents.version import __version__
 
 __all__ = [
+    "ChildLineage",
+    "ChildSession",
+    "ChildSessionIndex",
+    "ChildSessionLimits",
+    "ChildSessionReceipt",
+    "ChildSessionRefusal",
+    "ChildSessionSpend",
+    "ChildSessionsToolset",
     "DESTRUCTIVE_METADATA_KEY",
     "AgentConfig",
     "AgentDeps",
@@ -149,5 +166,6 @@ __all__ = [
     "memory_namespace",
     "memory_namespace_for_user",
     "preflight_identifiers",
+    "report_frame",
     "tool",
 ]
