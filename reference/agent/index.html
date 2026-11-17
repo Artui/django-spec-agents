@@ -893,6 +893,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentConfig.approval_reviewer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        approval_reviewer
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1674,6 +1685,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentConfig.approval_reviewer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        approval_reviewer
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2212,6 +2234,33 @@ mean "on" to keep that default — backwards next to <code>tool_guard</code>.</p
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_spec_agents.AgentConfig.approval_reviewer" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">approval_reviewer</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.AgentConfig.approval_reviewer" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">approval_reviewer</span><span class="p">:</span> <span class="n">ApprovalReviewerConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A second model that may approve a gated call in the person's place, through a
+<a class="autorefs autorefs-internal" title="ReviewedApprovals" href="../policy/#django_spec_agents.ReviewedApprovals"><code>ReviewedApprovals</code></a> (the <code>[harness]</code>
+extra). <code>None</code>, the default, leaves every gated call to the person.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -2629,6 +2678,10 @@ appended after <code>config.capabilities</code> and the policy placed before the
 What sorts after audit regardless, such as an innermost capability passed
 to a single run, can still reach the record; <code>AuditCapability</code> states
 that exception.</p>
+<p>Two more are composed: <code>config.approval_reviewer</code>'s
+<a class="autorefs autorefs-internal" title="ReviewedApprovals" href="../policy/#django_spec_agents.ReviewedApprovals"><code>ReviewedApprovals</code></a>, when set, and always an
+<a class="autorefs autorefs-internal" title="AnsweredByMetadata" href="../policy/#django_spec_agents.AnsweredByMetadata"><code>AnsweredByMetadata</code></a>, which copies an in-run
+answerer's <code>answered_by</code> mark onto the call's result.</p>
 <p><strong>A destructive tool is not confirmed unless a config asks for it.</strong> The
 approval interrupt exists only when <code>config.tool_guard</code> is enabled, and
 even then it reaches a tool only if that tool's source declares the mutation

@@ -2372,6 +2372,11 @@ overwrites the run that replaced it.</p>
 <p>A thread still <code>running</code> after its lease lapses, as after a restart, reads as
 <code>failed</code> with reason <code>interrupted</code>. The run's id stays on the thread as
 <code>last_run_id</code> after it ends: a parked run's id is what a resume answers to.</p>
+<p>A transport builds the <code>RunWaiting</code> with <code>build_run_waiting(requests, tool_call_id,
+summary=..., destructive=...)</code>, which reads <code>kind</code> from the run's <code>DeferredToolRequests</code>:
+<code>approval</code>, <code>question</code> for a tool that deferred with <code>CallDeferred(kind="question")</code>, or
+<code>external</code>. These are upstream's <code>DeferredToolKind</code> values, so a row stored before <code>kind</code>
+was typed loads unchanged.</p>
 <p><strong>Run ids are single-use per owner.</strong> The resumed run, like a retried one,
 claims the thread under a fresh id; <code>claim</code> refuses an id its owner has claimed
 before with <code>RunIdReusedError</code>, writing nothing, so a transport can answer it as

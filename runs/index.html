@@ -1373,7 +1373,7 @@ chat does. A cached run's <code>usage</code> reports what it wrote and read, as
 <code>ToolFailurePolicy</code>, leave the tool definitions and instructions unchanged from one
 request to the next. So the cached prefix stays valid for the whole run.</p>
 <p>With the <code>[harness]</code> extra, <code>CodeMode</code> (pydantic-ai-harness 0.63 and later; the
-extra's floor is 0.66) defaults to <code>dynamic_catalog=True</code>. Its catalog of sandboxed tools
+extra's floor is 0.68) defaults to <code>dynamic_catalog=True</code>. Its catalog of sandboxed tools
 then goes into the instructions, and a newly discovered tool is appended to the
 history rather than rewriting <code>run_code</code>'s description, so a discovery keeps the cache
 warm.</p>

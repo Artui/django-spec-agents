@@ -1616,6 +1616,34 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#build_run_waiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_run_waiting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.build_run_waiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_run_waiting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="build_run_waiting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#threadrunstate" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3563,6 +3591,34 @@
   </a>
   
     <nav class="md-nav" aria-label="RunWaiting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_run_waiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_run_waiting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.build_run_waiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_run_waiting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="build_run_waiting">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -5883,8 +5939,11 @@ a win, the run that kept it on a loss, so a transport's 409 can name it.</p>
 
 
         <p>What a parked run waits on: one deferred call a person has to answer.</p>
-<p><code>kind</code> names the deferral (an approval, or a client tool for a detached
-browser run). <code>summary</code> is the approval prompt where one is configured and
+<p><code>kind</code> is upstream's <code>DeferredToolKind</code>: <code>approval</code>, <code>question</code> (a tool
+that deferred with <code>CallDeferred(kind="question")</code>) or <code>external</code> (a client
+tool for a detached browser run);
+<a class="autorefs autorefs-internal" title="build_run_waiting" href="#django_spec_agents.build_run_waiting"><code>build_run_waiting</code></a> reads it from the
+run's <code>DeferredToolRequests</code>. <code>summary</code> is the approval prompt where one is configured and
 the tool's name otherwise. <code>destructive</code> is
 <a class="autorefs autorefs-internal" title="requires_approval" href="../policy/#django_spec_agents.ToolGuard.requires_approval"><code>ToolGuard.requires_approval</code></a>'s
 answer for the call's tool.</p>
@@ -5913,6 +5972,40 @@ answer for the call's tool.</p>
 
 
   </div>
+
+    </div>
+
+</div><h3 id="build_run_waiting"><code>build_run_waiting</code><a class="headerlink" href="#build_run_waiting" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="django_spec_agents.build_run_waiting" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_run_waiting</span>
+
+
+<a href="#django_spec_agents.build_run_waiting" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_run_waiting</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">requests</span><span class="p">:</span> <span class="n">DeferredToolRequests</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">tool_call_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">destructive</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunWaiting</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The <a class="autorefs autorefs-internal" title="RunWaiting
+
+
+  
+      dataclass
+  " href="#django_spec_agents.RunWaiting"><code>RunWaiting</code></a> a run parked on <code>tool_call_id</code> records.</p>
+<p>Its <code>kind</code> is <code>requests.kind(tool_call_id)</code>, so a stored row carries upstream's
+word for the deferral; a <code>tool_call_id</code> the requests do not hold raises <code>ValueError</code>.</p>
+
 
     </div>
 

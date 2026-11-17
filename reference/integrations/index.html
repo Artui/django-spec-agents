@@ -1046,6 +1046,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.call_tool_for_app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_tool_for_app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.read_resource_for_app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read_resource_for_app
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1557,6 +1579,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.call_tool_for_app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_tool_for_app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.integrations.mcp.MCPToolset.read_resource_for_app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read_resource_for_app
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2038,6 +2082,56 @@ step, and asking twice costs a second evaluation of conditions that read
 only seeds. A condition flipping between the two reads can leave one
 step's tools and instructions disagreeing about a tool; the call's own
 enforcement is authoritative either way.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.integrations.mcp.MCPToolset.call_tool_for_app" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">call_tool_for_app</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset.call_tool_for_app" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call_tool_for_app</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">JsonRpcError</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Call a tool for an MCP App page as the request user; -32602 if not app-visible.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.integrations.mcp.MCPToolset.read_resource_for_app" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">read_resource_for_app</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.integrations.mcp.MCPToolset.read_resource_for_app" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">read_resource_for_app</span><span class="p">(</span><span class="n">uri</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">JsonRpcError</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Read a resource for an MCP App page as the request's user, in wire form.</p>
 
 
     </div>

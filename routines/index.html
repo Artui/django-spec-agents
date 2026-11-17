@@ -680,6 +680,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#firing-due-routines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Firing due routines
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Firing due routines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-firing-parked-on-a-person" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A firing parked on a person
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#finding-the-model-and-refusing-one-with-no-policy-at-startup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1326,6 +1354,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#firing-due-routines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Firing due routines
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Firing due routines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-firing-parked-on-a-person" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A firing parked on a person
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#finding-the-model-and-refusing-one-with-no-policy-at-startup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1368,8 +1424,8 @@ model's fields, a policy protocol, the schedule vocabulary, the next-firing comp
 and the functions that write a routine. You bring the concrete model, its tenant
 relation, its migration and the policy. No concrete routine model ships in the package,
 and no default policy.</p>
-<p>This page covers the storage and the rules. Firing a routine on schedule and showing its
-thread are later pieces.</p>
+<p>This page covers the storage, the rules and the sweep that fires a routine on schedule.
+The spec a firing runs and showing its thread are later pieces.</p>
 <h2 id="the-model">The model<a class="headerlink" href="#the-model" title="Permanent link">&para;</a></h2>
 <p>Subclass <code>AbstractRoutine</code> and add whatever scopes a routine in your project:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">models</span>
@@ -1444,7 +1500,11 @@ thread are later pieces.</p>
 </tr>
 <tr>
 <td><code>last_run_id</code></td>
-<td>The run the last firing started</td>
+<td>The queue's run id for the last firing</td>
+</tr>
+<tr>
+<td><code>last_thread_id</code></td>
+<td>The thread the last firing ran into</td>
 </tr>
 <tr>
 <td><code>created_by</code>, <code>created_at</code>, <code>updated_at</code></td>
@@ -1533,7 +1593,105 @@ that agent's guard. A tool dropped from the list is revoked, and pins afresh if 
 again.</p>
 <p><code>preapproved_exempt(routine)</code> returns the names a firing's guard exempts: only the
 tools that were gated when granted. A tool granted while ungated and declared
-destructive later is not among them, so its call parks.</p>
+destructive later is not among them, so its call parks. Passed to
+<a href="../policy/#answering-a-gated-call-in-the-run"><code>GrantedApprovals</code></a> with
+<code>f"routine:{routine.pk}"</code>, the same names are approved in the run and each call's result
+and audit record carry the routine as <code>answered_by</code>.</p>
+<h2 id="firing-due-routines">Firing due routines<a class="headerlink" href="#firing-due-routines" title="Permanent link">&para;</a></h2>
+<p>The package ships no schedule of its own. Your project runs the <code>run_due_routines</code>
+management command every minute or so, from cron, a systemd timer or its task scheduler,
+and each run fires the routines that have come due since the last. It needs
+<code>django_spec_agents</code> in <code>INSTALLED_APPS</code>.</p>
+<p>The command sweeps every installed routine model whose <code>routine_sweep()</code> returns a
+<code>RoutineSweep</code>; a model that keeps the default <code>None</code> is left alone:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.routines</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractRoutine</span><span class="p">,</span> <span class="n">RoutineSweep</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Routine</span><span class="p">(</span><span class="n">AbstractRoutine</span><span class="p">):</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="o">...</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="nd">@classmethod</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">routine_sweep</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RoutineSweep</span><span class="p">:</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="k">return</span> <span class="n">RoutineSweep</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="n">firing_queue</span><span class="p">,</span> <span class="n">spec_name</span><span class="o">=</span><span class="s2">"run_routine"</span><span class="p">)</span>
+</span></code></pre></div>
+<ul>
+<li><code>queue</code> is your <a href="../reference/persistence/#firingqueue"><code>FiringQueue</code></a>, the same seam a queued headless
+  run goes through, filled from django-spec-tasks or another task queue.</li>
+<li><code>spec_name</code> is the name your queue's registry holds the firing spec under. The sweep
+  enqueues it as the routine's principal with <code>{"routine_id": &lt;pk&gt;, "thread_id": &lt;id&gt;}</code>,
+  a fresh thread id per firing, which the spec runs into.</li>
+<li><code>grace</code> is how late a missed firing may still run. Leave it <code>None</code> for one schedule
+  period, measured from the firing that was missed: a day for a daily routine, three days
+  for a weekday routine's Friday firing.</li>
+</ul>
+<p><code>due_routines(model, sweep, now=None, limit=100)</code> is what the command calls, for a project
+that would rather call it from its own task. It claims the due rows in one query on the
+indexed <code>next_fire_at</code>, with <code>select_for_update(skip_locked=True)</code>, and moves each to its
+next firing in the transaction that enqueues it. Two sweeps that overlap therefore fire a
+routine once: the second passes over the rows the first holds. Run it on a database that
+honours <code>skip_locked</code>, such as PostgreSQL; SQLite ignores the lock.</p>
+<p>For each claimed routine, in this order:</p>
+<table>
+<thead>
+<tr>
+<th>The routine</th>
+<th>The sweep</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Its last firing <code>lapsed</code>: the worker died, or the principal or the spec went away</td>
+<td>Pauses it: <code>enabled</code> off, <code>next_fire_at</code> and <code>last_run_id</code> cleared, <code>paused_reason</code> naming the run</td>
+</tr>
+<tr>
+<td>It is later than its grace, say after downtime</td>
+<td>Skips it, logs it, and counts it as missed</td>
+</tr>
+<tr>
+<td>Its last firing is still <code>pending</code>, or its thread still waits (below)</td>
+<td>Skips it</td>
+</tr>
+<tr>
+<td>The policy's <code>can_run</code> refuses its principal</td>
+<td>Pauses it with that reason</td>
+</tr>
+<tr>
+<td>Otherwise</td>
+<td>Enqueues the firing with a fresh thread id, and stores the run id as <code>last_run_id</code> and the thread as <code>last_thread_id</code></td>
+</tr>
+</tbody>
+</table>
+<p>However late the sweep, <code>next_fire_at</code> moves to the first firing after now, stepped from
+the one claimed, so an outage fires a missed routine at most once and an interval keeps
+its cadence. A routine whose handling raises is rolled back, logged and left for the next
+sweep, and the others go on. The command prints one line per model, and <code>due_routines</code>
+returns the same counts as a <code>SweepResult</code> of primary keys.</p>
+<h3 id="a-firing-parked-on-a-person">A firing parked on a person<a class="headerlink" href="#a-firing-parked-on-a-person" title="Permanent link">&para;</a></h3>
+<p>A firing that reaches a gated tool it was not granted parks its thread until someone
+answers the approval card. Starting the next firing beside it would leave two threads
+waiting on the same question, so the sweep asks the model first:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">asgiref.sync</span><span class="w"> </span><span class="kn">import</span> <span class="n">async_to_sync</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.http</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpRequest</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadRunStatus</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_run_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultRunStore</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">Routine</span><span class="p">(</span><span class="n">AbstractRoutine</span><span class="p">):</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="o">...</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="nd">@classmethod</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">thread_waits</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="n">principal</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">request</span> <span class="o">=</span> <span class="n">HttpRequest</span><span class="p">()</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>        <span class="n">request</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">principal</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>        <span class="n">state</span> <span class="o">=</span> <span class="n">async_to_sync</span><span class="p">(</span><span class="n">DefaultRunStore</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">)(</span><span class="n">thread_id</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="k">return</span> <span class="n">state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">state</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">ThreadRunStatus</span><span class="o">.</span><span class="n">WAITING</span>
+</span></code></pre></div>
+<p><code>thread_waits(thread_id, principal)</code> is asked about <code>last_thread_id</code>, as the routine's
+principal, and a <code>True</code> skips this firing. The hook is synchronous and the run store is
+async and scoped by the owner a request carries, so it builds a request for the principal
+and bridges the call. The default returns <code>False</code>, so a project that
+does not fill it fires on schedule whatever its last thread is doing.</p>
 <h2 id="finding-the-model-and-refusing-one-with-no-policy-at-startup">Finding the model, and refusing one with no policy at startup<a class="headerlink" href="#finding-the-model-and-refusing-one-with-no-policy-at-startup" title="Permanent link">&para;</a></h2>
 <p>There is no setting naming the routine model: the core reads no Django settings. Your
 code holds the model and its policy, and passes the policy to every function above and

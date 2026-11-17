@@ -619,6 +619,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#answering-a-gated-call-in-the-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Answering a gated call in the run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-a-raising-tool-costs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1439,6 +1450,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#answering-a-gated-call-in-the-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Answering a gated call in the run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-a-raising-tool-costs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1744,6 +1766,58 @@ deployment ends up without the gate it assumes:</p>
   <code>destructiveHint: False</code>.</li>
 </ul>
 </div>
+<h2 id="answering-a-gated-call-in-the-run">Answering a gated call in the run<a class="headerlink" href="#answering-a-gated-call-in-the-run" title="Permanent link">&para;</a></h2>
+<p>A gated call ends the run and waits for a person, unless an in-run answerer approves it
+first. Two answerers ship, both on pydantic-ai's <code>handle_deferred_tool_calls</code>; the guard
+still gates the call, and the answerer only answers it:</p>
+<ul>
+<li><strong><code>GrantedApprovals(names, answered_by)</code></strong> approves a fixed grant. A routine's firing
+  spec can pass <code>GrantedApprovals(preapproved_exempt(routine), f"routine:{routine.pk}")</code>:
+  only the tools that were gated when granted, so a tool declared destructive since parks.</li>
+<li><strong><code>ReviewedApprovals</code></strong>, composed from <code>AgentConfig.approval_reviewer</code>, asks a second
+  model, through pydantic-ai-harness's <code>ApprovalReviewer</code> (the <code>[harness]</code> extra), a
+  yes/no risk question about each call. <code>no</code> approves the call, marked
+  <code>reviewer:&lt;model&gt;</code>; <code>yes</code>, <code>unsure</code> and a failed review leave it for the person.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConfig</span><span class="p">,</span> <span class="n">ApprovalReviewerConfig</span><span class="p">,</span> <span class="n">ToolGuardConfig</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">tool_guard</span><span class="o">=</span><span class="n">ToolGuardConfig</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">approval_reviewer</span><span class="o">=</span><span class="n">ApprovalReviewerConfig</span><span class="p">(</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="n">model</span><span class="o">=</span><span class="s2">"anthropic:claude-haiku-5-5"</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="n">question</span><span class="o">=</span><span class="s2">"Could this destroy data, spend money, or leak secrets?"</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">"archive_order"</span><span class="p">,</span> <span class="s2">"send_receipt"</span><span class="p">],</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="p">),</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>tools</code> names the tools the reviewer answers for, or is <code>"all"</code>: every approval request,
+including those a <code>ToolGuardrail</code> or <code>ToolCallJudge</code> raises and tools added later, all
+under the one question. Name the tools the question was written for. The mark is the model
+string as given, or <code>system:model_name</code> for a <code>Model</code> instance.</p>
+<p>A grant answers before the reviewer, whatever order the capabilities are listed in, so a
+granted call costs no review; a project's own <code>HandleDeferredToolCalls</code> answers after
+both.</p>
+<p><strong>Never answered in the run.</strong> The tools in <code>NEVER_AUTO_APPROVED</code>, <code>create_routine</code>,
+<code>update_routine</code> and the skill-authoring tools (<code>create_skill</code>, <code>update_skill</code>,
+<code>disable_skill</code>, <code>enable_skill</code>), park for the person under a name list, under <code>"all"</code>
+and in a grant: their approval card is the grant itself.</p>
+<p><strong>Who answered is recorded.</strong> Each answerer sets <code>DeferredToolResults.answered_by</code> and
+<code>metadata[id]["answered_by"]</code>. <code>build_agent</code> always composes <code>AnsweredByMetadata</code>, which
+copies the mark onto the call's <code>ToolReturnPart.metadata</code>, merged into a tool's own dict
+metadata such as an MCP Apps record. <code>AuditEvent.answered_by</code> carries it for the call that
+ran, and <code>LoggingAuditLogger</code> writes it as <code>answered_by=</code>. A project's own answerer gets
+both by setting the same <code>metadata</code> key, <code>ANSWERED_BY_KEY</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">A reviewer approves destructive calls in the person's place</p>
+<p>The family's rule is that a destructive call runs only once a person approves it on
+its card. Listing a tool for the reviewer, or choosing <code>"all"</code>, departs from that
+rule: a model's <code>no</code> runs the call, and no person sees it. The reviewer never denies,
+so every call it does not clear still reaches the person, and the audit record names
+the reviewer for every call it cleared. It is a filter on what a person is asked, not
+a security boundary: a tool that destroys data, spends money or exposes secrets still
+needs its own authorization.</p>
+</div>
 <h2 id="what-a-raising-tool-costs">What a raising tool costs<a class="headerlink" href="#what-a-raising-tool-costs" title="Permanent link">&para;</a></h2>
 <p>Without a policy, a tool that raises ends the run. The transport emits
 <code>RUN_ERROR</code>, the turn stops, and everything the model had already produced goes
@@ -1751,13 +1825,13 @@ with it — along with the results of every other tool in the same round. One
 broken integration costs the whole answer.</p>
 <p><code>ToolFailurePolicy</code> changes what the failure stops, and nothing else. The call
 comes back to the model marked failed, naming the tool, and the run carries on:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">"openai:gpt-4o"</span><span class="p">)</span>  <span class="c1"># on by default</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">"openai:gpt-4o"</span><span class="p">)</span>  <span class="c1"># on by default</span>
 </span></code></pre></div>
 <p>Turn it off so a raising tool ends the run again, or opt into detail:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolFailureConfig</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">include_detail</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolFailureConfig</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">AgentConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=...</span><span class="p">,</span> <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">include_detail</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
 </span></code></pre></div>
 <p><strong><code>include_detail</code> is off by default, and the split is deliberate.</strong> Whether the
 run survives is a reliability question; whether the exception's text reaches the
@@ -1822,21 +1896,21 @@ model taking the failed result's "do not retry" at its word (with
 instruction), and pydantic-ai's default request limit, which ends a run that
 keeps calling. Set run-level <code>UsageLimits</code> when a tool's side effects matter.</p>
 <p>To have a spent budget end the run, name the exception in <code>reraise</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDenied</span> <span class="k">as</span> <span class="n">DjangoPermissionDenied</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">NotPermitted</span><span class="p">,</span> <span class="n">PrincipalUnavailable</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnexpectedModelBehavior</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">AgentConfig</span><span class="p">(</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="n">reraise</span><span class="o">=</span><span class="p">(</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>            <span class="n">UnexpectedModelBehavior</span><span class="p">,</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>            <span class="n">DjangoPermissionDenied</span><span class="p">,</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>            <span class="n">NotPermitted</span><span class="p">,</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>            <span class="n">PrincipalUnavailable</span><span class="p">,</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="p">),</span>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="p">),</span>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDenied</span> <span class="k">as</span> <span class="n">DjangoPermissionDenied</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">NotPermitted</span><span class="p">,</span> <span class="n">PrincipalUnavailable</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnexpectedModelBehavior</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">model</span><span class="o">=...</span><span class="p">,</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">tool_failure</span><span class="o">=</span><span class="n">ToolFailureConfig</span><span class="p">(</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="n">reraise</span><span class="o">=</span><span class="p">(</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>            <span class="n">UnexpectedModelBehavior</span><span class="p">,</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>            <span class="n">DjangoPermissionDenied</span><span class="p">,</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>            <span class="n">NotPermitted</span><span class="p">,</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>            <span class="n">PrincipalUnavailable</span><span class="p">,</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="p">),</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="p">),</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The example re-lists every denial the default set holds, so it assumes the
 kernel is installed. Leave out the ones your project cannot raise, and add the
@@ -1881,8 +1955,8 @@ so the two are not told apart by the result's <em>shape</em>. They are still tol
 by its <em>words</em>: one says the row is not there and the other says the tool
 failed. An oracle needs one bit, and a message is a place to find one.</p>
 <p>The set is a project decision:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">reraise</span><span class="o">=</span><span class="p">())</span>  <span class="c1"># convert everything, denials included</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">reraise</span><span class="o">=</span><span class="p">(</span><span class="n">PermissionDenied</span><span class="p">,</span> <span class="ne">LookupError</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">reraise</span><span class="o">=</span><span class="p">())</span>  <span class="c1"># convert everything, denials included</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">ToolFailureConfig</span><span class="p">(</span><span class="n">reraise</span><span class="o">=</span><span class="p">(</span><span class="n">PermissionDenied</span><span class="p">,</span> <span class="ne">LookupError</span><span class="p">))</span>
 </span></code></pre></div>
 <h2 id="ordering">Ordering<a class="headerlink" href="#ordering" title="Permanent link">&para;</a></h2>
 <p>Each capability here declares its own place through <code>get_ordering()</code>, and

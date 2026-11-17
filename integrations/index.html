@@ -704,6 +704,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#interactive-views-mcp-apps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive views (MCP Apps)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#a-tool-that-cannot-run-now" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1395,6 +1406,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#interactive-views-mcp-apps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive views (MCP Apps)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#a-tool-that-cannot-run-now" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1642,11 +1664,27 @@ hands the model <code>3</code>, and any result of a tool registered with
 is, and content that is not one text block, such as an image, as its blocks.</p>
 <p>A call's <code>call_context</code> is built by django-spec-mcp, not by this package, so the
 transport a spec reads off it (<code>call_transport(call_context)</code>) is whatever the
-installed django-spec-mcp stamps. At this package's floor, 0.9.0, it stamps none,
-and a bridged call reads <code>None</code>; from 0.10.0 it stamps <code>"mcp"</code>, its <code>MCP_TRANSPORT</code>.
+installed django-spec-mcp stamps. A bridged call reads <code>"mcp"</code>, the
+<code>MCP_TRANSPORT</code> django-spec-mcp stamps from 0.10.0.
 It is never <code>"agent"</code>: that value, <code>AGENT_TRANSPORT</code>, is what <code>[specs]</code> stamps on a
 call it serves in process, so a spec written to branch on the transport sees a
 different one on each route.</p>
+<h3 id="interactive-views-mcp-apps">Interactive views (MCP Apps)<a class="headerlink" href="#interactive-views-mcp-apps" title="Permanent link">&para;</a></h3>
+<p>A tool registered with <code>ui=UIToolMeta(...)</code> links to a <code>ui://</code> view. The bridge keeps the
+tool's <code>_meta</code> and acts on <code>_meta.ui</code>:</p>
+<ul>
+<li>A tool whose <code>visibility</code> is a list without <code>"model"</code> (<code>["app"]</code>) is not offered to the
+  model: the view's own page calls it.</li>
+<li>A call to a tool with a <code>resourceUri</code> returns the value as before, wrapped in a
+  <code>ToolReturn</code> whose metadata holds an <code>mcp_app</code> record (<code>resource_uri</code>, <code>tool_input</code>,
+  <code>result</code> in wire form, <code>toolset_id</code> <code>"mcp"</code>). pydantic-ai's AG-UI adapter turns it into
+  the <code>mcp-apps</code> activity; the record is never sent to the model.</li>
+<li><code>call_tool_for_app(name, arguments)</code> and <code>read_resource_for_app(uri)</code> are what the
+  endpoint your frontend relays the page's requests to calls, with pydantic-ai's
+  signatures. The first answers <code>-32602</code> for a tool whose visibility omits <code>"app"</code>. Both
+  run as the request's user and return the wire result, or a <code>JsonRpcError</code> for a protocol
+  fault.</li>
+</ul>
 <h3 id="a-tool-that-cannot-run-now">A tool that cannot run now<a class="headerlink" href="#a-tool-that-cannot-run-now" title="Permanent link">&para;</a></h3>
 <p>A service's <code>affordances</code> can say when the operation is possible at all: a
 condition written as a callable reads only the user and the request, never the
