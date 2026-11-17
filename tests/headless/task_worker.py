@@ -6,9 +6,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
-from django.contrib.auth import get_user_model
 from django.core.serializers.json import DjangoJSONEncoder
-from django_service_specs import build_call_context, check_call, dispatch, present
+from django_service_specs import (
+    NotPermitted,
+    PrincipalUnavailable,
+    build_call_context,
+    check_call,
+    dispatch,
+    present,
+    resolve_principal,
+)
 
 from django_spec_agents.headless.types.firing_state import FiringState
 
@@ -61,8 +68,8 @@ class TaskWorker:
         row.state, row.attempts = "RUNNING", row.attempts + 1
         row.lease_expires_at = self.clock() + self.lease
         spec = self.specs[row.spec_name]
-        principal = None if row.actor_pk is None else get_user_model().objects.get(pk=row.actor_pk)
         try:
+            principal = None if row.actor_pk is None else resolve_principal(row.actor_pk)
             result = dispatch(
                 spec,
                 principal=principal,
@@ -70,6 +77,9 @@ class TaskWorker:
                 call_context=build_call_context("task", base={"carried": {}}),
             )
             output = present(spec, result)
+        except (NotPermitted, PrincipalUnavailable):
+            row.state = "AUTHORIZATION_LAPSED"
+            return
         except Exception:
             row.state = "FAILED"
             return

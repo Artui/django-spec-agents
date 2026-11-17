@@ -28,6 +28,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 _T0 = datetime(2026, 1, 1, tzinfo=UTC)
 _LEASE = timedelta(seconds=30)
 _WAITING = RunWaiting(kind="approval", summary="delete_thing", tool_call_id="c1", destructive=True)
+_PARKED = RunStop("t1", "r1", RunOutcome.WAITING, _WAITING)
 _PARAMS = {"agent_id": "support", "prompt": "Summarise the inbox.", "timeout": 60}
 
 
@@ -52,8 +53,10 @@ class _Nobody(PermissionCheck):
 class _Runner:
     """A ``HeadlessRunner`` that claims its thread in a real run store, then stops or dies."""
 
-    def __init__(self, store: DefaultRunStore, fault: BaseException | None = None) -> None:
-        self.store, self.fault, self.calls = store, fault, []
+    def __init__(
+        self, store: DefaultRunStore, fault: BaseException | None = None, stop: RunStop = _PARKED
+    ) -> None:
+        self.store, self.fault, self.stop, self.calls = store, fault, stop, []
 
     async def start(self, *args: Any, **kwargs: Any) -> HeadlessStart:
         raise NotImplementedError
@@ -75,8 +78,10 @@ class _Runner:
         await self.store.claim("t1", "r1", request=request, lease=_LEASE)
         if self.fault is not None:
             raise self.fault
-        await self.store.finish("t1", "r1", RunOutcome.WAITING, request=request, waiting=_WAITING)
-        return RunStop("t1", "r1", RunOutcome.WAITING, _WAITING)
+        await self.store.finish(
+            "t1", "r1", self.stop.outcome, request=request, waiting=self.stop.waiting
+        )
+        return self.stop
 
     async def cancel(self, thread_id: str, principal: Any) -> bool:
         raise NotImplementedError
@@ -147,6 +152,34 @@ def test_a_worker_runs_the_spec_to_its_first_stop(
     )
     assert principal is not user and principal.pk == user.pk
     assert capabilities == ()
+
+
+def test_a_run_that_completes_presents_no_waiting(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    worker = _worker(_Runner(store, stop=RunStop("t1", "r1", RunOutcome.COMPLETED)), clock)
+    run_id = worker.enqueue("run_headless", _PARAMS, actor=user)
+
+    worker.run(run_id)
+
+    output = {"thread_id": "t1", "run_id": "r1", "outcome": "completed", "waiting": None}
+    assert worker.rows[run_id].output == output
+    assert worker.state(run_id) is FiringState.FINISHED
+
+
+def test_a_principal_deactivated_before_the_worker_lapses_the_firing(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    runner = _Runner(store)
+    worker = _worker(runner, clock)
+    run_id = worker.enqueue("run_headless", _PARAMS, actor=user)
+    user.is_active = False
+    user.save()
+
+    worker.run(run_id)
+
+    assert worker.state(run_id) is FiringState.LAPSED
+    assert runner.calls == []
 
 
 def test_the_thread_and_parent_default_to_none(
