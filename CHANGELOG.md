@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The `[mcp]` bridge carries MCP Apps views.** `MCPToolset` keeps each tool's `_meta` on its
+  definition (under the `"meta"` metadata key, as pydantic-ai's own `MCPToolset` does) and
+  leaves a tool whose `_meta.ui.visibility` is a list without `"model"` out of `get_tools`,
+  and out of the names a retry offers. A call to a tool with `_meta.ui.resourceUri` returns
+  `ToolReturn(return_value=<the value as before>, metadata={"mcp_app": {...}})`, the record
+  pydantic-ai's AG-UI and Vercel adapters turn into the `mcp-apps` activity, with
+  `resource_uri`, `tool_input`, `result` (the wire result) and `toolset_id` `"mcp"`.
+  `call_tool_for_app(name, arguments)` and `read_resource_for_app(uri)` take pydantic-ai's
+  signatures and act as the request's user, the first refusing with `-32602` a tool whose
+  visibility omits `"app"`. Both return django-spec-mcp's `JsonRpcError` for a protocol
+  fault rather than raising pydantic-ai's `MCPError`, which needs the `mcp` package the
+  `[mcp]` extra does not install.
+
 ### Changed
 
 - **Floors: `pydantic-ai-slim>=2.68`, `pydantic-ai-harness>=0.68`, `django-spec-mcp>=0.14.0`.**
