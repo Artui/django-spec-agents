@@ -36,6 +36,10 @@ The stored-skill model, its policy and the functions over them. See
 
 ::: django_spec_agents.skills.disable_skill
 
+## `enable_skill`
+
+::: django_spec_agents.skills.enable_skill
+
 ## `StoredSkills`
 
 ::: django_spec_agents.skills.StoredSkills

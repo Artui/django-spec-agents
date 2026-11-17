@@ -29,18 +29,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   two parent columns to `StoredConversation` and the `StoredInboundMessage` table.
 - **Stored skills reach the agent: `StoredSkills` and `build_skill_tools`**, in
   `django_spec_agents.skills`. `StoredSkills(policy, request)` goes in a run's
-  `capabilities=`. On every run it reads the caller's visible skills through the policy and
-  offers each enabled, model-invocable one as a deferred capability whose id is its name. A
-  skill written between two runs is therefore live on the next run, and the model sees only
-  the name and description until it calls `load_capability`. A loaded skill adds
-  instructions only: no tool and no permission. The tool guard, the approval policy and the
-  policy's `can_write` apply whatever its body says. `authoring=True` adds the four tools
-  `build_skill_tools(policy, request)` returns. `list_skills` returns no bodies.
-  `create_skill`, `update_skill` and `disable_skill` carry the destructive marker, so
-  `ToolGuard` defers them for approval with the body on the card. A broken draft goes back
-  to the model to retry, and a refused write is reported as text. It also adds a bundled
-  `create-skill` skill that interviews the user and saves the draft with `create_skill`. A
-  visible stored skill named `create-skill` shadows it.
+  `capabilities=`. On every run it reads the caller's visible skills through the policy
+  and offers each enabled, model-invocable one as a deferred capability whose id is its
+  name. A skill written between two runs is therefore live on the next run, and the model
+  sees only the name and description until it calls `load_capability`. A loaded skill adds
+  instructions only: no tool and no permission. The tool guard, the approval policy and
+  the policy's `can_write` apply whatever its body says. `authoring=True` adds the five
+  tools `build_skill_tools(policy, request)` returns. `list_skills` returns no bodies.
+  `create_skill`, `update_skill`, `disable_skill` and `enable_skill` carry the destructive
+  marker, so `ToolGuard` defers them for approval with the body on the card. A broken
+  draft goes back to the model to retry, and a refused write is reported as text. It also
+  adds a bundled `create-skill` skill that interviews the user and saves the draft with
+  `create_skill`. A visible stored skill named `create-skill` shadows it.
+  `enable_skill(policy, request, skill)` turns a disabled skill back on, mirroring
+  `disable_skill`: `can_write` is asked of the row and the result, a refusal changes
+  nothing, and like `create_skill` it refuses a caller who already sees
+  `MAX_VISIBLE_SKILLS` enabled skills.
 - **`FiringQueue` and the `run_headless` spec: a headless run whose owner lives in a
   worker.** `FiringQueue` is the seam a host fills from its task queue, such as
   django-spec-tasks' `enqueue` and `state_of`: `enqueue(spec_name, params, *, actor)`

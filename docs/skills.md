@@ -90,14 +90,14 @@ list_visible_skills(policy, request)
 - `list_visible_skills` returns the caller's enabled skills, one per name.
   `resolve_skill` returns the one a name reaches, or `None`. A disabled skill shadows
   nothing, so disabling a personal skill brings back the company one of the same name.
-- `create_skill`, `update_skill` and `disable_skill` write. Each one asks `can_write`
-  and raises `SkillWriteRefusedError` when the policy refuses. That error is a Django
-  `PermissionDenied`. A create asks about the new skill. An update and a disable ask
-  twice, once about the row as stored and once about the result. A refused update or
-  disable leaves both the row and the instance you passed as they were.
+- `create_skill`, `update_skill`, `disable_skill` and `enable_skill` write. Each one asks
+  `can_write` and raises `SkillWriteRefusedError` when the policy refuses. That error is a
+  Django `PermissionDenied`. A create asks about the new skill. An update, a disable and
+  an enable ask twice, once about the row as stored and once about the result. A refused
+  update, disable or enable leaves both the row and the instance you passed as they were.
 - A name that is not kebab-case raises `InvalidSkillError`. So do a blank or oversized
-  description or body, and a create by a caller who already sees `MAX_VISIBLE_SKILLS`
-  (100) enabled skills.
+  description or body, and a create or an enable by a caller who already sees
+  `MAX_VISIBLE_SKILLS` (100) enabled skills.
 - `list_visible_skills` stops at `MAX_VISIBLE_SKILLS`, in the policy's order, because its
   list is the catalog that reaches the model. A create can be admitted while other
   callers already see the cap, for example when staff add a company skill that a member
@@ -141,7 +141,7 @@ changed between two runs is offered on the next run, with no agent rebuild.
 A skill grants nothing. It has no tools, and it cannot lift an approval. A destructive tool
 waits for approval, and the policy's `can_write` refuses a write, whatever a body says.
 
-`authoring=True` adds `build_skill_tools`' four tools:
+`authoring=True` adds `build_skill_tools`' five tools:
 
 | Tool | Gated | Does |
 | --- | --- | --- |
@@ -149,8 +149,9 @@ waits for approval, and the policy's `can_write` refuses a write, whatever a bod
 | `create_skill` | yes | `create_skill` with the name, description, body and flags given |
 | `update_skill` | yes | replaces the draft of the enabled skill the caller reaches by name |
 | `disable_skill` | yes | `disable_skill` on that skill |
+| `enable_skill` | yes | `enable_skill` on the first disabled skill of that name the policy yields |
 
-The three writes carry the destructive marker, so `ToolGuard` defers them for approval and
+The four writes carry the destructive marker, so `ToolGuard` defers them for approval and
 the approval card shows the body. A draft that breaks a rule is sent back to the model to
 retry. A write the policy refuses is reported to the model as text, and nothing changes.
 
