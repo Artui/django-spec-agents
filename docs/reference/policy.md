@@ -36,6 +36,32 @@ See [Policy](../policy.md) for the narrative.
 
 ::: django_spec_agents.ToolGuard
 
+## In-run answers
+
+### `ApprovalReviewerConfig`
+
+::: django_spec_agents.ApprovalReviewerConfig
+
+### `GrantedApprovals`
+
+::: django_spec_agents.GrantedApprovals
+
+### `ReviewedApprovals`
+
+::: django_spec_agents.ReviewedApprovals
+
+### `AnsweredByMetadata`
+
+::: django_spec_agents.AnsweredByMetadata
+
+### `NEVER_AUTO_APPROVED`
+
+::: django_spec_agents.NEVER_AUTO_APPROVED
+
+### `ANSWERED_BY_KEY`
+
+::: django_spec_agents.ANSWERED_BY_KEY
+
 ## Tool failure
 
 ### `ToolFailureConfig`

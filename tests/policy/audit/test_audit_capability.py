@@ -38,6 +38,7 @@ from pydantic_ai_harness import guardrails as harness_guardrails
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
 from django_spec_agents.policy.audit import audit_capability as audit_module
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
@@ -48,8 +49,8 @@ from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardCon
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.spec_tools import SpecCapability
+from tests.policy.approvals.approval_runs import returns
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
-from tests.tool_retries import is_tool_retry
 
 # Every scenario below is a real agent run: a real ``Agent``, real capabilities
 # and pydantic-ai's own hook dispatch. Which hook encloses which is the
@@ -1493,15 +1494,15 @@ async def _run_lookup_under_code_mode(
         capabilities=[CodeMode(), AuditCapability(audit), *capabilities],
     )
     result = await agent.run("lookup")
-    retries = [
+    seen = [
         str(part.content)
         for message in result.all_messages()
         if isinstance(message, ModelRequest)
         for part in message.parts
-        if is_tool_retry(part) and part.tool_name == "run_code"
+        if part.part_kind == "tool-return" and part.tool_name == "run_code"
     ]
     failures = [e.error for e in audit.events if not e.success and e.tool_name == "lookup"]
-    return failures, "\n".join(retries)
+    return failures, "\n".join(seen)
 
 
 async def _run_lookup_directly(lookup: Callable[[], str]) -> list[str | None]:
@@ -1563,7 +1564,7 @@ async def test_under_code_mode_a_tools_model_retry_is_recorded_as_raised() -> No
 
 
 async def test_under_code_mode_the_policys_translation_records_the_exception() -> None:
-    """The record names the exception; the sandbox sees a plain ``Exception`` with its message."""
+    """The record names the exception; ``run_code`` carries the policy's message alone."""
 
     def lookup() -> str:
         """Look up order 42."""
@@ -1572,7 +1573,7 @@ async def test_under_code_mode_the_policys_translation_records_the_exception() -
     failures, sandbox_saw = await _run_lookup_under_code_mode(lookup, ToolFailurePolicy())
 
     assert failures == ["RuntimeError: hunter2"]
-    assert "Exception: The lookup tool failed and returned no result." in sandbox_saw
+    assert "The lookup tool failed and returned no result." in sandbox_saw
     assert "PolicyToolFailed" not in sandbox_saw
     assert "hunter2" not in sandbox_saw
 
@@ -1743,3 +1744,40 @@ async def test_a_code_mode_call_keeps_its_own_record_around_inline_nested_calls(
     assert [name for name, _, _ in plain] == ["lookup", "run_code"]
     assert padded[0] == plain[0]
     assert abs(padded[1][2] - plain[1][2]) < 100
+
+
+def _delete_order(order_id: int) -> str:
+    """Delete an order."""
+    return f"deleted {order_id}"
+
+
+async def test_an_approved_call_that_runs_records_who_approved_it() -> None:
+    audit = CapturingAuditLogger()
+    registry = ToolRegistry()
+    tool(registry, name="delete_order", destructive=True)(_delete_order)
+    agent = build_agent(
+        registry,
+        AgentConfig(
+            model=TestModel(call_tools=["delete_order"]),
+            audit_logger=audit,
+            tool_guard=ToolGuardConfig(enabled=True),
+            capabilities=[GrantedApprovals(["delete_order"], "routine:7")],
+        ),
+    )
+
+    result = await agent.run("go", deps=_deps())
+
+    [event] = audit.events
+    assert (event.tool_name, event.success) == ("delete_order", True)
+    assert event.answered_by == "routine:7"
+    assert returns(result)["delete_order"].metadata == {"answered_by": "routine:7"}
+
+
+async def test_a_call_that_needed_no_approval_records_no_answerer() -> None:
+    audit = CapturingAuditLogger()
+    agent = _agent(_delete_order, sink=audit)
+
+    await agent.run("go", deps=_deps())
+
+    [event] = audit.events
+    assert event.answered_by is None

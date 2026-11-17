@@ -15,6 +15,7 @@ from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.build_run_waiting import build_run_waiting
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
@@ -45,6 +46,14 @@ from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
+from django_spec_agents.policy.approvals.answered_by_metadata import AnsweredByMetadata
+from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
+from django_spec_agents.policy.approvals.reviewed_approvals import ReviewedApprovals
+from django_spec_agents.policy.approvals.types.answered_by_key import ANSWERED_BY_KEY
+from django_spec_agents.policy.approvals.types.approval_reviewer_config import (
+    ApprovalReviewerConfig,
+)
+from django_spec_agents.policy.approvals.types.never_auto_approved import NEVER_AUTO_APPROVED
 from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.logging_audit_logger import LoggingAuditLogger
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
@@ -77,7 +86,13 @@ __all__ = [
     "AttachmentInlineConfig",
     "AttachmentRef",
     "AttachmentStore",
+    "ANSWERED_BY_KEY",
+    "AnsweredByMetadata",
+    "ApprovalReviewerConfig",
     "AuditCapability",
+    "GrantedApprovals",
+    "NEVER_AUTO_APPROVED",
+    "ReviewedApprovals",
     "AuditEvent",
     "AuditLogger",
     "Conversation",
@@ -129,6 +144,7 @@ __all__ = [
     "__version__",
     "build_agent",
     "build_input_schema",
+    "build_run_waiting",
     "build_tool_catalog",
     "memory_namespace",
     "memory_namespace_for_user",

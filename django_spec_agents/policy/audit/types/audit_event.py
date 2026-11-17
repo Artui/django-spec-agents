@@ -39,5 +39,10 @@ class AuditEvent:
     ip_address: str | None = None
     """Client IP of the request that drove the run, when the view knows it."""
 
+    answered_by: str | None = None
+    """Who approved a gated call in the person's place, such as ``routine:<id>`` or
+    ``reviewer:<model>``, read from the call's ``answered_by`` metadata. ``None`` for a
+    call that needed no approval or that a person approved."""
+
 
 __all__ = ["AuditEvent"]

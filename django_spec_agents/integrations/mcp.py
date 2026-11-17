@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 from typing import Any
@@ -10,6 +11,7 @@ from django.http import HttpRequest
 from django_service_specs import NON_FIELD_ERRORS
 from django_spec_mcp import JsonRpcError, JsonRpcErrorCode
 from pydantic_ai import ModelRetry, ToolFailed
+from pydantic_ai.messages import ToolReturn
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_core import SchemaValidator, core_schema
@@ -42,6 +44,31 @@ def _unavailable_instruction(unavailable: dict[str, Any]) -> str:
     lines = [_UNAVAILABLE_INSTRUCTION]
     lines.extend(f"  - `{name}`: {affordance.reason}" for name, affordance in unavailable.items())
     return "\n".join(lines)
+
+
+_META_KEY = "meta"
+_MCP_APP_KEY = "mcp_app"
+
+
+def _tool_meta(tool_def: ToolDefinition) -> dict[str, Any]:
+    """The tool's ``_meta`` as the definition carries it, ``{}`` when it had none."""
+    meta = (tool_def.metadata or {}).get(_META_KEY)
+    return meta if isinstance(meta, dict) else {}
+
+
+def _visible_to(tool_def: ToolDefinition, audience: str) -> bool:
+    """Whether ``_meta.ui.visibility`` lets ``audience`` see the tool; unsaid is everyone."""
+    ui = _tool_meta(tool_def).get("ui")
+    visibility = ui.get("visibility") if isinstance(ui, dict) else None
+    return audience in visibility if isinstance(visibility, list) else True
+
+
+def _app_resource_uri(tool_def: ToolDefinition) -> str | None:
+    """The ``ui://`` view the tool renders with, from ``_meta.ui`` or the deprecated flat key."""
+    meta = _tool_meta(tool_def)
+    ui = meta.get("ui")
+    uri = ui.get("resourceUri") if isinstance(ui, dict) else meta.get("ui/resourceUri")
+    return uri if isinstance(uri, str) else None
 
 
 def _parse_tool_error(result: dict[str, Any]) -> dict[str, Any]:
@@ -243,7 +270,7 @@ class MCPToolset(AbstractToolset[Any]):
                 args_validator=_TOOL_ARGS_VALIDATOR,
             )
             for tool_def in self._tool_defs
-            if tool_def.name not in unavailable
+            if tool_def.name not in unavailable and _visible_to(tool_def, "model")
         }
 
     async def get_instructions(self, ctx: Any) -> str | None:
@@ -294,20 +321,22 @@ class MCPToolset(AbstractToolset[Any]):
                 if tool["name"] in self._exclude_names:
                     continue
                 annotations = tool.get("annotations") or {}
-                metadata = (
-                    {DESTRUCTIVE_METADATA_KEY: True}
-                    if annotations
+                metadata: dict[str, Any] = {}
+                if (
+                    annotations
                     and annotations.get("readOnlyHint") is not True
                     and annotations.get("destructiveHint") is not False
-                    else None
-                )
+                ):
+                    metadata[DESTRUCTIVE_METADATA_KEY] = True
+                if isinstance(tool.get("_meta"), dict):
+                    metadata[_META_KEY] = tool["_meta"]
                 output_schema = tool.get("outputSchema")
                 defs.append(
                     ToolDefinition(
                         name=tool["name"],
                         description=tool.get("description"),
                         parameters_json_schema=tool["inputSchema"],
-                        metadata=metadata,
+                        metadata=metadata or None,
                         return_schema=output_schema,
                         include_return_schema=output_schema is not None,
                     )
@@ -354,13 +383,48 @@ class MCPToolset(AbstractToolset[Any]):
                 raise ModelRetry(prompt)
             failure = _failure_message(error)
             raise ToolFailed(failure)
-        return _tool_value(result)
+        value = _tool_value(result)
+        resource_uri = None if tool is None else _app_resource_uri(tool.tool_def)
+        if resource_uri is None:
+            return value
+        app = {
+            "resource_uri": resource_uri,
+            "tool_input": copy.deepcopy(tool_args),
+            "result": result,
+            "toolset_id": self.id,
+        }
+        return ToolReturn(return_value=value, metadata={_MCP_APP_KEY: app})
+
+    async def call_tool_for_app(
+        self, name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any] | JsonRpcError:
+        """Call a tool for an MCP App page as the request user; -32602 if not app-visible."""
+        if arguments is None:
+            arguments = {}
+        elif not isinstance(arguments, dict):
+            return JsonRpcError(JsonRpcErrorCode.INVALID_PARAMS, "Tool arguments must be an object")
+        if self._tool_defs is None:
+            self._tool_defs = await sync_to_async(self._load_tool_defs)()
+        tool_def = next((d for d in self._tool_defs if d.name == name), None)
+        if tool_def is None or not _visible_to(tool_def, "app"):
+            return JsonRpcError(
+                JsonRpcErrorCode.INVALID_PARAMS, f"Tool {name!r} is not available to apps"
+            )
+        return await self._server.acall_tool(
+            name, arguments, user=self._request.user, request=self._request
+        )
+
+    async def read_resource_for_app(self, uri: str) -> dict[str, Any] | JsonRpcError:
+        """Read a resource for an MCP App page as the request's user, in wire form."""
+        return await self._server.aread_resource(
+            uri, user=self._request.user, request=self._request
+        )
 
     def _advertised_names(self, name: str) -> list[str] | None:
         """The tools this toolset offers, when the failure looks like a bad name."""
         if self._tool_defs is None:
             return None
-        names: list[str] = [d.name for d in self._tool_defs]
+        names: list[str] = [d.name for d in self._tool_defs if _visible_to(d, "model")]
         return None if name in names else names
 
 

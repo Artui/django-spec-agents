@@ -105,6 +105,10 @@ runs on the server. See [Storage](../storage.md#run-status-and-event-logs).
 
 ::: django_spec_agents.RunWaiting
 
+### `build_run_waiting`
+
+::: django_spec_agents.build_run_waiting
+
 ### `ThreadRunState`
 
 ::: django_spec_agents.ThreadRunState

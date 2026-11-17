@@ -44,6 +44,7 @@ def _context_suffix(event: AuditEvent) -> str:
             ("org", event.organization_id),
             ("target", _target(event)),
             ("ip", event.ip_address),
+            ("answered_by", event.answered_by),
         )
         if value is not None
     ]

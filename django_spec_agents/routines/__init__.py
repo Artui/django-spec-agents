@@ -1,5 +1,6 @@
 from django_spec_agents.routines.abstract_routine import AbstractRoutine
 from django_spec_agents.routines.create_routine import create_routine
+from django_spec_agents.routines.due_routines import due_routines
 from django_spec_agents.routines.invalid_routine_error import InvalidRoutineError
 from django_spec_agents.routines.next_fire_at import next_fire_at
 from django_spec_agents.routines.parse_schedule import parse_schedule
@@ -21,7 +22,9 @@ from django_spec_agents.routines.types.min_routine_interval import MIN_ROUTINE_I
 from django_spec_agents.routines.types.preapproved_tool import PreapprovedTool
 from django_spec_agents.routines.types.routine_draft import RoutineDraft
 from django_spec_agents.routines.types.routine_policy import RoutinePolicy
+from django_spec_agents.routines.types.routine_sweep import RoutineSweep
 from django_spec_agents.routines.types.schedule import Schedule
+from django_spec_agents.routines.types.sweep_result import SweepResult
 from django_spec_agents.routines.types.weekly_schedule import WeeklySchedule
 from django_spec_agents.routines.update_routine import update_routine
 
@@ -38,10 +41,13 @@ __all__ = [
     "PreapprovedTool",
     "RoutineDraft",
     "RoutinePolicy",
+    "RoutineSweep",
     "RoutineWriteRefusedError",
     "Schedule",
+    "SweepResult",
     "WeeklySchedule",
     "create_routine",
+    "due_routines",
     "next_fire_at",
     "parse_schedule",
     "pin_preapproved_tools",

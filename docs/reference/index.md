@@ -61,5 +61,11 @@ from django_spec_agents import (
     LoggingAuditLogger,
     ToolGuard,
     ToolGuardConfig,
+    ApprovalReviewerConfig,
+    GrantedApprovals,
+    ReviewedApprovals,
+    AnsweredByMetadata,
+    NEVER_AUTO_APPROVED,
+    ANSWERED_BY_KEY,
 )
 ```

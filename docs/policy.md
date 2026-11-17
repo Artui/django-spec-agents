@@ -231,6 +231,64 @@ server does not perform is worse than no promise at all:
       or a registration overrides the annotation with `readOnlyHint: True` or
       `destructiveHint: False`.
 
+## Answering a gated call in the run
+
+A gated call ends the run and waits for a person, unless an in-run answerer approves it
+first. Two answerers ship, both on pydantic-ai's `handle_deferred_tool_calls`; the guard
+still gates the call, and the answerer only answers it:
+
+- **`GrantedApprovals(names, answered_by)`** approves a fixed grant. A routine's firing
+  spec can pass `GrantedApprovals(preapproved_exempt(routine), f"routine:{routine.pk}")`:
+  only the tools that were gated when granted, so a tool declared destructive since parks.
+- **`ReviewedApprovals`**, composed from `AgentConfig.approval_reviewer`, asks a second
+  model, through pydantic-ai-harness's `ApprovalReviewer` (the `[harness]` extra), a
+  yes/no risk question about each call. `no` approves the call, marked
+  `reviewer:<model>`; `yes`, `unsure` and a failed review leave it for the person.
+
+```python
+from django_spec_agents import AgentConfig, ApprovalReviewerConfig, ToolGuardConfig
+
+config = AgentConfig(
+    model=...,
+    tool_guard=ToolGuardConfig(enabled=True),
+    approval_reviewer=ApprovalReviewerConfig(
+        model="anthropic:claude-haiku-5-5",
+        question="Could this destroy data, spend money, or leak secrets?",
+        tools=["archive_order", "send_receipt"],
+    ),
+)
+```
+
+`tools` names the tools the reviewer answers for, or is `"all"`: every approval request,
+including those a `ToolGuardrail` or `ToolCallJudge` raises and tools added later, all
+under the one question. Name the tools the question was written for. The mark is the model
+string as given, or `system:model_name` for a `Model` instance.
+
+A grant answers before the reviewer, whatever order the capabilities are listed in, so a
+granted call costs no review; a project's own `HandleDeferredToolCalls` answers after
+both.
+
+**Never answered in the run.** The tools in `NEVER_AUTO_APPROVED`, `create_routine`,
+`update_routine` and the skill-authoring tools (`create_skill`, `update_skill`,
+`disable_skill`, `enable_skill`), park for the person under a name list, under `"all"`
+and in a grant: their approval card is the grant itself.
+
+**Who answered is recorded.** Each answerer sets `DeferredToolResults.answered_by` and
+`metadata[id]["answered_by"]`. `build_agent` always composes `AnsweredByMetadata`, which
+copies the mark onto the call's `ToolReturnPart.metadata`, merged into a tool's own dict
+metadata such as an MCP Apps record. `AuditEvent.answered_by` carries it for the call that
+ran, and `LoggingAuditLogger` writes it as `answered_by=`. A project's own answerer gets
+both by setting the same `metadata` key, `ANSWERED_BY_KEY`.
+
+!!! warning "A reviewer approves destructive calls in the person's place"
+    The family's rule is that a destructive call runs only once a person approves it on
+    its card. Listing a tool for the reviewer, or choosing `"all"`, departs from that
+    rule: a model's `no` runs the call, and no person sees it. The reviewer never denies,
+    so every call it does not clear still reaches the person, and the audit record names
+    the reviewer for every call it cleared. It is a filter on what a person is asked, not
+    a security boundary: a tool that destroys data, spends money or exposes secrets still
+    needs its own authorization.
+
 ## What a raising tool costs
 
 Without a policy, a tool that raises ends the run. The transport emits

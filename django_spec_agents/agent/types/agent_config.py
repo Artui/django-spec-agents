@@ -4,6 +4,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from django_spec_agents.policy.approvals.types.approval_reviewer_config import (
+    ApprovalReviewerConfig,
+)
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
@@ -59,6 +62,11 @@ class AgentConfig:
     the audit logger and the Python logger. A plain record rather than
     ``... | None`` because there is no third state, and ``None`` would have to
     mean "on" to keep that default — backwards next to ``tool_guard``."""
+
+    approval_reviewer: ApprovalReviewerConfig | None = None
+    """A second model that may approve a gated call in the person's place, through a
+    [`ReviewedApprovals`][django_spec_agents.ReviewedApprovals] (the ``[harness]``
+    extra). ``None``, the default, leaves every gated call to the person."""
 
 
 __all__ = ["AgentConfig"]

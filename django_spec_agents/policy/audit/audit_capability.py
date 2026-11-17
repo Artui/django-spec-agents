@@ -16,6 +16,7 @@ from pydantic_ai.exceptions import ApprovalRequired, CallDeferred, SkipToolExecu
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 
+from django_spec_agents.policy.approvals.utils import answered_by_mark
 from django_spec_agents.policy.audit.types.audit_event import AuditEvent
 from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 
@@ -215,15 +216,18 @@ class AuditCapability(AbstractCapability[Any]):
         execution = _Execution()
         token = self._execution.set(execution)
         ip_address = self._resolve_ip_address(ctx)
+        answered_by = answered_by_mark(ctx)
         try:
             try:
                 result = await handler(args)
             except Exception as error:
                 execution.settle(error=error)
-                self._record(tool_def.name, execution, ip_address=ip_address)
+                self._record(
+                    tool_def.name, execution, ip_address=ip_address, answered_by=answered_by
+                )
                 raise
             execution.settle(result=result)
-            self._record(tool_def.name, execution, ip_address=ip_address)
+            self._record(tool_def.name, execution, ip_address=ip_address, answered_by=answered_by)
             return result
         finally:
             self._execution.reset(token)
@@ -291,7 +295,14 @@ class AuditCapability(AbstractCapability[Any]):
         from_deps = getattr(ctx.deps, "ip_address", None)
         return from_deps if from_deps is not None else self._ip_address
 
-    def _record(self, name: str, execution: _Execution, *, ip_address: str | None) -> None:
+    def _record(
+        self,
+        name: str,
+        execution: _Execution,
+        *,
+        ip_address: str | None,
+        answered_by: str | None,
+    ) -> None:
         if _did_not_execute(execution):
             return
         error = execution.error
@@ -304,6 +315,7 @@ class AuditCapability(AbstractCapability[Any]):
             result_size=len(str(execution.result)) if error is None else None,
             organization_id=self._organization_id,
             ip_address=ip_address,
+            answered_by=answered_by,
         )
         try:
             self._logger.record(event)
