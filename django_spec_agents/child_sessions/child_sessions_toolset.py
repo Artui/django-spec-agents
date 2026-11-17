@@ -40,8 +40,8 @@ class ChildSessionsToolset(FunctionToolset[Any]):
     refused by pydantic-ai's duplicate-name check; ``ask_parent`` is offered in a child
     only, and parks it as waiting on a question.
 
-    Starts run one at a time, so each reads the index after the last; an anonymous run
-    is refused. A child carries a
+    Needs the ``[harness]`` extra. Starts run one at a time, so each reads the index
+    after the last; an anonymous run is refused. A child carries a
     [`ChildLineage`][django_spec_agents.child_sessions.child_lineage.ChildLineage]
     and, with ``spend``, two ``SpendLimits``. Each limit in ``limits`` refuses a start
     with a
@@ -62,6 +62,8 @@ class ChildSessionsToolset(FunctionToolset[Any]):
         limits: ChildSessionLimits,
         spend: ChildSessionSpend | None = None,
     ) -> None:
+        import pydantic_ai_harness.sub_agents  # noqa: F401
+
         super().__init__(id="child_sessions")
         self._agent_id = agent_id
         self._agents = dict(agents)

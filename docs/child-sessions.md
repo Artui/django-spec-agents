@@ -3,7 +3,9 @@
 A child session is a whole conversation that one agent starts on another agent. It
 gets its own thread, runs headless, and can outlive the run that started it. The parent
 can message it, answer it and cancel it. The user opens it like any other thread.
-`ChildSessionsToolset` gives the parent's model the tools to do this.
+`ChildSessionsToolset` gives the parent's model the tools to do this. Child sessions need
+the `[harness]` extra: a child's report is framed through `pydantic-ai-harness`, and
+building the toolset without it raises `ImportError`.
 
 This page covers starting a child, the limits on it, and its report. A settled child's
 report lands in the parent's inbound queue. Handing it to the parent's model, at its next
@@ -73,9 +75,9 @@ approve it. `ask_parent` parks the child the same way, on a deferred call of kin
 `question`.
 
 The parent passes these tool names to the child, along with the child's place in the
-tree, as a `ChildLineage` capability. All of it is composed into the child's run when it
-starts. So it holds only for runs this toolset starts. A later run on the child's thread,
-such as the user typing into it, carries none of it.
+tree, as a `ChildLineage` capability, composed into the child's run when it starts. A
+later run on the child's thread carries it only if the transport rebuilds it, as
+[Later runs of a child's thread](#later-runs-of-a-childs-thread) describes.
 
 ## Limits
 

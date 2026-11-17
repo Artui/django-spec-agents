@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
@@ -524,3 +525,12 @@ async def test_a_later_run_of_the_child_rebuilds_what_its_start_composed() -> No
     assert rebuilt[:2] == [lineage, report]
     assert [b.budgets[0].scope(None) for b in rebuilt[2:]] == ["main:root1", "7"]
     assert [b.budgets[0].scope(None) for b in (tree, day)] == ["main:root1", "7"]
+
+
+def test_the_toolset_without_the_harness_installed_is_refused_when_built(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "pydantic_ai_harness.sub_agents", None)
+
+    with pytest.raises(ImportError):
+        _toolset()

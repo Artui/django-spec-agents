@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -158,3 +159,12 @@ async def test_a_report_that_cannot_be_sent_never_replaces_the_result(
     assert result.output == "Found 3."
     assert queue.sent == []
     assert "could not report" in caplog.text
+
+
+def test_a_report_without_the_harness_installed_is_refused_when_built(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "pydantic_ai_harness.sub_agents", None)
+
+    with pytest.raises(ImportError):
+        ChildReport(_PARENT, "research", _Queue())

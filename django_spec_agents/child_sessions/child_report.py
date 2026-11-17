@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 class ChildReport(AbstractCapability[Any]):
     """Enqueues a child run's report on its parent's inbound queue when the run settles.
 
-    A run that parks, or that is cancelled before its deadline, settles nothing and sends
-    nothing. A failed enqueue is logged and never replaces the run's own result or error.
+    Needs ``[harness]``, checked when built. A run that parks, or is cancelled before its
+    deadline, sends nothing; a failed enqueue is logged and never replaces the run's own.
     """
 
     parent: ThreadRef
@@ -34,6 +34,9 @@ class ChildReport(AbstractCapability[Any]):
     queue: InboundQueue
     _: KW_ONLY
     id: str | None = "child_session_report"
+
+    def __post_init__(self) -> None:
+        import pydantic_ai_harness.sub_agents  # noqa: F401
 
     async def wrap_run(
         self, ctx: RunContext[Any], *, handler: WrapRunHandler

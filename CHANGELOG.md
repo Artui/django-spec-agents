@@ -16,7 +16,8 @@ kept across later runs and a report when each settles.
 ### Added
 
 - **`ChildSessionsToolset`: tools to start, list, message, answer and cancel child
-  sessions.** `start_session` starts a child on another agent through a
+  sessions.** Needs the `[harness]` extra, and building the toolset without it raises
+  `ImportError`. `start_session` starts a child on another agent through a
   `HeadlessRunner`, running as the parent's user, and returns a `ChildSessionReceipt`
   naming the child's `agent_id` and `thread_id` as its tool result. `list_tasks`,
   `message_task`, `answer_task` and `cancel_task` keep upstream `TaskControl`'s names,
