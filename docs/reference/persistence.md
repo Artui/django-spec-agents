@@ -133,6 +133,24 @@ runs on the server. See [Storage](../storage.md#run-status-and-event-logs).
 
 ::: django_spec_agents.RunStop
 
+### `FiringQueue`
+
+::: django_spec_agents.headless.types.firing_queue.FiringQueue
+
+### `FiringState`
+
+::: django_spec_agents.headless.types.firing_state.FiringState
+
+### `run_headless`
+
+Needs the `[specs]` extra, so it is imported from its module, never from the root.
+
+::: django_spec_agents.headless.run_headless.run_headless
+
+### `HeadlessFiring`
+
+::: django_spec_agents.headless.types.headless_firing.HeadlessFiring
+
 ## Reference implementations
 
 The opt-in `django_spec_agents.contrib.store` app. Add it to
