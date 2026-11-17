@@ -15,6 +15,7 @@ from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
+from django_spec_agents.persistence.build_run_waiting import build_run_waiting
 from django_spec_agents.persistence.django_session_conversation_store import (
     DjangoSessionConversationStore,
 )
@@ -143,6 +144,7 @@ __all__ = [
     "__version__",
     "build_agent",
     "build_input_schema",
+    "build_run_waiting",
     "build_tool_catalog",
     "memory_namespace",
     "memory_namespace_for_user",

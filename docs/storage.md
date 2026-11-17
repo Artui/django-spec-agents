@@ -510,6 +510,12 @@ A thread still `running` after its lease lapses, as after a restart, reads as
 `failed` with reason `interrupted`. The run's id stays on the thread as
 `last_run_id` after it ends: a parked run's id is what a resume answers to.
 
+A transport builds the `RunWaiting` with `build_run_waiting(requests, tool_call_id,
+summary=..., destructive=...)`, which reads `kind` from the run's `DeferredToolRequests`:
+`approval`, `question` for a tool that deferred with `CallDeferred(kind="question")`, or
+`external`. These are upstream's `DeferredToolKind` values, so a row stored before `kind`
+was typed loads unchanged.
+
 **Run ids are single-use per owner.** The resumed run, like a retried one,
 claims the thread under a fresh id; `claim` refuses an id its owner has claimed
 before with `RunIdReusedError`, writing nothing, so a transport can answer it as

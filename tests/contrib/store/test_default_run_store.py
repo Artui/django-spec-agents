@@ -202,6 +202,20 @@ async def test_a_parked_run_keeps_what_it_waits_on(store: DefaultRunStore) -> No
     )
 
 
+async def test_a_waiting_row_written_before_kind_was_typed_still_loads(
+    store: DefaultRunStore,
+) -> None:
+    await _claim(store)
+    await store.finish("t1", "r1", RunOutcome.WAITING, request=authed_request(), waiting=_WAITING)
+    raw = {"kind": "approval", "summary": "drop", "tool_call_id": "c9", "destructive": False}
+    await StoredThreadRun.objects.filter(thread_id="t1").aupdate(waiting=raw)
+
+    state = await store.get("t1", request=authed_request())
+
+    assert state is not None
+    assert state.waiting == RunWaiting(**raw)
+
+
 async def test_the_next_claim_clears_the_park(store: DefaultRunStore) -> None:
     await _claim(store)
     await store.finish("t1", "r1", RunOutcome.WAITING, request=authed_request(), waiting=_WAITING)

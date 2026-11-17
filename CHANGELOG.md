@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata. `AuditEvent` gains `answered_by`, last and defaulting to `None`, and
   `LoggingAuditLogger` writes it. A reviewer departs from the rule that a person approves
   every destructive call; `docs/policy.md` says where.
+- **`build_run_waiting` reads a parked call's kind from upstream.** `RunWaiting.kind` is
+  typed as pydantic-ai's `DeferredToolKind` (`approval`, `question` or `external`), and
+  `build_run_waiting(requests, tool_call_id, summary=, destructive=)` builds the record a
+  transport stores when a run parks, with `kind` read from `requests.kind(tool_call_id)`.
+  The stored values are unchanged, so a row written before loads as it did.
 
 ### Changed
 
