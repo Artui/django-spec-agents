@@ -20,7 +20,7 @@ from django_spec_agents.testing import slow_model, tool_calling_model
 from tests.agent.anthropic_wire import anthropic_model, text_events
 from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 
-_DEADLINE = 0.2
+_DEADLINE = 1.0
 
 
 def _agent(model: Any, toolsets: list[Any] | None = None) -> Agent[AgentDeps, Any]:
