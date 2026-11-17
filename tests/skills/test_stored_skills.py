@@ -159,7 +159,7 @@ async def test_authoring_offers_the_tools_and_the_bundled_create_skill(
 
     await _run(recorder, StoredSkills(PersonalFirstPolicy(), request_as(member), authoring=True))
 
-    assert {"create_skill", "update_skill", "disable_skill", "list_skills"} <= set(
+    assert {"create_skill", "update_skill", "disable_skill", "enable_skill", "list_skills"} <= set(
         recorder.tools[0]
     )
     assert "- create-skill: " in recorder.requests[0]

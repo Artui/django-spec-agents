@@ -36,7 +36,7 @@ async def _company(name: str) -> TenantSkill:
     )
 
 
-def test_the_three_writes_wait_for_approval_and_the_listing_does_not(
+def test_the_writes_wait_for_approval_and_the_listing_does_not(
     member: AbstractBaseUser,
 ) -> None:
     guard = ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True))
@@ -44,8 +44,14 @@ def test_the_three_writes_wait_for_approval_and_the_listing_does_not(
 
     gated = {name for name, t in toolset.tools.items() if guard.requires_approval(t.tool_def)}
 
-    assert sorted(toolset.tools) == ["create_skill", "disable_skill", "list_skills", "update_skill"]
-    assert gated == {"create_skill", "update_skill", "disable_skill"}
+    assert sorted(toolset.tools) == [
+        "create_skill",
+        "disable_skill",
+        "enable_skill",
+        "list_skills",
+        "update_skill",
+    ]
+    assert gated == {"create_skill", "update_skill", "disable_skill", "enable_skill"}
 
 
 def test_the_body_is_an_argument_the_approval_card_shows(member: AbstractBaseUser) -> None:
@@ -114,6 +120,57 @@ async def test_disable_turns_off_the_skill(member: AbstractBaseUser) -> None:
     await _call(toolset, "disable_skill", name="triage")
 
     assert (await _row(name="triage")).enabled is False
+
+
+async def test_enable_turns_a_disabled_skill_back_on(member: AbstractBaseUser) -> None:
+    toolset = _tools(member)
+    await _call(toolset, "create_skill", name="triage", description="d", body="b")
+    await _call(toolset, "disable_skill", name="triage")
+
+    result = await _call(toolset, "enable_skill", name="triage")
+
+    assert result == "Enabled the skill 'triage'."
+    assert (await _row(name="triage")).enabled is True
+
+
+async def test_enable_picks_the_first_disabled_skill_of_the_name(member: AbstractBaseUser) -> None:
+    other = await sync_to_async(TenantSkill.objects.create)(
+        owner=member, name="other", description="d", body="b", enabled=False
+    )
+    company = await _company("standup")
+    await sync_to_async(TenantSkill.objects.filter(pk=company.pk).update)(enabled=False)
+    personal = await sync_to_async(TenantSkill.objects.create)(
+        owner=member, name="standup", description="Mine.", body="b", enabled=False
+    )
+
+    await _call(_tools(member), "enable_skill", name="standup")
+
+    assert (await _row(pk=personal.pk)).enabled is True
+    assert (await _row(pk=company.pk)).enabled is False
+    assert (await _row(pk=other.pk)).enabled is False
+
+
+async def test_enable_refused_by_the_policy_changes_nothing(member: AbstractBaseUser) -> None:
+    company = await _company("standup")
+    await sync_to_async(TenantSkill.objects.filter(pk=company.pk).update)(enabled=False)
+
+    result = await _call(_tools(member), "enable_skill", name="standup")
+
+    assert "may not be written" in result
+    assert (await _row(pk=company.pk)).enabled is False
+
+
+async def test_enable_of_a_name_with_no_disabled_skill_is_reported(
+    member: AbstractBaseUser,
+) -> None:
+    toolset = _tools(member)
+    await _call(toolset, "create_skill", name="triage", description="d", body="b")
+
+    on = await _call(toolset, "enable_skill", name="triage")
+    missing = await _call(toolset, "enable_skill", name="missing")
+
+    assert on == "No disabled skill named 'triage' is visible to this user."
+    assert missing == "No disabled skill named 'missing' is visible to this user."
 
 
 async def test_a_name_the_caller_does_not_reach_is_reported(member: AbstractBaseUser) -> None:

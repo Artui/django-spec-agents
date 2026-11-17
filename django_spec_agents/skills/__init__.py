@@ -2,6 +2,7 @@ from django_spec_agents.skills.abstract_skill import AbstractSkill
 from django_spec_agents.skills.build_skill_tools import build_skill_tools
 from django_spec_agents.skills.create_skill import create_skill
 from django_spec_agents.skills.disable_skill import disable_skill
+from django_spec_agents.skills.enable_skill import enable_skill
 from django_spec_agents.skills.export_skill_md import export_skill_md
 from django_spec_agents.skills.import_skill_md import import_skill_md
 from django_spec_agents.skills.invalid_skill_error import InvalidSkillError
@@ -34,6 +35,7 @@ __all__ = [
     "build_skill_tools",
     "create_skill",
     "disable_skill",
+    "enable_skill",
     "export_skill_md",
     "import_skill_md",
     "list_visible_skills",
