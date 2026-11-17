@@ -7,12 +7,15 @@ from django.http import HttpRequest
 
 from django_spec_agents.skills.abstract_skill import AbstractSkill
 from django_spec_agents.skills.invalid_skill_error import InvalidSkillError
+from django_spec_agents.skills.list_visible_skills import list_visible_skills
+from django_spec_agents.skills.skill_limit_error import SkillLimitError
 from django_spec_agents.skills.skill_write_refused_error import SkillWriteRefusedError
 from django_spec_agents.skills.types.max_skill_body_length import MAX_SKILL_BODY_LENGTH
 from django_spec_agents.skills.types.max_skill_description_length import (
     MAX_SKILL_DESCRIPTION_LENGTH,
 )
 from django_spec_agents.skills.types.max_skill_name_length import MAX_SKILL_NAME_LENGTH
+from django_spec_agents.skills.types.max_visible_skills import MAX_VISIBLE_SKILLS
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
 from django_spec_agents.skills.types.skill_t import SkillT
@@ -57,6 +60,12 @@ def require_write(policy: SkillPolicy[SkillT], request: HttpRequest, skill: Skil
     """Raise `SkillWriteRefusedError` unless the policy's `can_write` admits `skill`."""
     if not policy.can_write(request, skill):
         raise SkillWriteRefusedError(f"The skill {skill.name!r} may not be written by this caller.")
+
+
+def require_room(policy: SkillPolicy[SkillT], request: HttpRequest) -> None:
+    """Raise `SkillLimitError` when the caller already sees `MAX_VISIBLE_SKILLS` enabled skills."""
+    if len(list_visible_skills(policy, request)) >= MAX_VISIBLE_SKILLS:
+        raise SkillLimitError(f"A caller sees at most {MAX_VISIBLE_SKILLS} enabled skills.")
 
 
 def write_skill(policy: SkillPolicy[SkillT], request: HttpRequest, skill: SkillT) -> SkillT:

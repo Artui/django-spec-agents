@@ -44,6 +44,7 @@ Show the user the full draft and ask for changes. Revise until they say it is ri
 ## 4. Save it
 
 Call `create_skill` with the name, description and body, and with `user_invocable` and
-`model_invocable` set as the user chose. The user approves the write after reading the body.
-If the tool reports a problem with the draft, fix it and try again. If it reports that the
-write was refused, tell the user: their account may not create skills here.
+`model_invocable` set as the user chose. The write may need the user's approval after they
+read the body. If the tool reports a problem with the draft, fix it and try again. If it
+reports that the write was refused, or that the user has reached the limit of skills, tell
+the user.

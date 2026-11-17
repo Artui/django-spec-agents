@@ -28,7 +28,10 @@ through `FiringQueue` and the `run_headless` spec. A project using the store app
   in the child keeps it. `InboundQueue` is a durable per-thread queue of reports,
   questions, answers and steering (`InboundKind`), its own protocol so `ConversationStore`
   gains no method: `enqueue`, then `pending(thread, after=, limit=)` reads without removing
-  and `ack(thread, through=)` removes, so delivery is at least once. Messages are addressed
+  and `ack(thread, ids)` removes exactly the ids it is given, so delivery is at least once.
+  Ids are allocated at insert and seen at commit, so `pending(after=n)` used as a cursor can
+  miss one that becomes visible behind it; a reader that must see everything calls `pending`
+  without `after` and acks what it read. Messages are addressed
   by `ThreadRef` and owner-scoped; an anonymous request is refused unless
   `allow_anonymous`. `ModelInboundQueue` is the sync base for a queue over your own model
   and `DefaultInboundQueue` the reference one over `StoredInboundMessage`. `ThreadRef`,
@@ -45,14 +48,16 @@ through `FiringQueue` and the `run_headless` spec. A project using the store app
   the policy's `can_write` apply whatever its body says. `authoring=True` adds the five
   tools `build_skill_tools(policy, request)` returns. `list_skills` returns no bodies.
   `create_skill`, `update_skill`, `disable_skill` and `enable_skill` carry the destructive
-  marker, so `ToolGuard` defers them for approval with the body on the card. A broken
-  draft goes back to the model to retry, and a refused write is reported as text. It also
+  marker, so with `ToolGuardConfig(enabled=True)`, which `authoring=True` should go with
+  (it is off by default, and the writes then run at once), `ToolGuard` defers them for
+  approval with the body on the card. A broken draft goes back to the model to retry, and
+  a refused write, or a create or an enable at the cap, is reported as text. It also
   adds a bundled `create-skill` skill that interviews the user and saves the draft with
   `create_skill`. A visible stored skill named `create-skill` shadows it.
   `enable_skill(policy, request, skill)` turns a disabled skill back on, mirroring
   `disable_skill`: `can_write` is asked of the row and the result, a refusal changes
   nothing, and like `create_skill` it refuses a caller who already sees
-  `MAX_VISIBLE_SKILLS` enabled skills.
+  `MAX_VISIBLE_SKILLS` enabled skills with `SkillLimitError`, an `InvalidSkillError`.
 - **`FiringQueue` and the `run_headless` spec: a headless run whose owner lives in a
   worker.** `FiringQueue` is the seam a host fills from its task queue, such as
   django-spec-tasks' `enqueue` and `state_of`: `enqueue(spec_name, params, *, actor)`

@@ -96,8 +96,9 @@ list_visible_skills(policy, request)
   an enable ask twice, once about the row as stored and once about the result. A refused
   update, disable or enable leaves both the row and the instance you passed as they were.
 - A name that is not kebab-case raises `InvalidSkillError`. So do a blank or oversized
-  description or body, and a create or an enable by a caller who already sees
-  `MAX_VISIBLE_SKILLS` (100) enabled skills.
+  description or body. A create or an enable by a caller who already sees
+  `MAX_VISIBLE_SKILLS` (100) enabled skills raises `SkillLimitError`, a subclass of it. An
+  enable asks `can_write` before it counts the cap, so a refused caller sees the refusal.
 - `list_visible_skills` stops at `MAX_VISIBLE_SKILLS`, in the policy's order, because its
   list is the catalog that reaches the model. A create can be admitted while other
   callers already see the cap, for example when staff add a company skill that a member
@@ -138,8 +139,9 @@ the skill's name. Until the model calls `load_capability` with that id, it sees 
 name and the description. After that, the body joins its instructions. A skill created or
 changed between two runs is offered on the next run, with no agent rebuild.
 
-A skill grants nothing. It has no tools, and it cannot lift an approval. A destructive tool
-waits for approval, and the policy's `can_write` refuses a write, whatever a body says.
+A skill grants nothing. It has no tools, and it cannot lift an approval. With the tool
+guard enabled, a destructive tool waits for approval, and the policy's `can_write` refuses
+a write, whatever a body says.
 
 `authoring=True` adds `build_skill_tools`' five tools:
 
@@ -151,9 +153,12 @@ waits for approval, and the policy's `can_write` refuses a write, whatever a bod
 | `disable_skill` | yes | `disable_skill` on that skill |
 | `enable_skill` | yes | `enable_skill` on the first disabled skill of that name the policy yields |
 
-The four writes carry the destructive marker, so `ToolGuard` defers them for approval and
-the approval card shows the body. A draft that breaks a rule is sent back to the model to
-retry. A write the policy refuses is reported to the model as text, and nothing changes.
+The four writes carry the destructive marker, so when the tool guard is enabled `ToolGuard`
+defers them for approval and the approval card shows the body. `ToolGuardConfig.enabled`
+is off by default, and with it off the writes run at once, so pair `authoring=True` with
+`ToolGuardConfig(enabled=True)`. A draft that breaks a rule is sent back to the model to
+retry. A write the policy refuses is reported to the model as text, and nothing changes,
+and so is a create or an enable by a caller at `MAX_VISIBLE_SKILLS`: a retry cannot clear it.
 
 It also adds the bundled `create-skill` skill, which interviews the user, drafts a name,
 description and body, and calls `create_skill`. A visible stored skill named `create-skill`

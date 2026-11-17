@@ -11,7 +11,7 @@ from pydantic_ai.toolsets.function import FunctionToolset
 from django_spec_agents.policy.guard.tool_guard import ToolGuard
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from django_spec_agents.registry.tool_registry import ToolRegistry
-from django_spec_agents.skills import build_skill_tools
+from django_spec_agents.skills import MAX_VISIBLE_SKILLS, build_skill_tools
 from tests.skills.conftest import request_as
 from tests.skills.testapp.models import PersonalFirstPolicy, TenantSkill
 
@@ -75,6 +75,37 @@ async def test_create_writes_in_the_scope_the_policy_gives(member: AbstractBaseU
 async def test_a_broken_draft_asks_the_model_to_retry(member: AbstractBaseUser) -> None:
     with pytest.raises(ModelRetry, match="kebab-case"):
         await _call(_tools(member), "create_skill", name="Bad Name", description="d", body="b")
+
+
+async def test_a_create_at_the_cap_reports_it_as_text_and_asks_for_no_retry(
+    member: AbstractBaseUser,
+) -> None:
+    await sync_to_async(TenantSkill.objects.bulk_create)(
+        TenantSkill(owner=member, name=f"s{index}", description="d", body="b")
+        for index in range(MAX_VISIBLE_SKILLS)
+    )
+
+    result = await _call(_tools(member), "create_skill", name="more", description="d", body="b")
+
+    assert result == f"A caller sees at most {MAX_VISIBLE_SKILLS} enabled skills."
+    assert not await sync_to_async(TenantSkill.objects.filter(name="more").exists)()
+
+
+async def test_an_enable_at_the_cap_reports_it_as_text_and_asks_for_no_retry(
+    member: AbstractBaseUser,
+) -> None:
+    await sync_to_async(TenantSkill.objects.create)(
+        owner=member, name="triage", description="d", body="b", enabled=False
+    )
+    await sync_to_async(TenantSkill.objects.bulk_create)(
+        TenantSkill(owner=member, name=f"s{index}", description="d", body="b")
+        for index in range(MAX_VISIBLE_SKILLS)
+    )
+
+    result = await _call(_tools(member), "enable_skill", name="triage")
+
+    assert result == f"A caller sees at most {MAX_VISIBLE_SKILLS} enabled skills."
+    assert (await _row(name="triage")).enabled is False
 
 
 async def test_update_replaces_the_draft_of_the_skill_the_caller_reaches(
@@ -148,6 +179,22 @@ async def test_enable_picks_the_first_disabled_skill_of_the_name(member: Abstrac
     assert (await _row(pk=personal.pk)).enabled is True
     assert (await _row(pk=company.pk)).enabled is False
     assert (await _row(pk=other.pk)).enabled is False
+
+
+async def test_enable_takes_the_first_disabled_skill_even_when_an_enabled_one_wins_the_name(
+    admin: AbstractBaseUser,
+) -> None:
+    company = await _company("standup")
+    await sync_to_async(TenantSkill.objects.filter(pk=company.pk).update)(enabled=False)
+    personal = await sync_to_async(TenantSkill.objects.create)(
+        owner=admin, name="standup", description="Mine.", body="b"
+    )
+
+    result = await _call(_tools(admin), "enable_skill", name="standup")
+
+    assert result == "Enabled the skill 'standup'."
+    assert (await _row(pk=company.pk)).enabled is True
+    assert (await _row(pk=personal.pk)).enabled is True
 
 
 async def test_enable_refused_by_the_policy_changes_nothing(member: AbstractBaseUser) -> None:

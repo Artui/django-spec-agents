@@ -9,6 +9,7 @@ from django_spec_agents.skills import (
     MAX_VISIBLE_SKILLS,
     InvalidSkillError,
     SkillDraft,
+    SkillLimitError,
     SkillWriteRefusedError,
     create_skill,
     disable_skill,
@@ -73,3 +74,33 @@ def test_an_enable_past_the_visible_cap_is_refused(
 
     skill.refresh_from_db()
     assert skill.enabled is False
+
+
+def test_a_refusal_is_raised_before_the_cap_is_counted(
+    policy: PersonalFirstPolicy, member: AbstractBaseUser, admin: AbstractBaseUser
+) -> None:
+    company = disable_skill(
+        policy, request_as(admin), create_skill(policy, request_as(admin), DRAFT)
+    )
+    TenantSkill.objects.bulk_create(
+        TenantSkill(owner=member, name=f"s{index}", description="d", body="b")
+        for index in range(MAX_VISIBLE_SKILLS)
+    )
+
+    with pytest.raises(SkillWriteRefusedError):
+        enable_skill(policy, request_as(member), company)
+
+
+def test_an_enable_past_the_cap_raises_the_limit_error(
+    policy: PersonalFirstPolicy, member: AbstractBaseUser
+) -> None:
+    skill = disable_skill(
+        policy, request_as(member), create_skill(policy, request_as(member), DRAFT)
+    )
+    TenantSkill.objects.bulk_create(
+        TenantSkill(owner=member, name=f"s{index}", description="d", body="b")
+        for index in range(MAX_VISIBLE_SKILLS)
+    )
+
+    with pytest.raises(SkillLimitError):
+        enable_skill(policy, request_as(member), skill)

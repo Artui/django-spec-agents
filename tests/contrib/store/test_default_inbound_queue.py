@@ -53,15 +53,38 @@ async def test_after_and_limit_page_the_queue() -> None:
     assert [m.id for m in page] == [ids[1]]
 
 
-async def test_ack_removes_through_the_id_and_no_further() -> None:
+async def test_ack_removes_the_ids_it_is_given_and_no_others() -> None:
     queue = DefaultInboundQueue()
     request = authed_request("7")
     ids = [await queue.enqueue(_PARENT, InboundKind.REPORT, n, request=request) for n in range(3)]
 
-    removed = await queue.ack(_PARENT, ids[1], request=request)
+    removed = await queue.ack(_PARENT, ids[:2], request=request)
 
     assert removed == 2
     assert [m.id for m in await queue.pending(_PARENT, request=request)] == [ids[2]]
+
+
+async def test_a_lower_id_that_commits_after_pending_survives_an_ack_of_what_was_read() -> None:
+    queue = DefaultInboundQueue()
+    request = authed_request("7")
+    row = {"owner_id": "7", "scope": "a", "thread_id": "t1", "kind": "report"}
+    await StoredInboundMessage.objects.acreate(id=100, **row)
+    read = await queue.pending(_PARENT, request=request)
+    late = await StoredInboundMessage.objects.acreate(id=50, **row)
+
+    removed = await queue.ack(_PARENT, [m.id for m in read], request=request)
+
+    assert (removed, [m.id for m in read]) == (1, [100])
+    assert [m.id for m in await queue.pending(_PARENT, request=request)] == [late.pk]
+
+
+async def test_acking_no_ids_removes_nothing() -> None:
+    queue = DefaultInboundQueue()
+    request = authed_request("7")
+    await queue.enqueue(_PARENT, InboundKind.REPORT, 1, request=request)
+
+    assert await queue.ack(_PARENT, [], request=request) == 0
+    assert len(await queue.pending(_PARENT, request=request)) == 1
 
 
 async def test_threads_of_one_id_in_two_scopes_have_two_queues() -> None:
@@ -71,11 +94,37 @@ async def test_threads_of_one_id_in_two_scopes_have_two_queues() -> None:
     unscoped = ThreadRef(thread_id=_PARENT.thread_id)
     await queue.enqueue(_PARENT, InboundKind.REPORT, "a", request=request)
     await queue.enqueue(other, InboundKind.REPORT, "b", request=request)
-    await queue.enqueue(unscoped, InboundKind.REPORT, "none", request=request)
+    none = await queue.enqueue(unscoped, InboundKind.REPORT, "none", request=request)
 
     assert [m.body for m in await queue.pending(other, request=request)] == ["b"]
-    assert await queue.ack(unscoped, 10**9, request=request) == 1
+    assert await queue.ack(unscoped, [none], request=request) == 1
     assert [m.body for m in await queue.pending(_PARENT, request=request)] == ["a"]
+
+
+async def test_two_threads_of_one_scope_and_owner_have_two_queues() -> None:
+    queue = DefaultInboundQueue()
+    request = authed_request("7")
+    first, second = ThreadRef(thread_id="t1", scope="a"), ThreadRef(thread_id="t2", scope="a")
+    one = await queue.enqueue(first, InboundKind.REPORT, "one", request=request)
+    kept = await queue.enqueue(second, InboundKind.REPORT, "two", request=request)
+
+    assert [m.body for m in await queue.pending(first, request=request)] == ["one"]
+    assert [m.body for m in await queue.pending(second, request=request)] == ["two"]
+    assert await queue.ack(first, [one, kept], request=request) == 1
+    assert [m.id for m in await queue.pending(second, request=request)] == [kept]
+
+
+async def test_an_absent_scope_and_an_empty_scope_have_two_queues() -> None:
+    queue = DefaultInboundQueue()
+    request = authed_request("7")
+    absent, empty = ThreadRef(thread_id="t1"), ThreadRef(thread_id="t1", scope="")
+    first = await queue.enqueue(absent, InboundKind.REPORT, "absent", request=request)
+    second = await queue.enqueue(empty, InboundKind.REPORT, "empty", request=request)
+
+    assert [m.body for m in await queue.pending(absent, request=request)] == ["absent"]
+    assert [m.body for m in await queue.pending(empty, request=request)] == ["empty"]
+    assert await queue.ack(absent, [first, second], request=request) == 1
+    assert [m.body for m in await queue.pending(empty, request=request)] == ["empty"]
 
 
 async def test_an_owner_never_reads_or_acks_another_owners_queue() -> None:
@@ -83,7 +132,7 @@ async def test_an_owner_never_reads_or_acks_another_owners_queue() -> None:
     sent = await queue.enqueue(_PARENT, InboundKind.QUESTION, "?", request=authed_request("7"))
 
     assert await queue.pending(_PARENT, request=authed_request("8")) == []
-    assert await queue.ack(_PARENT, sent, request=authed_request("8")) == 0
+    assert await queue.ack(_PARENT, [sent], request=authed_request("8")) == 0
     assert len(await queue.pending(_PARENT, request=authed_request("7"))) == 1
 
 

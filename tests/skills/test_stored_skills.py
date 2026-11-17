@@ -50,9 +50,13 @@ async def _skill(owner: AbstractBaseUser | None, name: str, **fields: Any) -> Te
 
 
 async def _run(
-    recorder: Recorder, capability: StoredSkills, registry: ToolRegistry | None = None
+    recorder: Recorder,
+    capability: StoredSkills,
+    registry: ToolRegistry | None = None,
+    guarded: bool = True,
 ) -> Any:
-    config = AgentConfig(model=FunctionModel(recorder), tool_guard=ToolGuardConfig(enabled=True))
+    guard = ToolGuardConfig(enabled=guarded)
+    config = AgentConfig(model=FunctionModel(recorder), tool_guard=guard)
     agent = build_agent(registry or ToolRegistry(), config)
     result = await agent.run("go", deps=AgentDeps(user=None), capabilities=[capability])
     return result.output
@@ -205,3 +209,17 @@ async def test_a_create_waits_for_approval_with_the_body_on_the_card(
     assert call.tool_name == "create_skill"
     assert call.args_as_dict()["body"] == "Sort the inbox."
     assert not await sync_to_async(TenantSkill.objects.exists)()
+
+
+async def test_with_no_tool_guard_a_create_runs_without_approval(member: AbstractBaseUser) -> None:
+    args = {"name": "triage", "description": "Triage.", "body": "Sort the inbox."}
+    recorder = Recorder(ModelResponse(parts=[ToolCallPart("create_skill", args)]))
+
+    output = await _run(
+        recorder,
+        StoredSkills(PersonalFirstPolicy(), request_as(member), authoring=True),
+        guarded=False,
+    )
+
+    assert output == "done"
+    assert await sync_to_async(TenantSkill.objects.filter(name="triage").exists)()

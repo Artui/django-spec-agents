@@ -9,8 +9,9 @@ class FiringState(StrEnum):
 
     - ``pending``: it waits for a worker, or runs on one. In django-spec-tasks,
       ``PENDING`` and ``RUNNING``.
-    - ``lapsed``: it ended without its body finishing, because its worker died or
-      its principal lost the right to run it: ``ABANDONED``, ``AUTHORIZATION_LAPSED``.
+    - ``lapsed``: it ended without its body finishing, because its worker died, its
+      principal lost the right to run it or its spec or binding is gone: ``ABANDONED``,
+      ``AUTHORIZATION_LAPSED``, ``SPEC_UNAVAILABLE``.
     - ``finished``: it ended any other way, its answer or refusal kept: every other
       terminal state.
     """

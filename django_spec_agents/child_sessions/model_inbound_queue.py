@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection, Iterable
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -41,8 +42,8 @@ class ModelInboundQueue(ABC):
     ) -> list[InboundMessage]:
         return await sync_to_async(self._pending_scoped)(thread, after, limit, request)
 
-    async def ack(self, thread: ThreadRef, through: int, *, request: HttpRequest) -> int:
-        return await sync_to_async(self._ack_scoped)(thread, through, request)
+    async def ack(self, thread: ThreadRef, ids: Iterable[int], *, request: HttpRequest) -> int:
+        return await sync_to_async(self._ack_scoped)(thread, list(ids), request)
 
     def _owner(self, request: HttpRequest) -> str:
         return resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
@@ -62,8 +63,8 @@ class ModelInboundQueue(ABC):
     ) -> list[InboundMessage]:
         return self._pending(thread, after, limit, self._owner(request))
 
-    def _ack_scoped(self, thread: ThreadRef, through: int, request: HttpRequest) -> int:
-        return self._ack(thread, through, self._owner(request))
+    def _ack_scoped(self, thread: ThreadRef, ids: Collection[int], request: HttpRequest) -> int:
+        return self._ack(thread, ids, self._owner(request))
 
     @abstractmethod
     def _enqueue(
@@ -81,7 +82,7 @@ class ModelInboundQueue(ABC):
     ) -> list[InboundMessage]: ...
 
     @abstractmethod
-    def _ack(self, thread: ThreadRef, through: int, owner_id: str) -> int: ...
+    def _ack(self, thread: ThreadRef, ids: Collection[int], owner_id: str) -> int: ...
 
 
 __all__ = ["ModelInboundQueue"]

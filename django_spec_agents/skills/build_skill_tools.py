@@ -15,6 +15,7 @@ from django_spec_agents.skills.enable_skill import enable_skill
 from django_spec_agents.skills.invalid_skill_error import InvalidSkillError
 from django_spec_agents.skills.list_visible_skills import list_visible_skills
 from django_spec_agents.skills.resolve_skill import resolve_skill
+from django_spec_agents.skills.skill_limit_error import SkillLimitError
 from django_spec_agents.skills.skill_write_refused_error import SkillWriteRefusedError
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
@@ -29,17 +30,18 @@ _LIST = (
 )
 _CREATE = (
     "Create a skill: a kebab-case name, a one-line description of when to use it, and the "
-    "instructions in body. The user approves the write after reading the body. "
+    "instructions in body. The write may need the user's approval after they read the body. "
     "user_invocable offers it in the user's palette; model_invocable offers it to you."
 )
 _UPDATE = (
     "Replace the description, body and flags of the enabled skill this user reaches by name. "
-    "Send the whole skill, not only what changes; a skill cannot be renamed."
+    "Send the whole skill, not only what changes; a skill cannot be renamed. "
+    "It may need the user's approval."
 )
-_DISABLE = "Turn off the enabled skill this user reaches by name. The user approves it first."
+_DISABLE = "Turn off the enabled skill this user reaches by name. It may need the user's approval."
 _ENABLE = (
-    "Turn back on a disabled skill this user can see, by name; where several share the name, "
-    "the one that would win it. The user approves it first."
+    "Turn back on a disabled skill this user can see, by name; where several disabled skills "
+    "share the name, the first the policy yields. It may need the user's approval."
 )
 
 
@@ -88,13 +90,13 @@ def build_skill_tools(policy: SkillPolicy[Any], request: HttpRequest) -> Functio
 
 
 async def _write(write: Callable[[], str]) -> str:
-    """Run `write` off the event loop; a broken draft is retried, a refusal is reported."""
+    """Run `write` off the event loop; a broken draft is retried, a refusal or the cap reported."""
     try:
         return await sync_to_async(write, thread_sensitive=True)()
+    except (SkillLimitError, SkillWriteRefusedError) as error:
+        return str(error)
     except InvalidSkillError as error:
         raise ModelRetry(str(error)) from error
-    except SkillWriteRefusedError as error:
-        return str(error)
 
 
 def _listing(policy: SkillPolicy[Any], request: HttpRequest) -> list[dict[str, Any]]:

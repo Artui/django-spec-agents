@@ -12,6 +12,7 @@ from django_spec_agents.skills import (
     MAX_VISIBLE_SKILLS,
     InvalidSkillError,
     SkillDraft,
+    SkillLimitError,
     SkillWriteRefusedError,
     create_skill,
     disable_skill,
@@ -195,8 +196,28 @@ def test_a_caller_who_sees_the_cap_of_enabled_skills_cannot_create_another(
     )
     create_skill(policy, request_as(member), DRAFT)
 
-    with pytest.raises(InvalidSkillError, match=f"at most {MAX_VISIBLE_SKILLS}"):
+    with pytest.raises(SkillLimitError, match=f"at most {MAX_VISIBLE_SKILLS}"):
         create_skill(policy, request_as(member), SkillDraft("one-more", "d", "b"))
+
+
+def test_a_create_at_the_cap_raises_the_limit_error_before_the_policy_is_asked(
+    policy: PersonalFirstPolicy, member: AbstractBaseUser
+) -> None:
+    TenantSkill.objects.bulk_create(
+        TenantSkill(owner=member, name=f"s{index}", description="d", body="b")
+        for index in range(MAX_VISIBLE_SKILLS)
+    )
+    refusing = mock.Mock(wraps=policy)
+    refusing.can_write.return_value = False
+
+    with pytest.raises(SkillLimitError):
+        create_skill(refusing, request_as(member), SkillDraft("one-more", "d", "b"))
+
+    refusing.can_write.assert_not_called()
+
+
+def test_the_limit_error_is_an_invalid_skill_error() -> None:
+    assert issubclass(SkillLimitError, InvalidSkillError)
 
 
 def test_a_refused_update_leaves_the_callers_instance_as_it_was(

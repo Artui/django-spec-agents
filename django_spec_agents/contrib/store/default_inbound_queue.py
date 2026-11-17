@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import Any
 
 from django.db.models import QuerySet
@@ -15,8 +16,8 @@ from django_spec_agents.persistence.types.thread_ref import ThreadRef
 class DefaultInboundQueue(ModelInboundQueue):
     """A durable, owner-scoped inbound queue over ``StoredInboundMessage``.
 
-    A thread's queue is its rows under ``(owner_id, scope, thread_id)``, an absent
-    scope stored as ``""``; ``ack`` deletes the rows it acknowledges.
+    A thread's queue is its rows under ``(owner_id, scope, thread_id)``, an absent scope
+    stored as NULL and kept apart from ``""``; ``ack`` deletes exactly the ids it is given.
     """
 
     def _enqueue(
@@ -29,7 +30,7 @@ class DefaultInboundQueue(ModelInboundQueue):
     ) -> int:
         row = StoredInboundMessage(
             owner_id=owner_id,
-            scope=thread.scope or "",
+            scope=thread.scope,
             thread_id=thread.thread_id,
             kind=kind.value,
             body=body,
@@ -55,14 +56,14 @@ class DefaultInboundQueue(ModelInboundQueue):
             rows = rows[:limit]
         return [_message(row) for row in rows]
 
-    def _ack(self, thread: ThreadRef, through: int, owner_id: str) -> int:
-        removed, _ = _queue(thread, owner_id).filter(id__lte=through).delete()
+    def _ack(self, thread: ThreadRef, ids: Collection[int], owner_id: str) -> int:
+        removed, _ = _queue(thread, owner_id).filter(id__in=ids).delete()
         return removed
 
 
 def _queue(thread: ThreadRef, owner_id: str) -> QuerySet[StoredInboundMessage]:
     return StoredInboundMessage.objects.filter(
-        owner_id=owner_id, scope=thread.scope or "", thread_id=thread.thread_id
+        owner_id=owner_id, scope=thread.scope, thread_id=thread.thread_id
     )
 
 

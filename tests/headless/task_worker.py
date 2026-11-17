@@ -20,7 +20,7 @@ from django_service_specs import (
 from django_spec_agents.headless.types.firing_state import FiringState
 
 _LIVE = {"PENDING", "RUNNING"}
-_LAPSED = {"ABANDONED", "AUTHORIZATION_LAPSED"}
+_LAPSED = {"ABANDONED", "AUTHORIZATION_LAPSED", "SPEC_UNAVAILABLE"}
 
 
 @dataclass
@@ -88,4 +88,4 @@ class TaskWorker:
     def sweep(self) -> None:
         for row in self.rows.values():
             if row.state == "RUNNING" and row.lease_expires_at < self.clock():
-                row.state = "ABANDONED"
+                row.state = "ABANDONED" if row.spec_name in self.specs else "SPEC_UNAVAILABLE"

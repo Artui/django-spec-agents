@@ -64,6 +64,10 @@ The stored-skill model, its policy and the functions over them. See
 
 ::: django_spec_agents.skills.InvalidSkillError
 
+## `SkillLimitError`
+
+::: django_spec_agents.skills.SkillLimitError
+
 ## `SkillWriteRefusedError`
 
 ::: django_spec_agents.skills.SkillWriteRefusedError

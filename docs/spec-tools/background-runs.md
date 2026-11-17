@@ -287,7 +287,7 @@ binding = TaskBinding(
     name="agents", registry=registry, backend=backend, lease=timedelta(minutes=20)
 )
 
-_LAPSED = {"ABANDONED", "AUTHORIZATION_LAPSED"}
+_LAPSED = {"ABANDONED", "AUTHORIZATION_LAPSED", "SPEC_UNAVAILABLE"}
 
 
 class SpecTasksQueue:

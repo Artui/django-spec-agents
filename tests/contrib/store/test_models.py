@@ -43,6 +43,7 @@ from django_spec_agents.contrib.store.models import (
         (StoredRunLog(run_id="r1"), "r1"),
         (StoredRunEvent(log=StoredRunLog(run_id="r1"), seq=3), "r1#3"),
         (StoredInboundMessage(id=4, scope="a", thread_id="t1"), "a:t1#4"),
+        (StoredInboundMessage(id=5, thread_id="t1"), ":t1#5"),
     ],
     ids=[
         "conversation-title",
@@ -60,6 +61,7 @@ from django_spec_agents.contrib.store.models import (
         "run-log-id",
         "run-event-run-and-seq",
         "inbound-message-scope-thread-and-id",
+        "inbound-message-absent-scope",
     ],
 )
 def test_str_names_the_row(instance: object, expected: str) -> None:

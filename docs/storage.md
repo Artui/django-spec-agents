@@ -557,9 +557,12 @@ satisfies `ConversationStore`; its threads read back with no parent.
 **The inbound queue.** Reports, questions, answers and steering reach a thread
 through an `InboundQueue`, its own protocol so `ConversationStore` gains no
 method. Messages are addressed by `ThreadRef` and owner-scoped like every
-store. Delivery is at least once: `pending(thread, after=n)` reads without
-removing, and `ack(thread, through=id)` removes what the reader has handed on,
-so a message read by a process that then died is read again.
+store. Delivery is at least once: `pending(thread)` reads without removing, and
+`ack(thread, ids)` removes exactly the ids the reader has handed on, so a message
+read by a process that then died is read again. Ids are allocated at insert and
+seen at commit, so one can become visible behind a higher id already read, and
+`pending(after=n)` used as a cursor can miss it. A reader that must see every
+message calls `pending` without `after` and acks what it read.
 
 ```python
 from django_spec_agents import InboundKind
@@ -574,7 +577,7 @@ await queue.enqueue(
     sender=ThreadRef("c1", scope="b"),
 )
 messages = await queue.pending(ThreadRef("t1", scope="a"), request=request)
-await queue.ack(ThreadRef("t1", scope="a"), messages[-1].id, request=request)
+await queue.ack(ThreadRef("t1", scope="a"), [m.id for m in messages], request=request)
 ```
 
 `DefaultInboundQueue` keeps the queue in `StoredInboundMessage` rows, added by

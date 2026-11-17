@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("owner_id", models.CharField(blank=True, default="", max_length=255)),
-                ("scope", models.CharField(blank=True, default="", max_length=255)),
+                ("scope", models.CharField(blank=True, default=None, max_length=255, null=True)),
                 ("thread_id", models.CharField(max_length=255)),
                 (
                     "kind",

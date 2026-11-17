@@ -29,7 +29,7 @@ _T0 = datetime(2026, 1, 1, tzinfo=UTC)
 _LEASE = timedelta(seconds=30)
 _WAITING = RunWaiting(kind="approval", summary="delete_thing", tool_call_id="c1", destructive=True)
 _PARKED = RunStop("t1", "r1", RunOutcome.WAITING, _WAITING)
-_PARAMS = {"agent_id": "support", "prompt": "Summarise the inbox.", "timeout": 60}
+_PARAMS = {"agent_id": "support", "prompt": "Summarise the inbox.", "timeout": 17.5}
 
 
 class _Clock:
@@ -146,7 +146,7 @@ def test_a_worker_runs_the_spec_to_its_first_stop(
     assert (agent_id, prompt, timeout, thread_id, parent) == (
         "support",
         "Summarise the inbox.",
-        60.0,
+        17.5,
         "t1",
         "t0",
     )
@@ -217,6 +217,22 @@ def test_a_restart_leaves_the_lease_to_lapse(
 
     worker.run(run_id)
     assert len(runner.calls) == 1
+
+
+def test_a_run_whose_spec_is_gone_when_the_sweep_ends_it_has_lapsed(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    worker = _worker(_Runner(store, SystemExit(1)), clock)
+    run_id = worker.enqueue("run_headless", _PARAMS, actor=user)
+    with pytest.raises(SystemExit):
+        worker.run(run_id)
+
+    worker.specs = {}
+    clock.now = _T0 + timedelta(minutes=5, seconds=1)
+    worker.sweep()
+
+    assert worker.rows[run_id].state == "SPEC_UNAVAILABLE"
+    assert worker.state(run_id) is FiringState.LAPSED
 
 
 def test_a_runner_that_raises_ends_the_firing(

@@ -48,6 +48,10 @@ The host was published as `django-pydantic-agent` and `spec_tools` as
 | `policy/` | `audit/`, `guard/` and `failure/`: the capabilities composed around every tool call |
 | `persistence/` | the store protocols, the session, model, scoped and null stores, and the memory namespaces |
 | `integrations/` | the `[mcp]` bridge (`mcp.py`, with the wording it teaches the model), `build_spec_capability` and `resolve_spec_mapping` |
+| `child_sessions/` | `ModelInboundQueue` and, in `types/`, the `InboundQueue` protocol, `InboundMessage` and `InboundKind`: a thread's durable queue of reports, questions and steering |
+| `headless/` | the `run_headless` spec and its types: a run with no browser, started by a queue (`[specs]` only, see the boundary) |
+| `skills/` | stored user skills: `AbstractSkill`, `SkillPolicy`, the writes, `StoredSkills` and `build_skill_tools` |
+| `routines/` | stored scheduled runs: `AbstractRoutine`, the schedule and the policy-checked writes |
 | `contrib/store/` | the opt-in store app: models, its migrations, reference stores, management commands |
 | `types/` | the package-wide enums and constants, one per file |
 | `spec_tools/` | the tool half, with its own `types/` |
@@ -72,6 +76,9 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
   carries the wording it teaches the model itself, so `integrations/mcp.py` is
   the one file the scan covers. django-spec-mcp needs a ready app registry to
   import, so it stays off every host import path.
+- **`headless/run_headless.py` imports the kernel at module top**, so it is `[specs]`-only
+  and stays off every host import path, like `integrations/mcp.py`. The package root and
+  `headless/__init__.py` never import it; `headless/types/` is host-safe.
 - **`spec_tools` imports nothing from the host but `AgentDeps` and the file
   rendering it shares with `read_attachment`** (`AttachmentInlineConfig` and
   `agent/utils.py`, which import pydantic-ai alone), **and never `contrib.store`.**

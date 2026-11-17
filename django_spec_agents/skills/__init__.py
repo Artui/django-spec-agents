@@ -9,6 +9,7 @@ from django_spec_agents.skills.invalid_skill_error import InvalidSkillError
 from django_spec_agents.skills.list_visible_skills import list_visible_skills
 from django_spec_agents.skills.parse_skill_md import parse_skill_md
 from django_spec_agents.skills.resolve_skill import resolve_skill
+from django_spec_agents.skills.skill_limit_error import SkillLimitError
 from django_spec_agents.skills.skill_write_refused_error import SkillWriteRefusedError
 from django_spec_agents.skills.stored_skills import StoredSkills
 from django_spec_agents.skills.types.max_skill_body_length import MAX_SKILL_BODY_LENGTH
@@ -29,6 +30,7 @@ __all__ = [
     "AbstractSkill",
     "InvalidSkillError",
     "SkillDraft",
+    "SkillLimitError",
     "SkillPolicy",
     "SkillWriteRefusedError",
     "StoredSkills",

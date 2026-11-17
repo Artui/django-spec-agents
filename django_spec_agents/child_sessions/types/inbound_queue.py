@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any, Protocol, runtime_checkable
 
 from django.http import HttpRequest
@@ -20,8 +21,11 @@ class InboundQueue(Protocol):
     so a child in one scope reaches its parent in another.
 
     **Delivery is at least once.** ``pending`` reads without removing; a reader acks
-    what it has handed on with ``ack``, so a message read by a process that then died
-    is read again. Ids grow in the order messages were enqueued.
+    the ids it has handed on with ``ack``, so a message read by a process that then died
+    is read again, and ``ack`` removes exactly those ids and no others. Ids are allocated
+    at insert and seen at commit, so one can become visible behind a higher id already
+    read: ``pending(after=n)`` used as a cursor can miss it. A reader that must see every
+    message calls ``pending`` without ``after`` and acks what it read.
     """
 
     async def enqueue(
@@ -42,8 +46,8 @@ class InboundQueue(Protocol):
         """The thread's unacknowledged messages with ids above ``after``, oldest first."""
         ...
 
-    async def ack(self, thread: ThreadRef, through: int, *, request: HttpRequest) -> int:
-        """Remove the thread's messages with ids up to ``through``; how many were removed."""
+    async def ack(self, thread: ThreadRef, ids: Iterable[int], *, request: HttpRequest) -> int:
+        """Remove the thread's messages with these ``ids``; how many were removed."""
         ...
 
 
