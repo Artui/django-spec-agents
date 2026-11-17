@@ -59,6 +59,7 @@ def _sweep_one(
     routine.next_fire_at = _following(schedule, zone, due, now)
     if state is FiringState.LAPSED:
         _pause(routine, _LAPSED.format(run_id=run_id))
+        routine.last_run_id = None
         outcome = result.paused
     elif now - due > grace:
         logger.info("Routine %s missed its firing at %s, past its grace.", routine.pk, due)
@@ -90,7 +91,8 @@ def due_routines(
     Each claimed routine, in this order:
 
     - its last firing `lapsed` (its worker died, or its principal or spec went away): the
-      routine is paused, `enabled` off and `paused_reason` saying so;
+      routine is paused, `enabled` off and `paused_reason` naming the run, and `last_run_id`
+      is cleared so the routine fires again once turned back on;
     - it is later than its grace (`sweep.grace`, by default one schedule period): it is
       skipped, logged and counted as missed, so downtime runs a missed firing at most once;
     - its last firing is still `pending`: it is skipped;

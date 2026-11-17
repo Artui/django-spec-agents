@@ -87,7 +87,7 @@ def test_a_lapsed_firing_pauses_the_routine_with_its_reason(
     lapsed.refresh_from_db()
     assert queue.enqueued == []
     assert result.paused == [lapsed.pk]
-    assert (lapsed.enabled, lapsed.next_fire_at) == (False, None)
+    assert (lapsed.enabled, lapsed.next_fire_at, lapsed.last_run_id) == (False, None, None)
     assert lapsed.paused_reason.startswith("The last firing (run run-7) lapsed:")
     assert "lost the right to run it" in lapsed.paused_reason
 
@@ -239,3 +239,18 @@ def test_a_sweep_claims_at_most_limit_routines_oldest_first(
 
 def test_a_routine_model_is_unswept_by_default() -> None:
     assert AbstractRoutine.routine_sweep() is None
+
+
+def test_a_routine_paused_for_a_lapse_fires_again_once_turned_back_on(
+    member: AbstractBaseUser, queue: RecordingQueue
+) -> None:
+    lapsed = routine(member, MONDAY_8, last_run_id="run-7")
+    queue.states["run-7"] = FiringState.LAPSED
+    due_routines(TeamRoutine, sweep(queue), now=MONDAY_8)
+    lapsed.refresh_from_db()
+    lapsed.enabled, lapsed.next_fire_at, lapsed.paused_reason = True, TUESDAY_8, ""
+    lapsed.save()
+
+    result = due_routines(TeamRoutine, sweep(queue), now=TUESDAY_8)
+
+    assert result.fired == [lapsed.pk]

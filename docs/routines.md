@@ -189,7 +189,7 @@ For each claimed routine, in this order:
 
 | The routine | The sweep |
 | --- | --- |
-| Its last firing `lapsed`: the worker died, or the principal or the spec went away | Pauses it: `enabled` off, `next_fire_at` cleared, `paused_reason` naming the run |
+| Its last firing `lapsed`: the worker died, or the principal or the spec went away | Pauses it: `enabled` off, `next_fire_at` and `last_run_id` cleared, `paused_reason` naming the run |
 | It is later than its grace, say after downtime | Skips it, logs it, and counts it as missed |
 | Its last firing is still `pending` | Skips it |
 | The policy's `can_run` refuses its principal | Pauses it with that reason |
