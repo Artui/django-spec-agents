@@ -114,7 +114,6 @@ def test_unapplying_restores_the_old_names_and_applying_renames_them_again() -> 
     assert not ContentType.objects.filter(app_label=OLD_LABEL).exists()
     # The grant hangs off the content type by key, so it followed the label.
     assert list(Group.objects.get(name="readers").permissions.all()) == [permission]
-    # Only the columns 0001 creates: a later migration adds others to this table.
     assert StoredConversation.objects.only("pk").get().attachments.get() == attachment
     names = {name for model in migration.MODELS for name in _object_names(f"{LABEL}_{model}")}
     assert set(migration.INDEXES.values()) <= names

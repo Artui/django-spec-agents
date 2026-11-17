@@ -87,7 +87,7 @@ async def test_an_owner_never_reads_or_acks_another_owners_queue() -> None:
     assert len(await queue.pending(_PARENT, request=authed_request("7"))) == 1
 
 
-async def test_an_anonymous_request_is_refused_unless_allowed() -> None:
+async def test_an_anonymous_request_is_refused() -> None:
     with pytest.raises(AnonymousOperationError):
         await DefaultInboundQueue().enqueue(
             _PARENT, InboundKind.ANSWER, "yes", request=anonymous_request()
