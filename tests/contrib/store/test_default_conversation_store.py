@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ from django_spec_agents.contrib.store.default_conversation_store import DefaultC
 from django_spec_agents.contrib.store.models import StoredAttachment, StoredConversation
 from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from tests.contrib.store.rows import at_limit, refusal, stored_attachment, too_long
 
 pytestmark = pytest.mark.django_db
@@ -242,3 +244,73 @@ def test_check_identifiers_accepts_a_thread_id_at_its_column_width() -> None:
 def test_check_identifiers_takes_only_the_ids_the_store_keeps() -> None:
     with pytest.raises(TypeError):
         DefaultConversationStore().check_identifiers(thread_id="t1", **{"run_id": "r1"})
+
+
+def test_a_parent_round_trips_through_fetch_and_list() -> None:
+    store = DefaultConversationStore()
+    link = ThreadRef(thread_id="p1", scope="a")
+
+    store._store(dataclasses.replace(_conv(), parent=link), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.parent == link
+    assert [meta.parent for meta in store._list("7", None)] == [link]
+
+
+def test_an_unscoped_parent_round_trips_with_no_scope() -> None:
+    store = DefaultConversationStore()
+
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1")), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.parent == ThreadRef(thread_id="p1", scope=None)
+
+
+def test_a_thread_saved_without_a_parent_has_none() -> None:
+    store = DefaultConversationStore()
+    store._store(_conv(), "7")
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.parent is None
+    assert [meta.parent for meta in store._list("7", None)] == [None]
+
+
+def test_a_later_save_without_a_parent_keeps_the_link() -> None:
+    store = DefaultConversationStore()
+    link = ThreadRef(thread_id="p1", scope="a")
+    store._store(dataclasses.replace(_conv(), parent=link), "7")
+
+    store._store(_conv(text="a browser turn in the child"), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.parent == link
+
+
+def test_a_later_save_with_a_parent_replaces_the_link() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1", scope="a")), "7")
+
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p2")), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.parent == ThreadRef(thread_id="p2", scope=None)
+
+
+@pytest.mark.parametrize("field", ["parent_thread_id", "parent_scope"])
+def test_an_over_long_parent_is_refused_with_nothing_written(field: str) -> None:
+    store = DefaultConversationStore()
+    value = too_long(StoredConversation, field)
+    link = ThreadRef(
+        thread_id=value if field == "parent_thread_id" else "p1",
+        scope=value if field == "parent_scope" else "a",
+    )
+
+    with pytest.raises(IdentifierTooLongError) as error:
+        store._store(dataclasses.replace(_conv(), parent=link), "7")
+
+    assert error.value.field == field
+    assert not StoredConversation.objects.exists()

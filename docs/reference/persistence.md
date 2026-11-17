@@ -151,6 +151,31 @@ Needs the `[specs]` extra, so it is imported from its module, never from the roo
 
 ::: django_spec_agents.headless.types.headless_firing.HeadlessFiring
 
+## Child sessions
+
+A thread one agent starts on another keeps a link to the thread that started it,
+and every thread can have a durable queue of messages waiting for it.
+
+### `ThreadRef`
+
+::: django_spec_agents.persistence.types.thread_ref.ThreadRef
+
+### `InboundQueue`
+
+::: django_spec_agents.child_sessions.types.inbound_queue.InboundQueue
+
+### `InboundMessage`
+
+::: django_spec_agents.child_sessions.types.inbound_message.InboundMessage
+
+### `InboundKind`
+
+::: django_spec_agents.child_sessions.types.inbound_kind.InboundKind
+
+### `ModelInboundQueue`
+
+::: django_spec_agents.child_sessions.model_inbound_queue.ModelInboundQueue
+
 ## Reference implementations
 
 The opt-in `django_spec_agents.contrib.store` app. Add it to
@@ -166,6 +191,8 @@ that don't opt in get no migration.
 ::: django_spec_agents.contrib.store.default_memory_store.DefaultMemoryStore
 
 ::: django_spec_agents.contrib.store.default_run_store.DefaultRunStore
+
+::: django_spec_agents.contrib.store.default_inbound_queue.DefaultInboundQueue
 
 ### Attachment lifecycle
 
