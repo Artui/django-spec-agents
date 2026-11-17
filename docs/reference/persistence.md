@@ -198,6 +198,8 @@ that don't opt in get no migration.
 
 ::: django_spec_agents.contrib.store.default_inbound_queue.DefaultInboundQueue
 
+::: django_spec_agents.contrib.store.default_child_session_index.DefaultChildSessionIndex
+
 ### Attachment lifecycle
 
 Contrib-level, not part of either protocol. See

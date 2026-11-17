@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a per-user day budget (`[harness]`). The `ChildSessionIndex` protocol answers which
   children a thread has and how many are live. `report_frame` frames a settled child's
   output as upstream's `<task_output>`. See [Child sessions](https://artui.github.io/django-spec-agents/child-sessions/).
+- **`DefaultChildSessionIndex`: the store app's `ChildSessionIndex`.** It reads
+  `StoredConversation`'s parent columns and a `RunStore`, scoped to the owner: a
+  parent's children in any scope, oldest first, and how many of the owner's children are
+  running or waiting. No migration.
 - **A child's bounds survive a later run of its thread.** `start_session` hands the
   runner a `ChildLineageRecord` (the root, the depth, the parent's tools and the ones it
   gated), which `Conversation.lineage` carries and `DefaultConversationStore` keeps,

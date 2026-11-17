@@ -114,6 +114,13 @@ child's conversation stores and the run status kept beside it. A child must be l
 `HeadlessRunner.start` returns, or the per-thread limit cannot count it. The limits use it, and so
 does `cancel_task`, which walks the tree from the child down.
 
+`DefaultChildSessionIndex(run_store)`, in the store app, is the one to use with
+`DefaultConversationStore`. It lists a parent's children, oldest first and in any scope,
+reading a scoped store's `scope:thread_id` column back into a `ThreadRef`, and takes each
+child's status from the `RunStore`, idle where it holds none. The run store is keyed by
+the client's thread id, not its scope, so two children with one thread id in two scopes
+share one status.
+
 ## Later runs of a child's thread
 
 The bounds a child starts under ride the capabilities of its first run. `start_session`
