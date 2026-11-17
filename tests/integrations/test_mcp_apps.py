@@ -21,9 +21,10 @@ from pydantic_ai import Agent
 from pydantic_ai._mcp_apps import MCP_APP_METADATA_KEY, get_mcp_app_tool_result
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturn
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.tools import ToolDefinition
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
-from django_spec_agents.integrations.mcp import MCPToolset
+from django_spec_agents.integrations.mcp import MCPToolset, _visible_to
 from tests.integrations.mcp_server import add_numbers
 from tests.tool_retries import is_tool_answer, tool_answers
 
@@ -235,3 +236,10 @@ async def test_the_app_call_reuses_the_definitions_a_step_already_loaded() -> No
     result = await toolset.call_tool_for_app("app_only", {"a": 2, "b": 2})
     assert not isinstance(result, JsonRpcError)
     assert result["structuredContent"] == {"result": 4}
+
+
+def test_a_visibility_that_is_not_a_list_hides_the_tool_from_no_one() -> None:
+    tool_def = ToolDefinition(
+        name="odd", metadata={"meta": {"ui": {"resourceUri": VIEW, "visibility": "app"}}}
+    )
+    assert _visible_to(tool_def, "model") and _visible_to(tool_def, "app")

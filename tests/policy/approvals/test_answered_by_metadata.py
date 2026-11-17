@@ -4,8 +4,16 @@ from typing import Any
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
-from pydantic_ai import Agent, DeferredToolRequests, Tool, ToolReturn
+from pydantic_ai import (
+    Agent,
+    DeferredToolRequests,
+    DeferredToolResults,
+    Tool,
+    ToolApproved,
+    ToolReturn,
+)
 from pydantic_ai._mcp_apps import get_mcp_app_tool_result
+from pydantic_ai.capabilities import AbstractCapability, CapabilityOrdering, HandleDeferredToolCalls
 from pydantic_ai.messages import (
     ModelMessage,
     ModelResponse,
@@ -20,8 +28,10 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.integrations.mcp import MCPToolset
 from django_spec_agents.policy.approvals.answered_by_metadata import AnsweredByMetadata
 from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
+from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from tests.integrations.test_mcp_apps import VIEW, _request, apps_server
 from tests.policy.approvals.approval_runs import gated_tool, returns, run_calls
+from tests.policy.audit.capturing_audit_logger import CapturingAuditLogger
 
 
 async def _granted_return(metadata: Any, *capabilities: Any) -> Any:
@@ -101,3 +111,30 @@ async def test_an_mcp_apps_record_survives_an_approval_answered_in_the_run() -> 
     assert part.content == {"result": 3}
     assert get_mcp_app_tool_result(part.metadata)["resource_uri"] == VIEW  # ty: ignore[not-subscriptable]
     assert part.metadata["answered_by"] == "routine:7"  # ty: ignore[not-subscriptable]
+
+
+class _OddMetadataApprovals(AbstractCapability[Any]):
+    def get_ordering(self) -> CapabilityOrdering:
+        return CapabilityOrdering(wraps=[HandleDeferredToolCalls])
+
+    async def handle_deferred_tool_calls(
+        self, ctx: Any, *, requests: DeferredToolRequests
+    ) -> DeferredToolResults:
+        ids = [call.tool_call_id for call in requests.approvals]
+        return DeferredToolResults(
+            approvals={i: ToolApproved() for i in ids},
+            metadata={i: "x" for i in ids},  # ty: ignore[invalid-argument-type]
+        )
+
+
+async def test_a_handler_whose_call_metadata_is_not_a_dict_leaves_no_mark() -> None:
+    audit = CapturingAuditLogger()
+    result = await run_calls(
+        [gated_tool("show_order")],
+        [_OddMetadataApprovals(), AuditCapability(audit), AnsweredByMetadata()],
+        call=["show_order"],
+    )
+
+    part = returns(result)["show_order"]
+    assert (part.content, part.metadata) == ("show_order 0", None)
+    assert [event.answered_by for event in audit.events] == [None]

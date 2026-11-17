@@ -14,10 +14,10 @@ from django_spec_agents.policy.approvals.utils import approved_by
 class GrantedApprovals(AbstractCapability[Any]):
     """Approves a fixed grant of tool names in the run, marked ``answered_by``.
 
-    A routine's firing passes its pre-approved tools with ``answered_by="routine:<id>"``:
-    the guard still gates each call, and this answers it, so the call runs in the same
-    run with the mark on its result and its audit record. A call of any other tool, an
-    external call, and a tool in
+    A routine's firing spec can pass ``preapproved_exempt(routine)`` with
+    ``answered_by="routine:<id>"``: the guard still gates each call, and this answers it,
+    so the call runs in the same run with the mark on its result and its audit record. A
+    call of any other tool, an external call, and a tool in
     [`NEVER_AUTO_APPROVED`][django_spec_agents.NEVER_AUTO_APPROVED] are left to the next
     answerer, and then to the person. It sorts before
     [`ReviewedApprovals`][django_spec_agents.ReviewedApprovals], so a granted call costs

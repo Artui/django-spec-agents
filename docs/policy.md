@@ -238,7 +238,8 @@ first. Two answerers ship, both on pydantic-ai's `handle_deferred_tool_calls`; t
 still gates the call, and the answerer only answers it:
 
 - **`GrantedApprovals(names, answered_by)`** approves a fixed grant. A routine's firing
-  passes the tools it pre-approved, with `answered_by="routine:<id>"`.
+  spec can pass `GrantedApprovals(preapproved_exempt(routine), f"routine:{routine.pk}")`:
+  only the tools that were gated when granted, so a tool declared destructive since parks.
 - **`ReviewedApprovals`**, composed from `AgentConfig.approval_reviewer`, asks a second
   model, through pydantic-ai-harness's `ApprovalReviewer` (the `[harness]` extra), a
   yes/no risk question about each call. `no` approves the call, marked

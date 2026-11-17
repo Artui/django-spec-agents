@@ -51,7 +51,8 @@ The host was published as `django-pydantic-agent` and `spec_tools` as
 | `child_sessions/` | `ModelInboundQueue` and, in `types/`, the `InboundQueue` protocol, `InboundMessage` and `InboundKind`: a thread's durable queue of reports, questions and steering |
 | `headless/` | the `run_headless` spec and its types: a run with no browser, started by a queue (`[specs]` only, see the boundary) |
 | `skills/` | stored user skills: `AbstractSkill`, `SkillPolicy`, the writes, `StoredSkills` and `build_skill_tools` |
-| `routines/` | stored scheduled runs: `AbstractRoutine`, the schedule and the policy-checked writes |
+| `routines/` | stored scheduled runs: `AbstractRoutine`, the schedule, the policy-checked writes and the `due_routines` sweep |
+| `management/commands/` | `run_due_routines`, the sweep as a command the project schedules |
 | `contrib/store/` | the opt-in store app: models, its migrations, reference stores, management commands |
 | `types/` | the package-wide enums and constants, one per file |
 | `spec_tools/` | the tool half, with its own `types/` |

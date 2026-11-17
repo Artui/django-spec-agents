@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import Any
 
 import pytest
 from django.contrib.auth.base_user import AbstractBaseUser
+from django.db import transaction
 
 from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.firing_state import FiringState
@@ -321,3 +325,35 @@ def test_a_routine_that_never_fired_asks_about_no_thread(
     result = due_routines(TeamRoutine, sweep(queue), now=MONDAY_8)
 
     assert result.fired == [fresh.pk]
+
+
+@dataclass
+class OnCommitQueue(RecordingQueue):
+    sent: list[str] = field(default_factory=list)
+
+    def enqueue(self, spec_name: str, params: Mapping[str, Any], *, actor: Any) -> str:
+        run_id = super().enqueue(spec_name, params, actor=actor)
+        transaction.on_commit(lambda: self.sent.append(params["thread_id"]))
+        return run_id
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_routine_that_raises_after_its_enqueue_sends_nothing(
+    member: AbstractBaseUser, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broken, fine = routine(member, MONDAY_8), routine(member, MONDAY_8)
+    save = TeamRoutine.save
+
+    def failing_save(self: TeamRoutine, *args: Any, **kwargs: Any) -> None:
+        if self.pk == broken.pk:
+            raise RuntimeError("the row would not save")
+        save(self, *args, **kwargs)
+
+    monkeypatch.setattr(TeamRoutine, "save", failing_save)
+    queue = OnCommitQueue()
+
+    result = due_routines(TeamRoutine, sweep(queue), now=MONDAY_8)
+
+    fine.refresh_from_db()
+    assert (result.failed, result.fired) == ([broken.pk], [fine.pk])
+    assert queue.sent == [fine.last_thread_id]

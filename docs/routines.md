@@ -147,7 +147,10 @@ again.
 
 `preapproved_exempt(routine)` returns the names a firing's guard exempts: only the
 tools that were gated when granted. A tool granted while ungated and declared
-destructive later is not among them, so its call parks.
+destructive later is not among them, so its call parks. Passed to
+[`GrantedApprovals`](policy.md#answering-a-gated-call-in-the-run) with
+`f"routine:{routine.pk}"`, the same names are approved in the run and each call's result
+and audit record carry the routine as `answered_by`.
 
 ## Firing due routines
 
@@ -195,7 +198,7 @@ For each claimed routine, in this order:
 | It is later than its grace, say after downtime | Skips it, logs it, and counts it as missed |
 | Its last firing is still `pending`, or its thread still waits (below) | Skips it |
 | The policy's `can_run` refuses its principal | Pauses it with that reason |
-| Otherwise | Enqueues the firing and stores the run id as `last_run_id` |
+| Otherwise | Enqueues the firing with a fresh thread id, and stores the run id as `last_run_id` and the thread as `last_thread_id` |
 
 However late the sweep, `next_fire_at` moves to the first firing after now, stepped from
 the one claimed, so an outage fires a missed routine at most once and an interval keeps
@@ -210,18 +213,28 @@ answers the approval card. Starting the next firing beside it would leave two th
 waiting on the same question, so the sweep asks the model first:
 
 ```python
+from asgiref.sync import async_to_sync
+from django.http import HttpRequest
+
+from django_spec_agents import ThreadRunStatus
+from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
+
+
 class Routine(AbstractRoutine):
     ...
 
     @classmethod
     def thread_waits(cls, thread_id, principal) -> bool:
-        state = run_store_state(thread_id, principal)
+        request = HttpRequest()
+        request.user = principal
+        state = async_to_sync(DefaultRunStore().get)(thread_id, request=request)
         return state is not None and state.status == ThreadRunStatus.WAITING
 ```
 
 `thread_waits(thread_id, principal)` is asked about `last_thread_id`, as the routine's
-principal, and a `True` skips this firing. Read it from your run store, whose rows are
-scoped by the owner a request carries. The default returns `False`, so a project that
+principal, and a `True` skips this firing. The hook is synchronous and the run store is
+async and scoped by the owner a request carries, so it builds a request for the principal
+and bridges the call. The default returns `False`, so a project that
 does not fill it fires on schedule whatever its last thread is doing.
 
 ## Finding the model, and refusing one with no policy at startup
