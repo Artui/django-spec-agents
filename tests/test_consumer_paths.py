@@ -18,6 +18,7 @@ NOT_AT_THE_ROOT = [
     ("django_spec_agents.integrations.mcp", ["MCPToolset"]),
     ("django_spec_agents.integrations.resolve_spec_mapping", ["resolve_spec_mapping"]),
     ("django_spec_agents.integrations.types.spec_source", ["SpecSource"]),
+    ("django_spec_agents.headless.run_headless", ["run_headless"]),
 ]
 
 # Root names django-ag-ui imports from their leaf modules instead, in its package

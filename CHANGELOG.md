@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Stored skills reach the agent: `StoredSkills` and `build_skill_tools`**, in
+  `django_spec_agents.skills`. `StoredSkills(policy, request)` goes in a run's
+  `capabilities=`. On every run it reads the caller's visible skills through the policy and
+  offers each enabled, model-invocable one as a deferred capability whose id is its name. A
+  skill written between two runs is therefore live on the next run, and the model sees only
+  the name and description until it calls `load_capability`. A loaded skill adds
+  instructions only: no tool and no permission. The tool guard, the approval policy and the
+  policy's `can_write` apply whatever its body says. `authoring=True` adds the four tools
+  `build_skill_tools(policy, request)` returns. `list_skills` returns no bodies.
+  `create_skill`, `update_skill` and `disable_skill` carry the destructive marker, so
+  `ToolGuard` defers them for approval with the body on the card. A broken draft goes back
+  to the model to retry, and a refused write is reported as text. It also adds a bundled
+  `create-skill` skill that interviews the user and saves the draft with `create_skill`. A
+  visible stored skill named `create-skill` shadows it.
+- **`FiringQueue` and the `run_headless` spec: a headless run whose owner lives in a
+  worker.** `FiringQueue` is the seam a host fills from its task queue, such as
+  django-spec-tasks' `enqueue` and `state_of`: `enqueue(spec_name, params, *, actor)`
+  checks the call and returns the run's id, and `state(run_id)` answers a `FiringState`,
+  `pending`, `lapsed` (its worker died, or its principal lost the right) or `finished`.
+  `run_headless(runner, permissions=...)`, in `django_spec_agents.headless.run_headless`
+  and needing the `[specs]` extra, builds the kernel spec a worker runs: its body is
+  `HeadlessRunner.run_to_first_stop` with the arguments of a `HeadlessFiring` (no
+  `capabilities`, which cannot cross a queue), and it presents the `RunStop`. It declares
+  `atomic=False`, so no transaction spans the agent run, and `idempotent=False`, so a
+  worker that dies mid-run is not run again: the run's lease lapses, its thread reads
+  `failed` with reason `interrupted`, and the queue reports the firing `lapsed`. The
+  Running from a worker page shows the django-spec-tasks adapter. `FiringQueue`,
+  `FiringState` and `HeadlessFiring` are exported from the root; `run_headless` is not.
+
 ## [0.17.0] — 2026-11-16
 
 A minor release with no floor moved and no migration: routines, a stored prompt for one

@@ -4,6 +4,9 @@ from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.agent.types.agent_factory_fn import AgentFactoryFn
 from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
+from django_spec_agents.headless.types.firing_queue import FiringQueue
+from django_spec_agents.headless.types.firing_state import FiringState
+from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
@@ -76,6 +79,9 @@ __all__ = [
     "ConversationMeta",
     "ConversationStore",
     "DjangoSessionConversationStore",
+    "FiringQueue",
+    "FiringState",
+    "HeadlessFiring",
     "HeadlessRunner",
     "HeadlessStart",
     "IdentifierTooLongError",

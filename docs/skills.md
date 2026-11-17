@@ -122,6 +122,42 @@ The import reads a strict subset of YAML: one-line entries for `name`, `descript
 double-quoted. Any other field, such as `allowed-tools`, raises `InvalidSkillError`, and
 so does a multi-line value. Dropping either one silently would lose part of the file.
 
+## Offering stored skills to the agent
+
+Pass `StoredSkills` in the per-run `capabilities=`, built for the request the run serves:
+
+```python
+from django_spec_agents.skills import StoredSkills
+
+capabilities = [StoredSkills(Skill.skill_policy(), request, authoring=True)]
+```
+
+On every run it reads the caller's visible skills through the policy, and offers each
+enabled skill with `model_invocable` set as a deferred capability. The capability's id is
+the skill's name. Until the model calls `load_capability` with that id, it sees only the
+name and the description. After that, the body joins its instructions. A skill created or
+changed between two runs is offered on the next run, with no agent rebuild.
+
+A skill grants nothing. It has no tools, and it cannot lift an approval. A destructive tool
+waits for approval, and the policy's `can_write` refuses a write, whatever a body says.
+
+`authoring=True` adds `build_skill_tools`' four tools:
+
+| Tool | Gated | Does |
+| --- | --- | --- |
+| `list_skills` | no | the visible skills: name, description, the two flags, and `writable`. No body |
+| `create_skill` | yes | `create_skill` with the name, description, body and flags given |
+| `update_skill` | yes | replaces the draft of the enabled skill the caller reaches by name |
+| `disable_skill` | yes | `disable_skill` on that skill |
+
+The three writes carry the destructive marker, so `ToolGuard` defers them for approval and
+the approval card shows the body. A draft that breaks a rule is sent back to the model to
+retry. A write the policy refuses is reported to the model as text, and nothing changes.
+
+It also adds the bundled `create-skill` skill, which interviews the user, drafts a name,
+description and body, and calls `create_skill`. A visible stored skill named `create-skill`
+replaces the bundled one, by the same rule that lets a personal skill replace a company one.
+
 ## Refusing a model with no policy at startup
 
 No setting names your model. Your code holds it and passes `Skill.skill_policy()` to
