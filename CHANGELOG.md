@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-11-17
+
+A minor release with two floors moved, one protocol change and one migration: child
+sessions a parent agent starts, lists, messages, answers and cancels, with their bounds
+kept across later runs and a report when each settles.
+
+### Added
+
+- **`ChildSessionsToolset`: tools to start, list, message, answer and cancel child
+  sessions.** Needs the `[harness]` extra, and building the toolset without it raises
+  `ImportError`. `start_session` starts a child on another agent through a
+  `HeadlessRunner`, running as the parent's user, and returns a `ChildSessionReceipt`
+  naming the child's `agent_id` and `thread_id` as its tool result. `list_tasks`,
+  `message_task`, `answer_task` and `cancel_task` keep upstream `TaskControl`'s names,
+  so a mount carrying both is refused. A child sees only the tools its parent had, through
+  the `ChildLineage` capability, a tool its parent gated stays gated, and it parks as
+  `waiting` on a gated call or on `ask_parent`. A run with no signed-in user cannot start
+  one. `ChildSessionLimits` refuses a start past a depth of 2, a fourth live
+  child of one thread or an eleventh of one user, and puts a required deadline on each
+  child run. `ChildSessionSpend` adds a `SpendLimits` budget over the root thread's tree
+  and a per-user day budget (`[harness]`). The `ChildSessionIndex` protocol answers which
+  children a thread has and how many are live. `report_frame` frames a settled child's
+  output as upstream's `<task_output>`. See [Child sessions](https://artui.github.io/django-spec-agents/child-sessions/).
+- **`DefaultChildSessionIndex`: the store app's `ChildSessionIndex`.** It reads
+  `StoredConversation`'s parent columns and a `RunStore`, scoped to the owner: a
+  parent's children in any scope, oldest first, and how many of the owner's children are
+  running or waiting. No migration.
+- **A child's bounds survive a later run of its thread.** `start_session` hands the
+  runner a `ChildLineageRecord` (the root, the depth, the parent's tools and the ones it
+  gated), which `Conversation.lineage` carries and `DefaultConversationStore` keeps,
+  leaving it alone on a save that names none, as it does `parent`.
+  `child_lineage_for(conversation, agent_id=, owner=, queue=, spend=)` rebuilds the
+  capabilities `start_session` gave the first run, for a transport to compose on a user
+  turn, a resume or a wake.
+  **Migrate step:** `0005_child_lineage` adds the nullable `lineage` column to
+  `StoredConversation`; run `migrate`.
+- **`ChildReport`: a settled child reports to its parent.** Composed into every child
+  run, it enqueues a `REPORT` on the parent's inbound queue when the run ends with
+  output (`ok`), at a usage or spend limit (`budget`), past its deadline (`timeout`) or
+  with an error (`failed`). A run that parks, or that is cancelled before its deadline,
+  sends nothing. A report that cannot be sent is logged and never replaces the run's own
+  result or error.
+
+### Changed
+
+- **Floors: `pydantic-ai-slim>=2.69`, `pydantic-ai-harness>=0.69`.** The `[harness]` extra
+  takes pydantic-ai-harness 0.69, the first whose modules are named `spend_limits` and
+  `sub_agents`, which the child sessions import. Harness pins slim exactly, so the base
+  install and every provider extra take pydantic-ai-slim 2.69 with it.
+- **`HeadlessRunner` takes the parent as a `ThreadRef`, and the child's lineage.**
+  `start` and `run_to_first_stop` take `parent: ThreadRef | None` in place of
+  `str | None`, so a child run on another agent keeps its parent's scope, and a new
+  `lineage: ChildLineageRecord | None` for the runner to save beside it.
+  `ChildSessionsToolset` passes its own thread with its agent id. A transport's runner
+  changes its signature to match; django-ag-ui's `AGUIHeadlessRunner` follows.
+  `HeadlessFiring.parent` changes with it, so the `run_headless` spec's `parent`
+  argument is now an object, `{"thread_id": ..., "scope": ...}`, where it was a string,
+  and the spec takes a `lineage` object (`{"root": ..., "depth": ..., "tools": [...],
+  "gated": [...]}`) that it passes to the runner, so a child queued through
+  `FiringQueue` keeps its parent's bounds on later runs too.
+
 ## [0.19.0] — 2026-11-17
 
 ### Added
@@ -1190,7 +1251,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/Artui/django-spec-agents/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/django-spec-agents/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Artui/django-spec-agents/compare/v0.16.0...v0.17.0

@@ -67,5 +67,18 @@ from django_spec_agents import (
     AnsweredByMetadata,
     NEVER_AUTO_APPROVED,
     ANSWERED_BY_KEY,
+    # child sessions
+    ChildSessionsToolset,
+    ChildLineage,
+    ChildLineageRecord,
+    ChildReport,
+    child_lineage_for,
+    report_frame,
+    ChildSession,
+    ChildSessionIndex,
+    ChildSessionLimits,
+    ChildSessionReceipt,
+    ChildSessionRefusal,
+    ChildSessionSpend,
 )
 ```

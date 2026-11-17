@@ -48,7 +48,7 @@ The host was published as `django-pydantic-agent` and `spec_tools` as
 | `policy/` | `audit/`, `guard/` and `failure/`: the capabilities composed around every tool call |
 | `persistence/` | the store protocols, the session, model, scoped and null stores, and the memory namespaces |
 | `integrations/` | the `[mcp]` bridge (`mcp.py`, with the wording it teaches the model), `build_spec_capability` and `resolve_spec_mapping` |
-| `child_sessions/` | `ModelInboundQueue` and, in `types/`, the `InboundQueue` protocol, `InboundMessage` and `InboundKind`: a thread's durable queue of reports, questions and steering |
+| `child_sessions/` | `ChildSessionsToolset`, `ChildLineage`, `ChildReport`, `child_lineage_for`, `report_frame` and the limits and spend types (`[harness]`), and `ModelInboundQueue` with, in `types/`, the `InboundQueue` protocol, `InboundMessage` and `InboundKind`: a thread's durable queue of reports, questions and steering |
 | `headless/` | the `run_headless` spec and its types: a run with no browser, started by a queue (`[specs]` only, see the boundary) |
 | `skills/` | stored user skills: `AbstractSkill`, `SkillPolicy`, the writes, `StoredSkills` and `build_skill_tools` |
 | `routines/` | stored scheduled runs: `AbstractRoutine`, the schedule, the policy-checked writes and the `due_routines` sweep |
@@ -304,7 +304,7 @@ Change a rule here and change the config with it, or they drift apart again.
 | --- | --- | --- |
 | Python | 3.11 | 3.11, 3.12, 3.13, 3.14 |
 | Django | 4.2 LTS | 4.2, 5.0, 5.1, 5.2, 6.0, 6.1 |
-| Pydantic-AI | 2.68 (`DeferredToolRequests.kind()`, `DeferredToolResults.answered_by`), the release `pydantic-ai-harness` 0.68 pins (the `[harness]` floor; `CodeMode` defaults to `dynamic_catalog=True` from 0.63); the extras share it | latest in matrix |
+| Pydantic-AI | 2.69, the release `pydantic-ai-harness` 0.69 pins (the `[harness]` floor, the first with `spend_limits` and `sub_agents`; 2.68 brought `DeferredToolRequests.kind()` and `DeferredToolResults.answered_by`; `CodeMode` defaults to `dynamic_catalog=True` from 0.63); the extras share it | latest in matrix |
 | `[specs]` | django-service-specs, at the floor `pyproject.toml` declares and says the reason for | latest in matrix; the floor in the `lowest declared versions` job |
 | `[mcp]` | django-spec-mcp 0.14.0 (`aread_resource`); 0.9.0 was the wire the bridge reads (a list under `items`, a scalar with no `structuredContent`); it brings the kernel at the floor it requires | latest in matrix; the floor in the `lowest declared versions` job |
 

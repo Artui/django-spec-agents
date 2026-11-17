@@ -13,6 +13,7 @@ from django_spec_agents.contrib.store.utils import (
     unreferenced_attachments,
 )
 from django_spec_agents.persistence.model_conversation_store import ModelConversationStore
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import (
     ConversationMeta,
@@ -59,6 +60,7 @@ class DefaultConversationStore(ModelConversationStore):
             messages=list(row.messages),
             owner_id=row.owner_id or None,
             parent=_parent(row.parent_thread_id, row.parent_scope),
+            lineage=None if row.lineage is None else ChildLineageRecord.from_json(row.lineage),
         )
 
     def _store(self, conversation: Conversation, owner_id: str | None) -> None:
@@ -77,6 +79,8 @@ class DefaultConversationStore(ModelConversationStore):
         }
         if parent is not None:
             defaults.update(parent_thread_id=parent.thread_id, parent_scope=parent.scope)
+        if conversation.lineage is not None:
+            defaults["lineage"] = conversation.lineage.to_json()
         row, created = StoredConversation.objects.get_or_create(
             owner_id=owner_id or "",
             thread_id=conversation.thread_id,

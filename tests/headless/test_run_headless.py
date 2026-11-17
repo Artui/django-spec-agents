@@ -9,7 +9,11 @@ from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django_service_specs import InvalidArguments, NotPermitted, PermissionCheck, kernel_spec
+from pydantic_ai import Agent, Tool
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 
+from django_spec_agents.child_sessions.child_lineage_for import child_lineage_for
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.headless.run_headless import run_headless
 from django_spec_agents.headless.types.firing_queue import FiringQueue
@@ -17,9 +21,12 @@ from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from tests.headless.task_worker import TaskWorker
 
@@ -57,6 +64,7 @@ class _Runner:
         self, store: DefaultRunStore, fault: BaseException | None = None, stop: RunStop = _PARKED
     ) -> None:
         self.store, self.fault, self.stop, self.calls = store, fault, stop, []
+        self.lineages: list[ChildLineageRecord | None] = []
 
     async def start(self, *args: Any, **kwargs: Any) -> HeadlessStart:
         raise NotImplementedError
@@ -69,10 +77,12 @@ class _Runner:
         *,
         timeout: float,
         thread_id: str | None = None,
-        parent: str | None = None,
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[Any] = (),
     ) -> RunStop:
         self.calls.append((agent_id, prompt, principal, timeout, thread_id, parent, capabilities))
+        self.lineages.append(lineage)
         request = HttpRequest()
         request.user = principal
         await self.store.claim("t1", "r1", request=request, lease=_LEASE)
@@ -124,7 +134,7 @@ def test_a_worker_runs_the_spec_to_its_first_stop(
 ) -> None:
     runner = _Runner(store)
     worker = _worker(runner, clock)
-    params = {**_PARAMS, "thread_id": "t1", "parent": "t0"}
+    params = {**_PARAMS, "thread_id": "t1", "parent": {"thread_id": "t0", "scope": "main"}}
 
     run_id = worker.enqueue("run_headless", params, actor=user)
     assert worker.state(run_id) is FiringState.PENDING
@@ -148,7 +158,7 @@ def test_a_worker_runs_the_spec_to_its_first_stop(
         "Summarise the inbox.",
         17.5,
         "t1",
-        "t0",
+        ThreadRef("t0", "main"),
     )
     assert principal is not user and principal.pk == user.pk
     assert capabilities == ()
@@ -256,3 +266,41 @@ def test_enqueue_refuses_what_the_spec_refuses(
     with pytest.raises(NotPermitted):
         _worker(_Runner(store), clock, [_Nobody()]).enqueue("run_headless", _PARAMS, actor=user)
     assert worker.state("1") is None
+
+
+def test_a_queued_childs_later_run_stays_inside_its_parents_tools(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    runner = _Runner(store)
+    worker = _worker(runner, clock)
+    root = {"thread_id": "t0", "scope": "main"}
+    lineage = {"root": root, "depth": 1, "tools": ["search"], "gated": []}
+    params = {**_PARAMS, "thread_id": "t1", "parent": root, "lineage": lineage}
+
+    worker.run(worker.enqueue("run_headless", params, actor=user))
+
+    [record] = runner.lineages
+    assert record == ChildLineageRecord(ThreadRef("t0", "main"), 1, ["search"], [])
+    stored = Conversation("t1", parent=ThreadRef("t0", "main"), lineage=record)
+    later = child_lineage_for(stored, agent_id="support", owner=str(user.pk), queue=object())
+    offered: list[str] = []
+
+    def model(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        offered.extend(tool.name for tool in info.function_tools)
+        return ModelResponse(parts=[TextPart("done")])
+
+    agent = Agent(
+        FunctionModel(model),
+        tools=[Tool(_search, name="search"), Tool(_delete_everything, name="delete_everything")],
+    )
+    agent.run_sync("Go on.", capabilities=later)
+
+    assert offered == ["search"]
+
+
+def _search() -> str:
+    return "found"  # pragma: no cover
+
+
+def _delete_everything() -> str:
+    return "deleted"  # pragma: no cover
