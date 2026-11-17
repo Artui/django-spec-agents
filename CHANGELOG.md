@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ChildSessionsToolset`: tools to start, list, message, answer and cancel child
+  sessions.** `start_session` starts a child on another agent through a
+  `HeadlessRunner`, running as the parent's user, and returns a `ChildSessionReceipt`
+  naming the child's `agent_id` and `thread_id` as its tool result. `list_tasks`,
+  `message_task`, `answer_task` and `cancel_task` keep upstream `TaskControl`'s names,
+  so a mount carrying both is refused. A child sees only the tools its parent had, through
+  the `ChildLineage` capability, and parks as `waiting` on a gated call or on
+  `ask_parent`. `ChildSessionLimits` refuses a start past a depth of 2, a fourth live
+  child of one thread or an eleventh of one user, and puts a required deadline on each
+  child run. `ChildSessionSpend` adds a `SpendLimits` budget over the root thread's tree
+  and a per-user day budget (`[harness]`). The `ChildSessionIndex` protocol answers which
+  children a thread has and how many are live. `report_frame` frames a settled child's
+  output as upstream's `<task_output>`. See [Child sessions](https://artui.github.io/django-spec-agents/child-sessions/).
+
 ### Changed
 
 - **Floors: `pydantic-ai-slim>=2.68`, `pydantic-ai-harness>=0.68`, `django-spec-mcp>=0.14.0`.**
