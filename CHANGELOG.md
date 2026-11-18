@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-11-18
+
 ### Added
 
 - **`ResumableRunStore`: a run store that resumes a parked run once and gives a claim
@@ -1457,7 +1459,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...v0.20.1
