@@ -1564,6 +1564,84 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#resumablerunstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ResumableRunStore
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.ResumableRunStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ResumableRunStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ResumableRunStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ResumableRunStore.claim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        claim
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ResumableRunStore.release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnotparkederror" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunNotParkedError
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.RunNotParkedError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunNotParkedError
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RunNotParkedError">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#runclaim" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3601,6 +3679,84 @@
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#resumablerunstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ResumableRunStore
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.ResumableRunStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ResumableRunStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ResumableRunStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ResumableRunStore.claim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        claim
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.ResumableRunStore.release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnotparkederror" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunNotParkedError
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.RunNotParkedError" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunNotParkedError
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RunNotParkedError">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#runclaim" class="md-nav__link">
@@ -5905,6 +6061,183 @@ written.</p>
 
     </div>
 
+</div><h3 id="resumablerunstore"><code>ResumableRunStore</code><a class="headerlink" href="#resumablerunstore" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.ResumableRunStore" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ResumableRunStore</span>
+
+
+<a href="#django_spec_agents.ResumableRunStore" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="RunStore (django_spec_agents.persistence.types.run_store.RunStore)" href="#django_spec_agents.RunStore">RunStore</a></code>, <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>A run store that resumes a parked run once and gives a claim back.</p>
+<p>A <a class="autorefs autorefs-internal" title="RunStore" href="#django_spec_agents.RunStore"><code>RunStore</code></a> with two more pieces.</p>
+<p>Optional: a store written against <code>RunStore</code> alone stays one, and a
+transport checks <code>isinstance(store, ResumableRunStore)</code> before it passes
+<code>resumes=</code> or calls <code>release</code>. That check sees method names only, so a
+store that defines <code>release</code> must also take <code>resumes=</code>.
+<a class="autorefs autorefs-internal" title="DefaultRunStore" href="#django_spec_agents.contrib.store.default_run_store.DefaultRunStore"><code>DefaultRunStore</code></a>
+is one.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.ResumableRunStore.claim" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">claim</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.ResumableRunStore.claim" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">claim</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">lease</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">resumes</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunClaim</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>RunStore.claim</code>; with <code>resumes</code>, won only while the thread is parked on that run.</p>
+<p>The condition and the claim are one conditional update, so of two
+claims resuming the same parked run exactly one wins. A refused resume
+raises <a class="autorefs autorefs-internal" title="RunNotParkedError" href="#django_spec_agents.RunNotParkedError"><code>RunNotParkedError</code></a>,
+never answers busy, and writes nothing: the thread is running (its
+holder named), idle, failed, parked on another run, or running under a
+lapsed lease.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.ResumableRunStore.release" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">release</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.ResumableRunStore.release" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">release</span><span class="p">(</span><span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Give back a claim <code>run_id</code> still holds, restoring what the claim replaced.</p>
+<p>The thread's status, reason, waiting record and <code>last_run_id</code> return
+to what they were before the claim (a holder the claim displaced reads
+as failed, interrupted), its lease and cancel are cleared, a thread no
+run had claimed reads as unknown again, and the released run's log is
+deleted, so its id may be claimed again. <code>False</code>, with nothing
+changed, if <code>run_id</code> is not the thread's live holder.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="runnotparkederror"><code>RunNotParkedError</code><a class="headerlink" href="#runnotparkederror" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.RunNotParkedError" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">RunNotParkedError</span>
+
+
+<a href="#django_spec_agents.RunNotParkedError" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="ValueError">ValueError</span></code></p>
+
+
+
+        <p>Raised by <code>claim(..., resumes=...)</code> when the thread is not waiting on the run it resumes.</p>
+<p>The thread is running (another resume may have won it), idle, failed,
+parked on another run, or its run's lease lapsed. Nothing was written;
+<code>run_id</code> names the run the claim meant to resume, and <code>active_run_id</code>
+the thread's live holder, if any. A transport maps it to a conflict
+answer, not a server error.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
 </div><h3 id="runclaim"><code>RunClaim</code><a class="headerlink" href="#runclaim" title="Permanent link">&para;</a></h3>
 
 
@@ -6876,7 +7209,9 @@ that dies mid-run is not run again: the run's lease lapses, so its thread reads
 that cross a queue as JSON. <code>capabilities</code> cannot, so a queued run carries none.
 <code>run_id</code> adopts the run already claimed under this id, as a queued start claims its
 thread before the worker takes the firing up. <code>answers</code> resumes a thread parked on a
-question, a <code>tool_call_id</code> to its answer's text; the run sends no new <code>prompt</code>.</p>
+question, a <code>tool_call_id</code> to its answer's text; the run sends no new <code>prompt</code>.
+<code>inbox_mark</code> is the thread's inbox mark taken when the firing was enqueued, for the
+worker to wake on mail newer than it; <code>None</code> for a firing that carries none.</p>
 
 
 
@@ -7759,7 +8094,8 @@ async caller through <code>sync_to_async</code>.</p>
 
 
 
-        <p>A durable, owner-scoped <a class="autorefs autorefs-internal" title="RunStore" href="#django_spec_agents.RunStore"><code>RunStore</code></a> over the reference models.</p>
+        <p>A durable, owner-scoped run store over the reference models.</p>
+<p>It is a <a class="autorefs autorefs-internal" title="ResumableRunStore" href="#django_spec_agents.ResumableRunStore"><code>ResumableRunStore</code></a>.</p>
 <p>One instance serves every request, like
 <a class="autorefs autorefs-internal" title="DefaultConversationStore" href="#django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore"><code>DefaultConversationStore</code></a>:
 each method resolves the owner from its request inside the

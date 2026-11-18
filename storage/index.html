@@ -2392,6 +2392,33 @@ holder's id in the answer, for a transport's 409. The holder keeps its claim
 with <code>renew</code> and gives it up with <code>finish</code>. A run that is no longer the live
 holder cannot renew, append or finish, so an owner presumed dead never
 overwrites the run that replaced it.</p>
+<p><strong>Resuming a park, and giving a claim back.</strong> <code>DefaultRunStore</code> is also a
+<code>ResumableRunStore</code>, a sub-protocol of <code>RunStore</code> with two more pieces. A store
+written against <code>RunStore</code> alone stays one, so a transport checks
+<code>isinstance(store, ResumableRunStore)</code> before it uses either. That check sees
+method names only, so a store of your own that defines <code>release</code> must also take
+<code>resumes=</code> on <code>claim</code>:</p>
+<ul>
+<li><code>claim(..., resumes=parked_run_id)</code> wins only while the thread is <code>waiting</code>
+  with that run as its <code>last_run_id</code>, and the condition is part of the claim's
+  one conditional update. Of two resumes of the same park, a double click or two
+  tabs, exactly one wins. Every refused resume raises <code>RunNotParkedError</code> and
+  writes nothing, never a busy answer, so no client retries a resume that cannot
+  succeed: the thread is running (the error's <code>active_run_id</code> names the holder,
+  the winning resume or another run), idle, failed, parked on another run, or
+  running under a lapsed lease.</li>
+<li><code>release(thread_id, run_id, request=...)</code> gives back a claim the run still
+  holds: the thread's status, reason, waiting record and <code>last_run_id</code> return to
+  what they were before the claim, its lease and cancel are cleared, and the
+  released run's log is deleted, so its id may be claimed again. A claim that
+  displaced a holder whose lease had lapsed restores the thread as <code>failed</code> with
+  reason <code>interrupted</code>, as <code>get</code> read it before the claim. A transport that
+  claims and then has its enqueue refused releases the claim, so a resumed park
+  stays parked rather than reading <code>failed</code>. A thread that held no run before
+  reads as unknown again. <code>release</code> answers <code>False</code> and changes nothing for a run
+  that is not the live holder, and for a claim taken before the
+  <code>0007_thread_run_prior</code> migration, which has no prior state to restore.</li>
+</ul>
 <p><strong>How a run ended</strong> goes to <code>finish</code> as a <code>RunOutcome</code>:</p>
 <table>
 <thead>

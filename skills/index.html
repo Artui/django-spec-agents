@@ -1587,6 +1587,11 @@ is never reserved, so a stored skill may shadow it.</p>
   description or body. A create or an enable by a caller who already sees
   <code>MAX_VISIBLE_SKILLS</code> (100) enabled skills raises <code>SkillLimitError</code>, a subclass of it. An
   enable asks <code>can_write</code> before it counts the cap, so a refused caller sees the refusal.</li>
+<li><code>InvalidSkillError.field</code> names the draft field that broke the rule: <code>name</code>,
+  <code>description</code> or <code>body</code>, and from a <code>SKILL.md</code> also <code>user_invocable</code> or
+  <code>model_invocable</code>. It is <code>None</code> when no one field is at fault, as for the visible-skill
+  cap, an unsupported frontmatter key or a malformed frontmatter. Build the error without
+  <code>field</code> and it is <code>None</code>, so existing callers are unaffected.</li>
 <li><code>list_visible_skills</code> stops at <code>MAX_VISIBLE_SKILLS</code>, in the policy's order, because its
   list is the catalog that reaches the model. A create can be admitted while other
   callers already see the cap, for example when staff add a company skill that a member
