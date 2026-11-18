@@ -249,8 +249,7 @@ answer's text. The runner resumes the child's stored history with
 `DeferredToolResults(calls=answers)` and sends no new prompt, so the answer reaches the
 model as `ask_parent`'s result. The `ANSWER` is acked once the run has started, so an
 answer whose run fails to start stays queued for the next wake; the resumed run reads
-whatever else is queued, as any run does. An answer read by the resumed run before the
-ack lands is delivered to it twice, once as the call's result and once as plain words.
+whatever else is queued, as any run does.
 
 So a thread has one run at a time. Two wakes in a row start one run, which reads every
 message queued by its first request. Two wakes that race in two processes start one too:

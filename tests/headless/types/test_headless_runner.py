@@ -73,3 +73,10 @@ def test_a_headless_run_requires_a_timeout(method: str) -> None:
     parameter = inspect.signature(getattr(HeadlessRunner, method)).parameters["timeout"]
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
     assert parameter.default is inspect.Parameter.empty
+
+
+@pytest.mark.parametrize("method", ["start", "run_to_first_stop"])
+def test_answers_are_an_optional_keyword_a_runner_may_lack(method: str) -> None:
+    parameter = inspect.signature(getattr(HeadlessRunner, method)).parameters["answers"]
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is None
