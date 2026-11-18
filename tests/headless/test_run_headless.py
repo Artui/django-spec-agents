@@ -65,6 +65,7 @@ class _Runner:
     ) -> None:
         self.store, self.fault, self.stop, self.calls = store, fault, stop, []
         self.lineages: list[ChildLineageRecord | None] = []
+        self.run_ids: list[str | None] = []
 
     async def start(self, *args: Any, **kwargs: Any) -> HeadlessStart:
         raise NotImplementedError
@@ -80,9 +81,11 @@ class _Runner:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[Any] = (),
+        run_id: str | None = None,
     ) -> RunStop:
         self.calls.append((agent_id, prompt, principal, timeout, thread_id, parent, capabilities))
         self.lineages.append(lineage)
+        self.run_ids.append(run_id)
         request = HttpRequest()
         request.user = principal
         await self.store.claim("t1", "r1", request=request, lease=_LEASE)
@@ -304,3 +307,49 @@ def _search() -> str:
 
 def _delete_everything() -> str:
     return "deleted"  # pragma: no cover
+
+
+class _RunnerWithoutRunId(_Runner):
+    """A runner built against 0.20.0, whose ``run_to_first_stop`` takes no ``run_id``."""
+
+    async def run_to_first_stop(
+        self,
+        agent_id: str,
+        prompt: str,
+        principal: Any,
+        *,
+        timeout: float,
+        thread_id: str | None = None,
+        parent: ThreadRef | None = None,
+        lineage: ChildLineageRecord | None = None,
+        capabilities: Sequence[Any] = (),
+    ) -> RunStop:
+        return await super().run_to_first_stop(
+            agent_id, prompt, principal, timeout=timeout, thread_id=thread_id, parent=parent
+        )
+
+
+def test_a_firing_carrying_a_claimed_run_id_adopts_it(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    runner = _Runner(store)
+    worker = _worker(runner, clock)
+    firing = worker.enqueue("run_headless", {**_PARAMS, "run_id": "claimed-7"}, actor=user)
+
+    worker.run(firing)
+
+    assert worker.state(firing) is FiringState.FINISHED
+    assert runner.run_ids == ["claimed-7"]
+
+
+def test_a_firing_without_a_run_id_reaches_a_runner_that_takes_none(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    runner = _RunnerWithoutRunId(store)
+    worker = _worker(runner, clock)
+    firing = worker.enqueue("run_headless", _PARAMS, actor=user)
+
+    worker.run(firing)
+
+    assert worker.state(firing) is FiringState.FINISHED
+    assert runner.run_ids == [None]

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] — 2026-11-18
+
+A patch release: a child's report reaches its parent under `pydantic-ai-harness` 0.70,
+and a queued headless run can adopt the claim its caller made.
+
+### Added
+
+- **`HeadlessFiring.run_id` and `run_to_first_stop(..., run_id=...)`: a queued run adopts
+  the claim its caller made.** The `HeadlessRunner` protocol's `run_to_first_stop` takes
+  `run_id: str | None = None`, the run already claimed under that id, and the
+  `run_headless` spec passes a firing's `run_id` through, so a host that claims a thread
+  before it enqueues the start can have its worker take that claim up. The spec passes it
+  only when the firing carries one, so a runner without the parameter still serves
+  firings that carry none. A firing with `run_id` was refused as `InvalidArguments`.
+
+### Fixed
+
+- **A child's report reaches its parent under `pydantic-ai-harness` 0.70.** 0.70 returns
+  `DelegationTask.report()` as a `TaskOutputPart` whose content is the child's output
+  unescaped, so `ChildReport` failed on every report, logged it and sent nothing.
+  `report_frame` now renders the `<task_output>` frame itself with
+  `pydantic_ai.framing.wrap` on both harness versions, so the queued text keeps the
+  escaping: the output cannot close its own frame, forge a `<task_question>` or open a
+  `<system>` frame. The lock
+  moves to harness 0.70 and pydantic-ai-slim 2.70.
+
 ## [0.20.0] — 2026-11-17
 
 A minor release with two floors moved, one protocol change and one migration: child
@@ -1251,7 +1277,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...HEAD
+[0.20.1]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/Artui/django-spec-agents/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/django-spec-agents/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Artui/django-spec-agents/compare/v0.17.0...v0.18.0

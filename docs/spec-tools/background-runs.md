@@ -271,7 +271,10 @@ started it, so a restart of that process ends the run. A host with a task queue
 can move the owner to a worker instead: it fills a
 [`FiringQueue`](../reference/persistence.md#firingqueue) and registers
 [`run_headless`](../reference/persistence.md#run_headless), a kernel spec whose
-body is the runner's `run_to_first_stop`, in the registry the worker reads.
+body is the runner's `run_to_first_stop`, in the registry the worker reads. A host
+that claims the thread before it enqueues, so the caller learns the run at once, puts
+the claimed id in the firing's `run_id`, and the worker's run adopts that claim rather
+than taking a new one. The spec passes `run_id` only when the firing carries one.
 
 ```python title="spec_tasks.py"
 from datetime import timedelta

@@ -23,7 +23,8 @@ def run_headless(runner: HeadlessRunner, *, permissions: Sequence[PermissionChec
     worker reads. Its body is ``runner.run_to_first_stop`` with the arguments of a
     [`HeadlessFiring`][django_spec_agents.headless.types.headless_firing.HeadlessFiring]
     and the worker's principal, so the run's owner lives in the worker, and the
-    firing presents the [`RunStop`][django_spec_agents.RunStop].
+    firing presents the [`RunStop`][django_spec_agents.RunStop]. A firing's ``run_id`` is
+    passed only when set, so a runner without the parameter still serves the rest.
 
     It declares ``atomic=False``, since one transaction must not span a whole agent
     run, and ``idempotent=False``, since a second call is a second paid run. A worker
@@ -34,6 +35,7 @@ def run_headless(runner: HeadlessRunner, *, permissions: Sequence[PermissionChec
     """
 
     async def service(user: Any, data: HeadlessFiring) -> RunStop:
+        adopt: dict[str, Any] = {} if data.run_id is None else {"run_id": data.run_id}
         return await runner.run_to_first_stop(
             data.agent_id,
             data.prompt,
@@ -42,6 +44,7 @@ def run_headless(runner: HeadlessRunner, *, permissions: Sequence[PermissionChec
             thread_id=data.thread_id,
             parent=data.parent,
             lineage=data.lineage,
+            **adopt,
         )
 
     return ServiceSpec(
