@@ -7,6 +7,7 @@ from django_spec_agents.child_sessions.types.report_outcome import ReportOutcome
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 _TASK_OUTPUT = register_tag("task_output")
+register_tag("task_question")
 
 
 def report_frame(
@@ -16,8 +17,9 @@ def report_frame(
 
     The frame is upstream's ``DelegationTask.report()`` tag and attributes, rendered with
     ``pydantic_ai.framing.wrap`` so the text keeps its escaping once it crosses a queue: the
-    child's output never enters system voice and cannot close its own frame. The task id is
-    the child's thread id, and ``outcome`` is on the tag only when it is not ``ok``.
+    child's output never enters system voice, cannot close its own frame and cannot forge a
+    ``<task_question>``. The task id is the child's thread id, and ``outcome`` is on the tag
+    only when it is not ``ok``.
     """
     text = wrap(
         _TASK_OUTPUT,

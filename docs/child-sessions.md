@@ -167,4 +167,5 @@ report that cannot be sent is logged, and the run's own result or error stands.
 child's output as `<task_output>` data, with the tag and attributes of upstream's
 `DelegationTask.report()`, rendered by `pydantic_ai.framing.wrap`. The escaping is in the
 text itself, since the report crosses a queue before any model sees it: the output stays
-in the user channel, never in system voice, and it cannot close its own frame.
+in the user channel, never in system voice, and it cannot close its own frame or forge
+a `<task_question>`.

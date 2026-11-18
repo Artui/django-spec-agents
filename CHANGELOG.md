@@ -24,7 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unescaped, so `ChildReport` failed on every report, logged it and sent nothing.
   `report_frame` now renders the `<task_output>` frame itself with
   `pydantic_ai.framing.wrap` on both harness versions, so the queued text keeps the
-  escaping: the output cannot close its own frame or open a `<system>` one. The lock
+  escaping: the output cannot close its own frame, forge a `<task_question>` or open a
+  `<system>` frame. The lock
   moves to harness 0.70 and pydantic-ai-slim 2.70.
 
 ## [0.20.0] — 2026-11-17
