@@ -212,7 +212,8 @@ claim is the queue's own, so a queued run that a worker picks up later holds it 
 other run does, and takes what arrived while it waited. When the run ends, parks or fails,
 it releases the inbox, and what it took but never acked goes to the thread's next run. A
 run whose process died cannot release: its messages wait until its lease lapses, and the
-next run takes them over. A run with no signed-in user in `call_context["request"]` reads
+next run takes them over. A run that starts before then takes nothing from the inbox, so
+keep `lease` no longer than the lease your transport gives its `RunStore` claim. A run with no signed-in user in `call_context["request"]` reads
 nothing.
 
 ## Waking a thread

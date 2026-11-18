@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django_service_specs import PermissionCheck
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults
+from pydantic_ai.exceptions import RunTimedOut
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -513,3 +514,44 @@ async def test_each_message_is_acked_once() -> None:
     )
 
     assert len(queue.acked) == 1 and len(queue.acked[0]) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_run_past_its_deadline_releases_the_inbox() -> None:
+    request = authed_request("7")
+    await _report(request, "kept")
+
+    async def script(_step: int, _messages: list[ModelMessage]) -> ModelResponse:
+        await asyncio.sleep(1)
+        return _say("late")
+
+    with pytest.raises(RunTimedOut):
+        await _run(_Model(script), request, timeout=0.05)
+
+    assert await _claims() == []
+    model = _Model(lambda _step, _m: _say("ok"))
+    await _run(model, request)
+    assert any("kept" in text for text in model.seen[0])
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_cancelled_run_releases_the_inbox() -> None:
+    request = authed_request("7")
+    await _report(request, "kept")
+    asked = asyncio.Event()
+
+    async def script(_step: int, _messages: list[ModelMessage]) -> ModelResponse:
+        asked.set()
+        await asyncio.sleep(10)
+        return _say("never")
+
+    task = asyncio.create_task(_run(_Model(script), request))
+    await asked.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert await _claims() == []
+    model = _Model(lambda _step, _m: _say("ok"))
+    await _run(model, request)
+    assert any("kept" in text for text in model.seen[0])

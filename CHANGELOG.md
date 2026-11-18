@@ -70,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **`InboundQueue` gains `take(thread, run_id, *, request, lease)` and
+- **Breaking: `InboundQueue` gains `take(thread, run_id, *, request, lease)` and
   `release(thread, run_id, *, request)`.** `take` claims or renews the thread's inbox for
   the run and marks and returns the messages it has not taken yet, or nothing while
   another run's claim is live; `release` drops the claim and untakes the run's unacked

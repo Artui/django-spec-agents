@@ -278,10 +278,12 @@ async def test_a_claim_at_its_lease_s_last_instant_holds() -> None:
     clock = _Clock()
     queue = DefaultInboundQueue(clock=clock)
     await _bodies(queue, "r1")
+    await _send(queue, "news")
 
     clock.now = _T0 + _LEASE
 
     assert await _bodies(queue, "r2") == []
+    assert (await StoredInboxClaim.objects.aget()).run_id == "r1"
 
 
 async def test_each_take_renews_the_holders_lease_and_keeps_its_claim_time() -> None:
