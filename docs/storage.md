@@ -496,6 +496,29 @@ with `renew` and gives it up with `finish`. A run that is no longer the live
 holder cannot renew, append or finish, so an owner presumed dead never
 overwrites the run that replaced it.
 
+**Resuming a park, and giving a claim back.** `DefaultRunStore` is also a
+`ResumableRunStore`, a sub-protocol of `RunStore` with two more pieces. A store
+written against `RunStore` alone stays one, so a transport checks
+`isinstance(store, ResumableRunStore)` before it uses either:
+
+- `claim(..., resumes=parked_run_id)` wins only while the thread is `waiting`
+  with that run as its `last_run_id`, and the condition is part of the claim's
+  one conditional update. Of two resumes of the same park, a double click or two
+  tabs, exactly one wins. The other answers busy, with the winner's id, while the
+  winner holds the thread; once no live run holds it, a resume of a run the
+  thread no longer waits on raises `RunNotParkedError`, writing nothing. That
+  covers a thread that is idle, failed, parked on another run, or running under a
+  lapsed lease.
+- `release(thread_id, run_id, request=...)` gives back a claim the run still
+  holds, as though it had never been taken: the thread's status, reason, waiting
+  record and `last_run_id` return to what they were before the claim, and the
+  released run's log is deleted, so its id may be claimed again. A transport that
+  claims and then has its enqueue refused releases the claim, so a resumed park
+  stays parked rather than reading `failed`. A thread that held no run before
+  reads as unknown again. `release` answers `False` and changes nothing for a run
+  that is not the live holder, and for a claim taken before the
+  `0007_thread_run_prior` migration, which has no prior state to restore.
+
 **How a run ended** goes to `finish` as a `RunOutcome`:
 
 | Outcome | Thread status | Reason |

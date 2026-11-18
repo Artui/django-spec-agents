@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ResumableRunStore`: a run store that resumes a parked run once and gives a claim
+  back.** A sub-protocol of `RunStore`, so a store written against `RunStore` alone stays
+  one; a transport checks `isinstance(store, ResumableRunStore)` before using either piece.
+  `DefaultRunStore` is one.
+- **`claim(..., resumes=<parked run id>)`** wins only while the thread is `waiting` with
+  that run as its `last_run_id`, in the claim's one conditional update, so of two resumes
+  of the same park (a double click, two tabs) one wins. A refused resume answers busy,
+  with the holder, while a live run holds the thread, and otherwise raises the new
+  `RunNotParkedError`, writing nothing. A claim without `resumes=` behaves as before.
+- **`release(thread_id, run_id, *, request)`** gives back a claim the run still holds:
+  the thread's status, reason, waiting record and `last_run_id` return to what they were
+  before the claim, a thread no run had claimed reads as unknown again, and the released
+  run's log is deleted, so its id may be claimed again. A transport whose enqueue is
+  refused after the claim keeps the park instead of finishing the thread as failed.
+- **The `0007_thread_run_prior` migration** adds the four `prior_` columns of
+  `StoredThreadRun` that `release` restores from. A claim taken before it cannot be
+  released; `release` answers `False` and the run finishes as before.
+
 ## [0.22.0] — 2026-11-18
 
 ### Added

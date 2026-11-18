@@ -44,6 +44,7 @@ from django_spec_agents.persistence.null_attachment_store import NullAttachmentS
 from django_spec_agents.persistence.null_conversation_store import NullConversationStore
 from django_spec_agents.persistence.preflight_identifiers import preflight_identifiers
 from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
+from django_spec_agents.persistence.run_not_parked_error import RunNotParkedError
 from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
 from django_spec_agents.persistence.types.attachment_ref import AttachmentRef
 from django_spec_agents.persistence.types.attachment_store import AttachmentStore
@@ -52,6 +53,7 @@ from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.opened_attachment import OpenedAttachment
+from django_spec_agents.persistence.types.resumable_run_store import ResumableRunStore
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
@@ -147,11 +149,13 @@ __all__ = [
     "NullAuditLogger",
     "NullConversationStore",
     "OpenedAttachment",
+    "ResumableRunStore",
     "ReviewedApprovals",
     "RunClaim",
     "RunEndReason",
     "RunIdReusedError",
     "RunLogEntry",
+    "RunNotParkedError",
     "RunOutcome",
     "RunStop",
     "RunStore",
