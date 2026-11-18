@@ -7,6 +7,12 @@ from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.utils import clean_draft, strip_blank_edges
 
 _FIELDS = frozenset({"name", "description", "user-invocable", "disable-model-invocation"})
+_DRAFT_FIELD = {
+    "name": "name",
+    "description": "description",
+    "user-invocable": "user_invocable",
+    "disable-model-invocation": "model_invocable",
+}
 _PLAIN_INDICATORS = tuple("|>[]{}&*!%@`'\"#,?:-")
 
 
@@ -16,16 +22,21 @@ def _scalar(key: str, raw: str) -> str:
         try:
             value = json.loads(raw)
         except ValueError as error:
-            raise InvalidSkillError(f"The {key!r} value is not a closed quoted string.") from error
+            raise InvalidSkillError(
+                f"The {key!r} value is not a closed quoted string.", field=_DRAFT_FIELD[key]
+            ) from error
         return value
     if raw.startswith("'") and raw.endswith("'") and len(raw) > 1:
         inner = raw[1:-1]
         if "'" in inner.replace("''", ""):
-            raise InvalidSkillError(f"The {key!r} value has an unescaped single quote.")
+            raise InvalidSkillError(
+                f"The {key!r} value has an unescaped single quote.", field=_DRAFT_FIELD[key]
+            )
         return inner.replace("''", "'")
     if not raw or raw.startswith(_PLAIN_INDICATORS) or ": " in raw or " #" in raw:
         raise InvalidSkillError(
-            f"The {key!r} value needs quotes: SKILL.md import reads one-line scalars only."
+            f"The {key!r} value needs quotes: SKILL.md import reads one-line scalars only.",
+            field=_DRAFT_FIELD[key],
         )
     return raw
 
@@ -34,7 +45,9 @@ def _flag(key: str, raw: str) -> bool:
     """A YAML 1.2 boolean, the only spellings the harness accepts for a flag."""
     value = _scalar(key, raw).lower()
     if value not in ("true", "false"):
-        raise InvalidSkillError(f"The {key!r} value must be true or false.")
+        raise InvalidSkillError(
+            f"The {key!r} value must be true or false.", field=_DRAFT_FIELD[key]
+        )
     return value == "true"
 
 
@@ -52,7 +65,9 @@ def _frontmatter(lines: list[str]) -> dict[str, str]:
         if key not in _FIELDS:
             raise InvalidSkillError(f"SKILL.md frontmatter field {key!r} is not supported.")
         if key in fields:
-            raise InvalidSkillError(f"SKILL.md frontmatter repeats {key!r}.")
+            raise InvalidSkillError(
+                f"SKILL.md frontmatter repeats {key!r}.", field=_DRAFT_FIELD[key]
+            )
         fields[key] = raw.strip()
     return fields
 
@@ -72,7 +87,9 @@ def parse_skill_md(text: str) -> SkillDraft:
     fields = _frontmatter(lines[1:closing])
     for required in ("name", "description"):
         if required not in fields:
-            raise InvalidSkillError(f"The SKILL.md frontmatter has no {required!r}.")
+            raise InvalidSkillError(
+                f"The SKILL.md frontmatter has no {required!r}.", field=required
+            )
     return clean_draft(
         SkillDraft(
             name=_scalar("name", fields["name"]),

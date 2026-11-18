@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`InvalidSkillError.field`: which field broke the rule.** It is `name`, `description`
+  or `body` (from a `SKILL.md` also `user_invocable` or `model_invocable`), and `None`
+  when no one field is at fault. It is a keyword-only argument that defaults to `None`,
+  so code that builds or catches the error today keeps working.
+
 ## [0.22.0] — 2026-11-18
 
 ### Added

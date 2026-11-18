@@ -42,18 +42,22 @@ def clean_draft(draft: SkillDraft) -> SkillDraft:
     if len(cleaned.name) > MAX_SKILL_NAME_LENGTH or not _KEBAB_CASE.fullmatch(cleaned.name):
         raise InvalidSkillError(
             f"Skill name {cleaned.name!r} must be kebab-case: lowercase ASCII letters and digits "
-            f"in words joined by single hyphens, at most {MAX_SKILL_NAME_LENGTH} characters."
+            f"in words joined by single hyphens, at most {MAX_SKILL_NAME_LENGTH} characters.",
+            field="name",
         )
     if not cleaned.description:
-        raise InvalidSkillError("A skill needs a description.")
+        raise InvalidSkillError("A skill needs a description.", field="description")
     if len(cleaned.description) > MAX_SKILL_DESCRIPTION_LENGTH:
         raise InvalidSkillError(
-            f"A skill description is at most {MAX_SKILL_DESCRIPTION_LENGTH} characters."
+            f"A skill description is at most {MAX_SKILL_DESCRIPTION_LENGTH} characters.",
+            field="description",
         )
     if not cleaned.body:
-        raise InvalidSkillError("A skill needs a body.")
+        raise InvalidSkillError("A skill needs a body.", field="body")
     if len(cleaned.body) > MAX_SKILL_BODY_LENGTH:
-        raise InvalidSkillError(f"A skill body is at most {MAX_SKILL_BODY_LENGTH} characters.")
+        raise InvalidSkillError(
+            f"A skill body is at most {MAX_SKILL_BODY_LENGTH} characters.", field="body"
+        )
     return cleaned
 
 
@@ -61,7 +65,8 @@ def require_unreserved(policy: SkillPolicy[SkillT], request: HttpRequest, name: 
     """Raise `InvalidSkillError` when `policy` reserves `name` through `ReservedSkillNames`."""
     if isinstance(policy, ReservedSkillNames) and name in policy.reserved_names(request):
         raise InvalidSkillError(
-            f"The skill name {name!r} is taken by a built-in skill; choose another name."
+            f"The skill name {name!r} is taken by a built-in skill; choose another name.",
+            field="name",
         )
 
 
