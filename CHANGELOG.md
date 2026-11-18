@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`authoring_toolset(policy, request, *, agent_id, guard)`: the agent writes the
   caller's routines.** It offers `list_routines`, `create_routine`, `update_routine` and
   `pause_routine`. Every write asks the user first: the tool raises `ApprovalRequired`
-  itself, so the guard's `exempt` cannot waive it, and its card (`x-confirm` in the
+  itself, so neither the guard's `exempt` nor its `require_approval` changes the card, and
+  an approval that edits the arguments writes nothing until a fresh card. Its card (`x-confirm` in the
   call's deferred metadata) names the principal, the agent, the prompt, the schedule and
   timezone, and every pre-approved tool, a destructive one marked as such. A routine
   always runs as the caller on `agent_id`; an update or a pause reaches only the caller's
@@ -28,7 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A routine's firing hides all four authoring tools**, `pause_routine` and
   `list_routines` as well as `create_routine` and `update_routine`.
-- **`pause_routine` joins `NEVER_AUTO_APPROVED`**, so no in-run answerer approves it.
+- **`pause_routine` joins `NEVER_AUTO_APPROVED`**, so neither `GrantedApprovals` nor
+  `ReviewedApprovals` approves it.
+- **`ToolGuard` and `ChildLineage` never flip a tool marked with the new
+  `SELF_GATED_METADATA_KEY`**, which raises its own approval with a card built from the
+  call; `ToolGuard.requires_approval` answers `True` for it, whatever `exempt` says.
 - **Upgrade django-ag-ui to 0.81.0 with child sessions.** With django-ag-ui 0.80.0, a
   child session started on 0.21.0 or later runs unbounded (no `ChildLineage`, no
   `ChildReport`, no spend budgets), because 0.80.0 composes a child's bounds only on

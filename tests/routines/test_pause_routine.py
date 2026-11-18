@@ -50,3 +50,18 @@ def test_a_refused_result_leaves_the_instance_as_it_was(member: AbstractBaseUser
     assert (held.enabled, held.next_fire_at) == (True, DUE)
     held.refresh_from_db()
     assert held.enabled
+
+
+class RefusesAnEnabledRoutine(OwnRoutinesPolicy):
+    def can_write(self, request: HttpRequest, routine: TeamRoutine) -> bool:
+        return not routine.enabled
+
+
+def test_the_row_as_stored_is_asked_too(member: AbstractBaseUser) -> None:
+    held = routine(member, DUE)
+
+    with pytest.raises(RoutineWriteRefusedError):
+        pause_routine(RefusesAnEnabledRoutine(), request_as(member), held)
+
+    held.refresh_from_db()
+    assert (held.enabled, held.next_fire_at) == (True, DUE)

@@ -160,6 +160,11 @@ When enabled, a tool is gated unless its name is in `exempt`, and it is gated
 when **either** it is destructive **or** its name is in `require_approval`.
 `exempt` wins over `require_approval`.
 
+A tool marked with `SELF_GATED_METADATA_KEY` asks for approval from its own body, with a
+card built from the call, as the [routine writes](routines.md#letting-the-agent-write-routines)
+do. The guard never flips it, so naming it in `require_approval` cannot replace its card
+with a generic one, and `exempt` cannot waive it; `requires_approval` answers `True` for it.
+
 Destructiveness is unified from every vocabulary a toolset declares it in, so
 one hook covers every tool regardless of origin:
 

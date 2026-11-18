@@ -8,6 +8,7 @@ from django.http import HttpRequest
 from pydantic import ConfigDict, with_config
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.exceptions import ApprovalRequired
+from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.tools import Tool, ToolDefinition
 from pydantic_ai.toolsets.function import FunctionToolset
 
@@ -27,8 +28,16 @@ from django_spec_agents.routines.types.routine_policy import RoutinePolicy
 from django_spec_agents.routines.types.schedule import Schedule
 from django_spec_agents.routines.update_routine import update_routine
 from django_spec_agents.routines.utils import clean_draft, pin_grant, require_user, require_write
+from django_spec_agents.types.self_gated_metadata_key import SELF_GATED_METADATA_KEY
 from django_spec_agents.types.x_confirm_key import X_CONFIRM_KEY
 
+_SELF_GATED = {SELF_GATED_METADATA_KEY: True}
+_CREATE_DEFAULTS: dict[str, Any] = {"preapproved_tools": None}
+_UPDATE_DEFAULTS: dict[str, Any] = {"preapproved_tools": None, "enabled": True}
+_EDITED = (
+    "The arguments changed when the user approved, so the card did not show them. Nothing was "
+    "written: call the tool again with these arguments, and the user approves a fresh card."
+)
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 _LIST = (
@@ -75,10 +84,13 @@ def authoring_toolset(
     """The routine tools for a run on the agent `agent_id`, as the user `request` carries.
 
     `list_routines` lists the caller's own routines. `create_routine`, `update_routine` and
-    `pause_routine` always ask the user first, whatever `guard` exempts and whatever an
-    in-run answerer approves: each raises `ApprovalRequired` with an `x-confirm` card that
+    `pause_routine` always ask first, whatever `guard` exempts or requires: each is marked
+    with `SELF_GATED_METADATA_KEY` and raises `ApprovalRequired` with an `x-confirm` card that
     names the routine's principal, prompt, schedule, timezone and every pre-approved tool,
-    a destructive one named as such. A routine's principal is always the caller, its agent
+    a destructive one named as such. `GrantedApprovals` and `ReviewedApprovals` leave them to
+    the person (`NEVER_AUTO_APPROVED`); a project's own `HandleDeferredToolCalls` must too.
+    An approval that edits the arguments writes nothing: the model is told to call again, so
+    the edited routine gets a card of its own. A routine's principal is always the caller, its agent
     always `agent_id`, and an update or a pause reaches only a routine whose principal is the
     caller; every write still goes through the policy's `can_write`. Each granted name is
     pinned through `guard` against the run's own tools, client tools and these four left out.
@@ -100,8 +112,12 @@ def authoring_toolset(
     ) -> str:
         draft = _draft(name, agent_id, prompt, schedule, timezone, preapproved_tools, True)
         defs = _grantable(ctx)
+        args: dict[str, Any] = {"name": name, "prompt": prompt, "schedule": schedule}
+        args |= {"timezone": timezone, "preapproved_tools": preapproved_tools}
 
         def write() -> str:
+            if ctx.tool_call_approved and _edited(ctx, _CREATE_DEFAULTS, args):
+                return _EDITED
             if not ctx.tool_call_approved:
                 cleaned = clean_draft(draft)
                 user = require_user(request)
@@ -124,8 +140,13 @@ def authoring_toolset(
     ) -> str:
         draft = _draft(name, agent_id, prompt, schedule, timezone, preapproved_tools, enabled)
         defs = _grantable(ctx)
+        args: dict[str, Any] = {"routine_id": routine_id, "name": name, "prompt": prompt}
+        args |= {"schedule": schedule, "timezone": timezone, "enabled": enabled}
+        args["preapproved_tools"] = preapproved_tools
 
         def write() -> str:
+            if ctx.tool_call_approved and _edited(ctx, _UPDATE_DEFAULTS, args):
+                return _EDITED
             routine = _own(policy, request, routine_id)
             if routine.agent_id != agent_id:
                 return (
@@ -145,6 +166,8 @@ def authoring_toolset(
 
     async def pause(ctx: RunContext[Any], routine_id: str) -> str:
         def write() -> str:
+            if ctx.tool_call_approved and _edited(ctx, {}, {"routine_id": routine_id}):
+                return _EDITED
             routine = _own(policy, request, routine_id)
             if not ctx.tool_call_approved:
                 require_write(policy, request, routine)
@@ -161,9 +184,9 @@ def authoring_toolset(
     return FunctionToolset(
         [
             Tool(list_tool, name="list_routines", description=_LIST),
-            Tool(create, name="create_routine", description=_CREATE),
-            Tool(update, name="update_routine", description=_UPDATE),
-            Tool(pause, name="pause_routine", description=_PAUSE),
+            Tool(create, name="create_routine", description=_CREATE, metadata=_SELF_GATED),
+            Tool(update, name="update_routine", description=_UPDATE, metadata=_SELF_GATED),
+            Tool(pause, name="pause_routine", description=_PAUSE, metadata=_SELF_GATED),
         ],
         id="django-spec-agents-routine-tools",
     )
@@ -200,6 +223,21 @@ def _draft(
     return RoutineDraft(
         name, agent_id, prompt, parsed, timezone, tuple(preapproved_tools or ()), enabled
     )
+
+
+def _edited(ctx: RunContext[Any], defaults: dict[str, Any], args: dict[str, Any]) -> bool:
+    """Whether the approved call's arguments differ from those its card was raised for."""
+    shown = next(
+        (
+            part.args_as_dict()
+            for message in ctx.messages
+            if isinstance(message, ModelResponse)
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_call_id == ctx.tool_call_id
+        ),
+        None,
+    )
+    return shown is None or {**defaults, **shown} != {**defaults, **args}
 
 
 def _grantable(ctx: RunContext[Any]) -> list[ToolDefinition]:

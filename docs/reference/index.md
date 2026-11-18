@@ -35,6 +35,7 @@ from django_spec_agents import (
     build_input_schema,
     ToolCategory,
     DESTRUCTIVE_METADATA_KEY,
+    SELF_GATED_METADATA_KEY,
     X_CATEGORY_KEY,
     X_CONFIRM_KEY,
     X_DESTRUCTIVE_KEY,

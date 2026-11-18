@@ -38,6 +38,7 @@ from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.testing import tool_calling_model
+from django_spec_agents.types.self_gated_metadata_key import SELF_GATED_METADATA_KEY
 
 _HERE = ThreadRef("p1", "main")
 _RUNNING, _WAITING, _IDLE = ThreadRunStatus.RUNNING, ThreadRunStatus.WAITING, ThreadRunStatus.IDLE
@@ -606,3 +607,14 @@ async def test_a_runner_composing_from_lineage_alone_bounds_gates_and_reports_th
     [(parent, kind, body, sender)] = queue.sent
     assert (parent, kind, sender) == (_HERE, InboundKind.REPORT, ThreadRef("c-new", "research"))
     assert body["outcome"] == "ok" and "found it" in body["text"]
+
+
+async def test_a_gated_tool_that_gates_itself_is_never_flipped_in_the_child() -> None:
+    lineage = ChildLineage(
+        root=_HERE, parent=_HERE, depth=1, tools=frozenset({"w"}), gated=frozenset({"w"})
+    )
+    defs = [ToolDefinition(name="w", metadata={SELF_GATED_METADATA_KEY: True})]
+
+    prepared = await lineage.prepare_tools(None, defs)  # ty: ignore[invalid-argument-type]
+
+    assert [(d.name, d.kind) for d in prepared] == [("w", "function")]

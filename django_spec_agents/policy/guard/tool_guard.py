@@ -11,6 +11,7 @@ from pydantic_ai.tools import ToolDefinition
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
+from django_spec_agents.types.self_gated_metadata_key import SELF_GATED_METADATA_KEY
 from django_spec_agents.types.x_destructive_key import X_DESTRUCTIVE_KEY
 
 
@@ -53,6 +54,10 @@ class ToolGuard(AbstractCapability[Any]):
       attaching the tool through ``toolsets=`` is gated by it too.
     - **Project overrides**: ``require_approval`` force-gates a name, ``exempt``
       un-gates one, and ``exempt`` wins.
+    - **A tool that gates itself**, marked with
+      [`SELF_GATED_METADATA_KEY`][django_spec_agents.types.self_gated_metadata_key.SELF_GATED_METADATA_KEY],
+      raises its own approval with a card built from the call: it is gated whatever
+      ``exempt`` says, and never flipped, since a flip would defer it before its card exists.
 
     A hint has to *say* something. Annotations that say nothing, an absent stamp
     or metadata of another shape entirely leave the tool alone — silence is not
@@ -82,7 +87,9 @@ class ToolGuard(AbstractCapability[Any]):
     ) -> list[ToolDefinition]:
         return [
             dataclasses.replace(tool_def, kind="unapproved")
-            if tool_def.kind == "function" and self.requires_approval(tool_def)
+            if tool_def.kind == "function"
+            and not _gates_itself(tool_def)
+            and self.requires_approval(tool_def)
             else tool_def
             for tool_def in tool_defs
         ]
@@ -90,12 +97,15 @@ class ToolGuard(AbstractCapability[Any]):
     def requires_approval(self, tool_def: ToolDefinition) -> bool:
         """Whether ``tool_def`` is gated, by the guard's precedence, whatever its ``kind``.
 
-        ``exempt`` wins, then ``require_approval``, then a registry
-        ``@tool(destructive=True)``, then a mutation the definition declares in
-        any of the vocabularies above. ``prepare_tools`` flips a ``function``
-        tool on this answer; a caller recording whether a parked call is
-        destructive, or pre-approving a routine's tools, asks the same question.
+        A tool that gates itself is always gated. Otherwise ``exempt`` wins,
+        then ``require_approval``, then a registry ``@tool(destructive=True)``,
+        then a mutation the definition declares in any of the vocabularies above.
+        ``prepare_tools`` flips a ``function`` tool on this answer unless it gates
+        itself; a caller recording whether a parked call is destructive, or
+        pre-approving a routine's tools, asks the same question.
         """
+        if _gates_itself(tool_def):
+            return True
         if tool_def.name in self._exempt:
             return False
         if tool_def.name in self._require_approval:
@@ -103,6 +113,11 @@ class ToolGuard(AbstractCapability[Any]):
         if tool_def.name in self._destructive_names:
             return True
         return _declares_a_mutation(tool_def)
+
+
+def _gates_itself(tool_def: ToolDefinition) -> bool:
+    """Whether the tool raises its own approval, so it is never flipped and never exempt."""
+    return bool((tool_def.metadata or {}).get(SELF_GATED_METADATA_KEY))
 
 
 def _declares_a_mutation(tool_def: ToolDefinition) -> bool:

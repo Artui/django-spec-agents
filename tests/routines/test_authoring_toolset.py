@@ -8,7 +8,7 @@ from asgiref.sync import sync_to_async
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest
-from pydantic_ai import DeferredToolRequests, DeferredToolResults, RunContext
+from pydantic_ai import DeferredToolRequests, DeferredToolResults, RunContext, ToolApproved
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -67,8 +67,12 @@ def search(query: str) -> str:
     return query  # pragma: no cover
 
 
-def _agent(user: Any, policy: Any = None, *, exempt: Iterable[str] = WRITES) -> Any:
-    config = ToolGuardConfig(enabled=True, exempt=frozenset(exempt))
+def _agent(
+    user: Any, policy: Any = None, *, exempt: Iterable[str] = WRITES, require: Iterable[str] = ()
+) -> Any:
+    config = ToolGuardConfig(
+        enabled=True, exempt=frozenset(exempt), require_approval=frozenset(require)
+    )
     tools = authoring_toolset(
         policy or OwnRoutinesPolicy(),
         request_as(user),
@@ -103,11 +107,12 @@ async def _call(user: Any, name: str, args: dict[str, Any], **options: Any) -> A
     return await agent.run("go", deps=AgentDeps(user=user))
 
 
-async def _approve(user: Any, result: Any, **options: Any) -> Any:
+async def _approve(user: Any, result: Any, *, override: Any = None, **options: Any) -> Any:
     agent, _ = _agent(user, **options)
+    answer = True if override is None else ToolApproved(override_args=override)
     return await agent.run(
         message_history=result.all_messages(),
-        deferred_tool_results=DeferredToolResults(approvals={"c1": True}),
+        deferred_tool_results=DeferredToolResults(approvals={"c1": answer}),
         deps=AgentDeps(user=user),
     )
 
@@ -389,13 +394,97 @@ async def test_with_no_tool_manager_nothing_can_be_granted(member: AbstractBaseU
         agent_id="assistant",
         guard=ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True)),
     )
-    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage(), tool_call_approved=True)
+    shown = ModelResponse(parts=[ToolCallPart("create_routine", _create_args(), tool_call_id="c1")])
+    ctx = RunContext(
+        deps=None,
+        model=TestModel(),
+        usage=RunUsage(),
+        messages=[shown],
+        tool_call_id="c1",
+        tool_call_approved=True,
+    )
 
     created = await tools.tools["create_routine"].function(ctx, **_create_args())
 
     [row] = await _rows()
     assert created == f"Created the routine 'Digest', id {row.pk}."
     assert row.preapproved_tools == []
+
+
+async def test_an_approval_with_no_call_in_the_history_writes_nothing(
+    member: AbstractBaseUser,
+) -> None:
+    tools = authoring_toolset(
+        OwnRoutinesPolicy(),
+        request_as(member),
+        agent_id="assistant",
+        guard=ToolGuard(ToolRegistry(), config=ToolGuardConfig(enabled=True)),
+    )
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage(), tool_call_approved=True)
+
+    result = await tools.tools["create_routine"].function(ctx, **_create_args())
+
+    assert result.startswith("The arguments changed when the user approved")
+    assert await _rows() == []
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"exempt": WRITES},
+        {"exempt": (), "require": WRITES},
+    ],
+    ids=["exempt", "required"],
+)
+@pytest.mark.parametrize("name", WRITES)
+async def test_every_write_shows_its_own_card_whatever_the_guard_names(
+    member: AbstractBaseUser, name: str, config: dict[str, Any]
+) -> None:
+    held = await _routine(member)
+    args = {
+        "create_routine": _create_args(),
+        "update_routine": _update_args(held.pk),
+        "pause_routine": {"routine_id": str(held.pk)},
+    }[name]
+
+    card = _card(await _call(member, name, args, **config))
+
+    assert card.startswith(name.split("_")[0].capitalize() + " the routine")
+
+
+@pytest.mark.parametrize("name", WRITES)
+async def test_an_approval_that_edits_the_arguments_writes_nothing(
+    member: AbstractBaseUser, name: str
+) -> None:
+    held = await _routine(member)
+    args = {
+        "create_routine": _create_args(),
+        "update_routine": _update_args(held.pk),
+        "pause_routine": {"routine_id": str(held.pk)},
+    }[name]
+    edited = {
+        "create_routine": _create_args(preapproved_tools=["send_email"]),
+        "update_routine": _update_args(held.pk, preapproved_tools=["send_email"]),
+        "pause_routine": {"routine_id": "999999"},
+    }[name]
+    waiting = await _call(member, name, args)
+
+    result = await _approve(member, waiting, override=edited)
+
+    assert result.output.startswith("The arguments changed when the user approved")
+    [row] = await _rows()
+    assert (row.pk, row.enabled, row.preapproved_tools) == (held.pk, True, [])
+
+
+async def test_an_approval_that_sends_the_same_arguments_back_writes(
+    member: AbstractBaseUser,
+) -> None:
+    waiting = await _call(member, "create_routine", _create_args())
+
+    await _approve(member, waiting, override=_create_args(preapproved_tools=None))
+
+    [row] = await _rows()
+    assert row.name == "Digest"
 
 
 def test_the_toolset_offers_exactly_the_authoring_tools() -> None:

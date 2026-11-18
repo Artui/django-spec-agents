@@ -146,9 +146,13 @@ toolset = authoring_toolset(
   caller, disabled ones too: a teammate's routine the policy happens to show is left out.
   It asks nobody.
 - `create_routine`, `update_routine` and `pause_routine` always ask the user first. The
-  tool raises `ApprovalRequired` itself, so neither the guard's `exempt` nor an in-run
-  answerer can let one through: all three are in `NEVER_AUTO_APPROVED`, and a raised
-  approval is not the guard's to waive. The call's deferred metadata carries an `x-confirm`
+  tool raises `ApprovalRequired` itself and is marked with `SELF_GATED_METADATA_KEY`, so
+  the guard never flips it: its `exempt` cannot waive the card, nor can `require_approval`
+  swap it for a generic one. All three are in `NEVER_AUTO_APPROVED`, so `GrantedApprovals`
+  and `ReviewedApprovals` leave them to the person; a project's own
+  `HandleDeferredToolCalls` answers whatever it is given, so it must skip these names too.
+  An approval that edits the arguments writes nothing and tells the model to call again,
+  so the edited routine gets a card of its own. The call's deferred metadata carries an `x-confirm`
   card naming the principal, the agent, the prompt, the schedule and timezone, whether the
   routine is enabled, and every pre-approved tool, a destructive one marked
   `(destructive, runs unasked)`. A change to the grant is an update, so it gets the card.
