@@ -28,6 +28,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ROUTINE_GRANT_KEY`; and offers no `create_routine` or `update_routine`. It declares
   `atomic=False` and `idempotent=False`. It needs the `[specs]` extra, so it is imported
   from `django_spec_agents.routines.run_agent_spec`.
+- **`DrainInbound` and `wake_thread`: a thread's inbound messages reach its model.**
+  `DrainInbound(queue, agent_id)`, composed into a mount's runs, reads the run's thread's
+  inbound queue at each model request and hands the messages to the model: a child's
+  report as the `<task_output>` text it framed, a child's question as `<task_question>`
+  data naming the asking thread, and a parent's answer or steering as plain words. A
+  message that lands after the last request gets one more request before the run ends;
+  one that lands as the run parks waits for the resume. A message is acked once
+  the model request carrying it is answered; one taken by a run that fails or dies first
+  stays pending for the next run. `wake_thread(thread, ...)` starts one headless run on an idle thread
+  whose queue holds messages, and starts nothing on a running thread (the run reads them)
+  or a waiting one (its resume does), so a second run never takes the thread. Given
+  `conversations=`, it wakes a child's thread with the `parent` and `lineage` its
+  conversation stores, so a steered idle child runs within its bounds; it never passes
+  the runner `capabilities`.
 
 ### Changed
 
