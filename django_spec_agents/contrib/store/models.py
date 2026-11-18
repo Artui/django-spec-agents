@@ -342,9 +342,40 @@ class StoredInboundMessage(models.Model):
     sender_thread_id = models.CharField(max_length=255, null=True, blank=True, default=None)
     sender_scope = models.CharField(max_length=255, null=True, blank=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
+    taken_by = models.CharField(max_length=255, null=True, blank=True, default=None)
 
     class Meta:
         indexes = [models.Index(fields=["owner_id", "scope", "thread_id", "id"])]
 
     def __str__(self) -> str:
         return f"{self.scope or ''}:{self.thread_id}#{self.pk}"
+
+
+class StoredInboxClaim(models.Model):
+    """The one run holding a thread's inbound queue until it releases it or its lease lapses.
+    Keyed like ``StoredInboundMessage``; an absent scope is NULL, so it takes its own constraint.
+    """
+
+    owner_id = models.CharField(max_length=255, blank=True, default="")
+    scope = models.CharField(max_length=255, null=True, blank=True, default=None)
+    thread_id = models.CharField(max_length=255)
+    run_id = models.CharField(max_length=255)
+    claimed_at = models.DateTimeField()
+    lease_expires_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_id", "scope", "thread_id"],
+                condition=models.Q(scope__isnull=False),
+                name="django_spec_agents_inbox_claim_owner_scope_thread_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["owner_id", "thread_id"],
+                condition=models.Q(scope__isnull=True),
+                name="django_spec_agents_inbox_claim_owner_thread_unique",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.scope or ''}:{self.thread_id}@{self.run_id}"

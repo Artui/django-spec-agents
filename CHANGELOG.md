@@ -35,14 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data naming the asking thread, and a parent's answer or steering as plain words. A
   message that lands after the last request gets one more request before the run ends;
   one that lands as the run parks waits for the resume. A message is acked once
-  the model request carrying it is answered; one taken by a run that fails or dies first
-  stays pending for the next run. `wake_thread(thread, ...)` starts one headless run on an idle thread
-  whose queue holds messages, and starts nothing on a running thread (the run reads them,
-  or the runner's wake after the run ends does) or a waiting one (its resume does), so a second run never takes the thread. A thread
-  parked on a question with an `ANSWER` queued is the exception: it starts the resume,
-  with `answers=` mapping the waiting call's id to the oldest answer's text. It acks that
-  answer before the start, so the resumed run does not read it again, and starts nothing
-  when another wake already took it; a start that fails enqueues the answer again. Given
+  the model request carrying it is answered; one taken by a run that fails goes to the
+  next run when the failed run releases the inbox, and one taken by a run that dies once
+  its claim's lease lapses. `wake_thread(thread, ...)` starts one headless run on an idle
+  thread whose queue holds messages, and starts nothing on a running thread (the run
+  reads them, or the runner's wake after the run ends does) or a waiting one (its resume
+  does), so a second run never takes the thread. A thread parked on a question with an
+  `ANSWER` queued is the exception: it starts the resume, with `answers=` mapping the
+  waiting call's id to the oldest answer's text. It acks that answer before the start, so
+  the resumed run does not read it again, and starts nothing when another wake already
+  took it; a start that fails enqueues the answer again. Given
   `conversations=`, it wakes a child's thread with the `parent` and `lineage` its
   conversation stores, so a steered idle child runs within its bounds; it never passes
   the runner `capabilities`.
@@ -78,8 +80,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retry and an editor endpoint refuses it the same way. The hook is optional: a policy
   without it reserves nothing and still type-checks and passes the system checks. A skill
   already holding a name reserved since it was stored can still be edited.
+- **A durable claim on a thread's inbox: one run holds it at a time.** `DrainInbound`
+  takes the thread's inbound queue under its pydantic-ai `run_id` at each model request,
+  renewing its claim for `lease` (five minutes by default), and releases it when the run
+  ends, parks or fails. A second run on the thread takes nothing while the claim is live,
+  and a run sees each message once. Because the claim lives in the queue rather than in
+  the run store, a queued run that a worker takes up later holds it like any other run,
+  and takes what arrived while it waited; and two threads with one thread id in two
+  scopes each have their own inbox. A claim whose run died is taken over once its lease
+  lapses, with the messages that run took and never acked. `DefaultInboundQueue` keeps
+  the claim in the new `StoredInboxClaim` model and takes a `clock=`.
 
 ### Changed
+
+- **Breaking: `InboundQueue` gains `take(thread, run_id, *, request, lease)` and
+  `release(thread, run_id, *, request)`.** `take` claims or renews the thread's inbox for
+  the run and marks and returns the messages it has not taken yet, or nothing while
+  another run's claim is live; `release` drops the claim and untakes the run's unacked
+  messages. `pending` and `ack` are unchanged. A custom queue must implement both to
+  satisfy the protocol, and a `ModelInboundQueue` subclass must implement `_take` and
+  `_release`. `WakingInboundQueue` passes both through without waking anything.
+- **Migration `0006_inbox_claim`** adds the `StoredInboxClaim` table and a nullable
+  `taken_by` column on `StoredInboundMessage`. Run `migrate`.
 
 - **A `HeadlessRunner` composes a child's capabilities from `lineage` on every run of
   its thread, the first included.** `ChildSessionsToolset.start_session` now passes the

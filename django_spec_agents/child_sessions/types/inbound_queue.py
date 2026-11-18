@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import timedelta
 from typing import Any, Protocol, runtime_checkable
 
 from django.http import HttpRequest
@@ -26,6 +27,14 @@ class InboundQueue(Protocol):
     at insert and seen at commit, so one can become visible behind a higher id already
     read: ``pending(after=n)`` used as a cursor can miss it. A reader that must see every
     message calls ``pending`` without ``after`` and acks what it read.
+
+    **One run holds a thread's inbox at a time.** ``take`` claims it for a run, under a
+    lease each call renews, and marks and returns the messages that run has not taken yet,
+    so a run sees each message once. A run that holds no claim, because another run's lease
+    is live, takes nothing. ``release`` drops the claim and hands the run's unacked messages
+    on; a run that died without releasing is taken over once its lease lapses, and the next
+    holder takes what the dead run took and never acked. ``pending`` lists every unacked
+    message, taken or not.
     """
 
     async def enqueue(
@@ -48,6 +57,20 @@ class InboundQueue(Protocol):
 
     async def ack(self, thread: ThreadRef, ids: Iterable[int], *, request: HttpRequest) -> int:
         """Remove the thread's messages with these ``ids``; how many were removed."""
+        ...
+
+    async def take(
+        self, thread: ThreadRef, run_id: str, *, request: HttpRequest, lease: timedelta
+    ) -> list[InboundMessage]:
+        """Claim or renew ``thread``'s inbox for ``run_id``; its messages not yet taken by it.
+
+        Oldest first, each marked as taken by ``run_id``. ``[]`` while another run's claim is
+        live.
+        """
+        ...
+
+    async def release(self, thread: ThreadRef, run_id: str, *, request: HttpRequest) -> bool:
+        """Drop ``run_id``'s claim and untake its unacked messages; whether it held the claim."""
         ...
 
 

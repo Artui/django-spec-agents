@@ -25,9 +25,19 @@ def test_an_older_store_still_satisfies_the_conversation_store() -> None:
 
 
 def test_the_conversation_store_protocol_gained_no_queue_method() -> None:
-    assert not {"enqueue", "pending", "ack"} & set(dir(ConversationStore))
+    assert not {"enqueue", "pending", "ack", "take", "release"} & set(dir(ConversationStore))
     assert not isinstance(DefaultConversationStore(), InboundQueue)
 
 
 def test_the_reference_queue_satisfies_the_protocol() -> None:
     assert isinstance(DefaultInboundQueue(), InboundQueue)
+
+
+class _QueueWithoutClaims:
+    async def enqueue(self, thread: Any, kind: Any, body: Any, *, request: Any) -> int: ...
+    async def pending(self, thread: Any, *, request: Any) -> list[Any]: ...
+    async def ack(self, thread: Any, ids: Any, *, request: Any) -> int: ...
+
+
+def test_a_queue_that_cannot_take_or_release_is_not_an_inbound_queue() -> None:
+    assert not isinstance(_QueueWithoutClaims(), InboundQueue)

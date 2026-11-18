@@ -4,7 +4,7 @@ from django.apps import apps
 
 LABEL = "django_spec_agents_store"
 
-# The thirteen models that own a table. ``StoredConversation.attachments`` goes
+# The fourteen models that own a table. ``StoredConversation.attachments`` goes
 # through ``ConversationAttachment``, so Django creates no extra table for it.
 MODELS = (
     "storedconversation",
@@ -20,6 +20,7 @@ MODELS = (
     "storedrunlog",
     "storedrunevent",
     "storedinboundmessage",
+    "storedinboxclaim",
 )
 
 
@@ -29,19 +30,19 @@ def test_the_app_is_labelled_after_the_package() -> None:
     assert config.verbose_name == "django-spec-agents stores"
 
 
-def test_the_thirteen_tables_are_named_from_the_label() -> None:
+def test_the_fourteen_tables_are_named_from_the_label() -> None:
     config = apps.get_app_config(LABEL)
     tables = sorted(model._meta.db_table for model in config.get_models())
     assert tables == sorted(f"{LABEL}_{model}" for model in MODELS)
 
 
-def test_the_ten_constraints_carry_the_packages_prefix() -> None:
+def test_the_twelve_constraints_carry_the_packages_prefix() -> None:
     names = [
         constraint.name
         for model in apps.get_app_config(LABEL).get_models()
         for constraint in model._meta.constraints
     ]
-    assert len(names) == 10
+    assert len(names) == 12
     assert all(name.startswith("django_spec_agents_") for name in names), names
 
 

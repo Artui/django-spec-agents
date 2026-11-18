@@ -119,9 +119,9 @@ does `cancel_task`, which walks the tree from the child down.
 reading a scoped store's `scope:thread_id` column back into a `ThreadRef`, and takes each
 child's status from the `RunStore`, idle where it holds none. The run store is keyed by
 the client's thread id, not its scope, so two children with one thread id in two scopes
-share one status. The same key decides who reads an inbound queue: a thread's queue is
-read only by the run holding its `RunStore` claim, so two threads with one thread id in
-two scopes also take turns reading their queues, and `wake_thread` waits on either's run.
+share one status, and `wake_thread`, which reads that status, waits on either's run. An
+inbound queue is not keyed that way: its claim names the scope, so two threads with one
+thread id in two scopes each have their own inbox, held by their own run.
 
 ## Every run of a child's thread
 
@@ -190,6 +190,9 @@ from django_spec_agents.child_sessions.drain_inbound import DrainInbound
 drain = DrainInbound(inbound_queue, "support")  # the mount's agent id, its thread scope
 ```
 
+`lease` (a keyword, five minutes by default) is how long the run's claim on the thread's
+inbox lasts without a model request to renew it.
+
 At each model request it reads the run's thread's queue and adds what it finds to the
 request, oldest first:
 
@@ -207,10 +210,18 @@ text cannot close its frame or speak in system voice. The parent answers it with
 A message that lands after the run's last model request still reaches the model: the run
 makes one more request before it ends. A message that lands as the run parks on a
 deferred call waits in the queue for the resume. A message is acked once the model
-request that carries it is answered, so it is in the run's history. A message taken by a
-run whose request failed, or whose process died, stays pending, and the thread's next run
-delivers it. Only one run reads a thread's queue at a time, because the `RunStore` claim
-already lets only one run hold the thread. A run with no signed-in user in `call_context["request"]` reads nothing.
+request that carries it is answered, so it is in the run's history.
+
+One run holds a thread's inbox at a time. The run takes it with `InboundQueue.take` under
+its pydantic-ai `run_id`, at each model request, which renews its claim for `lease`; a
+second run on the thread meanwhile takes nothing, and a run sees each message once. The
+claim is the queue's own, so a queued run that a worker picks up later holds it as any
+other run does, and takes what arrived while it waited. When the run ends, parks or fails,
+it releases the inbox, and what it took but never acked goes to the thread's next run. A
+run whose process died cannot release: its messages wait until its lease lapses, and the
+next run takes them over. A run that starts before then takes nothing from the inbox, so
+keep `lease` no longer than the lease your transport gives its `RunStore` claim. A run with no signed-in user in `call_context["request"]` reads
+nothing.
 
 ## Waking a thread
 

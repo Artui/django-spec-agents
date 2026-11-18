@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 from django.http import HttpRequest
@@ -69,6 +70,14 @@ class WakingInboundQueue:
 
     async def ack(self, thread: ThreadRef, ids: Iterable[int], *, request: HttpRequest) -> int:
         return await self.queue.ack(thread, ids, request=request)
+
+    async def take(
+        self, thread: ThreadRef, run_id: str, *, request: HttpRequest, lease: timedelta
+    ) -> list[InboundMessage]:
+        return await self.queue.take(thread, run_id, request=request, lease=lease)
+
+    async def release(self, thread: ThreadRef, run_id: str, *, request: HttpRequest) -> bool:
+        return await self.queue.release(thread, run_id, request=request)
 
 
 __all__ = ["WakingInboundQueue"]

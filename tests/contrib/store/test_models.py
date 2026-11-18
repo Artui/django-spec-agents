@@ -7,6 +7,7 @@ from django_spec_agents.contrib.store.models import (
     StoredAttachment,
     StoredConversation,
     StoredInboundMessage,
+    StoredInboxClaim,
     StoredMemory,
     StoredMemoryOperation,
     StoredRun,
@@ -44,6 +45,8 @@ from django_spec_agents.contrib.store.models import (
         (StoredRunEvent(log=StoredRunLog(run_id="r1"), seq=3), "r1#3"),
         (StoredInboundMessage(id=4, scope="a", thread_id="t1"), "a:t1#4"),
         (StoredInboundMessage(id=5, thread_id="t1"), ":t1#5"),
+        (StoredInboxClaim(scope="a", thread_id="t1", run_id="r1"), "a:t1@r1"),
+        (StoredInboxClaim(thread_id="t1", run_id="r1"), ":t1@r1"),
     ],
     ids=[
         "conversation-title",
@@ -62,6 +65,8 @@ from django_spec_agents.contrib.store.models import (
         "run-event-run-and-seq",
         "inbound-message-scope-thread-and-id",
         "inbound-message-absent-scope",
+        "inbox-claim-scope-thread-and-run",
+        "inbox-claim-absent-scope",
     ],
 )
 def test_str_names_the_row(instance: object, expected: str) -> None:
