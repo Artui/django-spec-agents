@@ -6349,7 +6349,9 @@ a guard that pre-approves a routine's tools. <code>parent</code> names the threa
 child run belongs to, with its scope, since a child often runs on another agent.
 <code>lineage</code> is the bounds the child runs under: the runner saves both on the child's
 conversation, so a later run of its thread can compose
-<a class="autorefs autorefs-internal" title="child_lineage_for" href="../child-sessions/#django_spec_agents.child_sessions.child_lineage_for.child_lineage_for"><code>child_lineage_for</code></a>.</p>
+<a class="autorefs autorefs-internal" title="child_lineage_for" href="../child-sessions/#django_spec_agents.child_sessions.child_lineage_for.child_lineage_for"><code>child_lineage_for</code></a>.
+<code>run_id</code> on <code>run_to_first_stop</code> adopts the run already claimed under this id, as a
+queued start claims its thread before a worker runs it; without one the call claims.</p>
 
 
 
@@ -6428,7 +6430,8 @@ conversation, so a later run of its thread can compose
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -6767,7 +6770,8 @@ firing presents the <a class="autorefs autorefs-internal" title="RunStop
 
   
       dataclass
-  " href="#django_spec_agents.RunStop"><code>RunStop</code></a>.</p>
+  " href="#django_spec_agents.RunStop"><code>RunStop</code></a>. A firing's <code>run_id</code> is
+passed only when set, so a runner without the parameter still serves the rest.</p>
 <p>It declares <code>atomic=False</code>, since one transaction must not span a whole agent
 run, and <code>idempotent=False</code>, since a second call is a second paid run. A worker
 that dies mid-run is not run again: the run's lease lapses, so its thread reads
@@ -6807,7 +6811,9 @@ that dies mid-run is not run again: the run's lease lapses, so its thread reads
   
       async
   " href="#django_spec_agents.HeadlessRunner.run_to_first_stop"><code>HeadlessRunner.run_to_first_stop</code></a>
-that cross a queue as JSON. <code>capabilities</code> cannot, so a queued run carries none.</p>
+that cross a queue as JSON. <code>capabilities</code> cannot, so a queued run carries none.
+<code>run_id</code> adopts the run already claimed under this id, as a queued start claims its
+thread before the worker takes the firing up.</p>
 
 
 

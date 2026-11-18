@@ -2802,10 +2802,12 @@ tools and the ones the parent gated, as sorted lists so the record crosses a que
 
     <div class="doc doc-contents first">
 
-        <p>A settled child's report to its parent, framed as upstream's <code>&lt;task_output&gt;</code> data.</p>
-<p>Built through <code>pydantic-ai-harness</code>'s public <code>DelegationTask.report()</code>, so the
-child's output never enters system voice and cannot close its own frame. The task
-id is the child's thread id. Needs the <code>[harness]</code> extra.</p>
+        <p>A settled child's report to its parent, framed as <code>&lt;task_output&gt;</code> data.</p>
+<p>The frame is upstream's <code>DelegationTask.report()</code> tag and attributes, rendered with
+<code>pydantic_ai.framing.wrap</code> so the text keeps its escaping once it crosses a queue: the
+child's output never enters system voice, cannot close its own frame and cannot forge a
+<code>&lt;task_question&gt;</code>. The task id is the child's thread id, and <code>outcome</code> is on the tag
+only when it is not <code>ok</code>.</p>
 
 
     </div>
