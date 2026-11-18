@@ -49,6 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `conversations` maps an agent id to the store its mount reads, so a child wakes within
   its stored lineage. A wake that fails is logged and the message stays queued.
 
+- **`ReservedSkillNames`: a policy can keep a stored skill from taking a code-registered
+  skill's name.** A `SkillPolicy` that also defines `reserved_names(request)` has
+  `create_skill`, `import_skill_md` and a rename through `update_skill` raise
+  `InvalidSkillError` for a reserved name, so the `create_skill` tool asks the model to
+  retry and an editor endpoint refuses it the same way. The hook is optional: a policy
+  without it reserves nothing and still type-checks and passes the system checks. A skill
+  already holding a name reserved since it was stored can still be edited.
+
 ### Changed
 
 - **A `HeadlessRunner` composes a child's capabilities from `lineage` on every run of

@@ -18,6 +18,7 @@ from django_spec_agents.skills.types.max_skill_description_length import (
 )
 from django_spec_agents.skills.types.max_skill_name_length import MAX_SKILL_NAME_LENGTH
 from django_spec_agents.skills.types.max_visible_skills import MAX_VISIBLE_SKILLS
+from django_spec_agents.skills.types.reserved_skill_names import ReservedSkillNames
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
 from django_spec_agents.skills.update_skill import update_skill
@@ -29,6 +30,7 @@ __all__ = [
     "MAX_VISIBLE_SKILLS",
     "AbstractSkill",
     "InvalidSkillError",
+    "ReservedSkillNames",
     "SkillDraft",
     "SkillLimitError",
     "SkillPolicy",

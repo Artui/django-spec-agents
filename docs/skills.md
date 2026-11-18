@@ -75,6 +75,27 @@ owner.
 - `new_skill(request)` returns the unsaved skill a create writes to, with its scope
   already set.
 
+### Reserving the names of code-registered skills
+
+A stored skill shares its `/token` with skills registered in code, such as a transport's
+own. To keep a stored skill from taking one of those names, give the policy a fourth
+method, `reserved_names(request)`, which returns the names no stored skill may take. A
+policy that has it satisfies `ReservedSkillNames`:
+
+```python
+class TenantSkillPolicy:
+    ...
+
+    def reserved_names(self, request):
+        return {"summarize", "translate"}
+```
+
+`create_skill`, `import_skill_md` and a rename through `update_skill` then raise
+`InvalidSkillError` for a reserved name, so the skill tools and an editor endpoint refuse
+it the same way. A skill that already holds a name reserved since it was stored can still
+be edited. A policy without the method reserves nothing, and the bundled `create-skill`
+is never reserved, so a stored skill may shadow it.
+
 ## Reading and writing
 
 Every function takes the policy and the request:
