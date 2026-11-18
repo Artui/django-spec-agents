@@ -15,9 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DefaultRunStore` is one.
 - **`claim(..., resumes=<parked run id>)`** wins only while the thread is `waiting` with
   that run as its `last_run_id`, in the claim's one conditional update, so of two resumes
-  of the same park (a double click, two tabs) one wins. A refused resume answers busy,
-  with the holder, while a live run holds the thread, and otherwise raises the new
-  `RunNotParkedError`, writing nothing. A claim without `resumes=` behaves as before.
+  of the same park (a double click, two tabs) one wins. A refused resume raises the new
+  `RunNotParkedError`, writing nothing and never answering busy; its `active_run_id`
+  names the thread's live holder, if any. A claim without `resumes=` behaves as before.
 - **`release(thread_id, run_id, *, request)`** gives back a claim the run still holds:
   the thread's status, reason, waiting record and `last_run_id` return to what they were
   before the claim, a thread no run had claimed reads as unknown again, and the released

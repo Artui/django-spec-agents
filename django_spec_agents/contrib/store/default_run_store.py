@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, NoReturn
 
 from asgiref.sync import sync_to_async
 from django.db import transaction
@@ -168,7 +168,7 @@ class DefaultRunStore:
                 updated_at=now,
             )
             if not won and resumes is not None:
-                return _refused(rows, now, thread_id, resumes)
+                _refuse_resume(rows, now, thread_id, resumes)
             if not won:
                 return RunClaim(
                     claimed=False, active_run_id=rows.values_list("active_run_id", flat=True).get()
@@ -310,17 +310,16 @@ def _held(owner_id: str, thread_id: str, run_id: str, now: datetime) -> QuerySet
     return _thread(owner_id, thread_id).filter(active_run_id=run_id, lease_expires_at__gte=now)
 
 
-def _refused(
+def _refuse_resume(
     rows: QuerySet[StoredThreadRun], now: datetime, thread_id: str, resumes: str
-) -> RunClaim:
-    """Busy while a live run holds the thread; otherwise the resumed run is not parked."""
+) -> NoReturn:
+    """Raise ``RunNotParkedError``, naming the thread's live holder if it has one."""
     holder = rows.filter(active_run_id__isnull=False, lease_expires_at__gte=now)
-    active_run_id = holder.values_list("active_run_id", flat=True).first()
-    if active_run_id is None:
-        raise RunNotParkedError(
-            f"thread {thread_id!r} is not waiting on run {resumes!r}", run_id=resumes
-        )
-    return RunClaim(claimed=False, active_run_id=active_run_id)
+    raise RunNotParkedError(
+        f"thread {thread_id!r} is not waiting on run {resumes!r}",
+        run_id=resumes,
+        active_run_id=holder.values_list("active_run_id", flat=True).first(),
+    )
 
 
 def _seen(column: F, lapsed: str) -> Case:

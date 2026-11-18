@@ -516,11 +516,14 @@ async def test_a_resume_claims_the_thread_parked_on_its_run(store: DefaultRunSto
     assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r2", "r2")
 
 
-async def test_of_two_resumes_of_one_park_the_second_is_busy(store: DefaultRunStore) -> None:
+async def test_of_two_resumes_of_one_park_the_second_is_refused(store: DefaultRunStore) -> None:
     await _parked(store)
 
     assert (await _resume(store, "r2")).claimed
-    assert await _resume(store, "r3") == RunClaim(claimed=False, active_run_id="r2")
+    with pytest.raises(RunNotParkedError) as raised:
+        await _resume(store, "r3")
+
+    assert (raised.value.run_id, raised.value.active_run_id) == ("r1", "r2")
     assert not await StoredRunLog.objects.filter(run_id="r3").aexists()
 
 
@@ -534,7 +537,7 @@ async def test_a_resume_after_the_first_resume_ended_is_not_parked(
     with pytest.raises(RunNotParkedError) as raised:
         await _resume(store, "r3")
 
-    assert raised.value.run_id == "r1"
+    assert (raised.value.run_id, raised.value.active_run_id) == ("r1", None)
     assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r2")
 
 
@@ -558,10 +561,16 @@ async def test_a_resume_of_a_failed_thread_whose_last_run_is_the_one_resumed_is_
         await _resume(store, "r2")
 
 
-async def test_a_resume_of_a_running_thread_is_busy(store: DefaultRunStore) -> None:
+async def test_a_resume_of_a_running_thread_is_refused_naming_its_holder(
+    store: DefaultRunStore,
+) -> None:
     await _claim(store)
 
-    assert await _resume(store, "r2") == RunClaim(claimed=False, active_run_id="r1")
+    with pytest.raises(RunNotParkedError) as raised:
+        await _resume(store, "r2")
+
+    assert raised.value.active_run_id == "r1"
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r1", "r1")
 
 
 async def test_a_resume_of_a_thread_parked_on_another_run_is_refused(
@@ -581,8 +590,10 @@ async def test_a_resume_over_a_lapsed_lease_is_refused(
     await _claim(store)
     clock.now = _T0 + _LEASE + timedelta(seconds=1)
 
-    with pytest.raises(RunNotParkedError):
+    with pytest.raises(RunNotParkedError) as raised:
         await _resume(store, "r2")
+
+    assert raised.value.active_run_id is None
 
 
 async def test_a_resume_of_an_unknown_thread_leaves_it_unknown(store: DefaultRunStore) -> None:
@@ -615,7 +626,10 @@ def test_two_connections_resuming_one_park_one_wins() -> None:
 
     def resume(run_id: str) -> None:
         start.wait(timeout=5)
-        won[run_id] = async_to_sync(_resume)(store, run_id).claimed
+        try:
+            won[run_id] = async_to_sync(_resume)(store, run_id).claimed
+        except RunNotParkedError:
+            won[run_id] = False
         connection.close()
 
     racers = [threading.Thread(target=resume, args=(run_id,)) for run_id in ("r2", "r3")]
@@ -636,6 +650,18 @@ async def test_release_puts_a_resumed_park_back(store: DefaultRunStore) -> None:
     assert await _status(store) == (ThreadRunStatus.WAITING, None, _WAITING, None, "r1")
     assert not await StoredRunLog.objects.filter(run_id="r2").aexists()
     assert (await _resume(store, "r3")).claimed
+
+
+async def test_a_released_park_stays_waiting_past_the_released_lease(
+    store: DefaultRunStore, clock: _Clock
+) -> None:
+    await _parked(store)
+    await _resume(store, "r2")
+    await store.release("t1", "r2", request=authed_request())
+
+    clock.now = _T0 + _LEASE + timedelta(seconds=1)
+
+    assert await _status(store) == (ThreadRunStatus.WAITING, None, _WAITING, None, "r1")
 
 
 async def test_release_puts_an_idle_thread_back(store: DefaultRunStore) -> None:

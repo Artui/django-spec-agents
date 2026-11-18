@@ -374,6 +374,17 @@ def test_a_firing_without_a_run_id_reaches_a_runner_that_takes_none(
     assert runner.answers == [None]
 
 
+def test_a_firing_s_inbox_mark_reaches_a_runner_that_takes_none(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    worker = _worker(_RunnerWithoutRunId(store), clock)
+    firing = worker.enqueue("run_headless", {**_PARAMS, "inbox_mark": 41}, actor=user)
+
+    worker.run(firing)
+
+    assert worker.state(firing) is FiringState.FINISHED
+
+
 def test_a_firing_carries_its_answers_across_the_queue_as_json(
     store: DefaultRunStore, clock: _Clock, user: Any
 ) -> None:

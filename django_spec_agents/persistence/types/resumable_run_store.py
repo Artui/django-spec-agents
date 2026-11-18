@@ -17,7 +17,8 @@ class ResumableRunStore(RunStore, Protocol):
 
     Optional: a store written against ``RunStore`` alone stays one, and a
     transport checks ``isinstance(store, ResumableRunStore)`` before it passes
-    ``resumes=`` or calls ``release``.
+    ``resumes=`` or calls ``release``. That check sees method names only, so a
+    store that defines ``release`` must also take ``resumes=``.
     [`DefaultRunStore`][django_spec_agents.contrib.store.default_run_store.DefaultRunStore]
     is one.
     """
@@ -35,22 +36,22 @@ class ResumableRunStore(RunStore, Protocol):
 
         The condition and the claim are one conditional update, so of two
         claims resuming the same parked run exactly one wins. A refused resume
-        answers busy, with the holder, while a live run holds the thread, and
-        otherwise raises
-        [`RunNotParkedError`][django_spec_agents.RunNotParkedError]: the
-        thread is idle, failed, parked on another run, or running under a
-        lapsed lease. Either way nothing is written.
+        raises [`RunNotParkedError`][django_spec_agents.RunNotParkedError],
+        never answers busy, and writes nothing: the thread is running (its
+        holder named), idle, failed, parked on another run, or running under a
+        lapsed lease.
         """
         ...
 
     async def release(self, thread_id: str, run_id: str, *, request: HttpRequest) -> bool:
-        """Give back a claim ``run_id`` still holds, as though it had never been taken.
+        """Give back a claim ``run_id`` still holds, restoring what the claim replaced.
 
         The thread's status, reason, waiting record and ``last_run_id`` return
-        to what they were before the claim, a thread no run had claimed reads
-        as unknown again, and the released run's log is deleted, so its id may
-        be claimed again. ``False``, with nothing changed, if ``run_id`` is not
-        the thread's live holder.
+        to what they were before the claim (a holder the claim displaced reads
+        as failed, interrupted), its lease and cancel are cleared, a thread no
+        run had claimed reads as unknown again, and the released run's log is
+        deleted, so its id may be claimed again. ``False``, with nothing
+        changed, if ``run_id`` is not the thread's live holder.
         """
         ...
 
