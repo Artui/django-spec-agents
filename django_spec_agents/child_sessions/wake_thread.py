@@ -51,6 +51,12 @@ async def wake_thread(
     mount reads (scoped as that mount scopes it), a child's thread is started with the
     ``parent`` and ``lineage`` its conversation stores, from which the runner composes its
     bounds; a thread with neither stored, or no ``conversations``, is started with neither.
+    A message another run took and has not released starts nothing: that run hands it on
+    when it releases the inbox, and a run that died holding it leaves it for the next run
+    the thread starts once its lease lapses. Pass the inner queue, never a
+    [`WakingInboundQueue`][django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue]:
+    an answer whose start fails is enqueued again, which would wake once more.
+
     When two wakes race, the runner's claim lets one run start; the other's refusal is
     absorbed once the thread reads as running.
     """
@@ -61,7 +67,8 @@ async def wake_thread(
     if answer is None:
         if state is not None and state.status in _BUSY:
             return None
-        if not await queue.pending(thread, request=request, limit=1):
+        pending = await queue.pending(thread, request=request)
+        if all(message.taken_by is not None for message in pending):
             return None
     stored = (
         None

@@ -132,6 +132,7 @@ def _message(row: StoredInboundMessage) -> InboundMessage:
         body=row.body,
         created_at=row.created_at,
         sender=None if sender is None else ThreadRef(thread_id=sender, scope=row.sender_scope),
+        taken_by=row.taken_by,
     )
 
 

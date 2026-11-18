@@ -101,8 +101,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   satisfy the protocol, and a `ModelInboundQueue` subclass must implement `_take` and
   `_release`. `WakingInboundQueue` passes both through without waking anything.
 - **Migration `0006_inbox_claim`** adds the `StoredInboxClaim` table and a nullable
-  `taken_by` column on `StoredInboundMessage`. Run `migrate`.
-
+  `taken_by` column on `StoredInboundMessage`. Run `migrate`. `InboundMessage` gains
+  `taken_by`, the run holding it, and `wake_thread` starts nothing for messages a run
+  holds, so a run that died holding them does not set off runs that take nothing.
 - **A `HeadlessRunner` composes a child's capabilities from `lineage` on every run of
   its thread, the first included.** `ChildSessionsToolset.start_session` now passes the
   runner `lineage=` alone and no `capabilities`: capabilities cannot cross a queue, so a

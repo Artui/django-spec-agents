@@ -251,7 +251,7 @@ stand in the `RunStore`:
 | waiting on a question, with an `ANSWER` pending | resumes the parked call with that answer | the answer as the call's result; the rest by the resumed run |
 | waiting, on an approval, or on a question with no answer pending | starts nothing | by the resumed run, at its first request |
 | idle, failed or never run, with messages | starts one headless run | at that run's first request |
-| idle, with nothing pending | starts nothing | |
+| idle, with nothing pending, or only messages a run took and has not released | starts nothing | the holder hands them on when it releases; a dead holder's, to the next run once its lease lapses |
 
 A child parked on `ask_parent` resumes when its parent answers. `wake_thread` takes the
 oldest `ANSWER` in the child's queue and starts the run with
@@ -292,7 +292,9 @@ thread: a child's report or question wakes an idle parent, `message_task` or
 prompt and the message delivered beside it by `DrainInbound`, and `answer_task` resumes
 a child parked on `ask_parent` with the answer. A message that lands on a running thread
 after its run's last read is not woken by the enqueue, since the thread still reads as
-running; the runner's wake after `RunStore.finish` starts the next run for it.
+running; the runner's wake after `RunStore.finish` starts the next run for it. A runner
+calling `wake_thread` itself passes it the inner queue, never the `WakingInboundQueue`:
+an answer whose start fails is enqueued again, which would wake once more.
 
 ```python
 from django_spec_agents import WakingInboundQueue

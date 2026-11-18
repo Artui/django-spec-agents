@@ -449,3 +449,20 @@ async def test_a_failed_start_on_a_thread_that_ran_before_is_raised(ended: RunOu
 
     with pytest.raises(LookupError):
         await _wake(runner, request)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_messages_a_live_run_holds_wake_nothing_until_it_releases_them() -> None:
+    request = authed_request("7")
+    runner = _Runner(DefaultRunStore())
+    await _report(request)
+    queue = DefaultInboundQueue()
+    await queue.take(_PARENT, "died", request=request, lease=_LEASE)
+
+    assert await _wake(runner, request) is None
+    [held] = await queue.pending(_PARENT, request=request)
+    assert held.taken_by == "died"
+
+    await queue.release(_PARENT, "died", request=request)
+
+    assert await _wake(runner, request) is not None
