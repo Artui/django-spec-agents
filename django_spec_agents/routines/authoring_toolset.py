@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
@@ -11,6 +11,7 @@ from pydantic_ai.exceptions import ApprovalRequired
 from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.tools import Tool, ToolDefinition
 from pydantic_ai.toolsets.function import FunctionToolset
+from typing_extensions import TypedDict
 
 from django_spec_agents.policy.guard.tool_guard import ToolGuard
 from django_spec_agents.routines.abstract_routine import AbstractRoutine

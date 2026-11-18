@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`typing-extensions>=4.14.1` is declared.** The authoring tools' schedule arguments are
+  `typing_extensions.TypedDict`, which pydantic requires below Python 3.12; the floor is
+  the one pydantic 2.12 requires.
 - **A routine's firing hides all four authoring tools**, `pause_routine` and
   `list_routines` as well as `create_routine` and `update_routine`.
 - **`pause_routine` joins `NEVER_AUTO_APPROVED`**, so neither `GrantedApprovals` nor
