@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -29,6 +31,7 @@ from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.headless.run_headless import run_headless
 from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.firing_state import FiringState
+from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.headless.types.run_stop import RunStop
@@ -476,3 +479,38 @@ def test_a_firing_with_answers_resumes_the_parked_question_with_no_new_prompt(
     [returned] = [p for p in resumed.parts if isinstance(p, ToolReturnPart)]
     assert (returned.tool_call_id, returned.content) == ("q-1", "1999")
     assert not [p for p in resumed.parts if isinstance(p, UserPromptPart)]
+
+
+def _firings_seen(store: DefaultRunStore, clock: _Clock) -> tuple[TaskWorker, list[HeadlessFiring]]:
+    spec = run_headless(_Runner(store), permissions=[_Authenticated()])
+    seen: list[HeadlessFiring] = []
+
+    async def spy(user: Any, data: HeadlessFiring) -> RunStop:
+        seen.append(data)
+        return await spec.service(user, data)
+
+    return TaskWorker({"run_headless": replace(spec, service=spy)}, clock), seen
+
+
+def test_a_firing_carries_its_inbox_mark_across_the_queue_as_json(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    worker, seen = _firings_seen(store, clock)
+
+    worker.run(worker.enqueue("run_headless", {**_PARAMS, "inbox_mark": 41}, actor=user))
+
+    assert [firing.inbox_mark for firing in seen] == [41]
+
+
+def test_a_firing_serialised_before_the_mark_existed_still_runs_with_none(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    worker, seen = _firings_seen(store, clock)
+    old = json.loads(json.dumps(_PARAMS))
+
+    run_id = worker.enqueue("run_headless", old, actor=user)
+    worker.run(run_id)
+
+    assert worker.state(run_id) is FiringState.FINISHED
+    assert [firing.inbox_mark for firing in seen] == [None]
+    assert HeadlessFiring("support", "go", 5.0).inbox_mark is None

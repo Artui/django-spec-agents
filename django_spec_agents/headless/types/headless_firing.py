@@ -16,6 +16,8 @@ class HeadlessFiring:
     ``run_id`` adopts the run already claimed under this id, as a queued start claims its
     thread before the worker takes the firing up. ``answers`` resumes a thread parked on a
     question, a ``tool_call_id`` to its answer's text; the run sends no new ``prompt``.
+    ``inbox_mark`` is the thread's inbox mark taken when the firing was enqueued, for the
+    worker to wake on mail newer than it; ``None`` for a firing that carries none.
     """
 
     agent_id: str
@@ -26,6 +28,7 @@ class HeadlessFiring:
     lineage: ChildLineageRecord | None = None
     run_id: str | None = None
     answers: dict[str, str] | None = None
+    inbox_mark: int | None = None
 
 
 __all__ = ["HeadlessFiring"]

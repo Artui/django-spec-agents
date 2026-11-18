@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The `0007_thread_run_prior` migration** adds the four `prior_` columns of
   `StoredThreadRun` that `release` restores from. A claim taken before it cannot be
   released; `release` answers `False` and the run finishes as before.
+- **`HeadlessFiring.inbox_mark`: the inbox mark taken at enqueue crosses the queue.** An
+  optional `int | None`, `None` by default, so a producer that sets none and a firing
+  serialised before the field existed stay valid. A worker that wakes the thread after the
+  run reads it, so mail enqueued before pickup is not lost below the mark the worker takes.
+  `run_headless` does not pass it to the runner.
 
 ## [0.22.0] — 2026-11-18
 
