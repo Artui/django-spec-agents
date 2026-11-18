@@ -618,6 +618,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The policy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reserving-the-names-of-code-registered-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reserving the names of code-registered skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1350,6 +1367,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The policy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reserving-the-names-of-code-registered-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reserving the names of code-registered skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1516,13 +1550,29 @@ owner.</p>
 <li><code>new_skill(request)</code> returns the unsaved skill a create writes to, with its scope
   already set.</li>
 </ul>
+<h3 id="reserving-the-names-of-code-registered-skills">Reserving the names of code-registered skills<a class="headerlink" href="#reserving-the-names-of-code-registered-skills" title="Permanent link">&para;</a></h3>
+<p>A stored skill shares its <code>/token</code> with skills registered in code, such as a transport's
+own. To keep a stored skill from taking one of those names, give the policy a fourth
+method, <code>reserved_names(request)</code>, which returns the names no stored skill may take. A
+policy that has it satisfies <code>ReservedSkillNames</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TenantSkillPolicy</span><span class="p">:</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="o">...</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reserved_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"summarize"</span><span class="p">,</span> <span class="s2">"translate"</span><span class="p">}</span>
+</span></code></pre></div>
+<p><code>create_skill</code>, <code>import_skill_md</code> and a rename through <code>update_skill</code> then raise
+<code>InvalidSkillError</code> for a reserved name, so the skill tools and an editor endpoint refuse
+it the same way. A skill that already holds a name reserved since it was stored can still
+be edited. A policy without the method reserves nothing, and the bundled <code>create-skill</code>
+is never reserved, so a stored skill may shadow it.</p>
 <h2 id="reading-and-writing">Reading and writing<a class="headerlink" href="#reading-and-writing" title="Permanent link">&para;</a></h2>
 <p>Every function takes the policy and the request:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillDraft</span><span class="p">,</span> <span class="n">create_skill</span><span class="p">,</span> <span class="n">list_visible_skills</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">policy</span> <span class="o">=</span> <span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">()</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">create_skill</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">SkillDraft</span><span class="p">(</span><span class="s2">"triage"</span><span class="p">,</span> <span class="s2">"Sort the inbox."</span><span class="p">,</span> <span class="s2">"Read, then sort."</span><span class="p">))</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">list_visible_skills</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillDraft</span><span class="p">,</span> <span class="n">create_skill</span><span class="p">,</span> <span class="n">list_visible_skills</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">policy</span> <span class="o">=</span> <span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">()</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">create_skill</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">SkillDraft</span><span class="p">(</span><span class="s2">"triage"</span><span class="p">,</span> <span class="s2">"Sort the inbox."</span><span class="p">,</span> <span class="s2">"Read, then sort."</span><span class="p">))</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">list_visible_skills</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
 </span></code></pre></div>
 <ul>
 <li><code>list_visible_skills</code> returns the caller's enabled skills, one per name.
@@ -1559,9 +1609,9 @@ double-quoted. Any other field, such as <code>allowed-tools</code>, raises <code
 so does a multi-line value. Dropping either one silently would lose part of the file.</p>
 <h2 id="offering-stored-skills-to-the-agent">Offering stored skills to the agent<a class="headerlink" href="#offering-stored-skills-to-the-agent" title="Permanent link">&para;</a></h2>
 <p>Pass <code>StoredSkills</code> in the per-run <code>capabilities=</code>, built for the request the run serves:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoredSkills</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="p">[</span><span class="n">StoredSkills</span><span class="p">(</span><span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">authoring</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoredSkills</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="p">[</span><span class="n">StoredSkills</span><span class="p">(</span><span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">authoring</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
 </span></code></pre></div>
 <p>On every run it reads the caller's visible skills through the policy, and offers each
 enabled skill with <code>model_invocable</code> set as a deferred capability. The capability's id is
@@ -1621,11 +1671,11 @@ replaces the bundled one, by the same rule that lets a personal skill replace a 
 <p>No setting names your model. Your code holds it and passes <code>Skill.skill_policy()</code> to
 every function, and to a transport as a constructor argument. To have startup refuse a
 model with no policy, add the package's opt-in app to <code>INSTALLED_APPS</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>The app registers a Django system check that walks the app registry for every installed
 model subclassing <code>AbstractSkill</code>, so <code>manage.py check</code>, <code>runserver</code> and <code>migrate</code> fail

@@ -710,6 +710,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-firing-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The firing spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#finding-the-model-and-refusing-one-with-no-policy-at-startup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1442,6 +1453,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-firing-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The firing spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#finding-the-model-and-refusing-one-with-no-policy-at-startup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1484,8 +1506,8 @@ model's fields, a policy protocol, the schedule vocabulary, the next-firing comp
 and the functions that write a routine. You bring the concrete model, its tenant
 relation, its migration and the policy. No concrete routine model ships in the package,
 and no default policy.</p>
-<p>This page covers the storage, the rules and the sweep that fires a routine on schedule.
-The spec a firing runs and showing its thread are later pieces.</p>
+<p>This page covers the storage, the rules, the sweep that fires a routine on schedule and
+the spec each firing runs. Showing a firing's thread is the transport's.</p>
 <h2 id="the-model">The model<a class="headerlink" href="#the-model" title="Permanent link">&para;</a></h2>
 <p>Subclass <code>AbstractRoutine</code> and add whatever scopes a routine in your project:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">models</span>
@@ -1752,6 +1774,69 @@ principal, and a <code>True</code> skips this firing. The hook is synchronous an
 async and scoped by the owner a request carries, so it builds a request for the principal
 and bridges the call. The default returns <code>False</code>, so a project that
 does not fill it fires on schedule whatever its last thread is doing.</p>
+<h2 id="the-firing-spec">The firing spec<a class="headerlink" href="#the-firing-spec" title="Permanent link">&para;</a></h2>
+<p>The sweep enqueues the firing; <code>run_agent_spec</code> is the kernel spec your queue's worker runs
+it with. It needs the <code>[specs]</code> extra, so import it from its module:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.routines.run_agent_spec</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_agent_spec</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">"run_routine"</span><span class="p">,</span> <span class="n">run_agent_spec</span><span class="p">(</span><span class="n">Routine</span><span class="p">,</span> <span class="n">headless_runner</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">600.0</span><span class="p">))</span>
+</span></code></pre></div>
+<p>Register it under the <code>spec_name</code> your <code>RoutineSweep</code> names. <code>headless_runner</code> is the
+transport's <a href="../reference/persistence/#headlessrunner"><code>HeadlessRunner</code></a>, and <code>timeout</code> is
+required: every firing's run has a deadline, in seconds.</p>
+<p>The worker runs it as the routine's principal with the sweep's <code>{"routine_id",
+"thread_id"}</code>. Its permission check refuses a routine that does not exist, a caller who is
+not the routine's principal, and a routine your policy's <code>can_run</code> refuses. The queue asks
+it at enqueue and the worker again before the run, so a routine your policy stops allowing in
+between lapses the firing, and the next sweep pauses the routine.</p>
+<p>It runs the routine's prompt on its agent, into the sweep's thread, one thread per firing,
+and returns at the run's first stop, presenting <code>{thread_id, run_id, outcome, waiting}</code>:</p>
+<table>
+<thead>
+<tr>
+<th><code>outcome</code></th>
+<th>What happened</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>completed</code></td>
+<td>The run ended with an answer</td>
+</tr>
+<tr>
+<td><code>waiting</code></td>
+<td>A gated call the routine did not pre-approve parked the thread; <code>waiting</code> names it</td>
+</tr>
+<tr>
+<td><code>timed_out</code></td>
+<td>The run passed <code>timeout</code>; what it produced is kept</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>The run failed, a refused tool call included</td>
+</tr>
+</tbody>
+</table>
+<p>Each is a firing that ran, so the task ends <code>SUCCEEDED</code> whatever the outcome. A parked
+thread is resumed by a person on its approval card, never by the queue.</p>
+<p>The run is composed with three things beside the mount's own:</p>
+<ul>
+<li><a href="../policy/#answering-a-gated-call-in-the-run"><code>GrantedApprovals</code></a> over
+  <code>preapproved_exempt(routine)</code>, marked <code>routine:&lt;pk&gt;</code>. A pre-approved tool that was gated
+  when granted runs in the same run without parking, and its result carries
+  <code>answered_by: "routine:&lt;pk&gt;"</code>. A tool granted ungated and declared destructive since is
+  not among them, so its call parks. The approval is the only step it skips: the kernel's
+  own authorization still runs, so a pre-approved spec tool the principal may not call is
+  refused, and the run ends <code>error</code>.</li>
+<li>The grant, recorded on the thread: the firing's first request carries, under
+  <code>ROUTINE_GRANT_KEY</code> in its <code>metadata</code>, the routine's id, its last edit (<code>updated_at</code>), the
+  <code>answered_by</code> mark and the pre-approved tools as granted, each with its pinned flag.</li>
+<li>No routine-authoring tools: <code>create_routine</code> and <code>update_routine</code> are not offered to a
+  firing, whatever the agent's mount offers.</li>
+</ul>
+<p>The spec declares <code>atomic=False</code>, so no transaction spans the run, and <code>idempotent=False</code>:
+a worker that dies mid-run is not run again, its firing reads <code>lapsed</code>, and the sweep
+pauses the routine.</p>
 <h2 id="finding-the-model-and-refusing-one-with-no-policy-at-startup">Finding the model, and refusing one with no policy at startup<a class="headerlink" href="#finding-the-model-and-refusing-one-with-no-policy-at-startup" title="Permanent link">&para;</a></h2>
 <p>There is no setting naming the routine model: the core reads no Django settings. Your
 code holds the model and its policy, and passes the policy to every function above and

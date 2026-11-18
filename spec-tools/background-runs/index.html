@@ -1807,7 +1807,10 @@ can move the owner to a worker instead: it fills a
 body is the runner's <code>run_to_first_stop</code>, in the registry the worker reads. A host
 that claims the thread before it enqueues, so the caller learns the run at once, puts
 the claimed id in the firing's <code>run_id</code>, and the worker's run adopts that claim rather
-than taking a new one. The spec passes <code>run_id</code> only when the firing carries one.</p>
+than taking a new one. A firing's <code>answers</code>, a <code>tool_call_id</code> to its answer's text,
+resume a thread parked on a question: the runner resumes its stored history with them
+and sends no new prompt. The spec passes <code>run_id</code> and <code>answers</code> only when the firing
+carries them.</p>
 <div class="language-python highlight"><span class="filename">spec_tasks.py</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecRegistry</span>

@@ -2139,6 +2139,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.take" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        take
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#inboundmessage" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4149,6 +4171,28 @@
     <span class="md-ellipsis">
       
         ack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.take" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        take
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        release
       
     </span>
   </a>
@@ -6348,10 +6392,26 @@ which the runner records as <code>RunOutcome.TIMED_OUT</code> with the partial k
 a guard that pre-approves a routine's tools. <code>parent</code> names the thread a
 child run belongs to, with its scope, since a child often runs on another agent.
 <code>lineage</code> is the bounds the child runs under: the runner saves both on the child's
-conversation, so a later run of its thread can compose
-<a class="autorefs autorefs-internal" title="child_lineage_for" href="../child-sessions/#django_spec_agents.child_sessions.child_lineage_for.child_lineage_for"><code>child_lineage_for</code></a>.
+conversation and composes
+<a class="autorefs autorefs-internal" title="child_lineage_for" href="../child-sessions/#django_spec_agents.child_sessions.child_lineage_for.child_lineage_for"><code>child_lineage_for</code></a> from them on every run of
+its thread, the first included, since capabilities cannot cross a queue; a child's
+start passes no <code>capabilities</code>.
 <code>run_id</code> on <code>run_to_first_stop</code> adopts the run already claimed under this id, as a
 queued start claims its thread before a worker runs it; without one the call claims.</p>
+<p><code>answers</code> resumes a thread parked on a question: it maps each waiting call's
+<code>tool_call_id</code> to its answer's text. A runner given it must resume the thread's stored
+history with <code>DeferredToolResults(calls=answers)</code> and send no new user message, so
+<code>prompt</code> is not sent; pydantic-ai refuses a new prompt while the history holds the
+unanswered call. Callers pass it only when set, so a runner without it serves every
+other run. A message can land after a run's last read of its queue, and an answer
+before the asking run parks; so after recording any run's end with <code>RunStore.finish</code>,
+a runner calls <a class="autorefs autorefs-internal" title="wake_thread
+
+
+  
+      async
+  " href="../child-sessions/#django_spec_agents.child_sessions.wake_thread.wake_thread"><code>wake_thread</code></a>
+for its thread once, which starts or resumes it when messages are still queued.</p>
 
 
 
@@ -6396,7 +6456,8 @@ queued start claims its thread before a worker runs it; without one the call cla
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">parent</span><span class="p">:</span> <span class="n">ThreadRef</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -6431,7 +6492,8 @@ queued start claims its thread before a worker runs it; without one the call cla
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -6770,8 +6832,8 @@ firing presents the <a class="autorefs autorefs-internal" title="RunStop
 
   
       dataclass
-  " href="#django_spec_agents.RunStop"><code>RunStop</code></a>. A firing's <code>run_id</code> is
-passed only when set, so a runner without the parameter still serves the rest.</p>
+  " href="#django_spec_agents.RunStop"><code>RunStop</code></a>. A firing's <code>run_id</code> and
+<code>answers</code> are each passed only when set, so a runner without them still serves the rest.</p>
 <p>It declares <code>atomic=False</code>, since one transaction must not span a whole agent
 run, and <code>idempotent=False</code>, since a second call is a second paid run. A worker
 that dies mid-run is not run again: the run's lease lapses, so its thread reads
@@ -6813,7 +6875,8 @@ that dies mid-run is not run again: the run's lease lapses, so its thread reads
   " href="#django_spec_agents.HeadlessRunner.run_to_first_stop"><code>HeadlessRunner.run_to_first_stop</code></a>
 that cross a queue as JSON. <code>capabilities</code> cannot, so a queued run carries none.
 <code>run_id</code> adopts the run already claimed under this id, as a queued start claims its
-thread before the worker takes the firing up.</p>
+thread before the worker takes the firing up. <code>answers</code> resumes a thread parked on a
+question, a <code>tool_call_id</code> to its answer's text; the run sends no new <code>prompt</code>.</p>
 
 
 
@@ -6934,6 +6997,13 @@ is read again, and <code>ack</code> removes exactly those ids and no others. Ids
 at insert and seen at commit, so one can become visible behind a higher id already
 read: <code>pending(after=n)</code> used as a cursor can miss it. A reader that must see every
 message calls <code>pending</code> without <code>after</code> and acks what it read.</p>
+<p><strong>One run holds a thread's inbox at a time.</strong> <code>take</code> claims it for a run, under a
+lease each call renews, and marks and returns the messages that run has not taken yet,
+so a run sees each message once. A run that holds no claim, because another run's lease
+is live, takes nothing. <code>release</code> drops the claim and hands the run's unacked messages
+on; a run that died without releasing is taken over once its lease lapses, and the next
+holder takes what the dead run took and never acked. <code>pending</code> lists every unacked
+message, taken or not.</p>
 
 
 
@@ -7037,6 +7107,58 @@ message calls <code>pending</code> without <code>after</code> and acks what it r
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.take" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">take</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.take" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">take</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">thread</span><span class="p">:</span> <span class="n">ThreadRef</span><span class="p">,</span> <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span> <span class="n">lease</span><span class="p">:</span> <span class="n">timedelta</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">InboundMessage</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Claim or renew <code>thread</code>'s inbox for <code>run_id</code>; its messages not yet taken by it.</p>
+<p>Oldest first, each marked as taken by <code>run_id</code>. <code>[]</code> while another run's claim is
+live.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.release" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">release</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.types.inbound_queue.InboundQueue.release" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">release</span><span class="p">(</span><span class="n">thread</span><span class="p">:</span> <span class="n">ThreadRef</span><span class="p">,</span> <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop <code>run_id</code>'s claim and untake its unacked messages; whether it held the claim.</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -7066,7 +7188,8 @@ message calls <code>pending</code> without <code>after</code> and acks what it r
 
 
         <p>One message waiting in a thread's inbound queue, <code>id</code> its place in the queue.</p>
-<p><code>body</code> is opaque JSON the store never reads; <code>sender</code> is the thread it came from, if any.</p>
+<p><code>body</code> is opaque JSON the store never reads; <code>sender</code> is the thread it came from, if any;
+<code>taken_by</code> is the run that took it and has not acked or released it, if any.</p>
 
 
 
@@ -7167,9 +7290,9 @@ message calls <code>pending</code> without <code>after</code> and acks what it r
         <p>Abstract base for a model-backed (or any sync) inbound queue.</p>
 <p>Provides the async wrapping and per-request owner scoping, as
 <a class="autorefs autorefs-internal" title="ModelConversationStore" href="#django_spec_agents.ModelConversationStore"><code>ModelConversationStore</code></a> does; a
-subclass implements <code>_enqueue</code>, <code>_pending</code> and <code>_ack</code> against its own
-model, and <strong>must</strong> filter each by the resolved <code>owner_id</code>. <code>allow_anonymous</code>
-is off by default: a headless run's owner is always a user.</p>
+subclass implements <code>_enqueue</code>, <code>_pending</code>, <code>_ack</code>, <code>_take</code> and <code>_release</code>
+against its own model, and <strong>must</strong> filter each by the resolved <code>owner_id</code>.
+<code>allow_anonymous</code> is off by default: a headless run's owner is always a user.</p>
 
 
 
@@ -7715,7 +7838,9 @@ is never pruned. <code>clock</code> supplies "now" and exists for tests.</p>
 
         <p>A durable, owner-scoped inbound queue over <code>StoredInboundMessage</code>.</p>
 <p>A thread's queue is its rows under <code>(owner_id, scope, thread_id)</code>, an absent scope
-stored as NULL and kept apart from <code>""</code>; <code>ack</code> deletes exactly the ids it is given.</p>
+stored as NULL and kept apart from <code>""</code>; <code>ack</code> deletes exactly the ids it is given.
+A run's claim on the queue is a <code>StoredInboxClaim</code> row. <code>clock</code> supplies "now" and
+exists for tests.</p>
 
 
 

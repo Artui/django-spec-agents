@@ -710,10 +710,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#later-runs-of-a-childs-thread" class="md-nav__link">
+  <a href="#every-run-of-a-childs-thread" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Later runs of a child's thread
+        Every run of a child's thread
       
     </span>
   </a>
@@ -728,6 +728,45 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delivery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waking-a-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waking a thread
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Waking a thread">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#waking-on-every-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waking on every message
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1397,10 +1436,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#later-runs-of-a-childs-thread" class="md-nav__link">
+  <a href="#every-run-of-a-childs-thread" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Later runs of a child's thread
+        Every run of a child's thread
       
     </span>
   </a>
@@ -1415,6 +1454,45 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delivery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waking-a-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waking a thread
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Waking a thread">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#waking-on-every-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waking on every message
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1449,10 +1527,8 @@ gets its own thread, runs headless, and can outlive the run that started it. The
 can message it, answer it and cancel it. The user opens it like any other thread.
 <code>ChildSessionsToolset</code> gives the parent's model the tools to do this. Child sessions need
 the <code>[harness]</code> extra, and building the toolset without it raises <code>ImportError</code>.</p>
-<p>This page covers starting a child, the limits on it, and its report. A settled child's
-report lands in the parent's inbound queue. Handing it to the parent's model, at its next
-request or by waking an idle parent, is a later piece. Until it lands, the report waits
-there.</p>
+<p>This page covers starting a child, the limits on it, its report, and how a report,
+question, answer or steer reaches the model of the thread it was sent to.</p>
 <h2 id="mounting-the-toolset">Mounting the toolset<a class="headerlink" href="#mounting-the-toolset" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
@@ -1490,6 +1566,10 @@ project with its own <code>deps_factory</code> must put the request there too, o
 <tr>
 <td><code>list_tasks()</code></td>
 <td>Lists this thread's children and their status</td>
+</tr>
+<tr>
+<td><code>check_task(thread_id)</code></td>
+<td>Shows where one child stands now, and why its last run ended early, without waiting for its report</td>
 </tr>
 <tr>
 <td><code>message_task(thread_id, message)</code></td>
@@ -1532,9 +1612,9 @@ a call needs approval, the child parks as <code>waiting</code>, and the parent i
 approve it. <code>ask_parent</code> parks the child the same way, on a deferred call of kind
 <code>question</code>.</p>
 <p>The parent passes these tool names to the child, along with the child's place in the
-tree, as a <code>ChildLineage</code> capability, composed into the child's run when it starts. A
-later run on the child's thread carries it only if the transport rebuilds it, as
-<a href="#later-runs-of-a-childs-thread">Later runs of a child's thread</a> describes.</p>
+tree, as a <code>ChildLineageRecord</code>. The runner composes a <code>ChildLineage</code> capability from it
+on every run of the child's thread, the first included, as
+<a href="#every-run-of-a-childs-thread">Every run of a child's thread</a> describes.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <p><code>ChildSessionLimits</code> holds the owner's defaults:</p>
 <table>
@@ -1595,27 +1675,29 @@ does <code>cancel_task</code>, which walks the tree from the child down.</p>
 reading a scoped store's <code>scope:thread_id</code> column back into a <code>ThreadRef</code>, and takes each
 child's status from the <code>RunStore</code>, idle where it holds none. The run store is keyed by
 the client's thread id, not its scope, so two children with one thread id in two scopes
-share one status.</p>
-<h2 id="later-runs-of-a-childs-thread">Later runs of a child's thread<a class="headerlink" href="#later-runs-of-a-childs-thread" title="Permanent link">&para;</a></h2>
-<p>The bounds a child starts under ride the capabilities of its first run. <code>start_session</code>
-also hands the runner a <code>ChildLineageRecord</code> (the root, the depth, the parent's tools and
-the ones it gated) beside <code>parent</code>, and the runner saves both on the child's
+share one status, and <code>wake_thread</code>, which reads that status, waits on either's run. An
+inbound queue is not keyed that way: its claim names the scope, so two threads with one
+thread id in two scopes each have their own inbox, held by their own run.</p>
+<h2 id="every-run-of-a-childs-thread">Every run of a child's thread<a class="headerlink" href="#every-run-of-a-childs-thread" title="Permanent link">&para;</a></h2>
+<p><code>start_session</code> hands the runner a <code>ChildLineageRecord</code> (the root, the depth, the
+parent's tools and the ones it gated) beside <code>parent</code>, and no capabilities, since
+capabilities cannot cross a queue to a worker. The runner saves both on the child's
 conversation. <code>DefaultConversationStore</code> keeps the record in a JSON column and, as with
 <code>parent</code>, leaves it alone on a save that names none. A child started through the
 <code>run_headless</code> spec carries the record too: <code>HeadlessFiring.lineage</code> crosses the queue as
 JSON, with <code>tools</code> and <code>gated</code> as sorted lists, and the runner saves it the same way.</p>
-<p>Every later run of that thread (the user typing into it, a resume after an approval, a
-wake) has to carry the same bounds, or it runs with the child mount's full tools.
-A transport composes them on each run of a thread that has a parent:</p>
+<p>Every run of that thread (its first, the user typing into it, a resume after an
+approval, a wake) has to carry the same bounds, or it runs with the child mount's full
+tools. The runner composes them on each run of a thread that has a parent:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="n">child_lineage_for</span><span class="p">(</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">conversation</span><span class="p">,</span> <span class="n">agent_id</span><span class="o">=</span><span class="s2">"research"</span><span class="p">,</span> <span class="n">owner</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span><span class="p">),</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">,</span> <span class="n">spend</span><span class="o">=</span><span class="n">spend</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>It returns nothing for a thread with no stored lineage, so a transport can call it on
-every run.</p>
+<p>It returns nothing for a thread with no stored lineage, so a runner can call it on
+every run. Until 0.21.0 <code>start_session</code> passed these capabilities to the first run
+itself; a runner that composes only on later runs leaves a child's first run unbounded.</p>
 <h2 id="reports">Reports<a class="headerlink" href="#reports" title="Permanent link">&para;</a></h2>
-<p><code>ChildReport</code> is composed into every child run, by <code>start_session</code> and by
-<code>child_lineage_for</code>. When the run settles it enqueues a <code>REPORT</code> on the parent's queue,
+<p><code>ChildReport</code> is composed into every child run, by <code>child_lineage_for</code>. When the run settles it enqueues a <code>REPORT</code> on the parent's queue,
 with the body <code>{"text": ..., "outcome": ...}</code>, sent from the child's thread:</p>
 <table>
 <thead>
@@ -1653,12 +1735,181 @@ with the body <code>{"text": ..., "outcome": ...}</code>, sent from the child's 
 </table>
 <p>The report needs the run's request in <code>call_context["request"]</code>, as the toolset does. A
 report that cannot be sent is logged, and the run's own result or error stands.</p>
+<p>When the user joins a child's session, typing into its thread in a browser, the result
+may follow the user's direction rather than the parent's instructions. The transport says
+so by passing <code>user_joined=True</code> to <code>child_lineage_for</code> for that run, which hands it to
+<code>ChildReport</code>: the report's framed body then ends with a line telling the parent that the
+user joined the session, so its result may reflect their direction. A run nobody joined
+reports without it.</p>
 <p><code>report_frame(child, agent_id=..., output=..., outcome=...)</code> builds the text: a settled
 child's output as <code>&lt;task_output&gt;</code> data, with the tag and attributes of upstream's
 <code>DelegationTask.report()</code>, rendered by <code>pydantic_ai.framing.wrap</code>. The escaping is in the
 text itself, since the report crosses a queue before any model sees it: the output stays
 in the user channel, never in system voice, and it cannot close its own frame or forge
 a <code>&lt;task_question&gt;</code>.</p>
+<h2 id="delivery">Delivery<a class="headerlink" href="#delivery" title="Permanent link">&para;</a></h2>
+<p>Reports, questions, answers and steering all travel through the receiving thread's
+inbound queue. <code>DrainInbound</code> hands them to that thread's model. Compose it into every
+run of each mount whose threads receive them, the parent's and the child's alike:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.drain_inbound</span><span class="w"> </span><span class="kn">import</span> <span class="n">DrainInbound</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">drain</span> <span class="o">=</span> <span class="n">DrainInbound</span><span class="p">(</span><span class="n">inbound_queue</span><span class="p">,</span> <span class="s2">"support"</span><span class="p">)</span>  <span class="c1"># the mount's agent id, its thread scope</span>
+</span></code></pre></div>
+<p><code>lease</code> (a keyword, five minutes by default) is how long the run's claim on the thread's
+inbox lasts without a model request to renew it.</p>
+<p>At each model request it reads the run's thread's queue and adds what it finds to the
+request, oldest first:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Sent by</th>
+<th>The model reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REPORT</code></td>
+<td><code>ChildReport</code>, when a child settles</td>
+<td>the <code>&lt;task_output&gt;</code> text the child framed</td>
+</tr>
+<tr>
+<td><code>QUESTION</code></td>
+<td><code>ask_parent</code></td>
+<td><code>&lt;task_question task_id="..." agent_name="..."&gt;</code> data naming the child</td>
+</tr>
+<tr>
+<td><code>ANSWER</code></td>
+<td><code>answer_task</code></td>
+<td>the parent's answer, as plain words</td>
+</tr>
+<tr>
+<td><code>STEER</code></td>
+<td><code>message_task</code></td>
+<td>the parent's instructions, as plain words</td>
+</tr>
+</tbody>
+</table>
+<p>A question is framed when it is read, with <code>pydantic_ai.framing.wrap</code>, so the child's
+text cannot close its frame or speak in system voice. The parent answers it with
+<code>answer_task</code>, naming the <code>task_id</code>.</p>
+<p>A message that lands after the run's last model request still reaches the model: the run
+makes one more request before it ends. A message that lands as the run parks on a
+deferred call waits in the queue for the resume. A message is acked once the model
+request that carries it is answered, so it is in the run's history.</p>
+<p>One run holds a thread's inbox at a time. The run takes it with <code>InboundQueue.take</code> under
+its pydantic-ai <code>run_id</code>, at each model request, which renews its claim for <code>lease</code>; a
+second run on the thread meanwhile takes nothing, and a run sees each message once. The
+claim is the queue's own, so a queued run that a worker picks up later holds it as any
+other run does, and takes what arrived while it waited. When the run ends, parks or fails,
+it releases the inbox, and what it took but never acked goes to the thread's next run. A
+run whose process died cannot release: its messages wait until its lease lapses, and the
+next run takes them over. A run that starts before then takes nothing from the inbox, so
+keep <code>lease</code> no longer than the lease your transport gives its <code>RunStore</code> claim. A run with no signed-in user in <code>call_context["request"]</code> reads
+nothing.</p>
+<h2 id="waking-a-thread">Waking a thread<a class="headerlink" href="#waking-a-thread" title="Permanent link">&para;</a></h2>
+<p>A message for a thread with no run would wait until someone opened it.
+<code>wake_thread</code> starts that run:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.wake_thread</span><span class="w"> </span><span class="kn">import</span> <span class="n">wake_thread</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">started</span> <span class="o">=</span> <span class="k">await</span> <span class="n">wake_thread</span><span class="p">(</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">parent_thread</span><span class="p">,</span>  <span class="c1"># a ThreadRef: the thread id and its mount's agent id</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>  <span class="c1"># the owner's request; the run is started as request.user</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">runner</span><span class="o">=</span><span class="n">headless_runner</span><span class="p">,</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">runs</span><span class="o">=</span><span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">queue</span><span class="o">=</span><span class="n">inbound_queue</span><span class="p">,</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">timeout</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">conversations</span><span class="o">=</span><span class="n">conversation_store</span><span class="p">,</span>  <span class="c1"># optional: the store the thread's mount reads</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Call it after enqueueing for a thread. What it does depends on where the thread's runs
+stand in the <code>RunStore</code>:</p>
+<table>
+<thead>
+<tr>
+<th>The thread</th>
+<th><code>wake_thread</code></th>
+<th>The message is read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>running</td>
+<td>starts nothing</td>
+<td>at the run's next model request; after its last one, by the wake its runner makes once it ends</td>
+</tr>
+<tr>
+<td>waiting on a question, with an <code>ANSWER</code> pending</td>
+<td>resumes the parked call with that answer</td>
+<td>the answer as the call's result; the rest by the resumed run</td>
+</tr>
+<tr>
+<td>waiting, on an approval, or on a question with no answer pending</td>
+<td>starts nothing</td>
+<td>by the resumed run, at its first request</td>
+</tr>
+<tr>
+<td>idle, failed or never run, with messages</td>
+<td>starts one headless run</td>
+<td>at that run's first request</td>
+</tr>
+<tr>
+<td>idle, with nothing pending, or only messages a run took and has not released</td>
+<td>starts nothing</td>
+<td>the holder hands them on when it releases; a dead holder's, to the next run once its lease lapses</td>
+</tr>
+</tbody>
+</table>
+<p>A child parked on <code>ask_parent</code> resumes when its parent answers. <code>wake_thread</code> takes the
+oldest <code>ANSWER</code> in the child's queue and starts the run with
+<code>answers={tool_call_id: text}</code>, the waiting call's id from the <code>RunStore</code> mapped to the
+answer's text. The runner resumes the child's stored history with
+<code>DeferredToolResults(calls=answers)</code> and sends no new prompt, so the answer reaches the
+model as <code>ask_parent</code>'s result. The <code>ANSWER</code> is acked before the start, so the resumed
+run does not read it a second time as plain text; a wake whose ack removes nothing starts
+nothing, since another wake took the answer, and a start that fails enqueues the answer
+again for the next wake. The resumed run reads whatever else is queued, as any run does.
+An answer can also arrive while the child's run is still going, before it parks on the
+question; the runner calls <code>wake_thread</code> once after recording such a park, so that answer
+resumes it too.</p>
+<p>So a thread has one run at a time. Two wakes in a row start one run, which reads every
+message queued by its first request. Two wakes that race in two processes start one too:
+the runner's claim lets one through, and the other's refusal is absorbed once the thread
+reads as running. Any other failure to start is raised.</p>
+<p>The woken run's new message is a line saying that messages arrived; pass <code>prompt=</code> to
+change it.</p>
+<p>A child's thread wakes the same way, when its parent steers or answers it while it is
+idle. Pass <code>conversations</code>, the store the child's mount reads (a
+<code>ScopedConversationStore</code> where the mount scopes its threads), and <code>wake_thread</code> starts
+the run with the <code>parent</code> and <code>lineage</code> the child's conversation stores. The runner
+composes the child's bounds from them, as
+<a href="#every-run-of-a-childs-thread">Every run of a child's thread</a> describes.
+<code>wake_thread</code> never passes <code>capabilities</code>. A thread with no stored conversation, or a call
+with no <code>conversations</code>, is started with neither.</p>
+<h3 id="waking-on-every-message">Waking on every message<a class="headerlink" href="#waking-on-every-message" title="Permanent link">&para;</a></h3>
+<p><code>WakingInboundQueue</code> wraps a queue and calls <code>wake_thread</code> after each <code>enqueue</code>. Pass it
+wherever the toolset and <code>child_lineage_for</code> take a queue, and every message wakes its
+thread: a child's report or question wakes an idle parent, <code>message_task</code> or
+<code>answer_task</code> wakes a settled child, whose new run starts with the wake line as its
+prompt and the message delivered beside it by <code>DrainInbound</code>, and <code>answer_task</code> resumes
+a child parked on <code>ask_parent</code> with the answer. A message that lands on a running thread
+after its run's last read is not woken by the enqueue, since the thread still reads as
+running; the runner's wake after <code>RunStore.finish</code> starts the next run for it. A runner
+calling <code>wake_thread</code> itself passes it the inner queue, never the <code>WakingInboundQueue</code>:
+an answer whose start fails is enqueued again, which would wake once more.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">WakingInboundQueue</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">WakingInboundQueue</span><span class="p">(</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">DefaultInboundQueue</span><span class="p">(),</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">headless_runner</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="mf">300.0</span><span class="p">,</span>  <span class="c1"># each woken run's timeout</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">conversations</span><span class="o">=</span><span class="p">{</span><span class="s2">"research"</span><span class="p">:</span> <span class="n">research_store</span><span class="p">},</span>  <span class="c1"># agent id to the store its mount reads</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>A thread whose agent id is not in <code>conversations</code> wakes with no <code>parent</code> or <code>lineage</code>, as
+a root thread does. A wake that fails is logged, and the message stays queued for the
+thread's next run.</p>
 
 
 

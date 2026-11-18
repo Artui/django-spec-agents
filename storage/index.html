@@ -2481,6 +2481,13 @@ read by a process that then died is read again. Ids are allocated at insert and
 seen at commit, so one can become visible behind a higher id already read, and
 <code>pending(after=n)</code> used as a cursor can miss it. A reader that must see every
 message calls <code>pending</code> without <code>after</code> and acks what it read.</p>
+<p>A run reads its thread's queue through a claim instead. <code>take(thread, run_id,
+lease=...)</code> claims the thread's inbox for that run, or renews its claim, and marks
+and returns the messages the run has not taken yet; while another run's claim is
+live it returns nothing. <code>release(thread, run_id)</code> drops the claim and untakes the
+run's unacked messages, so the next run takes them. A claim whose lease lapsed, its
+run having died, is taken over, with the messages that run took and never acked.
+<code>pending</code> still lists every unacked message, taken or not.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">InboundKind</span>
 </span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_inbound_queue</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultInboundQueue</span>
 </span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
@@ -2497,8 +2504,11 @@ message calls <code>pending</code> without <code>after</code> and acks what it r
 </span></code></pre></div>
 <p><code>DefaultInboundQueue</code> keeps the queue in <code>StoredInboundMessage</code> rows, added by
 the store app's <code>0004_child_sessions</code> migration with the two parent columns on
-<code>StoredConversation</code>; <code>ModelInboundQueue</code> is the base for a queue over a model
-of your own.</p>
+<code>StoredConversation</code>. A run's claim is a <code>StoredInboxClaim</code> row, one per owner,
+scope and thread, and a message's <code>taken_by</code> names the run that took it; both
+come with the <code>0006_inbox_claim</code> migration. <code>ModelInboundQueue</code> is the base for a
+queue over a model of your own: it implements <code>_take</code> and <code>_release</code> beside
+<code>_enqueue</code>, <code>_pending</code> and <code>_ack</code>.</p>
 <h2 id="per-user-memory">Per-user memory<a class="headerlink" href="#per-user-memory" title="Permanent link">&para;</a></h2>
 <p><code>pydantic-ai-harness</code> ships a complete memory capability — four tools
 (<code>write_memory</code>, <code>read_memory</code>, <code>delete_memory</code>, <code>search_memory</code>), a

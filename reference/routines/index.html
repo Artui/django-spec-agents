@@ -1571,6 +1571,72 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#run_agent_spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_agent_spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.routines.run_agent_spec.run_agent_spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_agent_spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#routinefiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RoutineFiring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.routines.RoutineFiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RoutineFiring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#routine_grant_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ROUTINE_GRANT_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.routines.ROUTINE_GRANT_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ROUTINE_GRANT_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#invalidroutineerror" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2628,6 +2694,72 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#run_agent_spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_agent_spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.routines.run_agent_spec.run_agent_spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_agent_spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#routinefiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RoutineFiring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.routines.RoutineFiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RoutineFiring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#routine_grant_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ROUTINE_GRANT_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.routines.ROUTINE_GRANT_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ROUTINE_GRANT_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#invalidroutineerror" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2797,8 +2929,8 @@
 
 <h1 id="routines">Routines<a class="headerlink" href="#routines" title="Permanent link">&para;</a></h1>
 <p>The routine model, its policy, the schedule vocabulary and the functions over them. See
-<a href="../../routines/">Routines</a> for the narrative. Everything here imports from
-<code>django_spec_agents.routines</code>.</p>
+<a href="../../routines/">Routines</a> for the narrative. Everything here but <code>run_agent_spec</code> imports
+from <code>django_spec_agents.routines</code>.</p>
 <h2 id="abstractroutine"><code>AbstractRoutine</code><a class="headerlink" href="#abstractroutine" title="Permanent link">&para;</a></h2>
 
 
@@ -3986,6 +4118,143 @@ parks rather than running on a grant that never named it as destructive.</p>
 
 
   </div>
+
+    </div>
+
+</div><h2 id="run_agent_spec"><code>run_agent_spec</code><a class="headerlink" href="#run_agent_spec" title="Permanent link">&para;</a></h2>
+<p>Needs the <code>[specs]</code> extra, so it is imported from its module,
+<code>django_spec_agents.routines.run_agent_spec</code>, never from the package.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="django_spec_agents.routines.run_agent_spec.run_agent_spec" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">run_agent_spec</span>
+
+
+<a href="#django_spec_agents.routines.run_agent_spec.run_agent_spec" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_agent_spec</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">AbstractRoutine</span><span class="p">],</span> <span class="n">runner</span><span class="p">:</span> <span class="n">HeadlessRunner</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ServiceSpec</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The kernel spec a routine's firing runs: <code>model</code>'s routine, to its first stop.</p>
+<p>Register it in the queue's registry under the
+<a class="autorefs autorefs-internal" title="RoutineSweep
+
+
+  
+      dataclass
+  " href="#django_spec_agents.routines.RoutineSweep"><code>RoutineSweep</code></a>'s <code>spec_name</code>. It takes the
+sweep's <code>{"routine_id", "thread_id"}</code> and runs the routine's prompt on its agent, as its
+principal, into that thread, within <code>timeout</code> seconds. It presents the
+<a class="autorefs autorefs-internal" title="RunStop
+
+
+  
+      dataclass
+  " href="../persistence/#django_spec_agents.RunStop"><code>RunStop</code></a>: <code>completed</code>, <code>waiting</code> when a gated call parked
+the thread, <code>timed_out</code> or <code>error</code>, so a parked firing ends <code>SUCCEEDED</code> with <code>waiting</code>
+and the thread's approval card takes it from there.</p>
+<p>Its permission check refuses a routine that does not exist, a caller who is not the
+routine's principal, and a routine the model's policy <code>can_run</code> refuses, at enqueue and
+again on the worker, so a routine disabled in between lapses its firing.</p>
+<p>The run gets <a class="autorefs autorefs-internal" title="GrantedApprovals" href="../policy/#django_spec_agents.GrantedApprovals"><code>GrantedApprovals</code></a> over
+<a class="autorefs autorefs-internal" title="preapproved_exempt" href="#django_spec_agents.routines.preapproved_exempt"><code>preapproved_exempt</code></a>, marked
+<code>routine:&lt;pk&gt;</code>: a pre-approved tool that was gated when granted runs without parking, its
+result marked, and the kernel's own authorization still runs on the call. Any other gated
+call parks. Its first request's <code>metadata</code> carries the grant under
+<a class="autorefs autorefs-internal" title="ROUTINE_GRANT_KEY
+
+
+  
+      module-attribute
+  " href="#django_spec_agents.routines.ROUTINE_GRANT_KEY"><code>ROUTINE_GRANT_KEY</code></a>, and the
+routine-authoring tools, <code>create_routine</code> and <code>update_routine</code>, are not offered.</p>
+<p>It declares <code>atomic=False</code>, so no transaction spans the run, and <code>idempotent=False</code>, so a
+worker that dies mid-run is not run again: the queue reports the firing <code>lapsed</code>.</p>
+
+
+    </div>
+
+</div><h2 id="routinefiring"><code>RoutineFiring</code><a class="headerlink" href="#routinefiring" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.routines.RoutineFiring" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">RoutineFiring</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#django_spec_agents.routines.RoutineFiring" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What <a class="autorefs autorefs-internal" title="run_agent_spec" href="#django_spec_agents.routines.run_agent_spec.run_agent_spec"><code>run_agent_spec</code></a>
+takes: the sweep's enqueue, the routine to fire and the fresh thread it runs into.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="routine_grant_key"><code>ROUTINE_GRANT_KEY</code><a class="headerlink" href="#routine_grant_key" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_spec_agents.routines.ROUTINE_GRANT_KEY" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">ROUTINE_GRANT_KEY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.routines.ROUTINE_GRANT_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ROUTINE_GRANT_KEY</span> <span class="o">=</span> <span class="s1">'routine_grant'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The key a firing's first request carries in its <code>metadata</code>: the routine, its last edit,
+the mark its pre-approved calls carry and its pre-approved tools as granted.</p>
 
     </div>
 

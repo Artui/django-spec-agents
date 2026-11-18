@@ -1033,6 +1033,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reservedskillnames" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReservedSkillNames
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.ReservedSkillNames" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReservedSkillNames
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ReservedSkillNames">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.ReservedSkillNames.reserved_names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reserved_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#skilldraft" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1982,6 +2021,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reservedskillnames" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReservedSkillNames
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.ReservedSkillNames" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReservedSkillNames
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ReservedSkillNames">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.ReservedSkillNames.reserved_names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reserved_names
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#skilldraft" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2710,6 +2788,79 @@
 
     </div>
 
+</div><h2 id="reservedskillnames"><code>ReservedSkillNames</code><a class="headerlink" href="#reservedskillnames" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.skills.ReservedSkillNames" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ReservedSkillNames</span>
+
+
+<a href="#django_spec_agents.skills.ReservedSkillNames" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>The optional hook a <a class="autorefs autorefs-internal" title="SkillPolicy" href="#django_spec_agents.skills.SkillPolicy"><code>SkillPolicy</code></a> adds to keep
+the names its code-registered skills hold from being taken by a stored one.</p>
+<p>A policy that defines <code>reserved_names</code> has <code>create_skill</code>, <code>update_skill</code> and every
+write through them, the skill tools and an editor endpoint alike, refuse a stored skill
+named like a reserved one. A policy without it reserves nothing.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.skills.ReservedSkillNames.reserved_names" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">reserved_names</span>
+
+
+<a href="#django_spec_agents.skills.ReservedSkillNames.reserved_names" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">reserved_names</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Collection</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The names no stored skill may take for this caller.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
 </div><h2 id="skilldraft"><code>SkillDraft</code><a class="headerlink" href="#skilldraft" title="Permanent link">&para;</a></h2>
 
 
@@ -2940,7 +3091,8 @@ one of the same name. The list stops at <code>MAX_VISIBLE_SKILLS</code>, in the 
 
         <p>Create a skill from <code>draft</code> in the scope <code>policy.new_skill</code> gives, if <code>can_write</code> admits it.</p>
 <p>Raises <code>InvalidSkillError</code> for a broken rule, <code>SkillLimitError</code> when the caller already sees
-<code>MAX_VISIBLE_SKILLS</code> enabled skills, and <code>SkillWriteRefusedError</code> when the policy refuses.</p>
+<code>MAX_VISIBLE_SKILLS</code> enabled skills, and <code>SkillWriteRefusedError</code> when the policy refuses.
+A name the policy reserves through <code>ReservedSkillNames</code> is an <code>InvalidSkillError</code>.</p>
 
 
     </div>
@@ -3007,7 +3159,8 @@ one of the same name. The list stops at <code>MAX_VISIBLE_SKILLS</code>, in the 
 <p><code>can_write</code> is asked twice, of the row as stored and of the result, so a policy can refuse
 both touching a skill and a change to it. Raises <code>InvalidSkillError</code> for a broken rule and
 <code>SkillWriteRefusedError</code> when the policy refuses; a refused update leaves both the row and
-<code>skill</code> as they were.</p>
+<code>skill</code> as they were. A rename to a name the policy reserves through <code>ReservedSkillNames</code>
+is an <code>InvalidSkillError</code>; a skill keeping a name reserved since it was stored is not.</p>
 
 
     </div>

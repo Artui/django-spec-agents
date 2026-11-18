@@ -1034,6 +1034,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.child_sessions_toolset.ChildSessionsToolset.check_task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_task
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_spec_agents.child_sessions.child_sessions_toolset.ChildSessionsToolset.message_task" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1195,6 +1206,72 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#draininbound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DrainInbound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.drain_inbound.DrainInbound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DrainInbound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wake_thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wake_thread
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.wake_thread.wake_thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wake_thread
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wakinginboundqueue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WakingInboundQueue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WakingInboundQueue
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1719,6 +1796,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.child_sessions_toolset.ChildSessionsToolset.check_task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_task
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#django_spec_agents.child_sessions.child_sessions_toolset.ChildSessionsToolset.message_task" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1880,6 +1968,72 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#draininbound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DrainInbound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.drain_inbound.DrainInbound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DrainInbound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wake_thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wake_thread
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.wake_thread.wake_thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wake_thread
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wakinginboundqueue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WakingInboundQueue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WakingInboundQueue
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2108,7 +2262,8 @@
 
 
 <h1 id="child-sessions">Child sessions<a class="headerlink" href="#child-sessions" title="Permanent link">&para;</a></h1>
-<p>The toolset, the lineage a child carries, the report frame and the types around them. See
+<p>The toolset, the lineage a child carries, the report frame, the delivery of a thread's
+inbound messages and the types around them. See
 <a href="../../child-sessions/">Child sessions</a> for the narrative. Each imports from its own module
 under <code>django_spec_agents.child_sessions</code>, except <code>ChildLineageRecord</code>, which a
 <code>Conversation</code> holds and so lives under <code>django_spec_agents.persistence.types</code>.</p>
@@ -2132,7 +2287,7 @@ under <code>django_spec_agents.child_sessions</code>, except <code>ChildLineageR
 
 
 
-        <p>Tools to start, list, message, answer and cancel child sessions, and for a child to ask.</p>
+        <p>Tools to start, list, check, message, answer and cancel child sessions; a child asks.</p>
 <p><code>start_session</code> starts a child on one of <code>agents</code> (an id to a description the
 model reads) through <code>runner</code>, as the run's own user, and returns a
 <a class="autorefs autorefs-internal" title="ChildSessionReceipt
@@ -2141,20 +2296,15 @@ model reads) through <code>runner</code>, as the run's own user, and returns a
   
       dataclass
   " href="#django_spec_agents.child_sessions.types.child_session_receipt.ChildSessionReceipt"><code>ChildSessionReceipt</code></a>
-naming its thread. <code>list_tasks</code>, <code>message_task</code>, <code>answer_task</code> and
-<code>cancel_task</code> keep upstream <code>TaskControl</code>'s names, so a mount carrying both is
+naming its thread. <code>list_tasks</code>, <code>check_task</code>, <code>message_task</code>, <code>answer_task</code>
+and <code>cancel_task</code> keep upstream <code>TaskControl</code>'s names, so a mount carrying both is
 refused by pydantic-ai's duplicate-name check; <code>ask_parent</code> is offered in a child
 only, and parks it as waiting on a question.</p>
 <p>Needs the <code>[harness]</code> extra. Starts run one at a time, so each reads the index
-after the last; an anonymous run is refused. A child carries a
-<a class="autorefs autorefs-internal" title="ChildLineage
-
-
-  
-      dataclass
-  " href="#django_spec_agents.child_sessions.child_lineage.ChildLineage"><code>ChildLineage</code></a>
-and, with <code>spend</code>, two <code>SpendLimits</code>. Each limit in <code>limits</code> refuses a start
-with a
+after the last; an anonymous run is refused. A start passes the runner <code>lineage=</code>
+alone, from which it composes
+<a class="autorefs autorefs-internal" title="child_lineage_for" href="#django_spec_agents.child_sessions.child_lineage_for.child_lineage_for"><code>child_lineage_for</code></a>; with <code>spend</code>, an
+exhausted budget refuses it first. Each limit in <code>limits</code> refuses a start with a
 <a class="autorefs autorefs-internal" title="ChildSessionRefusal
 
 
@@ -2276,6 +2426,61 @@ with a
     <div class="doc doc-contents ">
 
         <p>List the child sessions this conversation started, and where each stands.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.child_sessions.child_sessions_toolset.ChildSessionsToolset.check_task" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_task</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.child_sessions_toolset.ChildSessionsToolset.check_task" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">check_task</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChildSession</span> <span class="o">|</span> <span class="n">ChildSessionRefusal</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>See where one child session stands now, without waiting for it to report.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>thread_id</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The child's thread id, from its receipt or <code>list_tasks</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2627,7 +2832,9 @@ top of the child mount's own guards.</p>
 
         <p>Enqueues a child run's report on its parent's inbound queue when the run settles.</p>
 <p>Needs <code>[harness]</code>, checked when built. A run that parks, or is cancelled before its
-deadline, sends nothing; a failed enqueue is logged and never replaces the run's own.</p>
+deadline, sends nothing; a failed enqueue is logged and never replaces the run's own.
+With <code>user_joined</code>, the report's framed body ends with a line telling the parent that
+the user joined the child's session, so its result may reflect the user's direction.</p>
 
 
 
@@ -2674,7 +2881,8 @@ deadline, sends nothing; a failed enqueue is logged and never replaces the run's
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">owner</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">queue</span><span class="p">:</span> <span class="n">InboundQueue</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">spend</span><span class="p">:</span> <span class="n">ChildSessionSpend</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">user_joined</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2682,7 +2890,8 @@ deadline, sends nothing; a failed enqueue is logged and never replaces the run's
         <p>The capabilities a run of a child's thread composes, rebuilt from its stored lineage.</p>
 <p>The same ones <code>start_session</code> gave its first run: the parent's tool bounds, the
 report on settle, and, with <code>spend</code>, the tree and day budgets. <code>agent_id</code> is the
-child's mount and <code>owner</code> its user's id; a thread with no stored lineage gets none.</p>
+child's mount and <code>owner</code> its user's id; a thread with no stored lineage gets none.
+<code>user_joined</code> is passed to the report, for a run the user joined in the child's thread.</p>
 
 
     </div>
@@ -2777,6 +2986,204 @@ tools and the ones the parent gated, as sorted lists so the record crosses a que
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="draininbound"><code>DrainInbound</code><a class="headerlink" href="#draininbound" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.child_sessions.drain_inbound.DrainInbound" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">DrainInbound</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.drain_inbound.DrainInbound" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic_ai.capabilities.AbstractCapability">AbstractCapability</span>[<span title="typing.Any">Any</span>]</code></p>
+
+
+
+        <p>Hands a thread's inbound messages to its model: at each model request, and before it ends.</p>
+<p>Compose it into every run of a mount whose threads receive reports, questions, answers or
+steering, with the mount's <code>agent_id</code> as the thread's scope. A report arrives as the
+<code>&lt;task_output&gt;</code> text its child framed, a question as <code>&lt;task_question&gt;</code> data naming the
+asking thread, an answer or steering as the parent's plain words. A message that arrives
+after the last request is delivered by a further request, unless the run parks: then it
+waits for the resume.</p>
+<p>The run takes the thread's inbox with <code>queue.take</code> under its <code>run_id</code>, renewing its
+claim for <code>lease</code> at each take, so one run holds a thread's inbox at a time and sees
+each message once. It acks each message once the model request carrying it is answered,
+and releases the inbox when it ends, parks or fails, handing on what it took and never
+acked; the messages of a run that dies wait until its lease lapses. A run with no
+signed-in user in <code>call_context["request"]</code> reads nothing.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="wake_thread"><code>wake_thread</code><a class="headerlink" href="#wake_thread" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="django_spec_agents.child_sessions.wake_thread.wake_thread" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">wake_thread</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.wake_thread.wake_thread" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">wake_thread</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">thread</span><span class="p">:</span> <span class="n">ThreadRef</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">runner</span><span class="p">:</span> <span class="n">HeadlessRunner</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">runs</span><span class="p">:</span> <span class="n">RunStore</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">queue</span><span class="p">:</span> <span class="n">InboundQueue</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">conversations</span><span class="p">:</span> <span class="n">ConversationStore</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">_WAKE_PROMPT</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Start a headless run on <code>thread</code> if it is idle and its inbound queue holds messages.</p>
+<p>Call it after enqueueing for <code>thread</code>, and the runner after each run ends. By the
+thread's state in <code>runs</code>: running, it does nothing, since the run reads the queue at
+its next model request, or, for one that lands after its last read, the runner's wake
+once it ends; waiting on a
+question with an <code>ANSWER</code> pending, it resumes the parked call, starting the run with
+<code>answers=</code> mapping the waiting call's id to the oldest answer's text. It acks that
+message first, so the resumed run's drain does not hand it on again, and starts nothing
+when the ack removes nothing, since another wake took it; a start that fails enqueues the
+answer again. Waiting on anything else, it does nothing, since a
+second run must not start before the resume, which reads the queue; idle, failed or never
+run, with messages pending, it starts one run on the thread's scope as <code>request.user</code>,
+with <code>prompt</code> as its new message (by default a line saying messages arrived), and
+returns it. The run's mount composes
+<a class="autorefs autorefs-internal" title="DrainInbound
+
+
+  
+      dataclass
+  " href="#django_spec_agents.child_sessions.drain_inbound.DrainInbound"><code>DrainInbound</code></a> to read them.</p>
+<p>It never passes the runner <code>capabilities</code>. With <code>conversations</code>, the store the thread's
+mount reads (scoped as that mount scopes it), a child's thread is started with the
+<code>parent</code> and <code>lineage</code> its conversation stores, from which the runner composes its
+bounds; a thread with neither stored, or no <code>conversations</code>, is started with neither.
+A message another run took and has not released starts nothing: that run hands it on
+when it releases the inbox, and a run that died holding it leaves it for the next run
+the thread starts once its lease lapses. Pass the inner queue, never a
+<a class="autorefs autorefs-internal" title="WakingInboundQueue
+
+
+  
+      dataclass
+  " href="#django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue"><code>WakingInboundQueue</code></a>:
+an answer whose start fails is enqueued again, which would wake once more.</p>
+<p>When two wakes race, the runner's claim lets one run start; the other's refusal is
+absorbed once the thread reads as running.</p>
+
+
+    </div>
+
+</div><h2 id="wakinginboundqueue"><code>WakingInboundQueue</code><a class="headerlink" href="#wakinginboundqueue" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">WakingInboundQueue</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>An <a class="autorefs autorefs-internal" title="InboundQueue" href="../persistence/#django_spec_agents.child_sessions.types.inbound_queue.InboundQueue"><code>InboundQueue</code></a>
+that wakes the thread it enqueues for, through
+<a class="autorefs autorefs-internal" title="wake_thread
+
+
+  
+      async
+  " href="#django_spec_agents.child_sessions.wake_thread.wake_thread"><code>wake_thread</code></a>.</p>
+<p>Pass it where the toolset and <code>child_lineage_for</code> take a queue: a child's report and
+question then wake an idle parent, and <code>message_task</code> or <code>answer_task</code> wakes a
+settled child. <code>conversations</code> maps an agent id to the store its mount reads, so a
+child's thread wakes with its stored <code>parent</code> and <code>lineage</code>. A wake that fails is
+logged and the message stays queued for the thread's next run.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2939,7 +3346,8 @@ child's thread here after a reload.</p>
 
 
         <p>A child session as its parent sees it: the child's thread and where its runs stand.</p>
-<p>A child is live while it runs or waits, since a parked child still holds its slot.</p>
+<p>A child is live while it runs or waits, since a parked child still holds its slot;
+<code>reason</code> says why its last run ended early: timed out, raised or interrupted.</p>
 
 
 
