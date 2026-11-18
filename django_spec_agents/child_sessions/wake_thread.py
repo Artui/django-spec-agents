@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from typing import Any
+
 from django.http import HttpRequest
 
+from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
+from django_spec_agents.child_sessions.types.inbound_message import InboundMessage
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
+from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 
 _WAKE_PROMPT = "New messages for this conversation arrived while it was idle."
@@ -29,10 +34,13 @@ async def wake_thread(
 
     Call it after enqueueing for ``thread``. By the thread's state in ``runs``: running, it
     does nothing, since the run reads the queue at its next model request; waiting on a
-    deferred call, it does nothing, since a second run must not start before the resume, which
-    reads the queue; idle, failed or never run, with messages pending, it starts one run on the
-    thread's scope as ``request.user``, with ``prompt`` as its new message (by default a
-    line saying messages arrived), and returns it. The run's mount composes
+    question with an ``ANSWER`` pending, it resumes the parked call, starting the run with
+    ``answers=`` mapping the waiting call's id to the oldest answer's text, and acks that
+    message once the run has started; waiting on anything else, it does nothing, since a
+    second run must not start before the resume, which reads the queue; idle, failed or never
+    run, with messages pending, it starts one run on the thread's scope as ``request.user``,
+    with ``prompt`` as its new message (by default a line saying messages arrived), and
+    returns it. The run's mount composes
     [`DrainInbound`][django_spec_agents.child_sessions.drain_inbound.DrainInbound] to read them.
 
     It never passes the runner ``capabilities``. With ``conversations``, the store the thread's
@@ -45,17 +53,22 @@ async def wake_thread(
     if thread.scope is None:
         raise ValueError(f"waking thread {thread.thread_id!r} needs its scope, the agent id")
     state = await runs.get(thread.thread_id, request=request)
-    if state is not None and state.status in _BUSY:
-        return None
-    if not await queue.pending(thread, request=request, limit=1):
-        return None
+    answer = await _answer(state, thread, request, queue)
+    if answer is None:
+        if state is not None and state.status in _BUSY:
+            return None
+        if not await queue.pending(thread, request=request, limit=1):
+            return None
     stored = (
         None
         if conversations is None
         else await conversations.load(thread.thread_id, request=request)
     )
+    resume: dict[str, Any] = {}
+    if answer is not None:
+        resume["answers"] = {answer[0]: str(answer[1].body.get("text", ""))}
     try:
-        return await runner.start(
+        started = await runner.start(
             thread.scope,
             prompt,
             request.user,
@@ -63,12 +76,27 @@ async def wake_thread(
             thread_id=thread.thread_id,
             parent=None if stored is None else stored.parent,
             lineage=None if stored is None else stored.lineage,
+            **resume,
         )
     except Exception:
         state = await runs.get(thread.thread_id, request=request)
         if state is not None and state.status is ThreadRunStatus.RUNNING:
             return None
         raise
+    if answer is not None:
+        await queue.ack(thread, [answer[1].id], request=request)
+    return started
+
+
+async def _answer(
+    state: ThreadRunState | None, thread: ThreadRef, request: HttpRequest, queue: InboundQueue
+) -> tuple[str, InboundMessage] | None:
+    waiting = None if state is None else state.waiting
+    if waiting is None or waiting.kind != "question":
+        return None
+    pending = await queue.pending(thread, request=request)
+    answer = next((m for m in pending if m.kind is InboundKind.ANSWER), None)
+    return None if answer is None else (waiting.tool_call_id, answer)
 
 
 __all__ = ["wake_thread"]

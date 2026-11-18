@@ -34,3 +34,14 @@ def test_a_child_gets_its_bounds_and_its_report_back_without_spend() -> None:
         ChildLineage(_ROOT, _PARENT, 2, frozenset({"delete", "search"}), frozenset({"delete"})),
         ChildReport(_PARENT, "research", queue),
     ]
+
+
+def test_a_child_the_user_joined_reports_that_it_did() -> None:
+    conversation = Conversation("c1", parent=_PARENT, lineage=_RECORD)
+
+    rebuilt = child_lineage_for(
+        conversation, agent_id="research", owner="7", queue=object(), user_joined=True
+    )
+
+    [report] = [c for c in rebuilt if isinstance(c, ChildReport)]
+    assert report.user_joined is True

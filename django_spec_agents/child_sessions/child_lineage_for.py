@@ -19,12 +19,14 @@ def child_lineage_for(
     owner: str,
     queue: InboundQueue,
     spend: ChildSessionSpend | None = None,
+    user_joined: bool = False,
 ) -> list[AbstractCapability[Any]]:
     """The capabilities a run of a child's thread composes, rebuilt from its stored lineage.
 
     The same ones ``start_session`` gave its first run: the parent's tool bounds, the
     report on settle, and, with ``spend``, the tree and day budgets. ``agent_id`` is the
     child's mount and ``owner`` its user's id; a thread with no stored lineage gets none.
+    ``user_joined`` is passed to the report, for a run the user joined in the child's thread.
     """
     record, parent = conversation.lineage, conversation.parent
     if record is None or parent is None:
@@ -33,7 +35,7 @@ def child_lineage_for(
         ChildLineage(
             record.root, parent, record.depth, frozenset(record.tools), frozenset(record.gated)
         ),
-        ChildReport(parent, agent_id, queue),
+        ChildReport(parent, agent_id, queue, user_joined=user_joined),
     ]
     if spend is not None:
         capabilities.extend(child_session_budgets(spend, record.root, owner))
