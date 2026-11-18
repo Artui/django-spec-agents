@@ -37,8 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one that lands as the run parks waits for the resume. A message is acked once
   the model request carrying it is answered; one taken by a run that fails or dies first
   stays pending for the next run. `wake_thread(thread, ...)` starts one headless run on an idle thread
-  whose queue holds messages, and starts nothing on a running thread (the run reads them)
-  or a waiting one (its resume does), so a second run never takes the thread. A thread
+  whose queue holds messages, and starts nothing on a running thread (the run reads them,
+  or the runner's wake after the run ends does) or a waiting one (its resume does), so a second run never takes the thread. A thread
   parked on a question with an `ANSWER` queued is the exception: it starts the resume,
   with `answers=` mapping the waiting call's id to the oldest answer's text. It acks that
   answer before the start, so the resumed run does not read it again, and starts nothing
@@ -49,7 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`WakingInboundQueue`: every message wakes its thread.** It wraps an `InboundQueue`
   and calls `wake_thread` after each `enqueue`, so a child's report or question wakes an
   idle parent, and `message_task` or `answer_task` to a settled child wakes it, as
-  upstream's `message_task` resumes a finished task with the message as its next prompt.
+  upstream's `message_task` resumes a finished task; the woken run's prompt is the wake
+  line and `DrainInbound` delivers the message beside it. A message enqueued after a
+  running thread's last read waits for the runner's wake once that run ends.
   `conversations` maps an agent id to the store its mount reads, so a child wakes within
   its stored lineage. A wake that fails is logged and the message stays queued.
 - **`answers=` on `HeadlessRunner.start` and `run_to_first_stop`, and
@@ -61,9 +63,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HeadlessFiring.answers` crosses a queue as JSON, and `run_headless` and `wake_thread`
   pass `answers` only when they have one, so a runner without the keyword still serves
   every other run; one without it raises on a resume `wake_thread` starts, and the answer
-  is queued again. Since an answer can arrive before the asking run parks, a runner calls
-  `wake_thread` once after recording a run parked on a question. django-ag-ui's runner
-  follows in its next release.
+  is queued again. Since a message can land after a run's last read, and an answer before
+  the asking run parks, a runner calls `wake_thread` once after each `RunStore.finish`.
+  django-ag-ui's runner follows in its next release.
 - **`user_joined=` on `child_lineage_for` and `ChildReport`: a parent learns that the
   user joined its child's session.** With `user_joined=True`, the child's report ends its
   framed body with a line telling the parent that the user joined the session, so its
@@ -86,7 +88,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The toolset still builds the spend budgets to refuse an exhausted start before it
   starts. A runner that called `child_lineage_for` only on later runs must call it on
   the first as well, or a child's first run has none of its parent's bounds, gates,
-  budgets or report. django-ag-ui follows in its next release.
+  budgets or report. django-ag-ui 0.80.0's in-process runner is one: with this release a
+  child it starts in process, and every child `wake_thread` wakes, runs on its mount's
+  full tools with no budgets and never reports, so pair this release with the django-ag-ui
+  release that composes on every run. django-ag-ui follows in its next release.
 
 ## [0.20.1] — 2026-11-18
 

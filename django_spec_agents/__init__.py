@@ -174,10 +174,10 @@ __all__ = [
     "build_run_waiting",
     "build_tool_catalog",
     "child_lineage_for",
-    "wake_thread",
     "memory_namespace",
     "memory_namespace_for_user",
     "preflight_identifiers",
     "report_frame",
     "tool",
+    "wake_thread",
 ]

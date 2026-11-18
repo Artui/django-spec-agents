@@ -435,3 +435,17 @@ async def test_a_thread_with_no_stored_conversation_wakes_with_no_lineage() -> N
 
     [start] = runner.starts
     assert (start["parent"], start["lineage"]) == (None, None)
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("ended", [RunOutcome.COMPLETED, RunOutcome.ERROR])
+async def test_a_failed_start_on_a_thread_that_ran_before_is_raised(ended: RunOutcome) -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await runs.claim("p1", "before", request=request, lease=_LEASE)
+    await runs.finish("p1", "before", ended, request=request)
+    await _report(request)
+    runner = _Runner(runs, fails=LookupError("no headless mount has the id 'main'"))
+
+    with pytest.raises(LookupError):
+        await _wake(runner, request)

@@ -236,7 +236,7 @@ stand in the `RunStore`:
 
 | The thread | `wake_thread` | The message is read |
 | --- | --- | --- |
-| running | starts nothing | at the run's next model request |
+| running | starts nothing | at the run's next model request; after its last one, by the wake its runner makes once it ends |
 | waiting on a question, with an `ANSWER` pending | resumes the parked call with that answer | the answer as the call's result; the rest by the resumed run |
 | waiting, on an approval, or on a question with no answer pending | starts nothing | by the resumed run, at its first request |
 | idle, failed or never run, with messages | starts one headless run | at that run's first request |
@@ -277,8 +277,11 @@ with no `conversations`, is started with neither.
 `WakingInboundQueue` wraps a queue and calls `wake_thread` after each `enqueue`. Pass it
 wherever the toolset and `child_lineage_for` take a queue, and every message wakes its
 thread: a child's report or question wakes an idle parent, `message_task` or
-`answer_task` wakes a settled child, which resumes with the message as its next prompt,
-and `answer_task` resumes a child parked on `ask_parent` with the answer.
+`answer_task` wakes a settled child, whose new run starts with the wake line as its
+prompt and the message delivered beside it by `DrainInbound`, and `answer_task` resumes
+a child parked on `ask_parent` with the answer. A message that lands on a running thread
+after its run's last read is not woken by the enqueue, since the thread still reads as
+running; the runner's wake after `RunStore.finish` starts the next run for it.
 
 ```python
 from django_spec_agents import WakingInboundQueue

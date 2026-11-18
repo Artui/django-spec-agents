@@ -32,8 +32,10 @@ async def wake_thread(
 ) -> HeadlessStart | None:
     """Start a headless run on ``thread`` if it is idle and its inbound queue holds messages.
 
-    Call it after enqueueing for ``thread``. By the thread's state in ``runs``: running, it
-    does nothing, since the run reads the queue at its next model request; waiting on a
+    Call it after enqueueing for ``thread``, and the runner after each run ends. By the
+    thread's state in ``runs``: running, it does nothing, since the run reads the queue at
+    its next model request, or, for one that lands after its last read, the runner's wake
+    once it ends; waiting on a
     question with an ``ANSWER`` pending, it resumes the parked call, starting the run with
     ``answers=`` mapping the waiting call's id to the oldest answer's text. It acks that
     message first, so the resumed run's drain does not hand it on again, and starts nothing
