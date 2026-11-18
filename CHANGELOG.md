@@ -11,11 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`authoring_toolset(policy, request, *, agent_id, guard)`: the agent writes the
   caller's routines.** It offers `list_routines`, `create_routine`, `update_routine` and
-  `pause_routine`. Every write asks the user first: the tool raises `ApprovalRequired`
-  itself, so neither the guard's `exempt` nor its `require_approval` changes the card, and
-  an approval that edits the arguments writes nothing until a fresh card. Its card (`x-confirm` in the
-  call's deferred metadata) names the principal, the agent, the prompt, the schedule and
-  timezone, and every pre-approved tool, a destructive one marked as such. A routine
+  `pause_routine`. Every write asks the user first with a card (`x-confirm` in the call's
+  deferred metadata) naming the principal, the agent, the prompt, the schedule and
+  timezone, and every pre-approved tool, a destructive one marked as such. The tool raises
+  `ApprovalRequired` itself, so neither the guard's `exempt` nor its `require_approval`
+  changes the card, and an approval that edits the arguments writes nothing until a fresh
+  card. A routine
   always runs as the caller on `agent_id`; an update or a pause reaches only the caller's
   own routines, whatever the policy shows, and still asks `can_write`. Granted names are
   pinned against the run's own tools, client tools and the four authoring tools left out.

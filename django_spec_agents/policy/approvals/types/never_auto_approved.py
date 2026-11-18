@@ -11,8 +11,8 @@ NEVER_AUTO_APPROVED: frozenset[str] = frozenset(
         "enable_skill",
     }
 )
-"""Tools no in-run answerer approves, under a name list, ``'all'`` or a grant: their
-approval card is the grant itself, so only a person answers it."""
+"""Tools neither ``GrantedApprovals`` nor ``ReviewedApprovals`` approves, under a name list,
+``'all'`` or a grant: their approval card is the grant itself, so only a person answers it."""
 
 
 __all__ = ["NEVER_AUTO_APPROVED"]
