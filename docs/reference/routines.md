@@ -48,6 +48,22 @@ from `django_spec_agents.routines`.
 
 ::: django_spec_agents.routines.update_routine
 
+## `pause_routine`
+
+::: django_spec_agents.routines.pause_routine
+
+## `list_routines`
+
+::: django_spec_agents.routines.list_routines
+
+## `authoring_toolset`
+
+::: django_spec_agents.routines.authoring_toolset
+
+## `ROUTINE_AUTHORING_TOOLS`
+
+::: django_spec_agents.routines.ROUTINE_AUTHORING_TOOLS
+
 ## `due_routines`
 
 ::: django_spec_agents.routines.due_routines

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-11-18
+
+### Added
+
+- **`authoring_toolset(policy, request, *, agent_id, guard)`: the agent writes the
+  caller's routines.** It offers `list_routines`, `create_routine`, `update_routine` and
+  `pause_routine`. Every write asks the user first with a card (`x-confirm` in the call's
+  deferred metadata) naming the principal, the agent, the prompt, the schedule and
+  timezone, and every pre-approved tool, a destructive one marked as such. The tool raises
+  `ApprovalRequired` itself, so neither the guard's `exempt` nor its `require_approval`
+  changes the card, and an approval that edits the arguments writes nothing until a fresh
+  card. A routine
+  always runs as the caller on `agent_id`; an update or a pause reaches only the caller's
+  own routines, whatever the policy shows, and still asks `can_write`. Granted names are
+  pinned against the run's own tools, client tools and the four authoring tools left out.
+- **`pause_routine(policy, request, routine)` and `list_routines(policy, request)`.** A
+  pause disables the routine and clears `next_fire_at`, keeping its grant, asking
+  `can_write` of the row as stored and of the result. The listing is the visible routines
+  whose principal is the caller.
+- **`ROUTINE_AUTHORING_TOOLS`**, the four names.
+
+### Changed
+
+- **`typing-extensions>=4.14.1` is declared.** The authoring tools' schedule arguments are
+  `typing_extensions.TypedDict`, which pydantic requires below Python 3.12; the floor is
+  the one pydantic 2.12 requires.
+- **A routine's firing hides all four authoring tools**, `pause_routine` and
+  `list_routines` as well as `create_routine` and `update_routine`.
+- **`pause_routine` joins `NEVER_AUTO_APPROVED`**, so neither `GrantedApprovals` nor
+  `ReviewedApprovals` approves it.
+- **`ToolGuard` and `ChildLineage` never flip a tool marked with the new
+  `SELF_GATED_METADATA_KEY`**, which raises its own approval with a card built from the
+  call; `ToolGuard.requires_approval` answers `True` for it, whatever `exempt` says.
+- **Upgrade django-ag-ui to 0.81.0 with child sessions.** With django-ag-ui 0.80.0, a
+  child session started on 0.21.0 or later runs unbounded (no `ChildLineage`, no
+  `ChildReport`, no spend budgets), because 0.80.0 composes a child's bounds only on
+  later runs; django-ag-ui 0.81.0 composes them on every run and floors
+  django-spec-agents at 0.21.0. 0.80.0 is not yanked: upgrade django-ag-ui to 0.81.0.
+
 ## [0.21.0] — 2026-11-18
 
 ### Added
@@ -1389,7 +1428,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/Artui/django-spec-agents/compare/v0.19.0...v0.20.0

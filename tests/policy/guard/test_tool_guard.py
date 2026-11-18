@@ -12,6 +12,7 @@ from django_spec_agents.registry.build_input_schema import build_input_schema
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
+from django_spec_agents.types.self_gated_metadata_key import SELF_GATED_METADATA_KEY
 
 
 def _registry() -> ToolRegistry:
@@ -319,3 +320,22 @@ def test_requires_approval_is_the_public_precedence(
     config: ToolGuardConfig, definition: ToolDefinition, expected: bool
 ) -> None:
     assert ToolGuard(_registry(), config=config).requires_approval(definition) is expected
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        ToolGuardConfig(enabled=True, require_approval=frozenset({"w"})),
+        ToolGuardConfig(enabled=True, exempt=frozenset({"w"})),
+        ToolGuardConfig(enabled=True),
+    ],
+    ids=["required", "exempt", "unnamed"],
+)
+async def test_a_tool_that_gates_itself_is_gated_and_never_flipped(
+    config: ToolGuardConfig,
+) -> None:
+    guard = ToolGuard(ToolRegistry(), config=config)
+    gates_itself = _def("w", metadata={SELF_GATED_METADATA_KEY: True})
+
+    assert guard.requires_approval(gates_itself)
+    assert await _prepare(guard, [gates_itself]) == {"w": "function"}

@@ -10,6 +10,7 @@ from django_spec_agents.child_sessions.types.child_session_tool_names import (
     CHILD_SESSION_TOOL_NAMES,
 )
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
+from django_spec_agents.types.self_gated_metadata_key import SELF_GATED_METADATA_KEY
 
 
 @dataclass
@@ -38,7 +39,8 @@ class ChildLineage(AbstractCapability[Any]):
 
 
 def _gate(tool_def: ToolDefinition, gated: frozenset[str]) -> ToolDefinition:
-    if tool_def.name in gated and tool_def.kind == "function":
+    gates_itself = (tool_def.metadata or {}).get(SELF_GATED_METADATA_KEY)
+    if tool_def.name in gated and tool_def.kind == "function" and not gates_itself:
         return replace(tool_def, kind="unapproved")
     return tool_def
 

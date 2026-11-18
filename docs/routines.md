@@ -128,6 +128,48 @@ create_routine(
   refusal leaves the instance it was given as it was. A blank name, agent or prompt, an
   oversized one, and a timezone `zoneinfo` cannot load raise `InvalidRoutineError`.
 
+## Letting the agent write routines
+
+`authoring_toolset(policy, request, *, agent_id, guard)` gives a conversation's agent four
+tools over the caller's own routines. Build it per request, with the mount's agent id and
+the `ToolGuard` the agent runs with, and pass it in the run's toolsets:
+
+```python
+from django_spec_agents.routines import authoring_toolset
+
+toolset = authoring_toolset(
+    Routine.routine_policy(), request, agent_id="assistant", guard=agent_guard
+)
+```
+
+- `list_routines` lists the routines the policy shows the caller whose principal is the
+  caller, disabled ones too: a teammate's routine the policy happens to show is left out.
+  It asks nobody.
+- `create_routine`, `update_routine` and `pause_routine` always ask the user first. The
+  tool raises `ApprovalRequired` itself and is marked with `SELF_GATED_METADATA_KEY`, so
+  the guard never flips it: its `exempt` cannot waive the card, nor can `require_approval`
+  swap it for a generic one. All three are in `NEVER_AUTO_APPROVED`, so `GrantedApprovals`
+  and `ReviewedApprovals` leave them to the person; a project's own
+  `HandleDeferredToolCalls` answers whatever it is given, so it must skip these names too.
+  An approval that edits the arguments writes nothing and tells the model to call again,
+  so the edited routine gets a card of its own. The call's deferred metadata carries an `x-confirm`
+  card naming the principal, the agent, the prompt, the schedule and timezone, whether the
+  routine is enabled, and every pre-approved tool, a destructive one marked
+  `(destructive, runs unasked)`. A change to the grant is an update, so it gets the card.
+- The model never names a principal or an agent. A created routine runs as the caller on
+  `agent_id`; an update or a pause reaches a routine by id only among the caller's own
+  ones, and an update only one on `agent_id`, since its grant is pinned against this
+  agent's tools. Every write still goes through `can_write`, and a refusal comes back to
+  the model as text, before any card when it can be known then.
+- Each granted name is pinned through `guard` against the tools this run offers, leaving
+  out client tools and these four, since a firing has neither. A broken draft, an unknown
+  name or a schedule outside the vocabulary is sent back to the model as a retry, before
+  the user sees a card.
+
+Compose it into browser runs only. A routine's firing hides all four
+(`ROUTINE_AUTHORING_TOOLS`), whatever its mount offers, and a headless run has nobody to
+answer the card.
+
 ## Pre-approved tools
 
 A routine's firings run with no one watching, so a gated tool call parks the thread
@@ -283,8 +325,9 @@ The run is composed with three things beside the mount's own:
 - The grant, recorded on the thread: the firing's first request carries, under
   `ROUTINE_GRANT_KEY` in its `metadata`, the routine's id, its last edit (`updated_at`), the
   `answered_by` mark and the pre-approved tools as granted, each with its pinned flag.
-- No routine-authoring tools: `create_routine` and `update_routine` are not offered to a
-  firing, whatever the agent's mount offers.
+- No routine-authoring tools: none of `ROUTINE_AUTHORING_TOOLS` (`create_routine`,
+  `update_routine`, `pause_routine`, `list_routines`) is offered to a firing, whatever the
+  agent's mount offers.
 
 The spec declares `atomic=False`, so no transaction spans the run, and `idempotent=False`:
 a worker that dies mid-run is not run again, its firing reads `lapsed`, and the sweep

@@ -65,3 +65,8 @@ from the package root.
     options:
       members:
         - DESTRUCTIVE_METADATA_KEY
+
+::: django_spec_agents.types.self_gated_metadata_key
+    options:
+      members:
+        - SELF_GATED_METADATA_KEY

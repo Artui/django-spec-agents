@@ -19,16 +19,19 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
+from django_spec_agents.policy.guard.tool_guard import ToolGuard
+from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
-from django_spec_agents.routines import ROUTINE_GRANT_KEY
+from django_spec_agents.routines import ROUTINE_GRANT_KEY, authoring_toolset
 from django_spec_agents.routines.run_agent_spec import run_agent_spec
 from django_spec_agents.spec_tools import SpecToolset
 from django_spec_agents.testing import slow_model, tool_calling_model
 from tests.headless.task_worker import TaskWorker
+from tests.routines.conftest import request_as
 from tests.routines.firing import AgentRunner
 from tests.routines.sweeping import routine
-from tests.routines.testapp.models import TeamRoutine
+from tests.routines.testapp.models import OwnRoutinesPolicy, TeamRoutine
 from tests.spec_tools.kernel_specs import DenyAll
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -219,16 +222,12 @@ def test_a_firing_past_its_timeout_ends_timed_out(member: AbstractBaseUser) -> N
 def test_the_firing_offers_no_routine_authoring_tools(member: AbstractBaseUser) -> None:
     offered: list[str] = []
     registry = ToolRegistry()
-
-    @tool(registry)
-    def create_routine(name: str) -> str:
-        """Create a routine."""
-        return name  # pragma: no cover
-
-    @tool(registry)
-    def update_routine(name: str) -> str:
-        """Update a routine."""
-        return name  # pragma: no cover
+    authoring = authoring_toolset(
+        OwnRoutinesPolicy(),
+        request_as(member),
+        agent_id="assistant",
+        guard=ToolGuard(registry, config=ToolGuardConfig(enabled=True)),
+    )
 
     @tool(registry)
     def search(query: str) -> str:
@@ -239,7 +238,7 @@ def test_the_firing_offers_no_routine_authoring_tools(member: AbstractBaseUser) 
         offered.extend(t.name for t in info.function_tools)
         return ModelResponse(parts=[TextPart("done")])
 
-    runner = AgentRunner(model=FunctionModel(model), registry=registry)
+    runner = AgentRunner(model=FunctionModel(model), registry=registry, toolsets=[authoring])
 
     _fire(_worker(runner), routine(member, None))
 
