@@ -218,6 +218,53 @@ async def test_a_child_waiting_on_its_question_resumes_with_the_answer_and_acks_
     assert [(m.id, m.body["text"]) for m in left] == [(steer, "Use March."), (later, "2000")]
 
 
+class _RunnerSeeingTheQueue(_Runner):
+    async def start(self, agent_id: str, prompt: str, principal: Any, **kwargs: Any) -> Any:
+        request = authed_request(str(principal.pk))
+        self.queued = await DefaultInboundQueue().pending(_CHILD, request=request)
+        return await super().start(agent_id, prompt, principal, **kwargs)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_the_resumed_run_finds_its_answer_gone_from_the_queue() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    await _send(request, InboundKind.ANSWER, "1999")
+    runner = _RunnerSeeingTheQueue(runs)
+
+    assert await _wake(runner, request, _CHILD) is not None
+    assert runner.queued == []
+
+
+class _QueueAnotherWakeEmpties(DefaultInboundQueue):
+    async def pending(self, thread: ThreadRef, **kwargs: Any) -> Any:
+        found = await super().pending(thread, **kwargs)
+        await super().ack(thread, [m.id for m in found], request=kwargs["request"])
+        return found
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_answer_another_wake_took_starts_nothing() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    await _send(request, InboundKind.ANSWER, "1999")
+    runner = _Runner(runs)
+
+    started = await wake_thread(
+        _CHILD,
+        request=request,
+        runner=runner,
+        runs=runs,
+        queue=_QueueAnotherWakeEmpties(),
+        timeout=60.0,
+    )
+
+    assert started is None
+    assert runner.attempts == 0
+
+
 @pytest.mark.django_db(transaction=True)
 async def test_a_child_waiting_on_an_approval_is_held_with_an_answer_pending() -> None:
     request = authed_request("7")
@@ -241,7 +288,8 @@ async def test_an_answer_whose_resume_fails_to_start_stays_pending() -> None:
     with pytest.raises(LookupError):
         await _wake(runner, request, _CHILD)
 
-    assert len(await DefaultInboundQueue().pending(_CHILD, request=request)) == 1
+    [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert (kept.kind, kept.body, kept.sender) == (InboundKind.ANSWER, {"text": "1999"}, _PARENT)
 
 
 @pytest.mark.django_db(transaction=True)

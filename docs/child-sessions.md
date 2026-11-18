@@ -247,9 +247,13 @@ oldest `ANSWER` in the child's queue and starts the run with
 `answers={tool_call_id: text}`, the waiting call's id from the `RunStore` mapped to the
 answer's text. The runner resumes the child's stored history with
 `DeferredToolResults(calls=answers)` and sends no new prompt, so the answer reaches the
-model as `ask_parent`'s result. The `ANSWER` is acked once the run has started, so an
-answer whose run fails to start stays queued for the next wake; the resumed run reads
-whatever else is queued, as any run does.
+model as `ask_parent`'s result. The `ANSWER` is acked before the start, so the resumed
+run does not read it a second time as plain text; a wake whose ack removes nothing starts
+nothing, since another wake took the answer, and a start that fails enqueues the answer
+again for the next wake. The resumed run reads whatever else is queued, as any run does.
+An answer can also arrive while the child's run is still going, before it parks on the
+question; the runner calls `wake_thread` once after recording such a park, so that answer
+resumes it too.
 
 So a thread has one run at a time. Two wakes in a row start one run, which reads every
 message queued by its first request. Two wakes that race in two processes start one too:

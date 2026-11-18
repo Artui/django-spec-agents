@@ -35,8 +35,10 @@ async def wake_thread(
     Call it after enqueueing for ``thread``. By the thread's state in ``runs``: running, it
     does nothing, since the run reads the queue at its next model request; waiting on a
     question with an ``ANSWER`` pending, it resumes the parked call, starting the run with
-    ``answers=`` mapping the waiting call's id to the oldest answer's text, and acks that
-    message once the run has started; waiting on anything else, it does nothing, since a
+    ``answers=`` mapping the waiting call's id to the oldest answer's text. It acks that
+    message first, so the resumed run's drain does not hand it on again, and starts nothing
+    when the ack removes nothing, since another wake took it; a start that fails enqueues the
+    answer again. Waiting on anything else, it does nothing, since a
     second run must not start before the resume, which reads the queue; idle, failed or never
     run, with messages pending, it starts one run on the thread's scope as ``request.user``,
     with ``prompt`` as its new message (by default a line saying messages arrived), and
@@ -66,6 +68,8 @@ async def wake_thread(
     )
     resume: dict[str, Any] = {}
     if answer is not None:
+        if not await queue.ack(thread, [answer[1].id], request=request):
+            return None
         resume["answers"] = {answer[0]: str(answer[1].body.get("text", ""))}
     try:
         started = await runner.start(
@@ -79,12 +83,15 @@ async def wake_thread(
             **resume,
         )
     except Exception:
+        if answer is not None:
+            message = answer[1]
+            await queue.enqueue(
+                thread, message.kind, message.body, request=request, sender=message.sender
+            )
         state = await runs.get(thread.thread_id, request=request)
         if state is not None and state.status is ThreadRunStatus.RUNNING:
             return None
         raise
-    if answer is not None:
-        await queue.ack(thread, [answer[1].id], request=request)
     return started
 
 

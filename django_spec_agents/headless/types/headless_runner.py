@@ -47,7 +47,10 @@ class HeadlessRunner(Protocol):
     history with ``DeferredToolResults(calls=answers)`` and send no new user message, so
     ``prompt`` is not sent; pydantic-ai refuses a new prompt while the history holds the
     unanswered call. Callers pass it only when set, so a runner without it serves every
-    other run.
+    other run. An answer can arrive while the run that asked is still running, before it
+    parks; so after recording a run that parked on a question, a runner calls
+    [`wake_thread`][django_spec_agents.child_sessions.wake_thread.wake_thread] for its
+    thread once, which resumes it when an answer is already queued.
     """
 
     async def start(
