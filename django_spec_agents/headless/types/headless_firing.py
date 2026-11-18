@@ -13,6 +13,8 @@ class HeadlessFiring:
     They are those of
     [`HeadlessRunner.run_to_first_stop`][django_spec_agents.HeadlessRunner.run_to_first_stop]
     that cross a queue as JSON. ``capabilities`` cannot, so a queued run carries none.
+    ``run_id`` adopts the run already claimed under this id, as a queued start claims its
+    thread before the worker takes the firing up.
     """
 
     agent_id: str
@@ -21,6 +23,7 @@ class HeadlessFiring:
     thread_id: str | None = None
     parent: ThreadRef | None = None
     lineage: ChildLineageRecord | None = None
+    run_id: str | None = None
 
 
 __all__ = ["HeadlessFiring"]

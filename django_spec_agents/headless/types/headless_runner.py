@@ -37,6 +37,8 @@ class HeadlessRunner(Protocol):
     ``lineage`` is the bounds the child runs under: the runner saves both on the child's
     conversation, so a later run of its thread can compose
     [`child_lineage_for`][django_spec_agents.child_lineage_for].
+    ``run_id`` on ``run_to_first_stop`` adopts the run already claimed under this id, as a
+    queued start claims its thread before a worker runs it; without one the call claims.
     """
 
     async def start(
@@ -65,6 +67,7 @@ class HeadlessRunner(Protocol):
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
+        run_id: str | None = None,
     ) -> RunStop:
         """Run until the run ends or parks, for a caller that waits on the answer."""
         ...

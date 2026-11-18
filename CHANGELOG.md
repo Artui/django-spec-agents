@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`HeadlessFiring.run_id` and `run_to_first_stop(..., run_id=...)`: a queued run adopts
+  the claim its caller made.** The `HeadlessRunner` protocol's `run_to_first_stop` takes
+  `run_id: str | None = None`, the run already claimed under that id, and the
+  `run_headless` spec passes a firing's `run_id` through, so a host that claims a thread
+  before it enqueues the start can have its worker take that claim up. The spec passes it
+  only when the firing carries one, so a runner without the parameter still serves
+  firings that carry none. A firing with `run_id` was refused as `InvalidArguments`.
+
+### Fixed
+
+- **A child's report reaches its parent under `pydantic-ai-harness` 0.70.** 0.70 returns
+  `DelegationTask.report()` as a `TaskOutputPart` whose content is the child's output
+  unescaped, so `ChildReport` failed on every report, logged it and sent nothing.
+  `report_frame` now renders the `<task_output>` frame itself with
+  `pydantic_ai.framing.wrap` on both harness versions, so the queued text keeps the
+  escaping: the output cannot close its own frame or open a `<system>` one. The lock
+  moves to harness 0.70 and pydantic-ai-slim 2.70.
+
 ## [0.20.0] — 2026-11-17
 
 A minor release with two floors moved, one protocol change and one migration: child
