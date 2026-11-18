@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A routine's firing hides all four authoring tools**, `pause_routine` and
   `list_routines` as well as `create_routine` and `update_routine`.
 - **`pause_routine` joins `NEVER_AUTO_APPROVED`**, so no in-run answerer approves it.
+- **Upgrade django-ag-ui to 0.81.0 with child sessions.** With django-ag-ui 0.80.0, a
+  child session started on 0.21.0 or later runs unbounded (no `ChildLineage`, no
+  `ChildReport`, no spend budgets), because 0.80.0 composes a child's bounds only on
+  later runs; django-ag-ui 0.81.0 composes them on every run and floors
+  django-spec-agents at 0.21.0. 0.80.0 is not yanked: upgrade django-ag-ui to 0.81.0.
 
 ## [0.21.0] — 2026-11-18
 
