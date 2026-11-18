@@ -5,12 +5,11 @@ from typing import Any
 
 from django.http import HttpRequest
 from pydantic_ai import DeferredToolRequests
-from pydantic_ai.capabilities import AbstractCapability, WrapRunHandler
+from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.capabilities.abstract import AgentNode, NodeResult
 from pydantic_ai.framing import register_tag, wrap
-from pydantic_ai.messages import TextContent, UserPromptPart
+from pydantic_ai.messages import ModelResponse, TextContent, UserPromptPart
 from pydantic_ai.models import ModelRequestContext
-from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import RunContext
 from pydantic_graph import End
 
@@ -31,29 +30,21 @@ class DrainInbound(AbstractCapability[Any]):
     ``<task_output>`` text its child framed, a question as ``<task_question>`` data naming the
     asking thread, an answer or steering as the parent's plain words. A message that arrives
     after the last request is delivered by a further request, unless the run parks: then it
-    waits for the resume. A run acks what it delivered when it ends, so a run whose process
-    died delivers it again. A run with no signed-in user in ``call_context["request"]`` reads
-    nothing.
+    waits for the resume. A run acks each message once the model request carrying it is
+    answered, so one taken by a run that fails or dies first stays pending for the next run;
+    one run per thread is the run store's claim. A run with no signed-in user in
+    ``call_context["request"]`` reads nothing.
     """
 
     queue: InboundQueue
     agent_id: str
     _: KW_ONLY
     id: str | None = "child_session_inbound"
-    _delivered: list[int] = field(default_factory=list, init=False, repr=False)
+    _taken: list[int] = field(default_factory=list, init=False, repr=False)
+    _unacked: list[int] = field(default_factory=list, init=False, repr=False)
 
     async def for_run(self, ctx: RunContext[Any]) -> DrainInbound:
         return replace(self)
-
-    async def wrap_run(
-        self, ctx: RunContext[Any], *, handler: WrapRunHandler
-    ) -> AgentRunResult[Any]:
-        try:
-            return await handler()
-        finally:
-            request = _request(ctx)
-            if self._delivered and request is not None:
-                await self.queue.ack(self._here(ctx), self._delivered, request=request)
 
     async def before_model_request(
         self, ctx: RunContext[Any], request_context: ModelRequestContext
@@ -61,6 +52,15 @@ class DrainInbound(AbstractCapability[Any]):
         if parts := await self._take(ctx):
             ctx.enqueue(*parts, priority="asap")
         return request_context
+
+    async def after_model_request(
+        self, ctx: RunContext[Any], *, request_context: ModelRequestContext, response: ModelResponse
+    ) -> ModelResponse:
+        request = _request(ctx)
+        if self._unacked and request is not None:
+            await self.queue.ack(self._here(ctx), self._unacked, request=request)
+            self._unacked = []
+        return response
 
     async def after_node_run(
         self, ctx: RunContext[Any], *, node: AgentNode[Any], result: NodeResult[Any]
@@ -77,8 +77,9 @@ class DrainInbound(AbstractCapability[Any]):
         if request is None:
             return []
         pending = await self.queue.pending(self._here(ctx), request=request)
-        fresh = [message for message in pending if message.id not in self._delivered]
-        self._delivered.extend(message.id for message in fresh)
+        fresh = [message for message in pending if message.id not in self._taken]
+        self._taken.extend(message.id for message in fresh)
+        self._unacked.extend(message.id for message in fresh)
         return [_part(message) for message in fresh]
 
     def _here(self, ctx: RunContext[Any]) -> ThreadRef:

@@ -196,9 +196,11 @@ text cannot close its frame or speak in system voice. The parent answers it with
 
 A message that lands after the run's last model request still reaches the model: the run
 makes one more request before it ends. A message that lands as the run parks on a
-deferred call waits in the queue for the resume. The run acks what it delivered when it
-ends, whether it completed, parked or failed, so a run whose process died delivers it
-again. A run with no signed-in user in `call_context["request"]` reads nothing.
+deferred call waits in the queue for the resume. A message is acked once the model
+request that carries it is answered, so it is in the run's history. A message taken by a
+run whose request failed, or whose process died, stays pending, and the thread's next run
+delivers it. Only one run reads a thread's queue at a time, because the `RunStore` claim
+already lets only one run hold the thread. A run with no signed-in user in `call_context["request"]` reads nothing.
 
 ## Waking a thread
 

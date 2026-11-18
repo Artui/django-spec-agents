@@ -239,7 +239,7 @@ async def test_a_run_reads_only_its_own_threads_queue() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_a_run_that_fails_still_acks_what_it_delivered() -> None:
+async def test_a_message_whose_request_fails_stays_pending_for_the_next_run() -> None:
     request = authed_request("7")
     await _report(request, "seen once")
 
@@ -249,7 +249,30 @@ async def test_a_run_that_fails_still_acks_what_it_delivered() -> None:
     with pytest.raises(ValueError, match="the model broke"):
         await _run(_Model(fail), request)
 
+    [kept] = await DefaultInboundQueue().pending(_PARENT, request=request)
+    assert kept.kind is InboundKind.REPORT
+    model = _Model(lambda _step, _m: _say("ok"))
+    await _run(model, request)
+    assert any("seen once" in text for text in model.seen[0])
     assert await DefaultInboundQueue().pending(_PARENT, request=request) == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_message_is_acked_once_its_request_is_answered_not_at_run_end() -> None:
+    request = authed_request("7")
+    await _report(request, "early")
+    pending_at_step_two: list[int] = []
+
+    async def script(step: int, _messages: list[ModelMessage]) -> ModelResponse:
+        if step == 2:
+            pending = await DefaultInboundQueue().pending(_PARENT, request=request)
+            pending_at_step_two.append(len(pending))
+            return _say("ok")
+        return _call("look")
+
+    await _run(_Model(script), request)
+
+    assert pending_at_step_two == [0]
 
 
 @pytest.mark.parametrize("request_", [None, HttpRequest(), anonymous_request()])
@@ -263,9 +286,37 @@ async def test_a_run_with_no_signed_in_user_reads_nothing(request_: Any) -> None
 
 def test_each_run_gets_its_own_delivered_ids() -> None:
     drain = DrainInbound(DefaultInboundQueue(), "main")
-    drain._delivered.append(1)
+    drain._taken.append(1)
+    drain._unacked.append(1)
 
     fresh = asyncio.run(drain.for_run(None))  # ty: ignore[invalid-argument-type]
 
-    assert fresh is not drain and fresh._delivered == []
+    assert fresh is not drain and (fresh._taken, fresh._unacked) == ([], [])
     assert (fresh.queue, fresh.agent_id, fresh.id) == (drain.queue, "main", drain.id)
+
+
+class _CountingQueue(DefaultInboundQueue):
+    def __init__(self) -> None:
+        super().__init__()
+        self.acked: list[list[int]] = []
+
+    async def ack(self, thread: ThreadRef, ids: Any, *, request: HttpRequest) -> int:
+        self.acked.append(list(ids))
+        return await super().ack(thread, ids, request=request)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_each_message_is_acked_once() -> None:
+    request = authed_request("7")
+    await _report(request, "one")
+    queue = _CountingQueue()
+    model = _Model(lambda step, _m: _call("look") if step < 3 else _say("ok"))
+
+    await _agent(model).run(
+        "Go.",
+        deps=AgentDeps(user=None, call_context={"request": request}),
+        conversation_id=_PARENT.thread_id,
+        capabilities=[DrainInbound(queue, "main")],
+    )
+
+    assert len(queue.acked) == 1 and len(queue.acked[0]) == 1
