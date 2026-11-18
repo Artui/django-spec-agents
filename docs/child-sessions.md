@@ -118,7 +118,9 @@ does `cancel_task`, which walks the tree from the child down.
 reading a scoped store's `scope:thread_id` column back into a `ThreadRef`, and takes each
 child's status from the `RunStore`, idle where it holds none. The run store is keyed by
 the client's thread id, not its scope, so two children with one thread id in two scopes
-share one status.
+share one status. The same key decides who reads an inbound queue: a thread's queue is
+read only by the run holding its `RunStore` claim, so two threads with one thread id in
+two scopes also take turns reading their queues, and `wake_thread` waits on either's run.
 
 ## Every run of a child's thread
 
