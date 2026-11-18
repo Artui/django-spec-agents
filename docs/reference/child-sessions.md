@@ -1,6 +1,7 @@
 # Child sessions
 
-The toolset, the lineage a child carries, the report frame and the types around them. See
+The toolset, the lineage a child carries, the report frame, the delivery of a thread's
+inbound messages and the types around them. See
 [Child sessions](../child-sessions.md) for the narrative. Each imports from its own module
 under `django_spec_agents.child_sessions`, except `ChildLineageRecord`, which a
 `Conversation` holds and so lives under `django_spec_agents.persistence.types`.
@@ -24,6 +25,14 @@ under `django_spec_agents.child_sessions`, except `ChildLineageRecord`, which a
 ## `ChildLineageRecord`
 
 ::: django_spec_agents.persistence.types.child_lineage_record.ChildLineageRecord
+
+## `DrainInbound`
+
+::: django_spec_agents.child_sessions.drain_inbound.DrainInbound
+
+## `wake_thread`
+
+::: django_spec_agents.child_sessions.wake_thread.wake_thread
 
 ## `report_frame`
 

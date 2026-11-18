@@ -6,10 +6,8 @@ can message it, answer it and cancel it. The user opens it like any other thread
 `ChildSessionsToolset` gives the parent's model the tools to do this. Child sessions need
 the `[harness]` extra, and building the toolset without it raises `ImportError`.
 
-This page covers starting a child, the limits on it, and its report. A settled child's
-report lands in the parent's inbound queue. Handing it to the parent's model, at its next
-request or by waking an idle parent, is a later piece. Until it lands, the report waits
-there.
+This page covers starting a child, the limits on it, its report, and how a report,
+question, answer or steer reaches the model of the thread it was sent to.
 
 ## Mounting the toolset
 
@@ -169,3 +167,77 @@ child's output as `<task_output>` data, with the tag and attributes of upstream'
 text itself, since the report crosses a queue before any model sees it: the output stays
 in the user channel, never in system voice, and it cannot close its own frame or forge
 a `<task_question>`.
+
+## Delivery
+
+Reports, questions, answers and steering all travel through the receiving thread's
+inbound queue. `DrainInbound` hands them to that thread's model. Compose it into every
+run of each mount whose threads receive them, the parent's and the child's alike:
+
+```python
+from django_spec_agents.child_sessions.drain_inbound import DrainInbound
+
+drain = DrainInbound(inbound_queue, "support")  # the mount's agent id, its thread scope
+```
+
+At each model request it reads the run's thread's queue and adds what it finds to the
+request, oldest first:
+
+| Kind | Sent by | The model reads |
+| --- | --- | --- |
+| `REPORT` | `ChildReport`, when a child settles | the `<task_output>` text the child framed |
+| `QUESTION` | `ask_parent` | `<task_question task_id="..." agent_name="...">` data naming the child |
+| `ANSWER` | `answer_task` | the parent's answer, as plain words |
+| `STEER` | `message_task` | the parent's instructions, as plain words |
+
+A question is framed when it is read, with `pydantic_ai.framing.wrap`, so the child's
+text cannot close its frame or speak in system voice. The parent answers it with
+`answer_task`, naming the `task_id`.
+
+A message that lands after the run's last model request still reaches the model: the run
+makes one more request before it ends. A message that lands as the run parks on a
+deferred call waits in the queue for the resume. The run acks what it delivered when it
+ends, whether it completed, parked or failed, so a run whose process died delivers it
+again. A run with no signed-in user in `call_context["request"]` reads nothing.
+
+## Waking a thread
+
+A message for a thread with no run would wait until someone opened it.
+`wake_thread` starts that run:
+
+```python
+from django_spec_agents.child_sessions.wake_thread import wake_thread
+
+started = await wake_thread(
+    parent_thread,  # a ThreadRef: the thread id and its mount's agent id
+    request=request,  # the owner's request; the run is started as request.user
+    runner=headless_runner,
+    runs=run_store,
+    queue=inbound_queue,
+    timeout=300.0,
+)
+```
+
+Call it after enqueueing for a thread. What it does depends on where the thread's runs
+stand in the `RunStore`:
+
+| The thread | `wake_thread` | The message is read |
+| --- | --- | --- |
+| running | starts nothing | at the run's next model request |
+| waiting, on an approval or a question | starts nothing | by the resumed run, at its first request |
+| idle, failed or never run, with messages | starts one headless run | at that run's first request |
+| idle, with nothing pending | starts nothing | |
+
+A child parked on `ask_parent` stays waiting when its parent answers: the answer waits
+in the child's queue, and no headless run resumes a parked call with it yet. A run that
+resumes the child, such as the user answering in its thread, reads it.
+
+So a thread has one run at a time. Two wakes in a row start one run, which reads every
+message queued by its first request. Two wakes that race in two processes start one too:
+the runner's claim lets one through, and the other's refusal is absorbed once the thread
+reads as running. Any other failure to start is raised.
+
+The woken run's new message is a line saying that messages arrived; pass `prompt=` to
+change it. `wake_thread` passes the runner no `lineage` and no `capabilities`. A child's
+thread keeps the lineage it was started with, and the runner composes it on every run,
+as [Every run of a child's thread](#every-run-of-a-childs-thread) describes.

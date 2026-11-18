@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`DrainInbound` and `wake_thread`: a thread's inbound messages reach its model.**
+  `DrainInbound(queue, agent_id)`, composed into a mount's runs, reads the run's thread's
+  inbound queue at each model request and hands the messages to the model: a child's
+  report as the `<task_output>` text it framed, a child's question as `<task_question>`
+  data naming the asking thread, and a parent's answer or steering as plain words. A
+  message that lands after the last request gets one more request before the run ends;
+  one that lands as the run parks waits for the resume. A run acks what it delivered
+  when it ends. `wake_thread(thread, ...)` starts one headless run on an idle thread
+  whose queue holds messages, and starts nothing on a running thread (the run reads them)
+  or a waiting one (its resume does), so a second run never takes the thread. It passes
+  the runner no `lineage` or `capabilities`: a child's thread keeps its stored lineage.
+
 ### Changed
 
 - **A `HeadlessRunner` composes a child's capabilities from `lineage` on every run of
