@@ -18,8 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one that lands as the run parks waits for the resume. A run acks what it delivered
   when it ends. `wake_thread(thread, ...)` starts one headless run on an idle thread
   whose queue holds messages, and starts nothing on a running thread (the run reads them)
-  or a waiting one (its resume does), so a second run never takes the thread. It passes
-  the runner no `lineage` or `capabilities`: a child's thread keeps its stored lineage.
+  or a waiting one (its resume does), so a second run never takes the thread. Given
+  `conversations=`, it wakes a child's thread with the `parent` and `lineage` its
+  conversation stores, so a steered idle child runs within its bounds; it never passes
+  the runner `capabilities`.
 
 ### Changed
 

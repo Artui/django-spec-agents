@@ -16,9 +16,13 @@ from django_spec_agents.agent.types.agent_deps import AgentDeps
 from django_spec_agents.child_sessions.drain_inbound import DrainInbound
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.wake_thread import wake_thread
+from django_spec_agents.contrib.store.default_conversation_store import DefaultConversationStore
 from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
 from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.headless.types.headless_start import HeadlessStart
+from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
+from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
+from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
@@ -78,7 +82,7 @@ async def _report(request: HttpRequest, text: str = "Found 3.") -> None:
 
 
 async def _wake(
-    runner: _Runner, request: HttpRequest, thread: ThreadRef = _PARENT
+    runner: _Runner, request: HttpRequest, thread: ThreadRef = _PARENT, **kwargs: Any
 ) -> HeadlessStart | None:
     return await wake_thread(
         thread,
@@ -87,6 +91,7 @@ async def _wake(
         runs=runner.runs,
         queue=DefaultInboundQueue(),
         timeout=60.0,
+        **kwargs,
     )
 
 
@@ -264,3 +269,36 @@ async def test_a_waiting_parent_gets_the_report_after_its_resume_and_no_second_r
     assert runner.starts == []
     assert "while you waited" in str(seen[0])
     assert await DefaultInboundQueue().pending(_PARENT, request=request) == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_steered_idle_child_wakes_with_its_stored_parent_and_lineage() -> None:
+    request = authed_request("7")
+    lineage = ChildLineageRecord(_PARENT, 1, ["search"], [])
+    store = ScopedConversationStore(DefaultConversationStore(), scope="research")
+    await store.save(
+        Conversation("c1", owner_id="7", parent=_PARENT, lineage=lineage), request=request
+    )
+    await DefaultInboundQueue().enqueue(
+        _CHILD, InboundKind.STEER, {"text": "Use March."}, request=request, sender=_PARENT
+    )
+    runner = _Runner(DefaultRunStore())
+
+    started = await _wake(runner, request, _CHILD, conversations=store)
+
+    assert started is not None
+    [start] = runner.starts
+    assert (start["agent_id"], start["thread_id"]) == ("research", "c1")
+    assert (start["parent"], start["lineage"], start["capabilities"]) == (_PARENT, lineage, ())
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_thread_with_no_stored_conversation_wakes_with_no_lineage() -> None:
+    request = authed_request("7")
+    await _report(request)
+    runner = _Runner(DefaultRunStore())
+
+    await _wake(runner, request, conversations=DefaultConversationStore())
+
+    [start] = runner.starts
+    assert (start["parent"], start["lineage"]) == (None, None)

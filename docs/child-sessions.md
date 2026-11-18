@@ -215,6 +215,7 @@ started = await wake_thread(
     runs=run_store,
     queue=inbound_queue,
     timeout=300.0,
+    conversations=conversation_store,  # optional: the store the thread's mount reads
 )
 ```
 
@@ -238,6 +239,13 @@ the runner's claim lets one through, and the other's refusal is absorbed once th
 reads as running. Any other failure to start is raised.
 
 The woken run's new message is a line saying that messages arrived; pass `prompt=` to
-change it. `wake_thread` passes the runner no `lineage` and no `capabilities`. A child's
-thread keeps the lineage it was started with, and the runner composes it on every run,
-as [Every run of a child's thread](#every-run-of-a-childs-thread) describes.
+change it.
+
+A child's thread wakes the same way, when its parent steers or answers it while it is
+idle. Pass `conversations`, the store the child's mount reads (a
+`ScopedConversationStore` where the mount scopes its threads), and `wake_thread` starts
+the run with the `parent` and `lineage` the child's conversation stores. The runner
+composes the child's bounds from them, as
+[Every run of a child's thread](#every-run-of-a-childs-thread) describes.
+`wake_thread` never passes `capabilities`. A thread with no stored conversation, or a call
+with no `conversations`, is started with neither.

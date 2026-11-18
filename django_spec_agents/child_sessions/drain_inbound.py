@@ -59,7 +59,7 @@ class DrainInbound(AbstractCapability[Any]):
         self, ctx: RunContext[Any], request_context: ModelRequestContext
     ) -> ModelRequestContext:
         if parts := await self._take(ctx):
-            ctx.enqueue(*parts)
+            ctx.enqueue(*parts, priority="asap")
         return request_context
 
     async def after_node_run(
@@ -69,7 +69,7 @@ class DrainInbound(AbstractCapability[Any]):
             result.data.output, DeferredToolRequests
         )
         if ending and (parts := await self._take(ctx)):
-            ctx.enqueue(*parts)
+            ctx.enqueue(*parts, priority="asap")
         return result
 
     async def _take(self, ctx: RunContext[Any]) -> list[UserPromptPart]:
