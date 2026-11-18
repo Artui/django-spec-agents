@@ -269,7 +269,7 @@ granted call costs no review; a project's own `HandleDeferredToolCalls` answers 
 both.
 
 **Never answered in the run.** The tools in `NEVER_AUTO_APPROVED`, `create_routine`,
-`update_routine` and the skill-authoring tools (`create_skill`, `update_skill`,
+`update_routine`, `pause_routine` and the skill-authoring tools (`create_skill`, `update_skill`,
 `disable_skill`, `enable_skill`), park for the person under a name list, under `"all"`
 and in a grant: their approval card is the grant itself.
 

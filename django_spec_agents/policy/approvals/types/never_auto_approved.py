@@ -4,6 +4,7 @@ NEVER_AUTO_APPROVED: frozenset[str] = frozenset(
     {
         "create_routine",
         "update_routine",
+        "pause_routine",
         "create_skill",
         "update_skill",
         "disable_skill",

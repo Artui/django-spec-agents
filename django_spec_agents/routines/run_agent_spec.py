@@ -20,10 +20,9 @@ from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
 from django_spec_agents.routines.abstract_routine import AbstractRoutine
 from django_spec_agents.routines.preapproved_exempt import preapproved_exempt
+from django_spec_agents.routines.types.routine_authoring_tools import ROUTINE_AUTHORING_TOOLS
 from django_spec_agents.routines.types.routine_firing import RoutineFiring
 from django_spec_agents.routines.types.routine_grant_key import ROUTINE_GRANT_KEY
-
-_AUTHORING = frozenset({"create_routine", "update_routine"})
 
 
 class _CanRun(PermissionCheck):
@@ -59,7 +58,7 @@ class _FiringRecord(AbstractCapability[Any]):
     async def prepare_tools(
         self, ctx: RunContext[Any], tool_defs: list[ToolDefinition]
     ) -> list[ToolDefinition]:
-        return [tool_def for tool_def in tool_defs if tool_def.name not in _AUTHORING]
+        return [tool_def for tool_def in tool_defs if tool_def.name not in ROUTINE_AUTHORING_TOOLS]
 
     async def before_model_request(
         self, ctx: RunContext[Any], request_context: ModelRequestContext
@@ -92,7 +91,7 @@ def run_agent_spec(
     result marked, and the kernel's own authorization still runs on the call. Any other gated
     call parks. Its first request's `metadata` carries the grant under
     [`ROUTINE_GRANT_KEY`][django_spec_agents.routines.ROUTINE_GRANT_KEY], and the
-    routine-authoring tools, `create_routine` and `update_routine`, are not offered.
+    routine-authoring tools, `ROUTINE_AUTHORING_TOOLS`, are not offered.
 
     It declares `atomic=False`, so no transaction spans the run, and `idempotent=False`, so a
     worker that dies mid-run is not run again: the queue reports the firing `lapsed`.
