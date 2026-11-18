@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`check_task(thread_id)` on `ChildSessionsToolset`: where one child stands now,
+  without waiting for its report.** It keeps upstream `TaskControl`'s name and returns
+  the child's `ChildSession`: its status, what it waits on, and the new
+  `ChildSession.reason`, why its last run ended early (`timed_out`, `error` or
+  `interrupted`), which `DefaultChildSessionIndex` fills from the run store. A child's
+  history is not read while it runs, as upstream's `check_task` shows only the status
+  of a durable task. A thread that is not this conversation's child is refused.
+
 ### Changed
 
 - **A `HeadlessRunner` composes a child's capabilities from `lineage` on every run of

@@ -33,6 +33,8 @@ from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.persistence.build_run_waiting import build_run_waiting
 from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.run_end_reason import RunEndReason
+from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.testing import tool_calling_model
@@ -423,7 +425,7 @@ async def test_cancel_takes_descendants_and_leaves_siblings() -> None:
     assert runner.cancelled == ["gg1", "g1", "g2", "c1"]
 
 
-@pytest.mark.parametrize("tool", ["cancel_task", "message_task", "answer_task"])
+@pytest.mark.parametrize("tool", ["cancel_task", "message_task", "answer_task", "check_task"])
 async def test_a_thread_that_is_not_a_child_is_refused(tool: str) -> None:
     runner, queue = _Runner(), _Queue()
     index = _Index({_HERE: [_child("c1")], ThreadRef("c1", "research"): [_child("g1")]})
@@ -452,6 +454,28 @@ async def test_message_and_answer_reach_the_childs_queue(
 
     assert result == "sent to c1"
     assert queue.sent == [(ThreadRef("c1", "research"), kind, {"text": "go on"}, _HERE)]
+
+
+@pytest.mark.parametrize(
+    "child",
+    [
+        ChildSession(
+            ThreadRef("c1", "research"),
+            _WAITING,
+            RunWaiting(kind="question", summary="ask_parent", tool_call_id="q1", destructive=False),
+        ),
+        ChildSession(
+            ThreadRef("c1", "research"), ThreadRunStatus.FAILED, reason=RunEndReason.ERROR
+        ),
+        _child("c1", _IDLE),
+    ],
+)
+async def test_check_task_shows_where_one_child_stands(child: ChildSession) -> None:
+    index = _Index({_HERE: [_child("c0"), child]})
+
+    result = await _call(_toolset(index=index), "check_task", {"thread_id": "c1"})
+
+    assert result == child
 
 
 async def test_list_tasks_lists_this_threads_children() -> None:

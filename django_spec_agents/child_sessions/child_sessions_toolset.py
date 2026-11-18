@@ -28,13 +28,13 @@ _START_DESCRIPTION = (
 
 
 class ChildSessionsToolset(FunctionToolset[Any]):
-    """Tools to start, list, message, answer and cancel child sessions, and for a child to ask.
+    """Tools to start, list, check, message, answer and cancel child sessions; a child asks.
 
     ``start_session`` starts a child on one of ``agents`` (an id to a description the
     model reads) through ``runner``, as the run's own user, and returns a
     [`ChildSessionReceipt`][django_spec_agents.child_sessions.types.child_session_receipt.ChildSessionReceipt]
-    naming its thread. ``list_tasks``, ``message_task``, ``answer_task`` and
-    ``cancel_task`` keep upstream ``TaskControl``'s names, so a mount carrying both is
+    naming its thread. ``list_tasks``, ``check_task``, ``message_task``, ``answer_task``
+    and ``cancel_task`` keep upstream ``TaskControl``'s names, so a mount carrying both is
     refused by pydantic-ai's duplicate-name check; ``ask_parent`` is offered in a child
     only, and parks it as waiting on a question.
 
@@ -78,6 +78,7 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             sequential=True,
         )
         self.add_function(self.list_tasks, name="list_tasks")
+        self.add_function(self.check_task, name="check_task")
         self.add_function(self.message_task, name="message_task")
         self.add_function(self.answer_task, name="answer_task")
         self.add_function(self.cancel_task, name="cancel_task")
@@ -128,6 +129,17 @@ class ChildSessionsToolset(FunctionToolset[Any]):
     async def list_tasks(self, ctx: RunContext[Any]) -> list[ChildSession]:
         """List the child sessions this conversation started, and where each stands."""
         return await self._index.children(self._here(ctx), request=_request(ctx))
+
+    async def check_task(
+        self, ctx: RunContext[Any], thread_id: str
+    ) -> ChildSession | ChildSessionRefusal:
+        """See where one child session stands now, without waiting for it to report.
+
+        Args:
+            thread_id: The child's thread id, from its receipt or ``list_tasks``.
+        """
+        child = await self._child(ctx, thread_id, _request(ctx))
+        return _not_a_child(thread_id) if child is None else child
 
     async def message_task(
         self, ctx: RunContext[Any], thread_id: str, message: str
