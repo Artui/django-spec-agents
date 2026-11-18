@@ -671,6 +671,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#letting-the-agent-write-routines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Letting the agent write routines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pre-approved-tools" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1414,6 +1425,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#letting-the-agent-write-routines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Letting the agent write routines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pre-approved-tools" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1659,6 +1681,44 @@ than the clock, or every late sweep pushes the cadence later.</p>
   refusal leaves the instance it was given as it was. A blank name, agent or prompt, an
   oversized one, and a timezone <code>zoneinfo</code> cannot load raise <code>InvalidRoutineError</code>.</li>
 </ul>
+<h2 id="letting-the-agent-write-routines">Letting the agent write routines<a class="headerlink" href="#letting-the-agent-write-routines" title="Permanent link">&para;</a></h2>
+<p><code>authoring_toolset(policy, request, *, agent_id, guard)</code> gives a conversation's agent four
+tools over the caller's own routines. Build it per request, with the mount's agent id and
+the <code>ToolGuard</code> the agent runs with, and pass it in the run's toolsets:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.routines</span><span class="w"> </span><span class="kn">import</span> <span class="n">authoring_toolset</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">authoring_toolset</span><span class="p">(</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">Routine</span><span class="o">.</span><span class="n">routine_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">agent_id</span><span class="o">=</span><span class="s2">"assistant"</span><span class="p">,</span> <span class="n">guard</span><span class="o">=</span><span class="n">agent_guard</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">)</span>
+</span></code></pre></div>
+<ul>
+<li><code>list_routines</code> lists the routines the policy shows the caller whose principal is the
+  caller, disabled ones too: a teammate's routine the policy happens to show is left out.
+  It asks nobody.</li>
+<li><code>create_routine</code>, <code>update_routine</code> and <code>pause_routine</code> always ask the user first. The
+  tool raises <code>ApprovalRequired</code> itself and is marked with <code>SELF_GATED_METADATA_KEY</code>, so
+  the guard never flips it: its <code>exempt</code> cannot waive the card, nor can <code>require_approval</code>
+  swap it for a generic one. All three are in <code>NEVER_AUTO_APPROVED</code>, so <code>GrantedApprovals</code>
+  and <code>ReviewedApprovals</code> leave them to the person; a project's own
+  <code>HandleDeferredToolCalls</code> answers whatever it is given, so it must skip these names too.
+  An approval that edits the arguments writes nothing and tells the model to call again,
+  so the edited routine gets a card of its own. The call's deferred metadata carries an <code>x-confirm</code>
+  card naming the principal, the agent, the prompt, the schedule and timezone, whether the
+  routine is enabled, and every pre-approved tool, a destructive one marked
+  <code>(destructive, runs unasked)</code>. A change to the grant is an update, so it gets the card.</li>
+<li>The model never names a principal or an agent. A created routine runs as the caller on
+  <code>agent_id</code>; an update or a pause reaches a routine by id only among the caller's own
+  ones, and an update only one on <code>agent_id</code>, since its grant is pinned against this
+  agent's tools. Every write still goes through <code>can_write</code>, and a refusal comes back to
+  the model as text, before any card when it can be known then.</li>
+<li>Each granted name is pinned through <code>guard</code> against the tools this run offers, leaving
+  out client tools and these four, since a firing has neither. A broken draft, an unknown
+  name or a schedule outside the vocabulary is sent back to the model as a retry, before
+  the user sees a card.</li>
+</ul>
+<p>Compose it into browser runs only. A routine's firing hides all four
+(<code>ROUTINE_AUTHORING_TOOLS</code>), whatever its mount offers, and a headless run has nobody to
+answer the card.</p>
 <h2 id="pre-approved-tools">Pre-approved tools<a class="headerlink" href="#pre-approved-tools" title="Permanent link">&para;</a></h2>
 <p>A routine's firings run with no one watching, so a gated tool call parks the thread
 unless the routine pre-approved the tool. The grant is made when the routine is created
@@ -1686,15 +1746,15 @@ and each run fires the routines that have come due since the last. It needs
 <code>django_spec_agents</code> in <code>INSTALLED_APPS</code>.</p>
 <p>The command sweeps every installed routine model whose <code>routine_sweep()</code> returns a
 <code>RoutineSweep</code>; a model that keeps the default <code>None</code> is left alone:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.routines</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractRoutine</span><span class="p">,</span> <span class="n">RoutineSweep</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Routine</span><span class="p">(</span><span class="n">AbstractRoutine</span><span class="p">):</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="o">...</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="nd">@classmethod</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">routine_sweep</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RoutineSweep</span><span class="p">:</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="k">return</span> <span class="n">RoutineSweep</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="n">firing_queue</span><span class="p">,</span> <span class="n">spec_name</span><span class="o">=</span><span class="s2">"run_routine"</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.routines</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractRoutine</span><span class="p">,</span> <span class="n">RoutineSweep</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">Routine</span><span class="p">(</span><span class="n">AbstractRoutine</span><span class="p">):</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="o">...</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="nd">@classmethod</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">routine_sweep</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RoutineSweep</span><span class="p">:</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="k">return</span> <span class="n">RoutineSweep</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="n">firing_queue</span><span class="p">,</span> <span class="n">spec_name</span><span class="o">=</span><span class="s2">"run_routine"</span><span class="p">)</span>
 </span></code></pre></div>
 <ul>
 <li><code>queue</code> is your <a href="../reference/persistence/#firingqueue"><code>FiringQueue</code></a>, the same seam a queued headless
@@ -1752,22 +1812,22 @@ returns the same counts as a <code>SweepResult</code> of primary keys.</p>
 <p>A firing that reaches a gated tool it was not granted parks its thread until someone
 answers the approval card. Starting the next firing beside it would leave two threads
 waiting on the same question, so the sweep asks the model first:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">asgiref.sync</span><span class="w"> </span><span class="kn">import</span> <span class="n">async_to_sync</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.http</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpRequest</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadRunStatus</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_run_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultRunStore</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">Routine</span><span class="p">(</span><span class="n">AbstractRoutine</span><span class="p">):</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="o">...</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="nd">@classmethod</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">thread_waits</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="n">principal</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">request</span> <span class="o">=</span> <span class="n">HttpRequest</span><span class="p">()</span>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>        <span class="n">request</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">principal</span>
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>        <span class="n">state</span> <span class="o">=</span> <span class="n">async_to_sync</span><span class="p">(</span><span class="n">DefaultRunStore</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">)(</span><span class="n">thread_id</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="k">return</span> <span class="n">state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">state</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">ThreadRunStatus</span><span class="o">.</span><span class="n">WAITING</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">asgiref.sync</span><span class="w"> </span><span class="kn">import</span> <span class="n">async_to_sync</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.http</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpRequest</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadRunStatus</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_run_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultRunStore</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">Routine</span><span class="p">(</span><span class="n">AbstractRoutine</span><span class="p">):</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="o">...</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="nd">@classmethod</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">thread_waits</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="n">principal</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="n">request</span> <span class="o">=</span> <span class="n">HttpRequest</span><span class="p">()</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="n">request</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">principal</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="n">state</span> <span class="o">=</span> <span class="n">async_to_sync</span><span class="p">(</span><span class="n">DefaultRunStore</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">)(</span><span class="n">thread_id</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="k">return</span> <span class="n">state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">state</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">ThreadRunStatus</span><span class="o">.</span><span class="n">WAITING</span>
 </span></code></pre></div>
 <p><code>thread_waits(thread_id, principal)</code> is asked about <code>last_thread_id</code>, as the routine's
 principal, and a <code>True</code> skips this firing. The hook is synchronous and the run store is
@@ -1777,9 +1837,9 @@ does not fill it fires on schedule whatever its last thread is doing.</p>
 <h2 id="the-firing-spec">The firing spec<a class="headerlink" href="#the-firing-spec" title="Permanent link">&para;</a></h2>
 <p>The sweep enqueues the firing; <code>run_agent_spec</code> is the kernel spec your queue's worker runs
 it with. It needs the <code>[specs]</code> extra, so import it from its module:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.routines.run_agent_spec</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_agent_spec</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">"run_routine"</span><span class="p">,</span> <span class="n">run_agent_spec</span><span class="p">(</span><span class="n">Routine</span><span class="p">,</span> <span class="n">headless_runner</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">600.0</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.routines.run_agent_spec</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_agent_spec</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">"run_routine"</span><span class="p">,</span> <span class="n">run_agent_spec</span><span class="p">(</span><span class="n">Routine</span><span class="p">,</span> <span class="n">headless_runner</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">600.0</span><span class="p">))</span>
 </span></code></pre></div>
 <p>Register it under the <code>spec_name</code> your <code>RoutineSweep</code> names. <code>headless_runner</code> is the
 transport's <a href="../reference/persistence/#headlessrunner"><code>HeadlessRunner</code></a>, and <code>timeout</code> is
@@ -1831,8 +1891,9 @@ thread is resumed by a person on its approval card, never by the queue.</p>
 <li>The grant, recorded on the thread: the firing's first request carries, under
   <code>ROUTINE_GRANT_KEY</code> in its <code>metadata</code>, the routine's id, its last edit (<code>updated_at</code>), the
   <code>answered_by</code> mark and the pre-approved tools as granted, each with its pinned flag.</li>
-<li>No routine-authoring tools: <code>create_routine</code> and <code>update_routine</code> are not offered to a
-  firing, whatever the agent's mount offers.</li>
+<li>No routine-authoring tools: none of <code>ROUTINE_AUTHORING_TOOLS</code> (<code>create_routine</code>,
+  <code>update_routine</code>, <code>pause_routine</code>, <code>list_routines</code>) is offered to a firing, whatever the
+  agent's mount offers.</li>
 </ul>
 <p>The spec declares <code>atomic=False</code>, so no transaction spans the run, and <code>idempotent=False</code>:
 a worker that dies mid-run is not run again, its firing reads <code>lapsed</code>, and the sweep

@@ -3768,6 +3768,15 @@ so one hook covers every tool the agent sees wherever it came from:</p>
   attaching the tool through <code>toolsets=</code> is gated by it too.</li>
 <li><strong>Project overrides</strong>: <code>require_approval</code> force-gates a name, <code>exempt</code>
   un-gates one, and <code>exempt</code> wins.</li>
+<li><strong>A tool that gates itself</strong>, marked with
+  <a class="autorefs autorefs-internal" title="SELF_GATED_METADATA_KEY
+
+
+  
+      module-attribute
+  " href="../registry/#django_spec_agents.types.self_gated_metadata_key.SELF_GATED_METADATA_KEY"><code>SELF_GATED_METADATA_KEY</code></a>,
+  raises its own approval with a card built from the call: it is gated whatever
+  <code>exempt</code> says, and never flipped, since a flip would defer it before its card exists.</li>
 </ul>
 <p>A hint has to <em>say</em> something. Annotations that say nothing, an absent stamp
 or metadata of another shape entirely leave the tool alone — silence is not
@@ -3815,11 +3824,12 @@ and audit still records the tool when an approved call finally runs.</p>
     <div class="doc doc-contents ">
 
         <p>Whether <code>tool_def</code> is gated, by the guard's precedence, whatever its <code>kind</code>.</p>
-<p><code>exempt</code> wins, then <code>require_approval</code>, then a registry
-<code>@tool(destructive=True)</code>, then a mutation the definition declares in
-any of the vocabularies above. <code>prepare_tools</code> flips a <code>function</code>
-tool on this answer; a caller recording whether a parked call is
-destructive, or pre-approving a routine's tools, asks the same question.</p>
+<p>A tool that gates itself is always gated. Otherwise <code>exempt</code> wins,
+then <code>require_approval</code>, then a registry <code>@tool(destructive=True)</code>,
+then a mutation the definition declares in any of the vocabularies above.
+<code>prepare_tools</code> flips a <code>function</code> tool on this answer unless it gates
+itself; a caller recording whether a parked call is destructive, or
+pre-approving a routine's tools, asks the same question.</p>
 
 
     </div>
@@ -4296,18 +4306,19 @@ is left alone. <a class="autorefs autorefs-internal" title="build_agent" href=".
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="p">{</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        <span class="s2">"create_routine"</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        <span class="s2">"update_routine"</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="s2">"create_skill"</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="s2">"update_skill"</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="s2">"disable_skill"</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="s2">"enable_skill"</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="p">}</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="s2">"pause_routine"</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="s2">"create_skill"</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="s2">"update_skill"</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="s2">"disable_skill"</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="s2">"enable_skill"</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="p">}</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Tools no in-run answerer approves, under a name list, <code>'all'</code> or a grant: their
-approval card is the grant itself, so only a person answers it.</p>
+        <p>Tools neither <code>GrantedApprovals</code> nor <code>ReviewedApprovals</code> approves, under a name list,
+<code>'all'</code> or a grant: their approval card is the grant itself, so only a person answers it.</p>
 
     </div>
 

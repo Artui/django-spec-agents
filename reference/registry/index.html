@@ -1269,6 +1269,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.types.self_gated_metadata_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        self_gated_metadata_key
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="self_gated_metadata_key">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.types.self_gated_metadata_key.SELF_GATED_METADATA_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SELF_GATED_METADATA_KEY
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2151,6 +2179,34 @@
     <span class="md-ellipsis">
       
         DESTRUCTIVE_METADATA_KEY
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.types.self_gated_metadata_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        self_gated_metadata_key
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="self_gated_metadata_key">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.types.self_gated_metadata_key.SELF_GATED_METADATA_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SELF_GATED_METADATA_KEY
       
     </span>
   </a>
@@ -3249,6 +3305,75 @@ key. It lives in process only and is never stored, so its value follows the pack
 
 <a href="#django_spec_agents.types.destructive_metadata_key.DESTRUCTIVE_METADATA_KEY" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DESTRUCTIVE_METADATA_KEY</span> <span class="o">=</span> <span class="s1">'django_spec_agents.destructive'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="django_spec_agents.types.self_gated_metadata_key" class="doc doc-heading">
+            <span class="doc doc-object-name doc-module-name">self_gated_metadata_key</span>
+
+
+<a href="#django_spec_agents.types.self_gated_metadata_key" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents first">
+
+        <p>The "this tool asks for approval itself" signal on <code>ToolDefinition.metadata</code>.</p>
+<p>A tool marked with it raises <code>ApprovalRequired</code> from its own body, carrying a card built
+from the call, so <code>ToolGuard</code> and <code>ChildLineage</code> never flip it to <code>unapproved</code>: that
+would defer the call before the body runs, and the card would never be built. The guard's
+<code>requires_approval</code> still answers <code>True</code> for it, whatever <code>exempt</code> says. It lives in
+process only and is never stored, so its value follows the package's name.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_spec_agents.types.self_gated_metadata_key.SELF_GATED_METADATA_KEY" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">SELF_GATED_METADATA_KEY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.types.self_gated_metadata_key.SELF_GATED_METADATA_KEY" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SELF_GATED_METADATA_KEY</span> <span class="o">=</span> <span class="s1">'django_spec_agents.self_gated'</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">

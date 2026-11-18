@@ -1756,6 +1756,10 @@ surprises a project that hasn't opted in.</p>
 <p>When enabled, a tool is gated unless its name is in <code>exempt</code>, and it is gated
 when <strong>either</strong> it is destructive <strong>or</strong> its name is in <code>require_approval</code>.
 <code>exempt</code> wins over <code>require_approval</code>.</p>
+<p>A tool marked with <code>SELF_GATED_METADATA_KEY</code> asks for approval from its own body, with a
+card built from the call, as the <a href="../routines/#letting-the-agent-write-routines">routine writes</a>
+do. The guard never flips it, so naming it in <code>require_approval</code> cannot replace its card
+with a generic one, and <code>exempt</code> cannot waive it; <code>requires_approval</code> answers <code>True</code> for it.</p>
 <p>Destructiveness is unified from every vocabulary a toolset declares it in, so
 one hook covers every tool regardless of origin:</p>
 <ul>
@@ -1859,7 +1863,7 @@ string as given, or <code>system:model_name</code> for a <code>Model</code> inst
 granted call costs no review; a project's own <code>HandleDeferredToolCalls</code> answers after
 both.</p>
 <p><strong>Never answered in the run.</strong> The tools in <code>NEVER_AUTO_APPROVED</code>, <code>create_routine</code>,
-<code>update_routine</code> and the skill-authoring tools (<code>create_skill</code>, <code>update_skill</code>,
+<code>update_routine</code>, <code>pause_routine</code> and the skill-authoring tools (<code>create_skill</code>, <code>update_skill</code>,
 <code>disable_skill</code>, <code>enable_skill</code>), park for the person under a name list, under <code>"all"</code>
 and in a grant: their approval card is the grant itself.</p>
 <p><strong>Who answered is recorded.</strong> Each answerer sets <code>DeferredToolResults.answered_by</code> and
