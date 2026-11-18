@@ -21,6 +21,8 @@ from django_spec_agents.routines.types.max_routines_per_user import MAX_ROUTINES
 from django_spec_agents.routines.types.min_routine_interval import MIN_ROUTINE_INTERVAL
 from django_spec_agents.routines.types.preapproved_tool import PreapprovedTool
 from django_spec_agents.routines.types.routine_draft import RoutineDraft
+from django_spec_agents.routines.types.routine_firing import RoutineFiring
+from django_spec_agents.routines.types.routine_grant_key import ROUTINE_GRANT_KEY
 from django_spec_agents.routines.types.routine_policy import RoutinePolicy
 from django_spec_agents.routines.types.routine_sweep import RoutineSweep
 from django_spec_agents.routines.types.schedule import Schedule
@@ -35,11 +37,13 @@ __all__ = [
     "MAX_ROUTINE_NAME_LENGTH",
     "MAX_ROUTINE_PROMPT_LENGTH",
     "MIN_ROUTINE_INTERVAL",
+    "ROUTINE_GRANT_KEY",
     "AbstractRoutine",
     "IntervalSchedule",
     "InvalidRoutineError",
     "PreapprovedTool",
     "RoutineDraft",
+    "RoutineFiring",
     "RoutinePolicy",
     "RoutineSweep",
     "RoutineWriteRefusedError",
