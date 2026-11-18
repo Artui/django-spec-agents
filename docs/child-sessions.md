@@ -40,6 +40,7 @@ project with its own `deps_factory` must put the request there too, or every too
 | --- | --- |
 | `start_session(agent, prompt)` | Starts a child on one of `agents` and returns a receipt |
 | `list_tasks()` | Lists this thread's children and their status |
+| `check_task(thread_id)` | Shows where one child stands now, and why its last run ended early, without waiting for its report |
 | `message_task(thread_id, message)` | Sends a child more instructions, through its inbound queue |
 | `answer_task(thread_id, answer)` | Answers a child's question, through its inbound queue |
 | `cancel_task(thread_id)` | Cancels a child and every session under it |
@@ -253,3 +254,26 @@ composes the child's bounds from them, as
 [Every run of a child's thread](#every-run-of-a-childs-thread) describes.
 `wake_thread` never passes `capabilities`. A thread with no stored conversation, or a call
 with no `conversations`, is started with neither.
+
+### Waking on every message
+
+`WakingInboundQueue` wraps a queue and calls `wake_thread` after each `enqueue`. Pass it
+wherever the toolset and `child_lineage_for` take a queue, and every message wakes its
+thread: a child's report or question wakes an idle parent, and `message_task` or
+`answer_task` wakes a settled child, which resumes with the message as its next prompt.
+
+```python
+from django_spec_agents import WakingInboundQueue
+
+queue = WakingInboundQueue(
+    DefaultInboundQueue(),
+    headless_runner,
+    run_store,
+    300.0,  # each woken run's timeout
+    conversations={"research": research_store},  # agent id to the store its mount reads
+)
+```
+
+A thread whose agent id is not in `conversations` wakes with no `parent` or `lineage`, as
+a root thread does. A wake that fails is logged, and the message stays queued for the
+thread's next run.

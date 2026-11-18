@@ -8,6 +8,7 @@ from django_spec_agents.child_sessions.child_lineage import ChildLineage
 from django_spec_agents.child_sessions.child_lineage_for import child_lineage_for
 from django_spec_agents.child_sessions.child_report import ChildReport
 from django_spec_agents.child_sessions.child_sessions_toolset import ChildSessionsToolset
+from django_spec_agents.child_sessions.drain_inbound import DrainInbound
 from django_spec_agents.child_sessions.model_inbound_queue import ModelInboundQueue
 from django_spec_agents.child_sessions.report_frame import report_frame
 from django_spec_agents.child_sessions.types.child_session import ChildSession
@@ -19,6 +20,8 @@ from django_spec_agents.child_sessions.types.child_session_spend import ChildSes
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.types.inbound_message import InboundMessage
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
+from django_spec_agents.child_sessions.wake_thread import wake_thread
+from django_spec_agents.child_sessions.waking_inbound_queue import WakingInboundQueue
 from django_spec_agents.headless.types.firing_queue import FiringQueue
 from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.headless.types.headless_firing import HeadlessFiring
@@ -121,6 +124,7 @@ __all__ = [
     "ConversationMeta",
     "ConversationStore",
     "DjangoSessionConversationStore",
+    "DrainInbound",
     "FiringQueue",
     "FiringState",
     "HeadlessFiring",
@@ -159,6 +163,7 @@ __all__ = [
     "ToolGuardConfig",
     "ToolRegistry",
     "ToolSpec",
+    "WakingInboundQueue",
     "X_CATEGORY_KEY",
     "X_CONFIRM_KEY",
     "X_DESTRUCTIVE_KEY",
@@ -169,6 +174,7 @@ __all__ = [
     "build_run_waiting",
     "build_tool_catalog",
     "child_lineage_for",
+    "wake_thread",
     "memory_namespace",
     "memory_namespace_for_user",
     "preflight_identifiers",

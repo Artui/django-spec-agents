@@ -34,6 +34,10 @@ under `django_spec_agents.child_sessions`, except `ChildLineageRecord`, which a
 
 ::: django_spec_agents.child_sessions.wake_thread.wake_thread
 
+## `WakingInboundQueue`
+
+::: django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue
+
 ## `report_frame`
 
 ::: django_spec_agents.child_sessions.report_frame.report_frame

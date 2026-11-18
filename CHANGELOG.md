@@ -42,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `conversations=`, it wakes a child's thread with the `parent` and `lineage` its
   conversation stores, so a steered idle child runs within its bounds; it never passes
   the runner `capabilities`.
+- **`WakingInboundQueue`: every message wakes its thread.** It wraps an `InboundQueue`
+  and calls `wake_thread` after each `enqueue`, so a child's report or question wakes an
+  idle parent, and `message_task` or `answer_task` to a settled child wakes it, as
+  upstream's `message_task` resumes a finished task with the message as its next prompt.
+  `conversations` maps an agent id to the store its mount reads, so a child wakes within
+  its stored lineage. A wake that fails is logged and the message stays queued.
 
 ### Changed
 
