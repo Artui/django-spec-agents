@@ -74,9 +74,9 @@ approve it. `ask_parent` parks the child the same way, on a deferred call of kin
 `question`.
 
 The parent passes these tool names to the child, along with the child's place in the
-tree, as a `ChildLineage` capability, composed into the child's run when it starts. A
-later run on the child's thread carries it only if the transport rebuilds it, as
-[Later runs of a child's thread](#later-runs-of-a-childs-thread) describes.
+tree, as a `ChildLineageRecord`. The runner composes a `ChildLineage` capability from it
+on every run of the child's thread, the first included, as
+[Every run of a child's thread](#every-run-of-a-childs-thread) describes.
 
 ## Limits
 
@@ -122,19 +122,19 @@ child's status from the `RunStore`, idle where it holds none. The run store is k
 the client's thread id, not its scope, so two children with one thread id in two scopes
 share one status.
 
-## Later runs of a child's thread
+## Every run of a child's thread
 
-The bounds a child starts under ride the capabilities of its first run. `start_session`
-also hands the runner a `ChildLineageRecord` (the root, the depth, the parent's tools and
-the ones it gated) beside `parent`, and the runner saves both on the child's
+`start_session` hands the runner a `ChildLineageRecord` (the root, the depth, the
+parent's tools and the ones it gated) beside `parent`, and no capabilities, since
+capabilities cannot cross a queue to a worker. The runner saves both on the child's
 conversation. `DefaultConversationStore` keeps the record in a JSON column and, as with
 `parent`, leaves it alone on a save that names none. A child started through the
 `run_headless` spec carries the record too: `HeadlessFiring.lineage` crosses the queue as
 JSON, with `tools` and `gated` as sorted lists, and the runner saves it the same way.
 
-Every later run of that thread (the user typing into it, a resume after an approval, a
-wake) has to carry the same bounds, or it runs with the child mount's full tools.
-A transport composes them on each run of a thread that has a parent:
+Every run of that thread (its first, the user typing into it, a resume after an
+approval, a wake) has to carry the same bounds, or it runs with the child mount's full
+tools. The runner composes them on each run of a thread that has a parent:
 
 ```python
 capabilities = child_lineage_for(
@@ -142,13 +142,13 @@ capabilities = child_lineage_for(
 )
 ```
 
-It returns nothing for a thread with no stored lineage, so a transport can call it on
-every run.
+It returns nothing for a thread with no stored lineage, so a runner can call it on
+every run. Until 0.21.0 `start_session` passed these capabilities to the first run
+itself; a runner that composes only on later runs leaves a child's first run unbounded.
 
 ## Reports
 
-`ChildReport` is composed into every child run, by `start_session` and by
-`child_lineage_for`. When the run settles it enqueues a `REPORT` on the parent's queue,
+`ChildReport` is composed into every child run, by `child_lineage_for`. When the run settles it enqueues a `REPORT` on the parent's queue,
 with the body `{"text": ..., "outcome": ...}`, sent from the child's thread:
 
 | The run | Outcome |

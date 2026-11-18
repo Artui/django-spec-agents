@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A `HeadlessRunner` composes a child's capabilities from `lineage` on every run of
+  its thread, the first included.** `ChildSessionsToolset.start_session` now passes the
+  runner `lineage=` alone and no `capabilities`: capabilities cannot cross a queue, so a
+  queued runner (django-ag-ui 0.80.0's `AGUIHeadlessRunner`) refused every child start.
+  The toolset still builds the spend budgets to refuse an exhausted start before it
+  starts. A runner that called `child_lineage_for` only on later runs must call it on
+  the first as well, or a child's first run has none of its parent's bounds, gates,
+  budgets or report. django-ag-ui follows in its next release.
+
 ## [0.20.1] — 2026-11-18
 
 A patch release: a child's report reaches its parent under `pydantic-ai-harness` 0.70,

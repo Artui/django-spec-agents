@@ -35,8 +35,10 @@ class HeadlessRunner(Protocol):
     a guard that pre-approves a routine's tools. ``parent`` names the thread a
     child run belongs to, with its scope, since a child often runs on another agent.
     ``lineage`` is the bounds the child runs under: the runner saves both on the child's
-    conversation, so a later run of its thread can compose
-    [`child_lineage_for`][django_spec_agents.child_lineage_for].
+    conversation and composes
+    [`child_lineage_for`][django_spec_agents.child_lineage_for] from them on every run of
+    its thread, the first included, since capabilities cannot cross a queue; a child's
+    start passes no ``capabilities``.
     ``run_id`` on ``run_to_first_stop`` adopts the run already claimed under this id, as a
     queued start claims its thread before a worker runs it; without one the call claims.
     """

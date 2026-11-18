@@ -4,12 +4,10 @@ from typing import Any
 
 from django.http import HttpRequest
 from pydantic_ai import CallDeferred
-from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import FunctionToolset
 
 from django_spec_agents.child_sessions.child_lineage import ChildLineage
-from django_spec_agents.child_sessions.child_report import ChildReport
 from django_spec_agents.child_sessions.child_session_budgets import child_session_budgets
 from django_spec_agents.child_sessions.types.child_session import ChildSession
 from django_spec_agents.child_sessions.types.child_session_index import ChildSessionIndex
@@ -41,10 +39,10 @@ class ChildSessionsToolset(FunctionToolset[Any]):
     only, and parks it as waiting on a question.
 
     Needs the ``[harness]`` extra. Starts run one at a time, so each reads the index
-    after the last; an anonymous run is refused. A child carries a
-    [`ChildLineage`][django_spec_agents.child_sessions.child_lineage.ChildLineage]
-    and, with ``spend``, two ``SpendLimits``. Each limit in ``limits`` refuses a start
-    with a
+    after the last; an anonymous run is refused. A start passes the runner ``lineage=``
+    alone, from which it composes
+    [`child_lineage_for`][django_spec_agents.child_lineage_for]; with ``spend``, an
+    exhausted budget refuses it first. Each limit in ``limits`` refuses a start with a
     [`ChildSessionRefusal`][django_spec_agents.child_sessions.types.child_session_refusal.ChildSessionRefusal].
 
     The run's thread is ``ctx.conversation_id`` and its request is
@@ -111,24 +109,17 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             return ChildSessionRefusal("max_running_per_user", "your child sessions are busy")
         root = here if lineage is None else lineage.root
         tools, gated = _tool_names(ctx), _tool_names(ctx, "unapproved")
-        record = ChildLineageRecord(root, depth, sorted(tools), sorted(gated))
-        capabilities: list[AbstractCapability[Any]] = [
-            ChildLineage(root, here, depth, tools, gated),
-            ChildReport(here, agent, self._queue),
-        ]
         if self._spend is not None:
             budgets = child_session_budgets(self._spend, root, _owner(ctx))
             if refused := await _exhausted(budgets):
                 return ChildSessionRefusal(refused, "the spend budget is exhausted")
-            capabilities.extend(budgets)
         started = await self._runner.start(
             agent,
             prompt,
             ctx.deps.user,
             timeout=self._limits.timeout,
             parent=here,
-            lineage=record,
-            capabilities=capabilities,
+            lineage=ChildLineageRecord(root, depth, sorted(tools), sorted(gated)),
         )
         return ChildSessionReceipt(
             agent_id=agent, thread_id=started.thread_id, run_id=started.run_id
