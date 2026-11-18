@@ -88,10 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The toolset still builds the spend budgets to refuse an exhausted start before it
   starts. A runner that called `child_lineage_for` only on later runs must call it on
   the first as well, or a child's first run has none of its parent's bounds, gates,
-  budgets or report. django-ag-ui 0.80.0's in-process runner is one: with this release a
-  child it starts in process, and every child `wake_thread` wakes, runs on its mount's
-  full tools with no budgets and never reports, so pair this release with the django-ag-ui
-  release that composes on every run. django-ag-ui follows in its next release.
+  budgets or report. django-ag-ui 0.80.0's in-process runner is one: paired with this
+  release, a child it starts in process, and every child `wake_thread` wakes, runs on its
+  mount's full tools with no budgets and never reports. django-ag-ui 0.81.0 fixes it: it
+  composes on every run, honours `answers=` and `user_joined`, wakes a thread after each
+  `RunStore.finish`, and requires this release; upgrade the two together.
 
 ## [0.20.1] — 2026-11-18
 
