@@ -38,7 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the model request carrying it is answered; one taken by a run that fails or dies first
   stays pending for the next run. `wake_thread(thread, ...)` starts one headless run on an idle thread
   whose queue holds messages, and starts nothing on a running thread (the run reads them)
-  or a waiting one (its resume does), so a second run never takes the thread. Given
+  or a waiting one (its resume does), so a second run never takes the thread. A thread
+  parked on a question with an `ANSWER` queued is the exception: it starts the resume,
+  with `answers=` mapping the waiting call's id to the oldest answer's text, and acks that
+  answer once the run has started. Given
   `conversations=`, it wakes a child's thread with the `parent` and `lineage` its
   conversation stores, so a steered idle child runs within its bounds; it never passes
   the runner `capabilities`.
@@ -49,6 +52,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `conversations` maps an agent id to the store its mount reads, so a child wakes within
   its stored lineage. A wake that fails is logged and the message stays queued.
 
+- **`answers=` on `HeadlessRunner.start` and `run_to_first_stop`, and
+  `HeadlessFiring.answers`: a headless run resumes a thread parked on a question.** The
+  keyword maps each waiting call's `tool_call_id` to its answer's text, and is optional,
+  defaulting to `None`. A runner must honour it: given `answers`, it resumes the thread's
+  stored history with `DeferredToolResults(calls=answers)` and sends no new user message,
+  since pydantic-ai refuses a new prompt while the history holds the unanswered call.
+  `HeadlessFiring.answers` crosses a queue as JSON, and `run_headless` and `wake_thread`
+  pass `answers` only when they have one, so a runner without the keyword still serves
+  every other run; one without it raises on a resume `wake_thread` starts, and the answer
+  stays queued. django-ag-ui's runner follows in its next release.
+- **`user_joined=` on `child_lineage_for` and `ChildReport`: a parent learns that the
+  user joined its child's session.** With `user_joined=True`, the child's report ends its
+  framed body with a line telling the parent that the user joined the session, so its
+  result may reflect the user's direction. It defaults to `False`; the transport sets it
+  for a browser run on a child's thread.
 - **`ReservedSkillNames`: a policy can keep a stored skill from taking a code-registered
   skill's name.** A `SkillPolicy` that also defines `reserved_names(request)` has
   `create_skill`, `import_skill_md` and a rename through `update_skill` raise

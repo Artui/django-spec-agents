@@ -14,7 +14,8 @@ class HeadlessFiring:
     [`HeadlessRunner.run_to_first_stop`][django_spec_agents.HeadlessRunner.run_to_first_stop]
     that cross a queue as JSON. ``capabilities`` cannot, so a queued run carries none.
     ``run_id`` adopts the run already claimed under this id, as a queued start claims its
-    thread before the worker takes the firing up.
+    thread before the worker takes the firing up. ``answers`` resumes a thread parked on a
+    question, a ``tool_call_id`` to its answer's text; the run sends no new ``prompt``.
     """
 
     agent_id: str
@@ -24,6 +25,7 @@ class HeadlessFiring:
     parent: ThreadRef | None = None
     lineage: ChildLineageRecord | None = None
     run_id: str | None = None
+    answers: dict[str, str] | None = None
 
 
 __all__ = ["HeadlessFiring"]

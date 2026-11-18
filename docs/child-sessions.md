@@ -164,6 +164,13 @@ with the body `{"text": ..., "outcome": ...}`, sent from the child's thread:
 The report needs the run's request in `call_context["request"]`, as the toolset does. A
 report that cannot be sent is logged, and the run's own result or error stands.
 
+When the user joins a child's session, typing into its thread in a browser, the result
+may follow the user's direction rather than the parent's instructions. The transport says
+so by passing `user_joined=True` to `child_lineage_for` for that run, which hands it to
+`ChildReport`: the report's framed body then ends with a line telling the parent that the
+user joined the session, so its result may reflect their direction. A run nobody joined
+reports without it.
+
 `report_frame(child, agent_id=..., output=..., outcome=...)` builds the text: a settled
 child's output as `<task_output>` data, with the tag and attributes of upstream's
 `DelegationTask.report()`, rendered by `pydantic_ai.framing.wrap`. The escaping is in the
@@ -230,13 +237,20 @@ stand in the `RunStore`:
 | The thread | `wake_thread` | The message is read |
 | --- | --- | --- |
 | running | starts nothing | at the run's next model request |
-| waiting, on an approval or a question | starts nothing | by the resumed run, at its first request |
+| waiting on a question, with an `ANSWER` pending | resumes the parked call with that answer | the answer as the call's result; the rest by the resumed run |
+| waiting, on an approval, or on a question with no answer pending | starts nothing | by the resumed run, at its first request |
 | idle, failed or never run, with messages | starts one headless run | at that run's first request |
 | idle, with nothing pending | starts nothing | |
 
-A child parked on `ask_parent` stays waiting when its parent answers: the answer waits
-in the child's queue, and no headless run resumes a parked call with it yet. A run that
-resumes the child, such as the user answering in its thread, reads it.
+A child parked on `ask_parent` resumes when its parent answers. `wake_thread` takes the
+oldest `ANSWER` in the child's queue and starts the run with
+`answers={tool_call_id: text}`, the waiting call's id from the `RunStore` mapped to the
+answer's text. The runner resumes the child's stored history with
+`DeferredToolResults(calls=answers)` and sends no new prompt, so the answer reaches the
+model as `ask_parent`'s result. The `ANSWER` is acked once the run has started, so an
+answer whose run fails to start stays queued for the next wake; the resumed run reads
+whatever else is queued, as any run does. An answer read by the resumed run before the
+ack lands is delivered to it twice, once as the call's result and once as plain words.
 
 So a thread has one run at a time. Two wakes in a row start one run, which reads every
 message queued by its first request. Two wakes that race in two processes start one too:
@@ -259,8 +273,9 @@ with no `conversations`, is started with neither.
 
 `WakingInboundQueue` wraps a queue and calls `wake_thread` after each `enqueue`. Pass it
 wherever the toolset and `child_lineage_for` take a queue, and every message wakes its
-thread: a child's report or question wakes an idle parent, and `message_task` or
-`answer_task` wakes a settled child, which resumes with the message as its next prompt.
+thread: a child's report or question wakes an idle parent, `message_task` or
+`answer_task` wakes a settled child, which resumes with the message as its next prompt,
+and `answer_task` resumes a child parked on `ask_parent` with the answer.
 
 ```python
 from django_spec_agents import WakingInboundQueue

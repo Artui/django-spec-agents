@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import timedelta
 from typing import Any
 
@@ -50,6 +50,7 @@ class _Runner:
         parent: ThreadRef | None = None,
         lineage: Any = None,
         capabilities: Sequence[Any] = (),
+        answers: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         self.attempts += 1
         if self.fails is not None:
@@ -70,9 +71,28 @@ class _Runner:
                 "parent": parent,
                 "lineage": lineage,
                 "capabilities": capabilities,
+                "answers": answers,
             }
         )
         return HeadlessStart(thread_id=thread_id, run_id=run_id)
+
+
+class _RunnerWithoutAnswers(_Runner):
+    async def start(
+        self,
+        agent_id: str,
+        prompt: str,
+        principal: Any,
+        *,
+        timeout: float,
+        thread_id: str | None = None,
+        parent: ThreadRef | None = None,
+        lineage: Any = None,
+        capabilities: Sequence[Any] = (),
+    ) -> HeadlessStart:
+        return await super().start(
+            agent_id, prompt, principal, timeout=timeout, thread_id=thread_id
+        )
 
 
 async def _report(request: HttpRequest, text: str = "Found 3.") -> None:
@@ -92,6 +112,14 @@ async def _wake(
         queue=DefaultInboundQueue(),
         timeout=60.0,
         **kwargs,
+    )
+
+
+async def _send(
+    request: HttpRequest, kind: InboundKind, text: str, thread: ThreadRef = _CHILD
+) -> int:
+    return await DefaultInboundQueue().enqueue(
+        thread, kind, {"text": text}, request=request, sender=_PARENT
     )
 
 
@@ -168,6 +196,63 @@ async def test_a_waiting_thread_is_held_until_its_resume(kind: str) -> None:
     assert await _wake(runner, request) is None
     assert runner.starts == []
     assert len(await DefaultInboundQueue().pending(_PARENT, request=request)) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_waiting_on_its_question_resumes_with_the_answer_and_acks_only_it() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    steer = await _send(request, InboundKind.STEER, "Use March.")
+    await _send(request, InboundKind.ANSWER, "1999")
+    later = await _send(request, InboundKind.ANSWER, "2000")
+    runner = _Runner(runs)
+
+    started = await _wake(runner, request, _CHILD)
+
+    assert started is not None
+    [start] = runner.starts
+    assert (start["agent_id"], start["thread_id"]) == ("research", "c1")
+    assert start["answers"] == {"t-1": "1999"}
+    left = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert [(m.id, m.body["text"]) for m in left] == [(steer, "Use March."), (later, "2000")]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_waiting_on_an_approval_is_held_with_an_answer_pending() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "approval", "c1")
+    await _send(request, InboundKind.ANSWER, "1999")
+    runner = _Runner(runs)
+
+    assert await _wake(runner, request, _CHILD) is None
+    assert runner.starts == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_answer_whose_resume_fails_to_start_stays_pending() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    await _send(request, InboundKind.ANSWER, "1999")
+    runner = _Runner(runs, fails=LookupError("no headless mount has the id 'research'"))
+
+    with pytest.raises(LookupError):
+        await _wake(runner, request, _CHILD)
+
+    assert len(await DefaultInboundQueue().pending(_CHILD, request=request)) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_an_idle_thread_wakes_a_runner_that_takes_no_answers() -> None:
+    request = authed_request("7")
+    await _report(request)
+    runner = _RunnerWithoutAnswers(DefaultRunStore())
+
+    assert await _wake(runner, request) is not None
+    [start] = runner.starts
+    assert start["answers"] is None
 
 
 @pytest.mark.django_db(transaction=True)
