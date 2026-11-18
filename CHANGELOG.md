@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-11-18
+
 ### Added
 
 - **`authoring_toolset(policy, request, *, agent_id, guard)`: the agent writes the
@@ -1423,7 +1425,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/Artui/django-spec-agents/compare/v0.19.0...v0.20.0
