@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -12,6 +13,8 @@ from django_spec_agents.contrib.store.models import StoredRunEvent, StoredRunLog
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
 from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
+from django_spec_agents.persistence.run_not_parked_error import RunNotParkedError
+from django_spec_agents.persistence.types.resumable_run_store import ResumableRunStore
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
@@ -467,3 +470,296 @@ async def test_a_claim_over_a_lapsed_lease_does_not_inherit_its_cancel(
     state = await store.get("t1", request=authed_request())
     assert state is not None
     assert not state.cancel_requested
+
+
+async def _parked(store: DefaultRunStore, run_id: str = "r1") -> None:
+    await _claim(store, run_id)
+    await store.finish("t1", run_id, RunOutcome.WAITING, request=authed_request(), waiting=_WAITING)
+
+
+async def _resume(store: DefaultRunStore, run_id: str, resumes: str = "r1") -> RunClaim:
+    return await store.claim("t1", run_id, request=authed_request(), lease=_LEASE, resumes=resumes)
+
+
+async def _status(store: DefaultRunStore) -> tuple:
+    state = await store.get("t1", request=authed_request())
+    assert state is not None
+    return (state.status, state.reason, state.waiting, state.active_run_id, state.last_run_id)
+
+
+def test_it_is_a_resumable_run_store(store: DefaultRunStore) -> None:
+    assert isinstance(store, ResumableRunStore)
+
+
+class _StoreOfTheLastRelease:
+    async def claim(self, thread_id, run_id, *, request, lease): ...  # noqa: ANN001, ANN201
+    async def renew(self, thread_id, run_id, *, request, lease): ...  # noqa: ANN001, ANN201
+    async def finish(self, thread_id, run_id, outcome, *, request, waiting=None): ...  # noqa: ANN001, ANN201
+    async def append(self, run_id, events, *, request): ...  # noqa: ANN001, ANN201
+    async def read(self, run_id, *, request, after=0, limit=None): ...  # noqa: ANN001, ANN201
+    async def get(self, thread_id, *, request): ...  # noqa: ANN001, ANN201
+    async def get_many(self, thread_ids, *, request): ...  # noqa: ANN001, ANN201
+    async def request_cancel(self, thread_id, *, request): ...  # noqa: ANN001, ANN201
+    async def mark_read(self, thread_id, *, request): ...  # noqa: ANN001, ANN201
+    async def prune(self): ...  # noqa: ANN201
+
+
+def test_a_store_without_release_is_still_a_run_store() -> None:
+    assert isinstance(_StoreOfTheLastRelease(), RunStore)
+    assert not isinstance(_StoreOfTheLastRelease(), ResumableRunStore)
+
+
+async def test_a_resume_claims_the_thread_parked_on_its_run(store: DefaultRunStore) -> None:
+    await _parked(store)
+
+    assert await _resume(store, "r2") == RunClaim(claimed=True, active_run_id="r2")
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r2", "r2")
+
+
+async def test_of_two_resumes_of_one_park_the_second_is_refused(store: DefaultRunStore) -> None:
+    await _parked(store)
+
+    assert (await _resume(store, "r2")).claimed
+    with pytest.raises(RunNotParkedError) as raised:
+        await _resume(store, "r3")
+
+    assert (raised.value.run_id, raised.value.active_run_id) == ("r1", "r2")
+    assert not await StoredRunLog.objects.filter(run_id="r3").aexists()
+
+
+async def test_a_resume_after_the_first_resume_ended_is_not_parked(
+    store: DefaultRunStore,
+) -> None:
+    await _parked(store)
+    await _resume(store, "r2")
+    await store.finish("t1", "r2", RunOutcome.COMPLETED, request=authed_request())
+
+    with pytest.raises(RunNotParkedError) as raised:
+        await _resume(store, "r3")
+
+    assert (raised.value.run_id, raised.value.active_run_id) == ("r1", None)
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r2")
+
+
+async def test_a_resume_of_an_idle_thread_is_refused(store: DefaultRunStore) -> None:
+    await _claim(store)
+    await store.finish("t1", "r1", RunOutcome.COMPLETED, request=authed_request())
+
+    with pytest.raises(RunNotParkedError):
+        await _resume(store, "r2")
+
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r1")
+
+
+async def test_a_resume_of_a_failed_thread_whose_last_run_is_the_one_resumed_is_refused(
+    store: DefaultRunStore,
+) -> None:
+    await _claim(store)
+    await store.finish("t1", "r1", RunOutcome.ERROR, request=authed_request())
+
+    with pytest.raises(RunNotParkedError):
+        await _resume(store, "r2")
+
+
+async def test_a_resume_of_a_running_thread_is_refused_naming_its_holder(
+    store: DefaultRunStore,
+) -> None:
+    await _claim(store)
+
+    with pytest.raises(RunNotParkedError) as raised:
+        await _resume(store, "r2")
+
+    assert raised.value.active_run_id == "r1"
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r1", "r1")
+
+
+async def test_a_resume_of_a_thread_parked_on_another_run_is_refused(
+    store: DefaultRunStore,
+) -> None:
+    await _parked(store)
+
+    with pytest.raises(RunNotParkedError):
+        await _resume(store, "r2", resumes="r0")
+
+    assert await _status(store) == (ThreadRunStatus.WAITING, None, _WAITING, None, "r1")
+
+
+async def test_a_resume_over_a_lapsed_lease_is_refused(
+    store: DefaultRunStore, clock: _Clock
+) -> None:
+    await _claim(store)
+    clock.now = _T0 + _LEASE + timedelta(seconds=1)
+
+    with pytest.raises(RunNotParkedError) as raised:
+        await _resume(store, "r2")
+
+    assert raised.value.active_run_id is None
+
+
+async def test_a_resume_of_an_unknown_thread_leaves_it_unknown(store: DefaultRunStore) -> None:
+    with pytest.raises(RunNotParkedError):
+        await _resume(store, "r2")
+
+    assert await store.get("t1", request=authed_request()) is None
+
+
+def test_the_resume_is_one_conditional_update(store: DefaultRunStore) -> None:
+    async_to_sync(_parked)(store)
+
+    with CaptureQueriesContext(connection) as queries:
+        assert async_to_sync(_resume)(store, "r2").claimed
+
+    updates = [q["sql"] for q in queries.captured_queries if q["sql"].startswith("UPDATE")]
+    assert len(updates) == 1
+    assert StoredThreadRun._meta.db_table in updates[0]
+    assert '"active_run_id" IS NULL' in updates[0]
+    assert '"status" = ' in updates[0].split("WHERE")[1]
+    assert '"last_run_id" = ' in updates[0].split("WHERE")[1]
+
+
+@pytest.mark.skipif(connection.vendor != "postgresql", reason="SQLite serialises its writers")
+def test_two_connections_resuming_one_park_one_wins() -> None:
+    store = DefaultRunStore()
+    async_to_sync(_parked)(store)
+    start = threading.Barrier(2)
+    won: dict[str, bool] = {}
+
+    def resume(run_id: str) -> None:
+        start.wait(timeout=5)
+        try:
+            won[run_id] = async_to_sync(_resume)(store, run_id).claimed
+        except RunNotParkedError:
+            won[run_id] = False
+        connection.close()
+
+    racers = [threading.Thread(target=resume, args=(run_id,)) for run_id in ("r2", "r3")]
+    for racer in racers:
+        racer.start()
+    for racer in racers:
+        racer.join()
+
+    assert sorted(won.values()) == [False, True]
+
+
+async def test_release_puts_a_resumed_park_back(store: DefaultRunStore) -> None:
+    await _parked(store)
+    await _resume(store, "r2")
+
+    assert await store.release("t1", "r2", request=authed_request())
+
+    assert await _status(store) == (ThreadRunStatus.WAITING, None, _WAITING, None, "r1")
+    assert not await StoredRunLog.objects.filter(run_id="r2").aexists()
+    assert (await _resume(store, "r3")).claimed
+
+
+async def test_a_released_park_stays_waiting_past_the_released_lease(
+    store: DefaultRunStore, clock: _Clock
+) -> None:
+    await _parked(store)
+    await _resume(store, "r2")
+    await store.release("t1", "r2", request=authed_request())
+
+    clock.now = _T0 + _LEASE + timedelta(seconds=1)
+
+    assert await _status(store) == (ThreadRunStatus.WAITING, None, _WAITING, None, "r1")
+
+
+async def test_release_puts_an_idle_thread_back(store: DefaultRunStore) -> None:
+    await _claim(store)
+    await store.finish("t1", "r1", RunOutcome.COMPLETED, request=authed_request())
+    await _claim(store, "r2")
+
+    assert await store.release("t1", "r2", request=authed_request())
+
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r1")
+
+
+async def test_release_puts_a_failed_thread_back_with_its_reason(store: DefaultRunStore) -> None:
+    await _claim(store)
+    await store.finish("t1", "r1", RunOutcome.TIMED_OUT, request=authed_request())
+    await _claim(store, "r2")
+
+    assert await store.release("t1", "r2", request=authed_request())
+
+    assert await _status(store) == (ThreadRunStatus.IDLE, RunEndReason.TIMED_OUT, None, None, "r1")
+
+
+async def test_release_over_a_lapsed_lease_reads_interrupted(
+    store: DefaultRunStore, clock: _Clock
+) -> None:
+    await _claim(store)
+    clock.now = _T0 + _LEASE + timedelta(seconds=1)
+    await _claim(store, "r2")
+
+    assert await store.release("t1", "r2", request=authed_request())
+
+    assert await _status(store) == (
+        ThreadRunStatus.FAILED,
+        RunEndReason.INTERRUPTED,
+        None,
+        None,
+        "r1",
+    )
+
+
+async def test_release_of_a_first_claim_forgets_the_thread(store: DefaultRunStore) -> None:
+    await _claim(store)
+
+    assert await store.release("t1", "r1", request=authed_request())
+
+    assert await store.get("t1", request=authed_request()) is None
+    assert (await _claim(store)).claimed
+
+
+async def test_release_clears_the_cancel_and_drops_the_log(store: DefaultRunStore) -> None:
+    await _parked(store)
+    await _resume(store, "r2")
+    await store.append("r2", [{"type": "x"}], request=authed_request())
+    await store.request_cancel("t1", request=authed_request())
+
+    assert await store.release("t1", "r2", request=authed_request())
+
+    state = await store.get("t1", request=authed_request())
+    assert state is not None and not state.cancel_requested
+    assert not await StoredRunEvent.objects.aexists()
+    row = await StoredThreadRun.objects.aget()
+    assert (row.prior_status, row.prior_reason, row.prior_waiting, row.prior_last_run_id) == (
+        None,
+        None,
+        None,
+        None,
+    )
+
+
+async def test_release_by_a_run_that_does_not_hold_the_claim_changes_nothing(
+    store: DefaultRunStore,
+) -> None:
+    await _parked(store)
+    await _resume(store, "r2")
+
+    assert not await store.release("t1", "r1", request=authed_request())
+    assert not await store.release("t1", "r2", request=authed_request("8"))
+
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r2", "r2")
+    assert await StoredRunLog.objects.filter(run_id="r2").aexists()
+
+
+async def test_release_after_finish_changes_nothing(store: DefaultRunStore) -> None:
+    await _parked(store)
+    await _resume(store, "r2")
+    await store.finish("t1", "r2", RunOutcome.COMPLETED, request=authed_request())
+
+    assert not await store.release("t1", "r2", request=authed_request())
+
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r2")
+
+
+async def test_release_of_a_claim_taken_before_the_prior_columns_changes_nothing(
+    store: DefaultRunStore,
+) -> None:
+    await _claim(store)
+    await StoredThreadRun.objects.aupdate(prior_status=None)
+
+    assert not await store.release("t1", "r1", request=authed_request())
+
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r1", "r1")

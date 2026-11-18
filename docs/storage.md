@@ -496,6 +496,33 @@ with `renew` and gives it up with `finish`. A run that is no longer the live
 holder cannot renew, append or finish, so an owner presumed dead never
 overwrites the run that replaced it.
 
+**Resuming a park, and giving a claim back.** `DefaultRunStore` is also a
+`ResumableRunStore`, a sub-protocol of `RunStore` with two more pieces. A store
+written against `RunStore` alone stays one, so a transport checks
+`isinstance(store, ResumableRunStore)` before it uses either. That check sees
+method names only, so a store of your own that defines `release` must also take
+`resumes=` on `claim`:
+
+- `claim(..., resumes=parked_run_id)` wins only while the thread is `waiting`
+  with that run as its `last_run_id`, and the condition is part of the claim's
+  one conditional update. Of two resumes of the same park, a double click or two
+  tabs, exactly one wins. Every refused resume raises `RunNotParkedError` and
+  writes nothing, never a busy answer, so no client retries a resume that cannot
+  succeed: the thread is running (the error's `active_run_id` names the holder,
+  the winning resume or another run), idle, failed, parked on another run, or
+  running under a lapsed lease.
+- `release(thread_id, run_id, request=...)` gives back a claim the run still
+  holds: the thread's status, reason, waiting record and `last_run_id` return to
+  what they were before the claim, its lease and cancel are cleared, and the
+  released run's log is deleted, so its id may be claimed again. A claim that
+  displaced a holder whose lease had lapsed restores the thread as `failed` with
+  reason `interrupted`, as `get` read it before the claim. A transport that
+  claims and then has its enqueue refused releases the claim, so a resumed park
+  stays parked rather than reading `failed`. A thread that held no run before
+  reads as unknown again. `release` answers `False` and changes nothing for a run
+  that is not the live holder, and for a claim taken before the
+  `0007_thread_run_prior` migration, which has no prior state to restore.
+
 **How a run ended** goes to `finish` as a `RunOutcome`:
 
 | Outcome | Thread status | Reason |

@@ -251,7 +251,9 @@ class StoredMemoryOperation(models.Model):
 
 
 class StoredThreadRun(models.Model):
-    """One thread's run status for ``DefaultRunStore``: its claim, lease, park and read mark."""
+    """One thread's run status for ``DefaultRunStore``: its claim, lease, park and read mark.
+
+    The ``prior_`` columns keep what the live claim replaced, for ``release``."""
 
     owner_id = models.CharField(max_length=255, blank=True, default="")
     thread_id = models.CharField(max_length=255)
@@ -274,6 +276,10 @@ class StoredThreadRun(models.Model):
     cancel_requested_at = models.DateTimeField(null=True, blank=True, default=None)
     last_read_at = models.DateTimeField(null=True, blank=True, default=None)
     updated_at = models.DateTimeField(null=True, blank=True, default=None)
+    prior_status = models.CharField(max_length=16, null=True, blank=True, default=None)
+    prior_reason = models.CharField(max_length=16, null=True, blank=True, default=None)
+    prior_waiting = models.JSONField(null=True, blank=True, default=None)
+    prior_last_run_id = models.CharField(max_length=255, null=True, blank=True, default=None)
 
     class Meta:
         constraints = [

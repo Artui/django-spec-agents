@@ -277,7 +277,9 @@ the claimed id in the firing's `run_id`, and the worker's run adopts that claim 
 than taking a new one. A firing's `answers`, a `tool_call_id` to its answer's text,
 resume a thread parked on a question: the runner resumes its stored history with them
 and sends no new prompt. The spec passes `run_id` and `answers` only when the firing
-carries them.
+carries them. Its `inbox_mark`, an optional integer, is the thread's inbox mark taken at
+enqueue: the spec does not pass it to the runner, a worker that wakes the thread reads it
+from the firing, so mail enqueued before pickup still wakes the thread.
 
 ```python title="spec_tasks.py"
 from datetime import timedelta

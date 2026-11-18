@@ -93,6 +93,14 @@ runs on the server. See [Storage](../storage.md#run-status-and-event-logs).
 
 ::: django_spec_agents.RunStore
 
+### `ResumableRunStore`
+
+::: django_spec_agents.ResumableRunStore
+
+### `RunNotParkedError`
+
+::: django_spec_agents.RunNotParkedError
+
 ### `RunClaim`
 
 ::: django_spec_agents.RunClaim

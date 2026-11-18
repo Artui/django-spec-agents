@@ -202,7 +202,8 @@ jobs:
             --ds tests.contrib.store.postgresql_settings \
             tests/contrib/store/test_column_widths.py \
             tests/contrib/store/test_upgrade_from_django_pydantic_agent.py \
-            tests/contrib/store/test_default_inbound_queue.py::test_two_connections_racing_for_one_inbox_one_wins
+            tests/contrib/store/test_default_inbound_queue.py::test_two_connections_racing_for_one_inbox_one_wins \
+            tests/contrib/store/test_default_run_store.py::test_two_connections_resuming_one_park_one_wins
       - name: pytest (routine sweep concurrency)
         env:
           STORE_UPGRADE_DATABASE: store_upgrade

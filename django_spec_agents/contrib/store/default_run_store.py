@@ -3,17 +3,18 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, NoReturn
 
 from asgiref.sync import sync_to_async
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q, QuerySet
+from django.db.models import Case, CharField, Exists, F, OuterRef, Q, QuerySet, Value, When
 from django.http import HttpRequest
 from django.utils import timezone
 
 from django_spec_agents.contrib.store.models import StoredRunEvent, StoredRunLog, StoredThreadRun
 from django_spec_agents.contrib.store.utils import check_column_widths
 from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
+from django_spec_agents.persistence.run_not_parked_error import RunNotParkedError
 from django_spec_agents.persistence.types.run_claim import RunClaim
 from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_log_entry import RunLogEntry
@@ -33,7 +34,9 @@ _ENDINGS: dict[RunOutcome, tuple[ThreadRunStatus, RunEndReason | None]] = {
 
 
 class DefaultRunStore:
-    """A durable, owner-scoped [`RunStore`][django_spec_agents.RunStore] over the reference models.
+    """A durable, owner-scoped run store over the reference models.
+
+    It is a [`ResumableRunStore`][django_spec_agents.ResumableRunStore].
 
     One instance serves every request, like
     [`DefaultConversationStore`][django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore]:
@@ -59,9 +62,18 @@ class DefaultRunStore:
         self._clock = clock
 
     async def claim(
-        self, thread_id: str, run_id: str, *, request: HttpRequest, lease: timedelta
+        self,
+        thread_id: str,
+        run_id: str,
+        *,
+        request: HttpRequest,
+        lease: timedelta,
+        resumes: str | None = None,
     ) -> RunClaim:
-        return await sync_to_async(self._claim)(thread_id, run_id, request, lease)
+        return await sync_to_async(self._claim)(thread_id, run_id, request, lease, resumes)
+
+    async def release(self, thread_id: str, run_id: str, *, request: HttpRequest) -> bool:
+        return await sync_to_async(self._release)(thread_id, run_id, request)
 
     async def renew(
         self, thread_id: str, run_id: str, *, request: HttpRequest, lease: timedelta
@@ -116,7 +128,12 @@ class DefaultRunStore:
         return resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
 
     def _claim(
-        self, thread_id: str, run_id: str, request: HttpRequest, lease: timedelta
+        self,
+        thread_id: str,
+        run_id: str,
+        request: HttpRequest,
+        lease: timedelta,
+        resumes: str | None,
     ) -> RunClaim:
         owner_id = self._owner(request)
         check_column_widths(StoredThreadRun, owner_id=owner_id)
@@ -125,9 +142,22 @@ class DefaultRunStore:
         with transaction.atomic():
             if _log(owner_id, run_id).exists():
                 raise RunIdReusedError(f"run id {run_id!r} was claimed before", run_id=run_id)
-            StoredThreadRun.objects.get_or_create(owner_id=owner_id, thread_id=thread_id)
+            if resumes is None:
+                StoredThreadRun.objects.get_or_create(owner_id=owner_id, thread_id=thread_id)
+                free = Q(active_run_id__isnull=True) | Q(lease_expires_at__lt=now)
+            else:
+                free = Q(
+                    active_run_id__isnull=True,
+                    status=ThreadRunStatus.WAITING,
+                    last_run_id=resumes,
+                )
             rows = _thread(owner_id, thread_id)
-            won = rows.filter(Q(active_run_id__isnull=True) | Q(lease_expires_at__lt=now)).update(
+            # The prior state goes first: MySQL evaluates SET left to right on the new values.
+            won = rows.filter(free).update(
+                prior_status=_seen(F("status"), ThreadRunStatus.FAILED),
+                prior_reason=_seen(F("reason"), RunEndReason.INTERRUPTED),
+                prior_waiting=F("waiting"),
+                prior_last_run_id=F("last_run_id"),
                 status=ThreadRunStatus.RUNNING,
                 reason=None,
                 waiting=None,
@@ -137,6 +167,8 @@ class DefaultRunStore:
                 cancel_requested_at=None,
                 updated_at=now,
             )
+            if not won and resumes is not None:
+                _refuse_resume(rows, now, thread_id, resumes)
             if not won:
                 return RunClaim(
                     claimed=False, active_run_id=rows.values_list("active_run_id", flat=True).get()
@@ -149,6 +181,31 @@ class DefaultRunStore:
                 updated_at=now,
             )
         return RunClaim(claimed=True, active_run_id=run_id)
+
+    def _release(self, thread_id: str, run_id: str, request: HttpRequest) -> bool:
+        owner_id = self._owner(request)
+        now = self._clock()
+        # A claim taken before the prior columns existed has no state to restore.
+        held = _held(owner_id, thread_id, run_id, now).filter(prior_status__isnull=False)
+        with transaction.atomic():
+            unknown, _ = held.filter(prior_last_run_id__isnull=True).delete()
+            released = unknown or held.update(
+                status=F("prior_status"),
+                reason=F("prior_reason"),
+                waiting=F("prior_waiting"),
+                last_run_id=F("prior_last_run_id"),
+                active_run_id=None,
+                lease_expires_at=None,
+                cancel_requested_at=None,
+                prior_status=None,
+                prior_reason=None,
+                prior_waiting=None,
+                prior_last_run_id=None,
+                updated_at=now,
+            )
+            if released:
+                _log(owner_id, run_id).delete()
+        return bool(released)
 
     def _renew(self, thread_id: str, run_id: str, request: HttpRequest, lease: timedelta) -> bool:
         owner_id = self._owner(request)
@@ -251,6 +308,27 @@ def _thread(owner_id: str, thread_id: str) -> QuerySet[StoredThreadRun]:
 def _held(owner_id: str, thread_id: str, run_id: str, now: datetime) -> QuerySet[StoredThreadRun]:
     """The thread's row while ``run_id`` holds it under a live lease."""
     return _thread(owner_id, thread_id).filter(active_run_id=run_id, lease_expires_at__gte=now)
+
+
+def _refuse_resume(
+    rows: QuerySet[StoredThreadRun], now: datetime, thread_id: str, resumes: str
+) -> NoReturn:
+    """Raise ``RunNotParkedError``, naming the thread's live holder if it has one."""
+    holder = rows.filter(active_run_id__isnull=False, lease_expires_at__gte=now)
+    raise RunNotParkedError(
+        f"thread {thread_id!r} is not waiting on run {resumes!r}",
+        run_id=resumes,
+        active_run_id=holder.values_list("active_run_id", flat=True).first(),
+    )
+
+
+def _seen(column: F, lapsed: str) -> Case:
+    """The column as ``get`` read it; a holder a claim displaces is always a lapsed one."""
+    return Case(
+        When(active_run_id__isnull=False, then=Value(lapsed)),
+        default=column,
+        output_field=CharField(),
+    )
 
 
 def _log(owner_id: str, run_id: str) -> QuerySet[StoredRunLog]:

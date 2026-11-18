@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-11-18
+
+### Added
+
+- **`ResumableRunStore`: a run store that resumes a parked run once and gives a claim
+  back.** A sub-protocol of `RunStore`, so a store written against `RunStore` alone stays
+  one; a transport checks `isinstance(store, ResumableRunStore)` before using either piece.
+  `DefaultRunStore` is one.
+- **`claim(..., resumes=<parked run id>)`** wins only while the thread is `waiting` with
+  that run as its `last_run_id`, in the claim's one conditional update, so of two resumes
+  of the same park (a double click, two tabs) one wins. A refused resume raises the new
+  `RunNotParkedError`, writing nothing and never answering busy; its `active_run_id`
+  names the thread's live holder, if any. A claim without `resumes=` behaves as before.
+- **`release(thread_id, run_id, *, request)`** gives back a claim the run still holds:
+  the thread's status, reason, waiting record and `last_run_id` return to what they were
+  before the claim, a thread no run had claimed reads as unknown again, and the released
+  run's log is deleted, so its id may be claimed again. A transport whose enqueue is
+  refused after the claim keeps the park instead of finishing the thread as failed.
+- **The `0007_thread_run_prior` migration** adds the four `prior_` columns of
+  `StoredThreadRun` that `release` restores from. A claim taken before it cannot be
+  released; `release` answers `False` and the run finishes as before.
+- **`HeadlessFiring.inbox_mark`: the inbox mark taken at enqueue crosses the queue.** An
+  optional `int | None`, `None` by default, so a producer that sets none and a firing
+  serialised before the field existed stay valid. A worker that wakes the thread after the
+  run reads it, so mail enqueued before pickup is not lost below the mark the worker takes.
+  `run_headless` does not pass it to the runner.
+- **`InvalidSkillError.field`: which field broke the rule.** It is `name`, `description`
+  or `body` (from a `SKILL.md` also `user_invocable` or `model_invocable`), and `None`
+  when no one field is at fault. It is a keyword-only argument that defaults to `None`,
+  so code that builds or catches the error today keeps working.
+
 ## [0.22.0] — 2026-11-18
 
 ### Added
@@ -1428,7 +1459,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...v0.20.1
