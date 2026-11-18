@@ -139,3 +139,20 @@ async def test_a_wake_that_fails_is_logged_and_the_message_stays_queued(
     assert message.id == queued
     assert await queue.ack(_PARENT, [queued], request=request) == 1
     assert "Could not wake" in caplog.text
+
+
+async def test_take_and_release_reach_the_wrapped_queue_and_wake_nothing() -> None:
+    request = authed_request("7")
+    runner = _Runner(DefaultRunStore())
+    queue = _waking(runner)
+    sent = await DefaultInboundQueue().enqueue(_PARENT, InboundKind.STEER, "hi", request=request)
+
+    taken = await queue.take(_PARENT, "r1", request=request, lease=timedelta(minutes=1))
+    assert [message.id for message in taken] == [sent]
+    assert await queue.take(_PARENT, "r2", request=request, lease=timedelta(minutes=1)) == []
+
+    assert await queue.release(_PARENT, "r1", request=request) is True
+    assert [
+        m.id for m in await queue.take(_PARENT, "r2", request=request, lease=timedelta(minutes=1))
+    ] == [sent]
+    assert runner.starts == []
