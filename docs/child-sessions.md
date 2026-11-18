@@ -4,8 +4,7 @@ A child session is a whole conversation that one agent starts on another agent. 
 gets its own thread, runs headless, and can outlive the run that started it. The parent
 can message it, answer it and cancel it. The user opens it like any other thread.
 `ChildSessionsToolset` gives the parent's model the tools to do this. Child sessions need
-the `[harness]` extra: a child's report is framed through `pydantic-ai-harness`, and
-building the toolset without it raises `ImportError`.
+the `[harness]` extra, and building the toolset without it raises `ImportError`.
 
 This page covers starting a child, the limits on it, and its report. A settled child's
 report lands in the parent's inbound queue. Handing it to the parent's model, at its next
@@ -165,6 +164,7 @@ The report needs the run's request in `call_context["request"]`, as the toolset 
 report that cannot be sent is logged, and the run's own result or error stands.
 
 `report_frame(child, agent_id=..., output=..., outcome=...)` builds the text: a settled
-child's output as upstream's `<task_output>` data, through `DelegationTask.report()`. The
-output stays in the user channel, never in system voice, and it cannot close its own
-frame.
+child's output as `<task_output>` data, with the tag and attributes of upstream's
+`DelegationTask.report()`, rendered by `pydantic_ai.framing.wrap`. The escaping is in the
+text itself, since the report crosses a queue before any model sees it: the output stays
+in the user channel, never in system voice, and it cannot close its own frame.

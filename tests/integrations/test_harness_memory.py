@@ -44,7 +44,7 @@ class _Capture:
         self.tools = {tool.name for tool in info.function_tools or ()}
         for part in messages[-1].parts:
             if isinstance(part, UserPromptPart) and not isinstance(part.content, str):
-                self.blocks.extend(item.content for item in part.content)
+                self.blocks.append("".join(item.content for item in part.content))
         return ModelResponse(parts=[TextPart("ok")])
 
 
