@@ -33,6 +33,8 @@ from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.persistence.build_run_waiting import build_run_waiting
 from django_spec_agents.persistence.types.child_lineage_record import ChildLineageRecord
 from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.run_end_reason import RunEndReason
+from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
 from django_spec_agents.testing import tool_calling_model
@@ -159,6 +161,12 @@ def _lookup() -> str:
     return "found"
 
 
+def _composed(start: dict[str, Any], spend: ChildSessionSpend | None = None) -> list[Any]:
+    stored = Conversation("c-new", parent=start["parent"], lineage=start["lineage"])
+    owner = str(start["principal"].pk)
+    return child_lineage_for(stored, agent_id="research", owner=owner, queue=_Queue(), spend=spend)
+
+
 async def _call(
     toolset: Any,
     tool: str,
@@ -201,7 +209,8 @@ async def test_the_receipt_names_the_child_thread() -> None:
     [start] = runner.starts
     assert (start["agent_id"], start["parent"], start["timeout"]) == ("research", _HERE, 90.0)
     assert start["principal"] == _User()
-    [lineage, report] = start["capabilities"]
+    assert start["capabilities"] == []
+    [lineage, report] = _composed(start)
     assert (lineage.root, lineage.parent, lineage.depth) == (_HERE, _HERE, 1)
     assert (report.parent, report.agent_id) == (_HERE, "research")
     assert start["lineage"] == ChildLineageRecord(
@@ -214,7 +223,7 @@ async def test_the_child_gets_the_parents_tools_and_no_others() -> None:
 
     await _call(_toolset(runner=runner), "start_session", {"agent": "research", "prompt": "Look."})
 
-    tools = runner.starts[0]["capabilities"][0].tools
+    tools = _composed(runner.starts[0])[0].tools
     assert "_lookup" in tools and "start_session" in tools
     assert "delete_everything" not in tools
 
@@ -246,7 +255,7 @@ async def test_a_tool_the_parent_gated_is_gated_in_the_child() -> None:
     deps = AgentDeps(user=_User(), call_context={"request": HttpRequest()})
 
     await agent.run("go", deps=deps, conversation_id="p1")
-    lineage = runner.starts[0]["capabilities"][0]
+    lineage = _composed(runner.starts[0])[0]
     names = [("_lookup", "function"), ("_lookup", "output"), ("start_session", "function")]
     defs = [ToolDefinition(name=n, kind=k) for n, k in names]  # ty: ignore[invalid-argument-type]
     prepared = await lineage.prepare_tools(None, defs)  # ty: ignore[invalid-argument-type]
@@ -321,7 +330,7 @@ async def test_max_depth_refuses_a_third_level(depth: int, refused: bool) -> Non
     if refused:
         assert result.refused == "max_depth"
     else:
-        lineage = runner.starts[0]["capabilities"][0]
+        lineage = _composed(runner.starts[0])[0]
         assert (lineage.root, lineage.depth) == (ThreadRef("root1", "main"), 2)
 
 
@@ -388,7 +397,7 @@ async def test_the_child_carries_the_tree_and_day_budgets() -> None:
         lineage=_lineage(1),
     )
 
-    _, _, tree, day = runner.starts[0]["capabilities"]
+    _, _, tree, day = _composed(runner.starts[0], spend)
     assert isinstance(tree, SpendLimits) and isinstance(day, SpendLimits)
     assert tree.store is day.store is spend.store
     [tree_budget], [day_budget] = tree.budgets, day.budgets
@@ -416,7 +425,7 @@ async def test_cancel_takes_descendants_and_leaves_siblings() -> None:
     assert runner.cancelled == ["gg1", "g1", "g2", "c1"]
 
 
-@pytest.mark.parametrize("tool", ["cancel_task", "message_task", "answer_task"])
+@pytest.mark.parametrize("tool", ["cancel_task", "message_task", "answer_task", "check_task"])
 async def test_a_thread_that_is_not_a_child_is_refused(tool: str) -> None:
     runner, queue = _Runner(), _Queue()
     index = _Index({_HERE: [_child("c1")], ThreadRef("c1", "research"): [_child("g1")]})
@@ -445,6 +454,28 @@ async def test_message_and_answer_reach_the_childs_queue(
 
     assert result == "sent to c1"
     assert queue.sent == [(ThreadRef("c1", "research"), kind, {"text": "go on"}, _HERE)]
+
+
+@pytest.mark.parametrize(
+    "child",
+    [
+        ChildSession(
+            ThreadRef("c1", "research"),
+            _WAITING,
+            RunWaiting(kind="question", summary="ask_parent", tool_call_id="q1", destructive=False),
+        ),
+        ChildSession(
+            ThreadRef("c1", "research"), ThreadRunStatus.FAILED, reason=RunEndReason.ERROR
+        ),
+        _child("c1", _IDLE),
+    ],
+)
+async def test_check_task_shows_where_one_child_stands(child: ChildSession) -> None:
+    index = _Index({_HERE: [_child("c0"), child]})
+
+    result = await _call(_toolset(index=index), "check_task", {"thread_id": "c1"})
+
+    assert result == child
 
 
 async def test_list_tasks_lists_this_threads_children() -> None:
@@ -509,26 +540,6 @@ async def test_a_run_without_its_request_is_refused() -> None:
         await agent.run("go", deps=AgentDeps(user=None), conversation_id="p1")
 
 
-async def test_a_later_run_of_the_child_rebuilds_what_its_start_composed() -> None:
-    runner, queue = _Runner(), _Queue()
-    spend = ChildSessionSpend(InMemorySpendStore(), tree_usd=Decimal("5"), day_usd=Decimal("2"))
-    await _call(
-        _toolset(runner=runner, queue=queue, spend=spend),
-        "start_session",
-        {"agent": "research", "prompt": "L"},
-        lineage=_lineage(1),
-    )
-    [start] = runner.starts
-    stored = Conversation("c-new", parent=start["parent"], lineage=start["lineage"])
-
-    rebuilt = child_lineage_for(stored, agent_id="research", owner="7", queue=queue, spend=spend)
-
-    lineage, report, tree, day = start["capabilities"]
-    assert rebuilt[:2] == [lineage, report]
-    assert [b.budgets[0].scope(None) for b in rebuilt[2:]] == ["main:root1", "7"]
-    assert [b.budgets[0].scope(None) for b in (tree, day)] == ["main:root1", "7"]
-
-
 def test_the_toolset_without_the_harness_installed_is_refused_when_built(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -536,3 +547,62 @@ def test_the_toolset_without_the_harness_installed_is_refused_when_built(
 
     with pytest.raises(ImportError):
         _toolset()
+
+
+@dataclass
+class _ComposingRunner(_Runner):
+    queue: Any = None
+    spend: ChildSessionSpend | None = None
+    offered: list[tuple[str, str]] = field(default_factory=list)
+    composed: list[Any] = field(default_factory=list)
+
+    async def start(self, agent_id: str, prompt: str, principal: Any, **kwargs: Any) -> Any:
+        started = await super().start(agent_id, prompt, principal, **kwargs)
+        stored = Conversation(started.thread_id, parent=kwargs["parent"], lineage=kwargs["lineage"])
+        self.composed = child_lineage_for(
+            stored, agent_id=agent_id, owner=str(principal.pk), queue=self.queue, spend=self.spend
+        )
+
+        def model(messages: Any, info: AgentInfo) -> ModelResponse:
+            self.offered.extend((t.name, t.kind) for t in info.function_tools)
+            return ModelResponse(parts=[TextPart("found it")])
+
+        child = Agent(FunctionModel(model), toolsets=[FunctionToolset([_lookup, _wider])])
+        deps = AgentDeps(user=principal, call_context={"request": HttpRequest()})
+        await child.run(
+            prompt, deps=deps, conversation_id=started.thread_id, capabilities=self.composed
+        )
+        return started
+
+
+def _wider() -> str:
+    return "ran"  # pragma: no cover
+
+
+@pytest.mark.filterwarnings("ignore::pydantic_ai_harness.spend_limits.UnpricedModelWarning")
+async def test_a_runner_composing_from_lineage_alone_bounds_gates_and_reports_the_first_run() -> (
+    None
+):
+    queue = _Queue()
+    spend = ChildSessionSpend(InMemorySpendStore(), tree_usd=Decimal("5"), day_usd=Decimal("2"))
+    runner = _ComposingRunner(queue=queue, spend=spend)
+    agent = Agent(
+        tool_calling_model("start_session", {"agent": "research", "prompt": "L"}),
+        toolsets=[_toolset(runner=runner, queue=queue, spend=spend), FunctionToolset([_lookup])],
+        capabilities=[_GateLookup()],
+    )
+    deps = AgentDeps(user=_User(), call_context={"request": HttpRequest()})
+
+    await agent.run("go", deps=deps, conversation_id="p1")
+
+    [start] = runner.starts
+    assert start["capabilities"] == []
+    assert ("_wider", "function") not in runner.offered
+    assert ("_lookup", "unapproved") in runner.offered
+    assert [c.id for c in runner.composed][2:] == [
+        "child_sessions_tree_spend",
+        "child_sessions_day_spend",
+    ]
+    [(parent, kind, body, sender)] = queue.sent
+    assert (parent, kind, sender) == (_HERE, InboundKind.REPORT, ThreadRef("c-new", "research"))
+    assert body["outcome"] == "ok" and "found it" in body["text"]

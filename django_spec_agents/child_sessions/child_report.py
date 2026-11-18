@@ -20,6 +20,8 @@ from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 logger = logging.getLogger(__name__)
 
+_USER_JOINED = "The user joined this session, so this result may reflect their direction."
+
 
 @dataclass
 class ChildReport(AbstractCapability[Any]):
@@ -27,6 +29,8 @@ class ChildReport(AbstractCapability[Any]):
 
     Needs ``[harness]``, checked when built. A run that parks, or is cancelled before its
     deadline, sends nothing; a failed enqueue is logged and never replaces the run's own.
+    With ``user_joined``, the report's framed body ends with a line telling the parent that
+    the user joined the child's session, so its result may reflect the user's direction.
     """
 
     parent: ThreadRef
@@ -34,6 +38,7 @@ class ChildReport(AbstractCapability[Any]):
     queue: InboundQueue
     _: KW_ONLY
     id: str | None = "child_session_report"
+    user_joined: bool = False
 
     def __post_init__(self) -> None:
         import pydantic_ai_harness.sub_agents  # noqa: F401
@@ -61,6 +66,8 @@ class ChildReport(AbstractCapability[Any]):
     async def _report(self, ctx: RunContext[Any], output: str, outcome: ReportOutcome) -> None:
         child = ThreadRef(str(ctx.conversation_id), self.agent_id)
         try:
+            if self.user_joined:
+                output = f"{output}\n\n{_USER_JOINED}"
             frame = report_frame(child, agent_id=self.agent_id, output=output, outcome=outcome)
             request = getattr(ctx.deps, "call_context", {}).get("request")
             if not isinstance(request, HttpRequest):

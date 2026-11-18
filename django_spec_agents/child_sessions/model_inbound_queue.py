@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Iterable
+from datetime import timedelta
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -18,9 +19,9 @@ class ModelInboundQueue(ABC):
 
     Provides the async wrapping and per-request owner scoping, as
     [`ModelConversationStore`][django_spec_agents.ModelConversationStore] does; a
-    subclass implements ``_enqueue``, ``_pending`` and ``_ack`` against its own
-    model, and **must** filter each by the resolved ``owner_id``. ``allow_anonymous``
-    is off by default: a headless run's owner is always a user.
+    subclass implements ``_enqueue``, ``_pending``, ``_ack``, ``_take`` and ``_release``
+    against its own model, and **must** filter each by the resolved ``owner_id``.
+    ``allow_anonymous`` is off by default: a headless run's owner is always a user.
     """
 
     def __init__(self, *, allow_anonymous: bool = False) -> None:
@@ -45,6 +46,14 @@ class ModelInboundQueue(ABC):
     async def ack(self, thread: ThreadRef, ids: Iterable[int], *, request: HttpRequest) -> int:
         return await sync_to_async(self._ack_scoped)(thread, list(ids), request)
 
+    async def take(
+        self, thread: ThreadRef, run_id: str, *, request: HttpRequest, lease: timedelta
+    ) -> list[InboundMessage]:
+        return await sync_to_async(self._take_scoped)(thread, run_id, lease, request)
+
+    async def release(self, thread: ThreadRef, run_id: str, *, request: HttpRequest) -> bool:
+        return await sync_to_async(self._release_scoped)(thread, run_id, request)
+
     def _owner(self, request: HttpRequest) -> str:
         return resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
 
@@ -66,6 +75,14 @@ class ModelInboundQueue(ABC):
     def _ack_scoped(self, thread: ThreadRef, ids: Collection[int], request: HttpRequest) -> int:
         return self._ack(thread, ids, self._owner(request))
 
+    def _take_scoped(
+        self, thread: ThreadRef, run_id: str, lease: timedelta, request: HttpRequest
+    ) -> list[InboundMessage]:
+        return self._take(thread, run_id, lease, self._owner(request))
+
+    def _release_scoped(self, thread: ThreadRef, run_id: str, request: HttpRequest) -> bool:
+        return self._release(thread, run_id, self._owner(request))
+
     @abstractmethod
     def _enqueue(
         self,
@@ -83,6 +100,14 @@ class ModelInboundQueue(ABC):
 
     @abstractmethod
     def _ack(self, thread: ThreadRef, ids: Collection[int], owner_id: str) -> int: ...
+
+    @abstractmethod
+    def _take(
+        self, thread: ThreadRef, run_id: str, lease: timedelta, owner_id: str
+    ) -> list[InboundMessage]: ...
+
+    @abstractmethod
+    def _release(self, thread: ThreadRef, run_id: str, owner_id: str) -> bool: ...
 
 
 __all__ = ["ModelInboundQueue"]

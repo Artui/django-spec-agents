@@ -4,12 +4,10 @@ from typing import Any
 
 from django.http import HttpRequest
 from pydantic_ai import CallDeferred
-from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import FunctionToolset
 
 from django_spec_agents.child_sessions.child_lineage import ChildLineage
-from django_spec_agents.child_sessions.child_report import ChildReport
 from django_spec_agents.child_sessions.child_session_budgets import child_session_budgets
 from django_spec_agents.child_sessions.types.child_session import ChildSession
 from django_spec_agents.child_sessions.types.child_session_index import ChildSessionIndex
@@ -30,21 +28,21 @@ _START_DESCRIPTION = (
 
 
 class ChildSessionsToolset(FunctionToolset[Any]):
-    """Tools to start, list, message, answer and cancel child sessions, and for a child to ask.
+    """Tools to start, list, check, message, answer and cancel child sessions; a child asks.
 
     ``start_session`` starts a child on one of ``agents`` (an id to a description the
     model reads) through ``runner``, as the run's own user, and returns a
     [`ChildSessionReceipt`][django_spec_agents.child_sessions.types.child_session_receipt.ChildSessionReceipt]
-    naming its thread. ``list_tasks``, ``message_task``, ``answer_task`` and
-    ``cancel_task`` keep upstream ``TaskControl``'s names, so a mount carrying both is
+    naming its thread. ``list_tasks``, ``check_task``, ``message_task``, ``answer_task``
+    and ``cancel_task`` keep upstream ``TaskControl``'s names, so a mount carrying both is
     refused by pydantic-ai's duplicate-name check; ``ask_parent`` is offered in a child
     only, and parks it as waiting on a question.
 
     Needs the ``[harness]`` extra. Starts run one at a time, so each reads the index
-    after the last; an anonymous run is refused. A child carries a
-    [`ChildLineage`][django_spec_agents.child_sessions.child_lineage.ChildLineage]
-    and, with ``spend``, two ``SpendLimits``. Each limit in ``limits`` refuses a start
-    with a
+    after the last; an anonymous run is refused. A start passes the runner ``lineage=``
+    alone, from which it composes
+    [`child_lineage_for`][django_spec_agents.child_lineage_for]; with ``spend``, an
+    exhausted budget refuses it first. Each limit in ``limits`` refuses a start with a
     [`ChildSessionRefusal`][django_spec_agents.child_sessions.types.child_session_refusal.ChildSessionRefusal].
 
     The run's thread is ``ctx.conversation_id`` and its request is
@@ -80,6 +78,7 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             sequential=True,
         )
         self.add_function(self.list_tasks, name="list_tasks")
+        self.add_function(self.check_task, name="check_task")
         self.add_function(self.message_task, name="message_task")
         self.add_function(self.answer_task, name="answer_task")
         self.add_function(self.cancel_task, name="cancel_task")
@@ -111,24 +110,17 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             return ChildSessionRefusal("max_running_per_user", "your child sessions are busy")
         root = here if lineage is None else lineage.root
         tools, gated = _tool_names(ctx), _tool_names(ctx, "unapproved")
-        record = ChildLineageRecord(root, depth, sorted(tools), sorted(gated))
-        capabilities: list[AbstractCapability[Any]] = [
-            ChildLineage(root, here, depth, tools, gated),
-            ChildReport(here, agent, self._queue),
-        ]
         if self._spend is not None:
             budgets = child_session_budgets(self._spend, root, _owner(ctx))
             if refused := await _exhausted(budgets):
                 return ChildSessionRefusal(refused, "the spend budget is exhausted")
-            capabilities.extend(budgets)
         started = await self._runner.start(
             agent,
             prompt,
             ctx.deps.user,
             timeout=self._limits.timeout,
             parent=here,
-            lineage=record,
-            capabilities=capabilities,
+            lineage=ChildLineageRecord(root, depth, sorted(tools), sorted(gated)),
         )
         return ChildSessionReceipt(
             agent_id=agent, thread_id=started.thread_id, run_id=started.run_id
@@ -137,6 +129,17 @@ class ChildSessionsToolset(FunctionToolset[Any]):
     async def list_tasks(self, ctx: RunContext[Any]) -> list[ChildSession]:
         """List the child sessions this conversation started, and where each stands."""
         return await self._index.children(self._here(ctx), request=_request(ctx))
+
+    async def check_task(
+        self, ctx: RunContext[Any], thread_id: str
+    ) -> ChildSession | ChildSessionRefusal:
+        """See where one child session stands now, without waiting for it to report.
+
+        Args:
+            thread_id: The child's thread id, from its receipt or ``list_tasks``.
+        """
+        child = await self._child(ctx, thread_id, _request(ctx))
+        return _not_a_child(thread_id) if child is None else child
 
     async def message_task(
         self, ctx: RunContext[Any], thread_id: str, message: str

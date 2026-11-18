@@ -7,8 +7,8 @@ and the functions that write a routine. You bring the concrete model, its tenant
 relation, its migration and the policy. No concrete routine model ships in the package,
 and no default policy.
 
-This page covers the storage, the rules and the sweep that fires a routine on schedule.
-The spec a firing runs and showing its thread are later pieces.
+This page covers the storage, the rules, the sweep that fires a routine on schedule and
+the spec each firing runs. Showing a firing's thread is the transport's.
 
 ## The model
 
@@ -236,6 +236,59 @@ principal, and a `True` skips this firing. The hook is synchronous and the run s
 async and scoped by the owner a request carries, so it builds a request for the principal
 and bridges the call. The default returns `False`, so a project that
 does not fill it fires on schedule whatever its last thread is doing.
+
+## The firing spec
+
+The sweep enqueues the firing; `run_agent_spec` is the kernel spec your queue's worker runs
+it with. It needs the `[specs]` extra, so import it from its module:
+
+```python
+from django_spec_agents.routines.run_agent_spec import run_agent_spec
+
+registry.register("run_routine", run_agent_spec(Routine, headless_runner, timeout=600.0))
+```
+
+Register it under the `spec_name` your `RoutineSweep` names. `headless_runner` is the
+transport's [`HeadlessRunner`](reference/persistence.md#headlessrunner), and `timeout` is
+required: every firing's run has a deadline, in seconds.
+
+The worker runs it as the routine's principal with the sweep's `{"routine_id",
+"thread_id"}`. Its permission check refuses a routine that does not exist, a caller who is
+not the routine's principal, and a routine your policy's `can_run` refuses. The queue asks
+it at enqueue and the worker again before the run, so a routine your policy stops allowing in
+between lapses the firing, and the next sweep pauses the routine.
+
+It runs the routine's prompt on its agent, into the sweep's thread, one thread per firing,
+and returns at the run's first stop, presenting `{thread_id, run_id, outcome, waiting}`:
+
+| `outcome` | What happened |
+| --- | --- |
+| `completed` | The run ended with an answer |
+| `waiting` | A gated call the routine did not pre-approve parked the thread; `waiting` names it |
+| `timed_out` | The run passed `timeout`; what it produced is kept |
+| `error` | The run failed, a refused tool call included |
+
+Each is a firing that ran, so the task ends `SUCCEEDED` whatever the outcome. A parked
+thread is resumed by a person on its approval card, never by the queue.
+
+The run is composed with three things beside the mount's own:
+
+- [`GrantedApprovals`](policy.md#answering-a-gated-call-in-the-run) over
+  `preapproved_exempt(routine)`, marked `routine:<pk>`. A pre-approved tool that was gated
+  when granted runs in the same run without parking, and its result carries
+  `answered_by: "routine:<pk>"`. A tool granted ungated and declared destructive since is
+  not among them, so its call parks. The approval is the only step it skips: the kernel's
+  own authorization still runs, so a pre-approved spec tool the principal may not call is
+  refused, and the run ends `error`.
+- The grant, recorded on the thread: the firing's first request carries, under
+  `ROUTINE_GRANT_KEY` in its `metadata`, the routine's id, its last edit (`updated_at`), the
+  `answered_by` mark and the pre-approved tools as granted, each with its pinned flag.
+- No routine-authoring tools: `create_routine` and `update_routine` are not offered to a
+  firing, whatever the agent's mount offers.
+
+The spec declares `atomic=False`, so no transaction spans the run, and `idempotent=False`:
+a worker that dies mid-run is not run again, its firing reads `lapsed`, and the sweep
+pauses the routine.
 
 ## Finding the model, and refusing one with no policy at startup
 

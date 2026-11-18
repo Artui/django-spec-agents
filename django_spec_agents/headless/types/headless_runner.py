@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
 from pydantic_ai.capabilities import AbstractCapability
@@ -35,10 +35,22 @@ class HeadlessRunner(Protocol):
     a guard that pre-approves a routine's tools. ``parent`` names the thread a
     child run belongs to, with its scope, since a child often runs on another agent.
     ``lineage`` is the bounds the child runs under: the runner saves both on the child's
-    conversation, so a later run of its thread can compose
-    [`child_lineage_for`][django_spec_agents.child_lineage_for].
+    conversation and composes
+    [`child_lineage_for`][django_spec_agents.child_lineage_for] from them on every run of
+    its thread, the first included, since capabilities cannot cross a queue; a child's
+    start passes no ``capabilities``.
     ``run_id`` on ``run_to_first_stop`` adopts the run already claimed under this id, as a
     queued start claims its thread before a worker runs it; without one the call claims.
+
+    ``answers`` resumes a thread parked on a question: it maps each waiting call's
+    ``tool_call_id`` to its answer's text. A runner given it must resume the thread's stored
+    history with ``DeferredToolResults(calls=answers)`` and send no new user message, so
+    ``prompt`` is not sent; pydantic-ai refuses a new prompt while the history holds the
+    unanswered call. Callers pass it only when set, so a runner without it serves every
+    other run. A message can land after a run's last read of its queue, and an answer
+    before the asking run parks; so after recording any run's end with ``RunStore.finish``,
+    a runner calls [`wake_thread`][django_spec_agents.child_sessions.wake_thread.wake_thread]
+    for its thread once, which starts or resumes it when messages are still queued.
     """
 
     async def start(
@@ -52,6 +64,7 @@ class HeadlessRunner(Protocol):
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
+        answers: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         """Start the run and return once it has claimed its thread; it goes on in the background."""
         ...
@@ -68,6 +81,7 @@ class HeadlessRunner(Protocol):
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
         run_id: str | None = None,
+        answers: Mapping[str, str] | None = None,
     ) -> RunStop:
         """Run until the run ends or parks, for a caller that waits on the answer."""
         ...

@@ -274,7 +274,10 @@ can move the owner to a worker instead: it fills a
 body is the runner's `run_to_first_stop`, in the registry the worker reads. A host
 that claims the thread before it enqueues, so the caller learns the run at once, puts
 the claimed id in the firing's `run_id`, and the worker's run adopts that claim rather
-than taking a new one. The spec passes `run_id` only when the firing carries one.
+than taking a new one. A firing's `answers`, a `tool_call_id` to its answer's text,
+resume a thread parked on a question: the runner resumes its stored history with them
+and sends no new prompt. The spec passes `run_id` and `answers` only when the firing
+carries them.
 
 ```python title="spec_tasks.py"
 from datetime import timedelta

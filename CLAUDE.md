@@ -77,9 +77,11 @@ from `django_spec_agents.spec_tools`, and `AgentDeps` from the root.
   carries the wording it teaches the model itself, so `integrations/mcp.py` is
   the one file the scan covers. django-spec-mcp needs a ready app registry to
   import, so it stays off every host import path.
-- **`headless/run_headless.py` imports the kernel at module top**, so it is `[specs]`-only
-  and stays off every host import path, like `integrations/mcp.py`. The package root and
-  `headless/__init__.py` never import it; `headless/types/` is host-safe.
+- **`headless/run_headless.py` and `routines/run_agent_spec.py` import the kernel at
+  module top**, so they are `[specs]`-only and stay off every host import path, like
+  `integrations/mcp.py`. The package root, `headless/__init__.py` and
+  `routines/__init__.py` never import them; `headless/types/` and `routines/types/` are
+  host-safe.
 - **`spec_tools` imports nothing from the host but `AgentDeps` and the file
   rendering it shares with `read_attachment`** (`AttachmentInlineConfig` and
   `agent/utils.py`, which import pydantic-ai alone), **and never `contrib.store`.**

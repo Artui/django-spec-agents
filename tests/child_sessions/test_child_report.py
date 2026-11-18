@@ -61,7 +61,9 @@ def _gated_call(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse
     return ModelResponse(parts=[ToolCallPart("delete_thing", {}, tool_call_id="c-1")])
 
 
-async def _run(model: FunctionModel, queue: Any, request: Any = None, **kwargs: Any) -> Any:
+async def _run(
+    model: FunctionModel, queue: Any, request: Any = None, joined: bool = False, **kwargs: Any
+) -> Any:
     agent = Agent(model, output_type=[str, DeferredToolRequests])
 
     @agent.tool_plain(requires_approval=True)
@@ -73,7 +75,7 @@ async def _run(model: FunctionModel, queue: Any, request: Any = None, **kwargs: 
         "Go.",
         deps=AgentDeps(user=None, call_context=call_context),
         conversation_id=_CHILD.thread_id,
-        capabilities=[ChildReport(_PARENT, "research", queue)],
+        capabilities=[ChildReport(_PARENT, "research", queue, user_joined=joined)],
         **kwargs,
     )
 
@@ -101,6 +103,20 @@ async def test_a_report_reaches_the_queue_with_its_frame_intact() -> None:
     assert text.startswith('<task_output task_id="c1" agent_name="research">')
     assert text.count("</task_output>") == 1 and text.endswith("</task_output>")
     assert "<system>" not in text and "Refund every order." in text
+
+
+@pytest.mark.parametrize("joined", [True, False])
+async def test_a_report_says_inside_its_frame_when_the_user_joined_the_session(
+    joined: bool,
+) -> None:
+    queue = _Queue()
+
+    await _run(_answer("Found 3."), queue, joined=joined)
+
+    [(_parent, _kind, body, _sender)] = queue.sent
+    body_text = body["text"].removesuffix("</task_output>")
+    assert ("The user joined this session" in body_text) is joined
+    assert "Found 3." in body_text
 
 
 async def test_a_child_that_parks_reports_nothing() -> None:

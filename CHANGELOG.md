@@ -7,6 +7,118 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-11-18
+
+### Added
+
+- **`check_task(thread_id)` on `ChildSessionsToolset`: where one child stands now,
+  without waiting for its report.** It keeps upstream `TaskControl`'s name and returns
+  the child's `ChildSession`: its status, what it waits on, and the new
+  `ChildSession.reason`, why its last run ended early (`timed_out`, `error` or
+  `interrupted`), which `DefaultChildSessionIndex` fills from the run store. A child's
+  history is not read while it runs, as upstream's `check_task` shows only the status
+  of a durable task. A thread that is not this conversation's child is refused.
+- **`run_agent_spec(model, runner, *, timeout)`: the kernel spec a routine's firing runs.**
+  It takes the sweep's `{"routine_id", "thread_id"}` (`RoutineFiring`), runs the routine's
+  prompt on its agent as its principal into that thread through the `HeadlessRunner`,
+  within the required `timeout`, and presents the `RunStop` at the run's first stop, so a
+  parked firing ends `SUCCEEDED` with outcome `waiting`. Its permission check refuses a
+  missing routine, a caller who is not the routine's principal and a routine the policy's
+  `can_run` refuses, at enqueue and on the worker. The run approves the routine's
+  pre-approved tools in the run through `GrantedApprovals`, marked `routine:<pk>`, leaving
+  the kernel's authorization in place; records the grant on its first request under
+  `ROUTINE_GRANT_KEY`; and offers no `create_routine` or `update_routine`. It declares
+  `atomic=False` and `idempotent=False`. It needs the `[specs]` extra, so it is imported
+  from `django_spec_agents.routines.run_agent_spec`.
+- **`DrainInbound` and `wake_thread`: a thread's inbound messages reach its model.**
+  `DrainInbound(queue, agent_id)`, composed into a mount's runs, reads the run's thread's
+  inbound queue at each model request and hands the messages to the model: a child's
+  report as the `<task_output>` text it framed, a child's question as `<task_question>`
+  data naming the asking thread, and a parent's answer or steering as plain words. A
+  message that lands after the last request gets one more request before the run ends;
+  one that lands as the run parks waits for the resume. A message is acked once
+  the model request carrying it is answered; one taken by a run that fails goes to the
+  next run when the failed run releases the inbox, and one taken by a run that dies once
+  its claim's lease lapses. `wake_thread(thread, ...)` starts one headless run on an idle
+  thread whose queue holds messages, and starts nothing on a running thread (the run
+  reads them, or the runner's wake after the run ends does) or a waiting one (its resume
+  does), so a second run never takes the thread. A thread parked on a question with an
+  `ANSWER` queued is the exception: it starts the resume, with `answers=` mapping the
+  waiting call's id to the oldest answer's text. It acks that answer before the start, so
+  the resumed run does not read it again, and starts nothing when another wake already
+  took it; a start that fails enqueues the answer again. Given
+  `conversations=`, it wakes a child's thread with the `parent` and `lineage` its
+  conversation stores, so a steered idle child runs within its bounds; it never passes
+  the runner `capabilities`.
+- **`WakingInboundQueue`: every message wakes its thread.** It wraps an `InboundQueue`
+  and calls `wake_thread` after each `enqueue`, so a child's report or question wakes an
+  idle parent, and `message_task` or `answer_task` to a settled child wakes it, as
+  upstream's `message_task` resumes a finished task; the woken run's prompt is the wake
+  line and `DrainInbound` delivers the message beside it. A message enqueued after a
+  running thread's last read waits for the runner's wake once that run ends.
+  `conversations` maps an agent id to the store its mount reads, so a child wakes within
+  its stored lineage. A wake that fails is logged and the message stays queued.
+- **`answers=` on `HeadlessRunner.start` and `run_to_first_stop`, and
+  `HeadlessFiring.answers`: a headless run resumes a thread parked on a question.** The
+  keyword maps each waiting call's `tool_call_id` to its answer's text, and is optional,
+  defaulting to `None`. A runner must honour it: given `answers`, it resumes the thread's
+  stored history with `DeferredToolResults(calls=answers)` and sends no new user message,
+  since pydantic-ai refuses a new prompt while the history holds the unanswered call.
+  `HeadlessFiring.answers` crosses a queue as JSON, and `run_headless` and `wake_thread`
+  pass `answers` only when they have one, so a runner without the keyword still serves
+  every other run; one without it raises on a resume `wake_thread` starts, and the answer
+  is queued again. Since a message can land after a run's last read, and an answer before
+  the asking run parks, a runner calls `wake_thread` once after each `RunStore.finish`.
+  django-ag-ui's runner follows in its next release.
+- **`user_joined=` on `child_lineage_for` and `ChildReport`: a parent learns that the
+  user joined its child's session.** With `user_joined=True`, the child's report ends its
+  framed body with a line telling the parent that the user joined the session, so its
+  result may reflect the user's direction. It defaults to `False`; the transport sets it
+  for a browser run on a child's thread.
+- **`ReservedSkillNames`: a policy can keep a stored skill from taking a code-registered
+  skill's name.** A `SkillPolicy` that also defines `reserved_names(request)` has
+  `create_skill`, `import_skill_md` and a rename through `update_skill` raise
+  `InvalidSkillError` for a reserved name, so the `create_skill` tool asks the model to
+  retry and an editor endpoint refuses it the same way. The hook is optional: a policy
+  without it reserves nothing and still type-checks and passes the system checks. A skill
+  already holding a name reserved since it was stored can still be edited.
+- **A durable claim on a thread's inbox: one run holds it at a time.** `DrainInbound`
+  takes the thread's inbound queue under its pydantic-ai `run_id` at each model request,
+  renewing its claim for `lease` (five minutes by default), and releases it when the run
+  ends, parks or fails. A second run on the thread takes nothing while the claim is live,
+  and a run sees each message once. Because the claim lives in the queue rather than in
+  the run store, a queued run that a worker takes up later holds it like any other run,
+  and takes what arrived while it waited; and two threads with one thread id in two
+  scopes each have their own inbox. A claim whose run died is taken over once its lease
+  lapses, with the messages that run took and never acked. `DefaultInboundQueue` keeps
+  the claim in the new `StoredInboxClaim` model and takes a `clock=`.
+
+### Changed
+
+- **Breaking: `InboundQueue` gains `take(thread, run_id, *, request, lease)` and
+  `release(thread, run_id, *, request)`.** `take` claims or renews the thread's inbox for
+  the run and marks and returns the messages it has not taken yet, or nothing while
+  another run's claim is live; `release` drops the claim and untakes the run's unacked
+  messages. `pending` and `ack` are unchanged. A custom queue must implement both to
+  satisfy the protocol, and a `ModelInboundQueue` subclass must implement `_take` and
+  `_release`. `WakingInboundQueue` passes both through without waking anything.
+- **Migration `0006_inbox_claim`** adds the `StoredInboxClaim` table and a nullable
+  `taken_by` column on `StoredInboundMessage`. Run `migrate`. `InboundMessage` gains
+  `taken_by`, the run holding it, and `wake_thread` starts nothing for messages a run
+  holds, so a run that died holding them does not set off runs that take nothing.
+- **A `HeadlessRunner` composes a child's capabilities from `lineage` on every run of
+  its thread, the first included.** `ChildSessionsToolset.start_session` now passes the
+  runner `lineage=` alone and no `capabilities`: capabilities cannot cross a queue, so a
+  queued runner (django-ag-ui 0.80.0's `AGUIHeadlessRunner`) refused every child start.
+  The toolset still builds the spend budgets to refuse an exhausted start before it
+  starts. A runner that called `child_lineage_for` only on later runs must call it on
+  the first as well, or a child's first run has none of its parent's bounds, gates,
+  budgets or report. django-ag-ui 0.80.0's in-process runner is one: paired with this
+  release, a child it starts in process, and every child `wake_thread` wakes, runs on its
+  mount's full tools with no budgets and never reports. django-ag-ui 0.81.0 fixes it: it
+  composes on every run, honours `answers=` and `user_joined`, wakes a thread after each
+  `RunStore.finish`, and requires this release; upgrade the two together.
+
 ## [0.20.1] — 2026-11-18
 
 A patch release: a child's report reaches its parent under `pydantic-ai-harness` 0.70,
@@ -1277,7 +1389,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/Artui/django-spec-agents/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/Artui/django-spec-agents/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/django-spec-agents/compare/v0.18.0...v0.19.0

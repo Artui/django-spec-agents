@@ -18,6 +18,7 @@ from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.scoped_conversation_store import ScopedConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
+from django_spec_agents.persistence.types.run_end_reason import RunEndReason
 from django_spec_agents.persistence.types.run_outcome import RunOutcome
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
@@ -96,6 +97,17 @@ async def test_it_lists_a_parents_children_across_scopes_oldest_first(
         ChildSession(ThreadRef("c2", "writer"), ThreadRunStatus.WAITING, _WAITING),
         ChildSession(ThreadRef("c3"), _IDLE),
     ]
+
+
+async def test_a_child_whose_run_ended_early_carries_why(
+    index: DefaultChildSessionIndex, runs: DefaultRunStore
+) -> None:
+    await _save("c1", _PARENT, scope="research")
+    await _run(runs, "c1", RunOutcome.TIMED_OUT)
+
+    [child] = await index.children(_PARENT, request=authed_request())
+
+    assert (child.status, child.reason) == (_IDLE, RunEndReason.TIMED_OUT)
 
 
 async def test_it_skips_other_parents_and_the_same_thread_id_in_another_scope(

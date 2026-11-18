@@ -46,7 +46,7 @@ class DefaultChildSessionIndex:
             if state is None:
                 sessions.append(ChildSession(thread, ThreadRunStatus.IDLE))
             else:
-                sessions.append(ChildSession(thread, state.status, state.waiting))
+                sessions.append(ChildSession(thread, state.status, state.waiting, state.reason))
         return sessions
 
 

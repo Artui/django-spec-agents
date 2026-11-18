@@ -570,6 +570,14 @@ seen at commit, so one can become visible behind a higher id already read, and
 `pending(after=n)` used as a cursor can miss it. A reader that must see every
 message calls `pending` without `after` and acks what it read.
 
+A run reads its thread's queue through a claim instead. `take(thread, run_id,
+lease=...)` claims the thread's inbox for that run, or renews its claim, and marks
+and returns the messages the run has not taken yet; while another run's claim is
+live it returns nothing. `release(thread, run_id)` drops the claim and untakes the
+run's unacked messages, so the next run takes them. A claim whose lease lapsed, its
+run having died, is taken over, with the messages that run took and never acked.
+`pending` still lists every unacked message, taken or not.
+
 ```python
 from django_spec_agents import InboundKind
 from django_spec_agents.contrib.store.default_inbound_queue import DefaultInboundQueue
@@ -588,8 +596,11 @@ await queue.ack(ThreadRef("t1", scope="a"), [m.id for m in messages], request=re
 
 `DefaultInboundQueue` keeps the queue in `StoredInboundMessage` rows, added by
 the store app's `0004_child_sessions` migration with the two parent columns on
-`StoredConversation`; `ModelInboundQueue` is the base for a queue over a model
-of your own.
+`StoredConversation`. A run's claim is a `StoredInboxClaim` row, one per owner,
+scope and thread, and a message's `taken_by` names the run that took it; both
+come with the `0006_inbox_claim` migration. `ModelInboundQueue` is the base for a
+queue over a model of your own: it implements `_take` and `_release` beside
+`_enqueue`, `_pending` and `_ack`.
 
 ## Per-user memory
 

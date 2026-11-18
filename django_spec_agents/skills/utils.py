@@ -16,6 +16,7 @@ from django_spec_agents.skills.types.max_skill_description_length import (
 )
 from django_spec_agents.skills.types.max_skill_name_length import MAX_SKILL_NAME_LENGTH
 from django_spec_agents.skills.types.max_visible_skills import MAX_VISIBLE_SKILLS
+from django_spec_agents.skills.types.reserved_skill_names import ReservedSkillNames
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
 from django_spec_agents.skills.types.skill_t import SkillT
@@ -54,6 +55,14 @@ def clean_draft(draft: SkillDraft) -> SkillDraft:
     if len(cleaned.body) > MAX_SKILL_BODY_LENGTH:
         raise InvalidSkillError(f"A skill body is at most {MAX_SKILL_BODY_LENGTH} characters.")
     return cleaned
+
+
+def require_unreserved(policy: SkillPolicy[SkillT], request: HttpRequest, name: str) -> None:
+    """Raise `InvalidSkillError` when `policy` reserves `name` through `ReservedSkillNames`."""
+    if isinstance(policy, ReservedSkillNames) and name in policy.reserved_names(request):
+        raise InvalidSkillError(
+            f"The skill name {name!r} is taken by a built-in skill; choose another name."
+        )
 
 
 def require_write(policy: SkillPolicy[SkillT], request: HttpRequest, skill: SkillT) -> None:
