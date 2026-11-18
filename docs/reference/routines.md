@@ -1,8 +1,8 @@
 # Routines
 
 The routine model, its policy, the schedule vocabulary and the functions over them. See
-[Routines](../routines.md) for the narrative. Everything here imports from
-`django_spec_agents.routines`.
+[Routines](../routines.md) for the narrative. Everything here but `run_agent_spec` imports
+from `django_spec_agents.routines`.
 
 ## `AbstractRoutine`
 
@@ -67,6 +67,21 @@ The routine model, its policy, the schedule vocabulary and the functions over th
 ## `preapproved_exempt`
 
 ::: django_spec_agents.routines.preapproved_exempt
+
+## `run_agent_spec`
+
+Needs the `[specs]` extra, so it is imported from its module,
+`django_spec_agents.routines.run_agent_spec`, never from the package.
+
+::: django_spec_agents.routines.run_agent_spec.run_agent_spec
+
+## `RoutineFiring`
+
+::: django_spec_agents.routines.RoutineFiring
+
+## `ROUTINE_GRANT_KEY`
+
+::: django_spec_agents.routines.ROUTINE_GRANT_KEY
 
 ## `InvalidRoutineError`
 

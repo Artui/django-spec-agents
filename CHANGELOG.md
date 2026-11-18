@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `interrupted`), which `DefaultChildSessionIndex` fills from the run store. A child's
   history is not read while it runs, as upstream's `check_task` shows only the status
   of a durable task. A thread that is not this conversation's child is refused.
+- **`run_agent_spec(model, runner, *, timeout)`: the kernel spec a routine's firing runs.**
+  It takes the sweep's `{"routine_id", "thread_id"}` (`RoutineFiring`), runs the routine's
+  prompt on its agent as its principal into that thread through the `HeadlessRunner`,
+  within the required `timeout`, and presents the `RunStop` at the run's first stop, so a
+  parked firing ends `SUCCEEDED` with outcome `waiting`. Its permission check refuses a
+  missing routine, a caller who is not the routine's principal and a routine the policy's
+  `can_run` refuses, at enqueue and on the worker. The run approves the routine's
+  pre-approved tools in the run through `GrantedApprovals`, marked `routine:<pk>`, leaving
+  the kernel's authorization in place; records the grant on its first request under
+  `ROUTINE_GRANT_KEY`; and offers no `create_routine` or `update_routine`. It declares
+  `atomic=False` and `idempotent=False`. It needs the `[specs]` extra, so it is imported
+  from `django_spec_agents.routines.run_agent_spec`.
 
 ### Changed
 
