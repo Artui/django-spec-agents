@@ -9,6 +9,7 @@ from django_spec_agents.skills.types.skill_t import SkillT
 from django_spec_agents.skills.utils import (
     apply_draft,
     clean_draft,
+    require_unflagged,
     require_unreserved,
     require_write,
     write_skill,
@@ -24,9 +25,11 @@ def update_skill(
     both touching a skill and a change to it. Raises `InvalidSkillError` for a broken rule and
     `SkillWriteRefusedError` when the policy refuses; a refused update leaves both the row and
     `skill` as they were. A rename to a name the policy reserves through `ReservedSkillNames`
-    is an `InvalidSkillError`; a skill keeping a name reserved since it was stored is not.
+    is an `InvalidSkillError`; a skill keeping a name reserved since it was stored is not. So is
+    a description or body the policy's `SkillScanning` scanner flags; the stored row is not scanned.
     """
     cleaned = clean_draft(draft)
+    require_unflagged(policy, cleaned)
     if cleaned.name != skill.name:
         require_unreserved(policy, request, cleaned.name)
     require_write(policy, request, skill)

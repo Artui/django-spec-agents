@@ -60,7 +60,7 @@ async def test_a_runner_with_the_three_methods_satisfies_it() -> None:
     assert await runner.start("a", "hi", object(), timeout=60.0) == HeadlessStart(
         thread_id="t1", run_id="r1"
     )
-    assert (await runner.run_to_first_stop("a", "hi", object(), timeout=60.0)).waiting is None
+    assert (await runner.run_to_first_stop("a", "hi", object(), timeout=60.0)).waiting == ()
     assert await runner.cancel("t1", object())
 
 

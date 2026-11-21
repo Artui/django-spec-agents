@@ -9,6 +9,7 @@ from django_spec_agents.skills.utils import (
     apply_draft,
     clean_draft,
     require_room,
+    require_unflagged,
     require_unreserved,
     write_skill,
 )
@@ -19,9 +20,11 @@ def create_skill(policy: SkillPolicy[SkillT], request: HttpRequest, draft: Skill
 
     Raises `InvalidSkillError` for a broken rule, `SkillLimitError` when the caller already sees
     `MAX_VISIBLE_SKILLS` enabled skills, and `SkillWriteRefusedError` when the policy refuses.
-    A name the policy reserves through `ReservedSkillNames` is an `InvalidSkillError`.
+    A name the policy reserves through `ReservedSkillNames`, and a description or body its
+    `SkillScanning` scanner flags, are an `InvalidSkillError`.
     """
     cleaned = clean_draft(draft)
+    require_unflagged(policy, cleaned)
     require_unreserved(policy, request, cleaned.name)
     require_room(policy, request)
     skill = policy.new_skill(request)

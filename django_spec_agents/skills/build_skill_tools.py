@@ -20,6 +20,7 @@ from django_spec_agents.skills.skill_write_refused_error import SkillWriteRefuse
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
 from django_spec_agents.skills.update_skill import update_skill
+from django_spec_agents.skills.utils import scan_skill
 from django_spec_agents.types.destructive_metadata_key import DESTRUCTIVE_METADATA_KEY
 
 _GATED = {DESTRUCTIVE_METADATA_KEY: True}
@@ -109,6 +110,7 @@ def _listing(policy: SkillPolicy[Any], request: HttpRequest) -> list[dict[str, A
             "writable": policy.can_write(request, skill),
         }
         for skill in list_visible_skills(policy, request)
+        if scan_skill(policy, skill.name, skill.description, skill.body) is None
     ]
 
 

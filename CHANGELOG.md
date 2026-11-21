@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-11-21
+
+### Added
+
+- **`SkillScanning`: an opt-in content scanner on a `SkillPolicy`.** A policy with a
+  `scanner` attribute, such as `pydantic-ai-harness`'s `ArtifactScanner` (the `[harness]`
+  extra), has `create_skill`, `update_skill` and `import_skill_md` refuse a description or
+  body the scanner flags with `InvalidSkillError` naming the field, and has `StoredSkills`
+  and the `list_skills` tool leave out a stored row it flags. `SkillScanner` and
+  `SkillScanResult` give the shape a scanner of your own needs. A policy without a scanner
+  behaves as before, and the package imports nothing of the harness itself.
+
+### Changed
+
+- **Breaking: `waiting` is a tuple of every call a parked run waits on.** A thread parked
+  on several deferred calls recorded and served one; it now records them all.
+  `ThreadRunState.waiting`, `RunStop.waiting` and `ChildSession.waiting` are
+  `tuple[RunWaiting, ...]`, empty when the thread is not waiting, where they were
+  `RunWaiting | None`; `RunStore.finish` takes `waiting=` as that tuple, `()` by default.
+  `finish` and `RunStop` raise `ValueError` unless `waiting` is non-empty exactly when the
+  outcome is `WAITING`. A transport passes `(build_run_waiting(...),)` for one call, and
+  reads `state.waiting` as a sequence (`not state.waiting` for "not waiting"). A store of
+  your own changes `finish` to match.
+- **`wake_thread` resumes a child parked on several questions** once an `ANSWER` is
+  pending for each, mapping the waiting calls, in order, to the oldest answers. A thread
+  waiting on any approval, or on more questions than there are answers, starts nothing.
+  It pairs the answers under a claim on the inbox (`take`, then `release`), so of two
+  wakes racing on one park, as a parent answering both questions at once makes, only one
+  pairs and acks them; a wake that finds the inbox claimed starts nothing.
+- **Breaking on the wire: a presented stop's `waiting` is an array.** `run_headless` and a
+  routine firing present `waiting` as `[]` where they presented `null`, and as a list of
+  calls where they presented one object. A result stored before 0.24.0, such as a job
+  queue's record of a firing, keeps the old shape; nothing here rewrites it.
+- **The `0008_waiting_calls` migration** rewrites a stored single call in
+  `StoredThreadRun.waiting` and `prior_waiting` as a one-element list; unapplying it keeps
+  each list's first call.
+- **The `[specs]` extra needs django-service-specs 0.34.2**, whose dataclass presenter maps
+  `tuple[X, ...]` as an array; below it `run_headless` refuses every stop, because
+  `RunStop.waiting` is a tuple.
+
 ## [0.23.0] — 2026-11-18
 
 ### Added
@@ -1459,7 +1499,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/Artui/django-spec-agents/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/Artui/django-spec-agents/compare/v0.20.1...v0.21.0

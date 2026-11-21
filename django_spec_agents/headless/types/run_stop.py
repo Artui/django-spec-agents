@@ -10,17 +10,18 @@ from django_spec_agents.persistence.types.run_waiting import RunWaiting
 class RunStop:
     """Where a headless run first stopped: it ended, or it parked on a deferred call.
 
-    ``waiting`` is set exactly when ``outcome`` is ``RunOutcome.WAITING``.
+    ``waiting`` holds every call it parked on, non-empty exactly when ``outcome`` is
+    ``RunOutcome.WAITING``.
     """
 
     thread_id: str
     run_id: str
     outcome: RunOutcome
-    waiting: RunWaiting | None = None
+    waiting: tuple[RunWaiting, ...] = ()
 
     def __post_init__(self) -> None:
-        if (self.outcome is RunOutcome.WAITING) != (self.waiting is not None):
-            raise ValueError("waiting is given exactly when the outcome is WAITING")
+        if (self.outcome is RunOutcome.WAITING) != bool(self.waiting):
+            raise ValueError("waiting is non-empty exactly when the outcome is WAITING")
 
 
 __all__ = ["RunStop"]

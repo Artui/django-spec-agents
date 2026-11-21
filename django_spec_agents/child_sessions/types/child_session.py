@@ -13,12 +13,12 @@ class ChildSession:
     """A child session as its parent sees it: the child's thread and where its runs stand.
 
     A child is live while it runs or waits, since a parked child still holds its slot;
-    ``reason`` says why its last run ended early: timed out, raised or interrupted.
+    ``waiting`` holds the calls it parked on; ``reason`` says why its last run ended early.
     """
 
     thread: ThreadRef
     status: ThreadRunStatus
-    waiting: RunWaiting | None = None
+    waiting: tuple[RunWaiting, ...] = ()
     reason: RunEndReason | None = None
 
     @property

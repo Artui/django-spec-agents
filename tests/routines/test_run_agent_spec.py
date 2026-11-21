@@ -109,7 +109,7 @@ def test_a_firing_runs_the_routines_prompt_as_its_principal_into_the_sweeps_thre
         "thread_id": "t-sweep",
         "run_id": "r1",
         "outcome": "completed",
-        "waiting": None,
+        "waiting": [],
     }
     [call] = runner.calls
     assert (call.agent_id, call.prompt, call.timeout, call.thread_id) == (
@@ -134,7 +134,7 @@ def test_an_unlisted_gated_call_parks_and_the_firing_ends_succeeded_waiting(
     row = worker.rows[run_id]
     assert row.state == "SUCCEEDED"
     assert row.output["outcome"] == "waiting"
-    assert row.output["waiting"]["summary"] == "delete_order"
+    assert row.output["waiting"][0]["summary"] == "delete_order"
     assert worker.state(run_id) is FiringState.FINISHED
     assert ran == []
 

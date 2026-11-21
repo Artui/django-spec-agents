@@ -30,7 +30,9 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 _LEASE = timedelta(minutes=5)
 _PARENT = ThreadRef("p1", "main")
-_WAITING = RunWaiting(kind="approval", summary="delete_thing", tool_call_id="c1", destructive=True)
+_WAITING = (
+    RunWaiting(kind="approval", summary="delete_thing", tool_call_id="c1", destructive=True),
+)
 _RUNNING, _IDLE = ThreadRunStatus.RUNNING, ThreadRunStatus.IDLE
 
 
@@ -73,7 +75,7 @@ async def _run(
     request = authed_request(pk)
     await runs.claim(thread_id, f"run-{thread_id}", request=request, lease=_LEASE)
     if outcome is not None:
-        waiting = _WAITING if outcome is RunOutcome.WAITING else None
+        waiting = _WAITING if outcome is RunOutcome.WAITING else ()
         await runs.finish(thread_id, f"run-{thread_id}", outcome, request=request, waiting=waiting)
 
 
