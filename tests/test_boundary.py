@@ -115,6 +115,7 @@ def test_the_opt_in_app_loads_skills_and_checks_and_nothing_an_extra_installs() 
     assert {"django_spec_agents.skills", "django_spec_agents.checks"} <= modules
     loaded = sorted(p for p in NOT_FROM_THE_ROOT if any(_is_or_under(m, p) for m in modules))
     assert loaded == []
+    assert not any(_is_or_under(m, "pydantic_ai_harness") for m in modules)
 
 
 @pytest.mark.skipif(

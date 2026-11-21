@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`SkillScanning`: an opt-in content scanner on a `SkillPolicy`.** A policy with a
+  `scanner` attribute, such as `pydantic-ai-harness`'s `ArtifactScanner` (the `[harness]`
+  extra), has `create_skill`, `update_skill` and `import_skill_md` refuse a description or
+  body the scanner flags with `InvalidSkillError` naming the field, and has `StoredSkills`
+  and the `list_skills` tool leave out a stored row it flags. `SkillScanner` and
+  `SkillScanResult` give the shape a scanner of your own needs. A policy without a scanner
+  behaves as before, and the package imports nothing of the harness itself.
+
 ## [0.23.0] — 2026-11-18
 
 ### Added

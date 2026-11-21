@@ -16,6 +16,18 @@ The stored-skill model, its policy and the functions over them. See
 
 ::: django_spec_agents.skills.ReservedSkillNames
 
+## `SkillScanning`
+
+::: django_spec_agents.skills.SkillScanning
+
+## `SkillScanner`
+
+::: django_spec_agents.skills.SkillScanner
+
+## `SkillScanResult`
+
+::: django_spec_agents.skills.SkillScanResult
+
 ## `SkillDraft`
 
 ::: django_spec_agents.skills.SkillDraft

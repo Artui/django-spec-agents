@@ -21,6 +21,9 @@ from django_spec_agents.skills.types.max_visible_skills import MAX_VISIBLE_SKILL
 from django_spec_agents.skills.types.reserved_skill_names import ReservedSkillNames
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
+from django_spec_agents.skills.types.skill_scan_result import SkillScanResult
+from django_spec_agents.skills.types.skill_scanner import SkillScanner
+from django_spec_agents.skills.types.skill_scanning import SkillScanning
 from django_spec_agents.skills.update_skill import update_skill
 
 __all__ = [
@@ -34,6 +37,9 @@ __all__ = [
     "SkillDraft",
     "SkillLimitError",
     "SkillPolicy",
+    "SkillScanResult",
+    "SkillScanner",
+    "SkillScanning",
     "SkillWriteRefusedError",
     "StoredSkills",
     "build_skill_tools",

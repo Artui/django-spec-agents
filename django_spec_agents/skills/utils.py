@@ -19,6 +19,7 @@ from django_spec_agents.skills.types.max_visible_skills import MAX_VISIBLE_SKILL
 from django_spec_agents.skills.types.reserved_skill_names import ReservedSkillNames
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
+from django_spec_agents.skills.types.skill_scanning import SkillScanning
 from django_spec_agents.skills.types.skill_t import SkillT
 
 _KEBAB_CASE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -67,6 +68,30 @@ def require_unreserved(policy: SkillPolicy[SkillT], request: HttpRequest, name: 
         raise InvalidSkillError(
             f"The skill name {name!r} is taken by a built-in skill; choose another name.",
             field="name",
+        )
+
+
+def scan_skill(
+    policy: SkillPolicy[SkillT], name: str, description: str, body: str
+) -> tuple[str, str] | None:
+    """The first field the policy's `SkillScanning` scanner flags and its summary, or `None`."""
+    scanner = policy.scanner if isinstance(policy, SkillScanning) else None
+    if scanner is None:
+        return None
+    for field, text in (("description", description), ("body", body)):
+        result = scanner.scan(text, source=f"skill:{name}:{field}")
+        if result.flagged:
+            return field, result.summary()
+    return None
+
+
+def require_unflagged(policy: SkillPolicy[SkillT], draft: SkillDraft) -> None:
+    """Raise `InvalidSkillError` naming the field when the policy's scanner flags `draft`."""
+    flagged = scan_skill(policy, draft.name, draft.description, draft.body)
+    if flagged is not None:
+        field, summary = flagged
+        raise InvalidSkillError(
+            f"The skill {field} was refused by the content scanner: {summary}.", field=field
         )
 
 

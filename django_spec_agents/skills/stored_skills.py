@@ -16,6 +16,7 @@ from django_spec_agents.skills.skill_capability import SkillCapability
 from django_spec_agents.skills.types.create_skill_name import CREATE_SKILL_NAME
 from django_spec_agents.skills.types.skill_draft import SkillDraft
 from django_spec_agents.skills.types.skill_policy import SkillPolicy
+from django_spec_agents.skills.utils import scan_skill
 
 
 class StoredSkills(AbstractCapability[Any]):
@@ -31,7 +32,7 @@ class StoredSkills(AbstractCapability[Any]):
         self.authoring = authoring
 
     async def for_run(self, ctx: RunContext[Any]) -> AbstractCapability[Any]:
-        """One deferred capability per enabled, model-invocable skill, plus authoring if asked."""
+        """One deferred capability per enabled, model-invocable, unflagged skill, plus authoring."""
         skills = await sync_to_async(list_visible_skills, thread_sensitive=True)(
             self.policy, self.request
         )
@@ -39,6 +40,7 @@ class StoredSkills(AbstractCapability[Any]):
             SkillCapability(skill.name, skill.description, skill.body)
             for skill in skills
             if skill.model_invocable
+            and scan_skill(self.policy, skill.name, skill.description, skill.body) is None
         ]
         if self.authoring:
             if all(skill.name != CREATE_SKILL_NAME for skill in skills):

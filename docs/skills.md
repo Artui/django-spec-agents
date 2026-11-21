@@ -96,6 +96,44 @@ it the same way. A skill that already holds a name reserved since it was stored 
 be edited. A policy without the method reserves nothing, and the bundled `create-skill`
 is never reserved, so a stored skill may shadow it.
 
+### Scanning what users write
+
+A skill's description and body are text a user wrote that reaches the model. To check
+them for prompt injection, credential exfiltration, hidden HTML comments and invisible
+characters, give the policy a `scanner` attribute holding `pydantic-ai-harness`'s
+`ArtifactScanner`. A policy that has it satisfies `SkillScanning`:
+
+```python
+from pydantic_ai_harness import ArtifactScanner
+
+
+class TenantSkillPolicy:
+    scanner = ArtifactScanner()
+    ...
+```
+
+The scanner comes with the `[harness]` extra (`pip install "django-spec-agents[harness]"`).
+The package never imports it itself: your policy does, so an install without the extra
+loads nothing of the harness. Any object with the same `scan(content, *, source)` method,
+`SkillScanner`, works in its place, such as an `ArtifactScanner` with `extra_patterns`.
+
+With a scanner set:
+
+- `create_skill`, `update_skill` and `import_skill_md` scan the cleaned description and
+  body, and raise `InvalidSkillError` with `field` set to the first one flagged. The
+  message names the threats and patterns found, never the flagged text, so the skill
+  tools can send it back to the model to retry. A refused update leaves the row and the
+  instance as they were. An update scans the new draft, not the row as stored, so it can
+  repair a flagged row.
+- A stored row the scanner flags is left out of what `StoredSkills` offers a run and of
+  what the `list_skills` tool lists. That covers rows written before the scanner was set,
+  or under older patterns. It still holds its name, so the company skill of the same name
+  is not offered in its place, and the bundled `create-skill` stays hidden behind a
+  flagged stored `create-skill`. `list_visible_skills` and `resolve_skill` still return
+  it, so an editor shows it and `update_skill` or `disable_skill` can fix it.
+
+A policy without the attribute, or with `scanner = None`, scans nothing.
+
 ## Reading and writing
 
 Every function takes the policy and the request:
