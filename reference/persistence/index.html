@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -5870,7 +5870,7 @@ written.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">outcome</span><span class="p">:</span> <span class="n">RunOutcome</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">waiting</span><span class="p">:</span> <span class="n">RunWaiting</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">waiting</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RunWaiting</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
@@ -6398,7 +6398,7 @@ a win, the run that kept it on a loss, so a transport's 409 can name it.</p>
 
 
 
-        <p>What a parked run waits on: one deferred call a person has to answer.</p>
+        <p>One deferred call a parked run waits on, which a person has to answer.</p>
 <p><code>kind</code> is upstream's <code>DeferredToolKind</code>: <code>approval</code>, <code>question</code> (a tool
 that deferred with <code>CallDeferred(kind="question")</code>) or <code>external</code> (a client
 tool for a detached browser run);
@@ -6497,6 +6497,7 @@ its lease lapses.
 <code>last_run_id</code> outlives it: a parked run's id is what a resume answers
 to, while the resumed run claims a fresh id. A <code>running</code> thread whose
 lease has lapsed reads as <code>failed</code> with reason <code>interrupted</code>.
+<code>waiting</code> holds every call a parked run waits on, empty otherwise.
 <code>cancel_requested</code> is set by a cancel the run's owner has yet to act on.
 <code>last_read_at</code> is when a reader last marked the thread read, <code>None</code> if
 never.</p>
@@ -6942,7 +6943,8 @@ for its thread once, which starts or resumes it when messages are still queued.<
 
 
         <p>Where a headless run first stopped: it ended, or it parked on a deferred call.</p>
-<p><code>waiting</code> is set exactly when <code>outcome</code> is <code>RunOutcome.WAITING</code>.</p>
+<p><code>waiting</code> holds every call it parked on, non-empty exactly when <code>outcome</code> is
+<code>RunOutcome.WAITING</code>.</p>
 
 
 
@@ -8493,7 +8495,7 @@ store gives back rather than measuring it.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

@@ -2,106 +2,106 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://artui.github.io/django-spec-agents/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/child-sessions/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/concepts/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/integrations/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/moving/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/policy/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/routines/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/runs/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/skills/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/storage/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/tools/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/agent/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/child-sessions/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/integrations/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/persistence/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/policy/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/registry/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/routines/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/reference/skills/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/spec-tools/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/spec-tools/agent-audience/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/spec-tools/background-runs/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/spec-tools/quickstart/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/spec-tools/reference/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/django-spec-agents/spec-tools/spec-registry/</loc>
-         <lastmod>2026-11-18</lastmod>
+         <lastmod>2026-11-21</lastmod>
     </url>
 </urlset>

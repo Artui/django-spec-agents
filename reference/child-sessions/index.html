@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3092,12 +3092,14 @@ signed-in user in <code>call_context["request"]</code> reads nothing.</p>
 <p>Call it after enqueueing for <code>thread</code>, and the runner after each run ends. By the
 thread's state in <code>runs</code>: running, it does nothing, since the run reads the queue at
 its next model request, or, for one that lands after its last read, the runner's wake
-once it ends; waiting on a
-question with an <code>ANSWER</code> pending, it resumes the parked call, starting the run with
-<code>answers=</code> mapping the waiting call's id to the oldest answer's text. It acks that
-message first, so the resumed run's drain does not hand it on again, and starts nothing
-when the ack removes nothing, since another wake took it; a start that fails enqueues the
-answer again. Waiting on anything else, it does nothing, since a
+once it ends; waiting on questions only, with an <code>ANSWER</code> pending for each, it resumes
+the parked calls, starting the run with <code>answers=</code> mapping each waiting call's id, in
+order, to the oldest answers' texts. It pairs them under a claim on the inbox (<code>take</code>,
+then <code>release</code>), so of two wakes racing on one park only one pairs and acks the
+answers, and acks them before starting, so the resumed run's drain does not hand them
+on again; a wake that finds the inbox claimed starts nothing, and a start that fails
+enqueues the answers again, in order. Waiting on
+anything else, or on more questions than there are answers, it does nothing, since a
 second run must not start before the resume, which reads the queue; idle, failed or never
 run, with messages pending, it starts one run on the thread's scope as <code>request.user</code>,
 with <code>prompt</code> as its new message (by default a line saying messages arrived), and
@@ -3347,7 +3349,7 @@ child's thread here after a reload.</p>
 
         <p>A child session as its parent sees it: the child's thread and where its runs stand.</p>
 <p>A child is live while it runs or waits, since a parked child still holds its slot;
-<code>reason</code> says why its last run ended early: timed out, raised or interrupted.</p>
+<code>waiting</code> holds the calls it parked on; <code>reason</code> says why its last run ended early.</p>
 
 
 
@@ -3677,7 +3679,7 @@ worker shares, never an in-memory store. <code>None</code> for a budget counts a
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

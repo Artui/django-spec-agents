@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -2436,7 +2436,7 @@ method names only, so a store of your own that defines <code>release</code> must
 </tr>
 <tr>
 <td><code>waiting</code></td>
-<td><code>waiting</code>, with the <code>RunWaiting</code> it parked on</td>
+<td><code>waiting</code>, with a <code>RunWaiting</code> for each call it parked on</td>
 <td></td>
 </tr>
 <tr>
@@ -2459,11 +2459,18 @@ method names only, so a store of your own that defines <code>release</code> must
 <p>A thread still <code>running</code> after its lease lapses, as after a restart, reads as
 <code>failed</code> with reason <code>interrupted</code>. The run's id stays on the thread as
 <code>last_run_id</code> after it ends: a parked run's id is what a resume answers to.</p>
-<p>A transport builds the <code>RunWaiting</code> with <code>build_run_waiting(requests, tool_call_id,
-summary=..., destructive=...)</code>, which reads <code>kind</code> from the run's <code>DeferredToolRequests</code>:
-<code>approval</code>, <code>question</code> for a tool that deferred with <code>CallDeferred(kind="question")</code>, or
-<code>external</code>. These are upstream's <code>DeferredToolKind</code> values, so a row stored before <code>kind</code>
-was typed loads unchanged.</p>
+<p><code>waiting</code> is a tuple everywhere it is carried: on <code>ThreadRunState</code>, <code>finish</code>, <code>RunStop</code>
+and <code>ChildSession</code>. It holds one <code>RunWaiting</code> for each deferred call the run parked on,
+in the order the run deferred them, and is empty when the thread is not waiting. <code>finish</code>
+and <code>RunStop</code> take a non-empty <code>waiting</code> exactly when the outcome is <code>waiting</code>, and raise
+<code>ValueError</code> otherwise. The <code>0008_waiting_calls</code> migration rewrites a stored single call,
+in <code>waiting</code> and <code>prior_waiting</code>, as a one-element list; unapplied, it keeps each list's
+first call.</p>
+<p>A transport builds one <code>RunWaiting</code> per deferred call with <code>build_run_waiting(requests,
+tool_call_id, summary=..., destructive=...)</code>, which reads <code>kind</code> from the run's
+<code>DeferredToolRequests</code>: <code>approval</code>, <code>question</code> for a tool that deferred with
+<code>CallDeferred(kind="question")</code>, or <code>external</code>. These are upstream's <code>DeferredToolKind</code>
+values, so a row stored before <code>kind</code> was typed loads unchanged.</p>
 <p><strong>Run ids are single-use per owner.</strong> The resumed run, like a retried one,
 claims the thread under a fresh id; <code>claim</code> refuses an id its owner has claimed
 before with <code>RunIdReusedError</code>, writing nothing, so a transport can answer it as
@@ -2764,7 +2771,7 @@ so a host can build one. Do that before turning memory on for real users.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

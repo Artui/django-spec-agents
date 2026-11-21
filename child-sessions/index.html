@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -1839,12 +1839,12 @@ stand in the <code>RunStore</code>:</p>
 <td>at the run's next model request; after its last one, by the wake its runner makes once it ends</td>
 </tr>
 <tr>
-<td>waiting on a question, with an <code>ANSWER</code> pending</td>
-<td>resumes the parked call with that answer</td>
-<td>the answer as the call's result; the rest by the resumed run</td>
+<td>waiting on questions only, with an <code>ANSWER</code> pending for each</td>
+<td>resumes the parked calls with those answers</td>
+<td>each answer as its call's result; the rest by the resumed run</td>
 </tr>
 <tr>
-<td>waiting, on an approval, or on a question with no answer pending</td>
+<td>waiting on any approval, or on more questions than there are answers pending</td>
 <td>starts nothing</td>
 <td>by the resumed run, at its first request</td>
 </tr>
@@ -1861,14 +1861,18 @@ stand in the <code>RunStore</code>:</p>
 </tbody>
 </table>
 <p>A child parked on <code>ask_parent</code> resumes when its parent answers. <code>wake_thread</code> takes the
-oldest <code>ANSWER</code> in the child's queue and starts the run with
-<code>answers={tool_call_id: text}</code>, the waiting call's id from the <code>RunStore</code> mapped to the
-answer's text. The runner resumes the child's stored history with
+oldest <code>ANSWER</code>s in the child's queue, one for each waiting call, and starts the run with
+<code>answers={tool_call_id: text, ...}</code>, each waiting call's id from the <code>RunStore</code>, in the
+order the run deferred them, mapped to the next answer's text. An answer names no call,
+so a child parked on two questions takes its parent's answers in the order they were
+sent; with fewer answers than questions it waits for the rest. The runner resumes the child's stored history with
 <code>DeferredToolResults(calls=answers)</code> and sends no new prompt, so the answer reaches the
-model as <code>ask_parent</code>'s result. The <code>ANSWER</code> is acked before the start, so the resumed
-run does not read it a second time as plain text; a wake whose ack removes nothing starts
-nothing, since another wake took the answer, and a start that fails enqueues the answer
-again for the next wake. The resumed run reads whatever else is queued, as any run does.
+model as <code>ask_parent</code>'s result. The wake pairs the answers while it holds a claim on the
+child's inbox (<code>take</code>, then <code>release</code>), so when two wakes race on one park, as a parent
+answering both questions in one response makes them, only one pairs and acks the answers;
+a wake that finds the inbox claimed starts nothing. The <code>ANSWER</code>s are acked before the
+start, so the resumed run does not read them a second time as plain text, and a start
+that fails enqueues the answers again, in order, for the next wake. The resumed run reads whatever else is queued, as any run does.
 An answer can also arrive while the child's run is still going, before it parks on the
 question; the runner calls <code>wake_thread</code> once after recording such a park, so that answer
 resumes it too.</p>
@@ -1968,7 +1972,7 @@ thread's next run.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

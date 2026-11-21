@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -626,6 +626,17 @@
     <span class="md-ellipsis">
       
         Reserving the names of code-registered skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scanning-what-users-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scanning what users write
       
     </span>
   </a>
@@ -1381,6 +1392,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#scanning-what-users-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scanning what users write
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1566,13 +1588,45 @@ policy that has it satisfies <code>ReservedSkillNames</code>:</p>
 it the same way. A skill that already holds a name reserved since it was stored can still
 be edited. A policy without the method reserves nothing, and the bundled <code>create-skill</code>
 is never reserved, so a stored skill may shadow it.</p>
+<h3 id="scanning-what-users-write">Scanning what users write<a class="headerlink" href="#scanning-what-users-write" title="Permanent link">&para;</a></h3>
+<p>A skill's description and body are text a user wrote that reaches the model. To check
+them for prompt injection, credential exfiltration, hidden HTML comments and invisible
+characters, give the policy a <code>scanner</code> attribute holding <code>pydantic-ai-harness</code>'s
+<code>ArtifactScanner</code>. A policy that has it satisfies <code>SkillScanning</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArtifactScanner</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">TenantSkillPolicy</span><span class="p">:</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">scanner</span> <span class="o">=</span> <span class="n">ArtifactScanner</span><span class="p">()</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="o">...</span>
+</span></code></pre></div>
+<p>The scanner comes with the <code>[harness]</code> extra (<code>pip install "django-spec-agents[harness]"</code>).
+The package never imports it itself: your policy does, so an install without the extra
+loads nothing of the harness. Any object with the same <code>scan(content, *, source)</code> method,
+<code>SkillScanner</code>, works in its place, such as an <code>ArtifactScanner</code> with <code>extra_patterns</code>.</p>
+<p>With a scanner set:</p>
+<ul>
+<li><code>create_skill</code>, <code>update_skill</code> and <code>import_skill_md</code> scan the cleaned description and
+  body, and raise <code>InvalidSkillError</code> with <code>field</code> set to the first one flagged. The
+  message names the threats and patterns found, never the flagged text, so the skill
+  tools can send it back to the model to retry. A refused update leaves the row and the
+  instance as they were. An update scans the new draft, not the row as stored, so it can
+  repair a flagged row.</li>
+<li>A stored row the scanner flags is left out of what <code>StoredSkills</code> offers a run and of
+  what the <code>list_skills</code> tool lists. That covers rows written before the scanner was set,
+  or under older patterns. It still holds its name, so the company skill of the same name
+  is not offered in its place, and the bundled <code>create-skill</code> stays hidden behind a
+  flagged stored <code>create-skill</code>. <code>list_visible_skills</code> and <code>resolve_skill</code> still return
+  it, so an editor shows it and <code>update_skill</code> or <code>disable_skill</code> can fix it.</li>
+</ul>
+<p>A policy without the attribute, or with <code>scanner = None</code>, scans nothing.</p>
 <h2 id="reading-and-writing">Reading and writing<a class="headerlink" href="#reading-and-writing" title="Permanent link">&para;</a></h2>
 <p>Every function takes the policy and the request:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillDraft</span><span class="p">,</span> <span class="n">create_skill</span><span class="p">,</span> <span class="n">list_visible_skills</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">policy</span> <span class="o">=</span> <span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">()</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">create_skill</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">SkillDraft</span><span class="p">(</span><span class="s2">"triage"</span><span class="p">,</span> <span class="s2">"Sort the inbox."</span><span class="p">,</span> <span class="s2">"Read, then sort."</span><span class="p">))</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">list_visible_skills</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillDraft</span><span class="p">,</span> <span class="n">create_skill</span><span class="p">,</span> <span class="n">list_visible_skills</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">policy</span> <span class="o">=</span> <span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">()</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">create_skill</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">SkillDraft</span><span class="p">(</span><span class="s2">"triage"</span><span class="p">,</span> <span class="s2">"Sort the inbox."</span><span class="p">,</span> <span class="s2">"Read, then sort."</span><span class="p">))</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">list_visible_skills</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
 </span></code></pre></div>
 <ul>
 <li><code>list_visible_skills</code> returns the caller's enabled skills, one per name.
@@ -1614,9 +1668,9 @@ double-quoted. Any other field, such as <code>allowed-tools</code>, raises <code
 so does a multi-line value. Dropping either one silently would lose part of the file.</p>
 <h2 id="offering-stored-skills-to-the-agent">Offering stored skills to the agent<a class="headerlink" href="#offering-stored-skills-to-the-agent" title="Permanent link">&para;</a></h2>
 <p>Pass <code>StoredSkills</code> in the per-run <code>capabilities=</code>, built for the request the run serves:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoredSkills</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="p">[</span><span class="n">StoredSkills</span><span class="p">(</span><span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">authoring</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoredSkills</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="p">[</span><span class="n">StoredSkills</span><span class="p">(</span><span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">authoring</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
 </span></code></pre></div>
 <p>On every run it reads the caller's visible skills through the policy, and offers each
 enabled skill with <code>model_invocable</code> set as a deferred capability. The capability's id is
@@ -1676,11 +1730,11 @@ replaces the bundled one, by the same rule that lets a personal skill replace a 
 <p>No setting names your model. Your code holds it and passes <code>Skill.skill_policy()</code> to
 every function, and to a transport as a constructor argument. To have startup refuse a
 model with no policy, add the package's opt-in app to <code>INSTALLED_APPS</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>The app registers a Django system check that walks the app registry for every installed
 model subclassing <code>AbstractSkill</code>, so <code>manage.py check</code>, <code>runserver</code> and <code>migrate</code> fail
@@ -1762,7 +1816,7 @@ leaves the app out, and nothing changes for it.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>
