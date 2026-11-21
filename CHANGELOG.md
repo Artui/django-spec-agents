@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`wake_thread` acks a parked child's answers only after the run it resumes has
+  started.** It acked them before `runner.start`, so a cancellation or a process death
+  between the two lost them, and a cancelled start was not caught to enqueue them again.
+  It now holds its claim on the child's inbox across the start, which keeps the resumed
+  run's drain from taking the answers, and acks them once the start returns; a start that
+  fails, is cancelled or dies leaves them pending under their own ids, in order, for the
+  next wake. Two wakes racing on the same answers still start one run. An answer is no
+  longer enqueued again, so `wake_thread` no longer needs the inner queue rather than a
+  `WakingInboundQueue`.
+
 ## [0.24.0] — 2026-11-21
 
 ### Added

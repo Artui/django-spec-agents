@@ -225,23 +225,25 @@ async def test_a_child_waiting_on_its_question_resumes_with_the_answer_and_acks_
     assert [(m.id, m.body["text"]) for m in left] == [(steer, "Use March."), (later, "2000")]
 
 
-class _RunnerSeeingTheQueue(_Runner):
+class _RunnerTakingTheQueue(_Runner):
     async def start(self, agent_id: str, prompt: str, principal: Any, **kwargs: Any) -> Any:
         request = authed_request(str(principal.pk))
-        self.queued = await DefaultInboundQueue().pending(_CHILD, request=request)
+        queue = DefaultInboundQueue()
+        self.taken = await queue.take(_CHILD, "resumed", request=request, lease=_LEASE)
         return await super().start(agent_id, prompt, principal, **kwargs)
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_the_resumed_run_finds_its_answer_gone_from_the_queue() -> None:
+async def test_the_resumed_run_takes_no_answer_and_finds_it_acked_once_started() -> None:
     request = authed_request("7")
     runs = DefaultRunStore()
     await _park(runs, request, "question", "c1")
     await _send(request, InboundKind.ANSWER, "1999")
-    runner = _RunnerSeeingTheQueue(runs)
+    runner = _RunnerTakingTheQueue(runs)
 
     assert await _wake(runner, request, _CHILD) is not None
-    assert runner.queued == []
+    assert runner.taken == []
+    assert await DefaultInboundQueue().pending(_CHILD, request=request) == []
 
 
 @pytest.mark.django_db(transaction=True)
@@ -563,3 +565,84 @@ async def test_two_wakes_racing_on_two_answers_start_one_run_paired_in_order() -
     [start] = runner.starts
     assert start["answers"] == {"t-1": "1999", "t-2": "2000"}
     assert await DefaultInboundQueue().pending(_CHILD, request=request) == []
+
+
+class _RunnerPausedInStart(_Runner):
+    def __init__(self, runs: DefaultRunStore, release: asyncio.Event | None = None) -> None:
+        super().__init__(runs)
+        self.entered, self.release = asyncio.Event(), release or asyncio.Event()
+
+    async def start(self, agent_id: str, prompt: str, principal: Any, **kwargs: Any) -> Any:
+        self.entered.set()
+        await self.release.wait()
+        return await super().start(agent_id, prompt, principal, **kwargs)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_cancelled_inside_the_start_leaves_every_answer_pending() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park_on(runs, request, "c1", "question", "question")
+    sent = [
+        await _send(request, InboundKind.ANSWER, "1999"),
+        await _send(request, InboundKind.ANSWER, "2000"),
+    ]
+    runner = _RunnerPausedInStart(runs)
+    wake = asyncio.create_task(_wake(runner, request, _CHILD))
+    await asyncio.wait_for(runner.entered.wait(), timeout=5)
+
+    wake.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await wake
+
+    kept = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert [(m.id, m.body) for m in kept] == [
+        (sent[0], {"text": "1999"}),
+        (sent[1], {"text": "2000"}),
+    ]
+    retaken = await DefaultInboundQueue().take(_CHILD, "next", request=request, lease=_LEASE)
+    assert [m.id for m in retaken] == sent
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_second_wake_while_the_first_is_inside_its_start_starts_nothing() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    await _send(request, InboundKind.ANSWER, "1999")
+    release = asyncio.Event()
+    runner = _RunnerPausedInStart(runs, release)
+    first = asyncio.create_task(_wake(runner, request, _CHILD))
+    await asyncio.wait_for(runner.entered.wait(), timeout=5)
+    runner.entered.clear()
+
+    second = await _wake(runner, request, _CHILD)
+    release.set()
+
+    assert second is None
+    assert not runner.entered.is_set()
+    assert await asyncio.wait_for(first, timeout=5) is not None
+    [start] = runner.starts
+    assert start["answers"] == {"t-1": "1999"}
+    assert await DefaultInboundQueue().pending(_CHILD, request=request) == []
+
+
+class _RunnerBeatenToTheThread(_Runner):
+    async def start(self, agent_id: str, prompt: str, principal: Any, **kwargs: Any) -> Any:
+        request = authed_request(str(principal.pk))
+        await self.runs.claim(kwargs["thread_id"], "rival", request=request, lease=_LEASE)
+        return await super().start(agent_id, prompt, principal, **kwargs)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_resume_refused_because_another_run_holds_the_thread_acks_nothing() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    sent = await _send(request, InboundKind.ANSWER, "1999")
+    runner = _RunnerBeatenToTheThread(runs)
+
+    assert await _wake(runner, request, _CHILD) is None
+    assert runner.starts == []
+    [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert (kept.id, kept.taken_by) == (sent, None)

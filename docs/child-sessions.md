@@ -261,11 +261,16 @@ so a child parked on two questions takes its parent's answers in the order they 
 sent; with fewer answers than questions it waits for the rest. The runner resumes the child's stored history with
 `DeferredToolResults(calls=answers)` and sends no new prompt, so the answer reaches the
 model as `ask_parent`'s result. The wake pairs the answers while it holds a claim on the
-child's inbox (`take`, then `release`), so when two wakes race on one park, as a parent
-answering both questions in one response makes them, only one pairs and acks the answers;
-a wake that finds the inbox claimed starts nothing. The `ANSWER`s are acked before the
-start, so the resumed run does not read them a second time as plain text, and a start
-that fails enqueues the answers again, in order, for the next wake. The resumed run reads whatever else is queued, as any run does.
+child's inbox (`take`, then `release`), and holds it until the start returns, so when two
+wakes race on one park, as a parent answering both questions in one response makes them,
+only one pairs the answers and starts the run; a wake that finds the inbox claimed starts
+nothing. The `ANSWER`s are acked once the start returns, still under the claim, so the
+resumed run's drain, which takes nothing while the wake holds the inbox, does not read
+them a second time as plain text. A start that fails, is cancelled or dies with its
+process acks nothing: the answers stay pending, in order, for the next wake, once the
+wake's claim is released or its lease lapses. An ack lost after the start returns
+delivers them again, as the queue's at-least-once delivery allows. The resumed run reads
+whatever else is queued, as any run does.
 An answer can also arrive while the child's run is still going, before it parks on the
 question; the runner calls `wake_thread` once after recording such a park, so that answer
 resumes it too.
@@ -296,9 +301,7 @@ thread: a child's report or question wakes an idle parent, `message_task` or
 prompt and the message delivered beside it by `DrainInbound`, and `answer_task` resumes
 a child parked on `ask_parent` with the answer. A message that lands on a running thread
 after its run's last read is not woken by the enqueue, since the thread still reads as
-running; the runner's wake after `RunStore.finish` starts the next run for it. A runner
-calling `wake_thread` itself passes it the inner queue, never the `WakingInboundQueue`:
-an answer whose start fails is enqueued again, which would wake once more.
+running; the runner's wake after `RunStore.finish` starts the next run for it.
 
 ```python
 from django_spec_agents import WakingInboundQueue
