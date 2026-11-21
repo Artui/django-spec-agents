@@ -44,8 +44,10 @@ async def wake_thread(
     then ``release``) held across the start, so of two wakes racing on one park only one
     pairs them, and the resumed run's drain takes nothing until the wake acks them once the
     start returns; a wake that finds the inbox claimed starts nothing, and a start that
-    fails, is cancelled or dies leaves the answers pending, unacked, for the next wake. An
-    ack lost after a start delivers them again, as the queue's at-least-once. Waiting on
+    fails, is cancelled or dies before the run claims the thread leaves the answers pending
+    for the next wake. An ack lost once the run started lets its drain deliver them again,
+    as the queue's at-least-once, and the claim holds the thread's other messages from the
+    resumed run until the wake releases it. Waiting on
     anything else, or on more questions than there are answers, it does nothing, since a
     second run must not start before the resume, which reads the queue; idle, failed or never
     run, with messages pending, it starts one run on the thread's scope as ``request.user``,

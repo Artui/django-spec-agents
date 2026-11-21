@@ -616,7 +616,7 @@ async def test_a_second_wake_while_the_first_is_inside_its_start_starts_nothing(
     await asyncio.wait_for(runner.entered.wait(), timeout=5)
     runner.entered.clear()
 
-    second = await _wake(runner, request, _CHILD)
+    second = await asyncio.wait_for(_wake(runner, request, _CHILD), timeout=5)
     release.set()
 
     assert second is None
@@ -644,5 +644,61 @@ async def test_a_resume_refused_because_another_run_holds_the_thread_acks_nothin
 
     assert await _wake(runner, request, _CHILD) is None
     assert runner.starts == []
+    [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert (kept.id, kept.taken_by) == (sent, None)
+
+
+class _QueueTakingOnRelease(DefaultInboundQueue):
+    async def release(self, thread: ThreadRef, run_id: str, **kwargs: Any) -> Any:
+        released = await super().release(thread, run_id, **kwargs)
+        self.after = await super().take(thread, "resumed", lease=_LEASE, **kwargs)
+        return released
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_answers_are_acked_before_the_claim_is_released() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    await _send(request, InboundKind.ANSWER, "1999")
+    queue = _QueueTakingOnRelease()
+
+    started = await wake_thread(
+        _CHILD, request=request, runner=_Runner(runs), runs=runs, queue=queue, timeout=60.0
+    )
+
+    assert started is not None
+    assert queue.after == []
+
+
+class _QueuePausedInAck(DefaultInboundQueue):
+    def __init__(self) -> None:
+        super().__init__()
+        self.acking = asyncio.Event()
+
+    async def ack(self, thread: ThreadRef, ids: Any, **kwargs: Any) -> int:
+        self.acking.set()
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_cancelled_after_its_start_leaves_the_answers_for_the_drain() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    sent = await _send(request, InboundKind.ANSWER, "1999")
+    runner, queue = _Runner(runs), _QueuePausedInAck()
+    wake = asyncio.create_task(
+        wake_thread(_CHILD, request=request, runner=runner, runs=runs, queue=queue, timeout=60.0)
+    )
+    await asyncio.wait_for(queue.acking.wait(), timeout=5)
+
+    wake.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await wake
+
+    [start] = runner.starts
+    assert start["answers"] == {"t-1": "1999"}
     [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
     assert (kept.id, kept.taken_by) == (sent, None)

@@ -266,11 +266,14 @@ wakes race on one park, as a parent answering both questions in one response mak
 only one pairs the answers and starts the run; a wake that finds the inbox claimed starts
 nothing. The `ANSWER`s are acked once the start returns, still under the claim, so the
 resumed run's drain, which takes nothing while the wake holds the inbox, does not read
-them a second time as plain text. A start that fails, is cancelled or dies with its
-process acks nothing: the answers stay pending, in order, for the next wake, once the
-wake's claim is released or its lease lapses. An ack lost after the start returns
-delivers them again, as the queue's at-least-once delivery allows. The resumed run reads
-whatever else is queued, as any run does.
+them a second time as plain text. A start that fails, or is cancelled or dies with its
+process before the runner claims the thread, acks nothing: the answers stay pending, in
+order, for the next wake, once the wake's claim is released or its lease lapses. Once the
+run has started, a wake cancelled or killed before its ack leaves the answers unacked, and
+the resumed run's drain delivers them a second time, as plain text, as the queue's
+at-least-once delivery allows. The claim covers every message the wake took, so the
+resumed run reads whatever else is queued from its first read after the wake releases the
+inbox, which can be its second model request rather than its first.
 An answer can also arrive while the child's run is still going, before it parks on the
 question; the runner calls `wake_thread` once after recording such a park, so that answer
 resumes it too.

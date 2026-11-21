@@ -14,10 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   between the two lost them, and a cancelled start was not caught to enqueue them again.
   It now holds its claim on the child's inbox across the start, which keeps the resumed
   run's drain from taking the answers, and acks them once the start returns; a start that
-  fails, is cancelled or dies leaves them pending under their own ids, in order, for the
-  next wake. Two wakes racing on the same answers still start one run. An answer is no
-  longer enqueued again, so `wake_thread` no longer needs the inner queue rather than a
-  `WakingInboundQueue`.
+  fails, is cancelled or dies before the run claims its thread leaves them pending under
+  their own ids, in order, for the next wake; a wake cancelled once the run started lets
+  the run's drain deliver them a second time, as the queue's at-least-once delivery
+  allows. Two wakes racing on the same answers still start one run. While the wake holds
+  the inbox, the resumed run's first read takes none of the thread's other messages
+  either; they reach it at its next read. An answer is no longer enqueued again, so
+  `wake_thread` can now be passed a `WakingInboundQueue`.
 
 ## [0.24.0] — 2026-11-21
 
