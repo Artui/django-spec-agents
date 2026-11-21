@@ -528,7 +528,7 @@ method names only, so a store of your own that defines `release` must also take
 | Outcome | Thread status | Reason |
 | --- | --- | --- |
 | `completed` | `idle` | |
-| `waiting` | `waiting`, with the `RunWaiting` it parked on | |
+| `waiting` | `waiting`, with a `RunWaiting` for each call it parked on | |
 | `cancelled` | `idle` | |
 | `timed_out` | `idle` | `timed_out` |
 | `error` | `failed` | `error` |
@@ -537,11 +537,19 @@ A thread still `running` after its lease lapses, as after a restart, reads as
 `failed` with reason `interrupted`. The run's id stays on the thread as
 `last_run_id` after it ends: a parked run's id is what a resume answers to.
 
-A transport builds the `RunWaiting` with `build_run_waiting(requests, tool_call_id,
-summary=..., destructive=...)`, which reads `kind` from the run's `DeferredToolRequests`:
-`approval`, `question` for a tool that deferred with `CallDeferred(kind="question")`, or
-`external`. These are upstream's `DeferredToolKind` values, so a row stored before `kind`
-was typed loads unchanged.
+`waiting` is a tuple everywhere it is carried: on `ThreadRunState`, `finish`, `RunStop`
+and `ChildSession`. It holds one `RunWaiting` for each deferred call the run parked on,
+in the order the run deferred them, and is empty when the thread is not waiting. `finish`
+and `RunStop` take a non-empty `waiting` exactly when the outcome is `waiting`, and raise
+`ValueError` otherwise. The `0008_waiting_calls` migration rewrites a stored single call,
+in `waiting` and `prior_waiting`, as a one-element list; unapplied, it keeps each list's
+first call.
+
+A transport builds one `RunWaiting` per deferred call with `build_run_waiting(requests,
+tool_call_id, summary=..., destructive=...)`, which reads `kind` from the run's
+`DeferredToolRequests`: `approval`, `question` for a tool that deferred with
+`CallDeferred(kind="question")`, or `external`. These are upstream's `DeferredToolKind`
+values, so a row stored before `kind` was typed loads unchanged.
 
 **Run ids are single-use per owner.** The resumed run, like a retried one,
 claims the thread under a fresh id; `claim` refuses an id its owner has claimed

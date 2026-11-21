@@ -124,8 +124,15 @@ async def _send(
 
 
 async def _park(runs: DefaultRunStore, request: HttpRequest, kind: Any, thread: str) -> None:
+    await _park_on(runs, request, thread, kind)
+
+
+async def _park_on(runs: DefaultRunStore, request: HttpRequest, thread: str, *kinds: Any) -> None:
     await runs.claim(thread, "parked", request=request, lease=_LEASE)
-    waiting = RunWaiting(kind=kind, summary="delete_thing", tool_call_id="t-1", destructive=False)
+    waiting = tuple(
+        RunWaiting(kind=kind, summary="delete_thing", tool_call_id=f"t-{n}", destructive=False)
+        for n, kind in enumerate(kinds, start=1)
+    )
     await runs.finish(thread, "parked", RunOutcome.WAITING, request=request, waiting=waiting)
 
 
@@ -466,3 +473,95 @@ async def test_messages_a_live_run_holds_wake_nothing_until_it_releases_them() -
     await queue.release(_PARENT, "died", request=request)
 
     assert await _wake(runner, request) is not None
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_waiting_on_two_questions_resumes_with_an_answer_for_each() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park_on(runs, request, "c1", "question", "question")
+    await _send(request, InboundKind.ANSWER, "1999")
+    steer = await _send(request, InboundKind.STEER, "Use March.")
+    await _send(request, InboundKind.ANSWER, "2000")
+    later = await _send(request, InboundKind.ANSWER, "2001")
+    runner = _Runner(runs)
+
+    assert await _wake(runner, request, _CHILD) is not None
+    [start] = runner.starts
+    assert start["answers"] == {"t-1": "1999", "t-2": "2000"}
+    left = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert [m.id for m in left] == [steer, later]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_waiting_on_two_questions_is_held_with_one_answer_pending() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park_on(runs, request, "c1", "question", "question")
+    await _send(request, InboundKind.ANSWER, "1999")
+    runner = _Runner(runs)
+
+    assert await _wake(runner, request, _CHILD) is None
+    assert runner.attempts == 0
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_child_waiting_on_a_question_and_an_approval_is_held() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park_on(runs, request, "c1", "question", "approval")
+    await _send(request, InboundKind.ANSWER, "1999")
+    await _send(request, InboundKind.ANSWER, "2000")
+    runner = _Runner(runs)
+
+    assert await _wake(runner, request, _CHILD) is None
+    assert runner.attempts == 0
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_answers_whose_resume_fails_to_start_all_stay_pending() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park_on(runs, request, "c1", "question", "question")
+    await _send(request, InboundKind.ANSWER, "1999")
+    await _send(request, InboundKind.ANSWER, "2000")
+    runner = _Runner(runs, fails=LookupError("no headless mount has the id 'research'"))
+
+    with pytest.raises(LookupError):
+        await _wake(runner, request, _CHILD)
+
+    kept = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert [(m.kind, m.body) for m in kept] == [
+        (InboundKind.ANSWER, {"text": "1999"}),
+        (InboundKind.ANSWER, {"text": "2000"}),
+    ]
+
+
+class _QueueAnotherWakeTakesOne(DefaultInboundQueue):
+    async def pending(self, thread: ThreadRef, **kwargs: Any) -> Any:
+        found = await super().pending(thread, **kwargs)
+        await super().ack(thread, [found[-1].id], request=kwargs["request"])
+        return found
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_answers_another_wake_partly_took_start_nothing_and_the_rest_stay_pending() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park_on(runs, request, "c1", "question", "question")
+    await _send(request, InboundKind.ANSWER, "1999")
+    await _send(request, InboundKind.ANSWER, "2000")
+    runner = _Runner(runs)
+
+    started = await wake_thread(
+        _CHILD,
+        request=request,
+        runner=runner,
+        runs=runs,
+        queue=_QueueAnotherWakeTakesOne(),
+        timeout=60.0,
+    )
+
+    assert (started, runner.attempts) == (None, 0)
+    [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert (kept.kind, kept.body) == (InboundKind.ANSWER, {"text": "1999"})

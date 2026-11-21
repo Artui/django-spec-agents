@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -28,7 +29,8 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 _T0 = datetime(2026, 1, 1, tzinfo=UTC)
 _LEASE = timedelta(seconds=30)
-_WAITING = RunWaiting(kind="approval", summary="delete_thing", tool_call_id="c1", destructive=True)
+_CALL = RunWaiting(kind="approval", summary="delete_thing", tool_call_id="c1", destructive=True)
+_WAITING = (_CALL,)
 
 
 class _Clock:
@@ -211,12 +213,12 @@ async def test_a_waiting_row_written_before_kind_was_typed_still_loads(
     await _claim(store)
     await store.finish("t1", "r1", RunOutcome.WAITING, request=authed_request(), waiting=_WAITING)
     raw = {"kind": "approval", "summary": "drop", "tool_call_id": "c9", "destructive": False}
-    await StoredThreadRun.objects.filter(thread_id="t1").aupdate(waiting=raw)
+    await StoredThreadRun.objects.filter(thread_id="t1").aupdate(waiting=[raw])
 
     state = await store.get("t1", request=authed_request())
 
     assert state is not None
-    assert state.waiting == RunWaiting(**raw)
+    assert state.waiting == (RunWaiting(**raw),)
 
 
 async def test_the_next_claim_clears_the_park(store: DefaultRunStore) -> None:
@@ -227,16 +229,16 @@ async def test_the_next_claim_clears_the_park(store: DefaultRunStore) -> None:
 
     state = await store.get("t1", request=authed_request())
     assert state is not None
-    assert (state.status, state.waiting) == (ThreadRunStatus.RUNNING, None)
+    assert (state.status, state.waiting) == (ThreadRunStatus.RUNNING, ())
 
 
 @pytest.mark.parametrize(
     ("outcome", "waiting"),
-    [(RunOutcome.WAITING, None), (RunOutcome.COMPLETED, _WAITING)],
+    [(RunOutcome.WAITING, ()), (RunOutcome.COMPLETED, _WAITING)],
     ids=["waiting-without-what", "what-without-waiting"],
 )
 async def test_waiting_goes_with_the_waiting_outcome_only(
-    store: DefaultRunStore, outcome: RunOutcome, waiting: RunWaiting | None
+    store: DefaultRunStore, outcome: RunOutcome, waiting: tuple[RunWaiting, ...]
 ) -> None:
     with pytest.raises(ValueError, match="exactly when"):
         await store.finish("t1", "r1", outcome, request=authed_request(), waiting=waiting)
@@ -513,7 +515,7 @@ async def test_a_resume_claims_the_thread_parked_on_its_run(store: DefaultRunSto
     await _parked(store)
 
     assert await _resume(store, "r2") == RunClaim(claimed=True, active_run_id="r2")
-    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r2", "r2")
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, (), "r2", "r2")
 
 
 async def test_of_two_resumes_of_one_park_the_second_is_refused(store: DefaultRunStore) -> None:
@@ -538,7 +540,7 @@ async def test_a_resume_after_the_first_resume_ended_is_not_parked(
         await _resume(store, "r3")
 
     assert (raised.value.run_id, raised.value.active_run_id) == ("r1", None)
-    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r2")
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, (), None, "r2")
 
 
 async def test_a_resume_of_an_idle_thread_is_refused(store: DefaultRunStore) -> None:
@@ -548,7 +550,7 @@ async def test_a_resume_of_an_idle_thread_is_refused(store: DefaultRunStore) -> 
     with pytest.raises(RunNotParkedError):
         await _resume(store, "r2")
 
-    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r1")
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, (), None, "r1")
 
 
 async def test_a_resume_of_a_failed_thread_whose_last_run_is_the_one_resumed_is_refused(
@@ -570,7 +572,7 @@ async def test_a_resume_of_a_running_thread_is_refused_naming_its_holder(
         await _resume(store, "r2")
 
     assert raised.value.active_run_id == "r1"
-    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r1", "r1")
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, (), "r1", "r1")
 
 
 async def test_a_resume_of_a_thread_parked_on_another_run_is_refused(
@@ -671,7 +673,7 @@ async def test_release_puts_an_idle_thread_back(store: DefaultRunStore) -> None:
 
     assert await store.release("t1", "r2", request=authed_request())
 
-    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r1")
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, (), None, "r1")
 
 
 async def test_release_puts_a_failed_thread_back_with_its_reason(store: DefaultRunStore) -> None:
@@ -681,7 +683,7 @@ async def test_release_puts_a_failed_thread_back_with_its_reason(store: DefaultR
 
     assert await store.release("t1", "r2", request=authed_request())
 
-    assert await _status(store) == (ThreadRunStatus.IDLE, RunEndReason.TIMED_OUT, None, None, "r1")
+    assert await _status(store) == (ThreadRunStatus.IDLE, RunEndReason.TIMED_OUT, (), None, "r1")
 
 
 async def test_release_over_a_lapsed_lease_reads_interrupted(
@@ -696,7 +698,7 @@ async def test_release_over_a_lapsed_lease_reads_interrupted(
     assert await _status(store) == (
         ThreadRunStatus.FAILED,
         RunEndReason.INTERRUPTED,
-        None,
+        (),
         None,
         "r1",
     )
@@ -740,7 +742,7 @@ async def test_release_by_a_run_that_does_not_hold_the_claim_changes_nothing(
     assert not await store.release("t1", "r1", request=authed_request())
     assert not await store.release("t1", "r2", request=authed_request("8"))
 
-    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r2", "r2")
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, (), "r2", "r2")
     assert await StoredRunLog.objects.filter(run_id="r2").aexists()
 
 
@@ -751,7 +753,7 @@ async def test_release_after_finish_changes_nothing(store: DefaultRunStore) -> N
 
     assert not await store.release("t1", "r2", request=authed_request())
 
-    assert await _status(store) == (ThreadRunStatus.IDLE, None, None, None, "r2")
+    assert await _status(store) == (ThreadRunStatus.IDLE, None, (), None, "r2")
 
 
 async def test_release_of_a_claim_taken_before_the_prior_columns_changes_nothing(
@@ -762,4 +764,35 @@ async def test_release_of_a_claim_taken_before_the_prior_columns_changes_nothing
 
     assert not await store.release("t1", "r1", request=authed_request())
 
-    assert await _status(store) == (ThreadRunStatus.RUNNING, None, None, "r1", "r1")
+    assert await _status(store) == (ThreadRunStatus.RUNNING, None, (), "r1", "r1")
+
+
+_QUESTION = RunWaiting(kind="question", summary="ask_parent", tool_call_id="c2", destructive=False)
+
+
+async def test_a_thread_parked_on_two_calls_reads_back_both(store: DefaultRunStore) -> None:
+    await _claim(store)
+    both = (_CALL, _QUESTION)
+
+    await store.finish("t1", "r1", RunOutcome.WAITING, request=authed_request(), waiting=both)
+
+    state = await store.get("t1", request=authed_request())
+    assert state is not None
+    assert (state.status, state.waiting) == (ThreadRunStatus.WAITING, both)
+    assert (await StoredThreadRun.objects.aget(thread_id="t1")).waiting == [
+        asdict(_CALL),
+        asdict(_QUESTION),
+    ]
+
+
+async def test_an_ended_thread_stores_no_waiting_and_reads_an_empty_tuple(
+    store: DefaultRunStore,
+) -> None:
+    await _claim(store)
+
+    await store.finish("t1", "r1", RunOutcome.COMPLETED, request=authed_request())
+
+    state = await store.get("t1", request=authed_request())
+    assert state is not None
+    assert state.waiting == ()
+    assert (await StoredThreadRun.objects.aget(thread_id="t1")).waiting is None

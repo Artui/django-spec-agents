@@ -35,12 +35,13 @@ async def wake_thread(
     Call it after enqueueing for ``thread``, and the runner after each run ends. By the
     thread's state in ``runs``: running, it does nothing, since the run reads the queue at
     its next model request, or, for one that lands after its last read, the runner's wake
-    once it ends; waiting on a
-    question with an ``ANSWER`` pending, it resumes the parked call, starting the run with
-    ``answers=`` mapping the waiting call's id to the oldest answer's text. It acks that
-    message first, so the resumed run's drain does not hand it on again, and starts nothing
-    when the ack removes nothing, since another wake took it; a start that fails enqueues the
-    answer again. Waiting on anything else, it does nothing, since a
+    once it ends; waiting on questions only, with an ``ANSWER`` pending for each, it resumes
+    the parked calls, starting the run with ``answers=`` mapping each waiting call's id, in
+    order, to the oldest answers' texts. It acks those messages first, so the resumed run's
+    drain does not hand them on again, and starts nothing unless the ack removes them all,
+    since another wake took them, enqueueing again any it did remove; a start that fails
+    enqueues the answers again. Waiting on
+    anything else, or on more questions than there are answers, it does nothing, since a
     second run must not start before the resume, which reads the queue; idle, failed or never
     run, with messages pending, it starts one run on the thread's scope as ``request.user``,
     with ``prompt`` as its new message (by default a line saying messages arrived), and
@@ -77,9 +78,15 @@ async def wake_thread(
     )
     resume: dict[str, Any] = {}
     if answer is not None:
-        if not await queue.ack(thread, [answer[1].id], request=request):
+        calls, messages = answer
+        acked = [m for m in messages if await queue.ack(thread, [m.id], request=request)]
+        if len(acked) < len(messages):
+            await _enqueue_again(queue, thread, acked, request)
             return None
-        resume["answers"] = {answer[0]: str(answer[1].body.get("text", ""))}
+        resume["answers"] = {
+            call: str(message.body.get("text", ""))
+            for call, message in zip(calls, messages, strict=True)
+        }
     try:
         started = await runner.start(
             thread.scope,
@@ -92,11 +99,7 @@ async def wake_thread(
             **resume,
         )
     except Exception:
-        if answer is not None:
-            message = answer[1]
-            await queue.enqueue(
-                thread, message.kind, message.body, request=request, sender=message.sender
-            )
+        await _enqueue_again(queue, thread, [] if answer is None else answer[1], request)
         state = await runs.get(thread.thread_id, request=request)
         if state is not None and state.status is ThreadRunStatus.RUNNING:
             return None
@@ -104,15 +107,26 @@ async def wake_thread(
     return started
 
 
+async def _enqueue_again(
+    queue: InboundQueue, thread: ThreadRef, messages: list[InboundMessage], request: HttpRequest
+) -> None:
+    for message in messages:
+        await queue.enqueue(
+            thread, message.kind, message.body, request=request, sender=message.sender
+        )
+
+
 async def _answer(
     state: ThreadRunState | None, thread: ThreadRef, request: HttpRequest, queue: InboundQueue
-) -> tuple[str, InboundMessage] | None:
-    waiting = None if state is None else state.waiting
-    if waiting is None or waiting.kind != "question":
+) -> tuple[list[str], list[InboundMessage]] | None:
+    waiting = () if state is None else state.waiting
+    if not waiting or any(call.kind != "question" for call in waiting):
         return None
     pending = await queue.pending(thread, request=request)
-    answer = next((m for m in pending if m.kind is InboundKind.ANSWER), None)
-    return None if answer is None else (waiting.tool_call_id, answer)
+    answers = [m for m in pending if m.kind is InboundKind.ANSWER][: len(waiting)]
+    if len(answers) < len(waiting):
+        return None
+    return [call.tool_call_id for call in waiting], answers
 
 
 __all__ = ["wake_thread"]

@@ -463,7 +463,11 @@ async def test_message_and_answer_reach_the_childs_queue(
         ChildSession(
             ThreadRef("c1", "research"),
             _WAITING,
-            RunWaiting(kind="question", summary="ask_parent", tool_call_id="q1", destructive=False),
+            (
+                RunWaiting(
+                    kind="question", summary="ask_parent", tool_call_id="q1", destructive=False
+                ),
+            ),
         ),
         ChildSession(
             ThreadRef("c1", "research"), ThreadRunStatus.FAILED, reason=RunEndReason.ERROR

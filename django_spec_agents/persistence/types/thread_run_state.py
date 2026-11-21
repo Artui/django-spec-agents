@@ -17,6 +17,7 @@ class ThreadRunState:
     ``last_run_id`` outlives it: a parked run's id is what a resume answers
     to, while the resumed run claims a fresh id. A ``running`` thread whose
     lease has lapsed reads as ``failed`` with reason ``interrupted``.
+    ``waiting`` holds every call a parked run waits on, empty otherwise.
     ``cancel_requested`` is set by a cancel the run's owner has yet to act on.
     ``last_read_at`` is when a reader last marked the thread read, ``None`` if
     never.
@@ -25,7 +26,7 @@ class ThreadRunState:
     thread_id: str
     status: ThreadRunStatus
     reason: RunEndReason | None = None
-    waiting: RunWaiting | None = None
+    waiting: tuple[RunWaiting, ...] = ()
     active_run_id: str | None = None
     last_run_id: str | None = None
     lease_expires_at: datetime | None = None

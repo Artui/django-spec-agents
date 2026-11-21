@@ -248,20 +248,22 @@ stand in the `RunStore`:
 | The thread | `wake_thread` | The message is read |
 | --- | --- | --- |
 | running | starts nothing | at the run's next model request; after its last one, by the wake its runner makes once it ends |
-| waiting on a question, with an `ANSWER` pending | resumes the parked call with that answer | the answer as the call's result; the rest by the resumed run |
-| waiting, on an approval, or on a question with no answer pending | starts nothing | by the resumed run, at its first request |
+| waiting on questions only, with an `ANSWER` pending for each | resumes the parked calls with those answers | each answer as its call's result; the rest by the resumed run |
+| waiting on any approval, or on more questions than there are answers pending | starts nothing | by the resumed run, at its first request |
 | idle, failed or never run, with messages | starts one headless run | at that run's first request |
 | idle, with nothing pending, or only messages a run took and has not released | starts nothing | the holder hands them on when it releases; a dead holder's, to the next run once its lease lapses |
 
 A child parked on `ask_parent` resumes when its parent answers. `wake_thread` takes the
-oldest `ANSWER` in the child's queue and starts the run with
-`answers={tool_call_id: text}`, the waiting call's id from the `RunStore` mapped to the
-answer's text. The runner resumes the child's stored history with
+oldest `ANSWER`s in the child's queue, one for each waiting call, and starts the run with
+`answers={tool_call_id: text, ...}`, each waiting call's id from the `RunStore`, in the
+order the run deferred them, mapped to the next answer's text. An answer names no call,
+so a child parked on two questions takes its parent's answers in the order they were
+sent; with fewer answers than questions it waits for the rest. The runner resumes the child's stored history with
 `DeferredToolResults(calls=answers)` and sends no new prompt, so the answer reaches the
-model as `ask_parent`'s result. The `ANSWER` is acked before the start, so the resumed
-run does not read it a second time as plain text; a wake whose ack removes nothing starts
-nothing, since another wake took the answer, and a start that fails enqueues the answer
-again for the next wake. The resumed run reads whatever else is queued, as any run does.
+model as `ask_parent`'s result. The `ANSWER`s are acked before the start, so the resumed
+run does not read them a second time as plain text; a wake whose ack removes fewer than it
+took starts nothing and enqueues again the ones it removed, since another wake took the
+rest, and a start that fails enqueues the answers again for the next wake. The resumed run reads whatever else is queued, as any run does.
 An answer can also arrive while the child's run is still going, before it parks on the
 question; the runner calls `wake_thread` once after recording such a park, so that answer
 resumes it too.

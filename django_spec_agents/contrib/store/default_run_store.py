@@ -87,10 +87,10 @@ class DefaultRunStore:
         outcome: RunOutcome,
         *,
         request: HttpRequest,
-        waiting: RunWaiting | None = None,
+        waiting: tuple[RunWaiting, ...] = (),
     ) -> bool:
-        if (outcome is RunOutcome.WAITING) != (waiting is not None):
-            raise ValueError("waiting is given exactly when the outcome is WAITING")
+        if (outcome is RunOutcome.WAITING) != bool(waiting):
+            raise ValueError("waiting is non-empty exactly when the outcome is WAITING")
         return await sync_to_async(self._finish)(thread_id, run_id, outcome, waiting, request)
 
     async def append(
@@ -222,7 +222,7 @@ class DefaultRunStore:
         thread_id: str,
         run_id: str,
         outcome: RunOutcome,
-        waiting: RunWaiting | None,
+        waiting: tuple[RunWaiting, ...],
         request: HttpRequest,
     ) -> bool:
         owner_id = self._owner(request)
@@ -232,7 +232,7 @@ class DefaultRunStore:
             finished = _held(owner_id, thread_id, run_id, now).update(
                 status=status,
                 reason=reason,
-                waiting=None if waiting is None else asdict(waiting),
+                waiting=[asdict(call) for call in waiting] or None,
                 active_run_id=None,
                 lease_expires_at=None,
                 cancel_requested_at=None,
@@ -345,7 +345,7 @@ def _state(row: StoredThreadRun, now: datetime) -> ThreadRunState:
         thread_id=row.thread_id,
         status=status,
         reason=reason,
-        waiting=None if row.waiting is None else RunWaiting(**row.waiting),
+        waiting=tuple(RunWaiting(**call) for call in row.waiting or ()),
         active_run_id=active_run_id,
         last_run_id=row.last_run_id,
         lease_expires_at=row.lease_expires_at,
