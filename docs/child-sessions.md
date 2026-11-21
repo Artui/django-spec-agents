@@ -260,10 +260,12 @@ order the run deferred them, mapped to the next answer's text. An answer names n
 so a child parked on two questions takes its parent's answers in the order they were
 sent; with fewer answers than questions it waits for the rest. The runner resumes the child's stored history with
 `DeferredToolResults(calls=answers)` and sends no new prompt, so the answer reaches the
-model as `ask_parent`'s result. The `ANSWER`s are acked before the start, so the resumed
-run does not read them a second time as plain text; a wake whose ack removes fewer than it
-took starts nothing and enqueues again the ones it removed, since another wake took the
-rest, and a start that fails enqueues the answers again for the next wake. The resumed run reads whatever else is queued, as any run does.
+model as `ask_parent`'s result. The wake pairs the answers while it holds a claim on the
+child's inbox (`take`, then `release`), so when two wakes race on one park, as a parent
+answering both questions in one response makes them, only one pairs and acks the answers;
+a wake that finds the inbox claimed starts nothing. The `ANSWER`s are acked before the
+start, so the resumed run does not read them a second time as plain text, and a start
+that fails enqueues the answers again, in order, for the next wake. The resumed run reads whatever else is queued, as any run does.
 An answer can also arrive while the child's run is still going, before it parks on the
 question; the runner calls `wake_thread` once after recording such a park, so that answer
 resumes it too.

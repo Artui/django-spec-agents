@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
+from uuid import uuid4
 
 from django.http import HttpRequest
 
@@ -17,6 +19,7 @@ from django_spec_agents.persistence.types.thread_run_status import ThreadRunStat
 
 _WAKE_PROMPT = "New messages for this conversation arrived while it was idle."
 _BUSY = (ThreadRunStatus.RUNNING, ThreadRunStatus.WAITING)
+_PAIRING_LEASE = timedelta(seconds=30)
 
 
 async def wake_thread(
@@ -37,10 +40,11 @@ async def wake_thread(
     its next model request, or, for one that lands after its last read, the runner's wake
     once it ends; waiting on questions only, with an ``ANSWER`` pending for each, it resumes
     the parked calls, starting the run with ``answers=`` mapping each waiting call's id, in
-    order, to the oldest answers' texts. It acks those messages first, so the resumed run's
-    drain does not hand them on again, and starts nothing unless the ack removes them all,
-    since another wake took them, enqueueing again any it did remove; a start that fails
-    enqueues the answers again. Waiting on
+    order, to the oldest answers' texts. It pairs them under a claim on the inbox (``take``,
+    then ``release``), so of two wakes racing on one park only one pairs and acks the
+    answers, and acks them before starting, so the resumed run's drain does not hand them
+    on again; a wake that finds the inbox claimed starts nothing, and a start that fails
+    enqueues the answers again, in order. Waiting on
     anything else, or on more questions than there are answers, it does nothing, since a
     second run must not start before the resume, which reads the queue; idle, failed or never
     run, with messages pending, it starts one run on the thread's scope as ``request.user``,
@@ -79,10 +83,6 @@ async def wake_thread(
     resume: dict[str, Any] = {}
     if answer is not None:
         calls, messages = answer
-        acked = [m for m in messages if await queue.ack(thread, [m.id], request=request)]
-        if len(acked) < len(messages):
-            await _enqueue_again(queue, thread, acked, request)
-            return None
         resume["answers"] = {
             call: str(message.body.get("text", ""))
             for call, message in zip(calls, messages, strict=True)
@@ -119,13 +119,19 @@ async def _enqueue_again(
 async def _answer(
     state: ThreadRunState | None, thread: ThreadRef, request: HttpRequest, queue: InboundQueue
 ) -> tuple[list[str], list[InboundMessage]] | None:
+    """The waiting calls and the answers paired with them, acked under a claim on the inbox."""
     waiting = () if state is None else state.waiting
     if not waiting or any(call.kind != "question" for call in waiting):
         return None
-    pending = await queue.pending(thread, request=request)
-    answers = [m for m in pending if m.kind is InboundKind.ANSWER][: len(waiting)]
-    if len(answers) < len(waiting):
-        return None
+    holder = f"wake-{uuid4().hex}"
+    taken = await queue.take(thread, holder, request=request, lease=_PAIRING_LEASE)
+    try:
+        answers = [m for m in taken if m.kind is InboundKind.ANSWER][: len(waiting)]
+        if len(answers) < len(waiting):
+            return None
+        await queue.ack(thread, [m.id for m in answers], request=request)
+    finally:
+        await queue.release(thread, holder, request=request)
     return [call.tool_call_id for call in waiting], answers
 
 

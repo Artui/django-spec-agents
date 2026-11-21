@@ -11,6 +11,7 @@ from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai_harness import ArtifactScanner
 
 from django_spec_agents.skills import (
+    MAX_VISIBLE_SKILLS,
     InvalidSkillError,
     SkillDraft,
     SkillScanning,
@@ -189,3 +190,26 @@ def test_a_none_scanner_scans_nothing(member: AbstractBaseUser) -> None:
     skill = create_skill(_Unset(), request_as(member), _flagged(body=INJECTION))
 
     assert skill.body == INJECTION
+
+
+def test_a_flagged_create_at_the_cap_is_refused_for_its_content(member: AbstractBaseUser) -> None:
+    TenantSkill.objects.bulk_create(
+        TenantSkill(owner=member, name=f"s{index}", description="d", body="b")
+        for index in range(MAX_VISIBLE_SKILLS)
+    )
+
+    with pytest.raises(InvalidSkillError) as raised:
+        create_skill(_ScanningPolicy(), request_as(member), _flagged(body=INJECTION))
+
+    assert (type(raised.value), raised.value.field) == (InvalidSkillError, "body")
+
+
+def test_a_flagged_update_by_a_caller_who_may_not_write_is_refused_for_its_content(
+    member: AbstractBaseUser,
+) -> None:
+    skill = TenantSkill.objects.create(owner=None, name="triage", description="d", body="b")
+
+    with pytest.raises(InvalidSkillError) as raised:
+        update_skill(_ScanningPolicy(), request_as(member), skill, _flagged(body=INJECTION))
+
+    assert raised.value.field == "body"

@@ -31,8 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`wake_thread` resumes a child parked on several questions** once an `ANSWER` is
   pending for each, mapping the waiting calls, in order, to the oldest answers. A thread
   waiting on any approval, or on more questions than there are answers, starts nothing.
-  When its ack removes fewer answers than it took, it starts nothing and enqueues again
-  the ones it removed.
+  It pairs the answers under a claim on the inbox (`take`, then `release`), so of two
+  wakes racing on one park, as a parent answering both questions at once makes, only one
+  pairs and acks them; a wake that finds the inbox claimed starts nothing.
+- **Breaking on the wire: a presented stop's `waiting` is an array.** `run_headless` and a
+  routine firing present `waiting` as `[]` where they presented `null`, and as a list of
+  calls where they presented one object. A result stored before 0.24.0, such as a job
+  queue's record of a firing, keeps the old shape; nothing here rewrites it.
 - **The `0008_waiting_calls` migration** rewrites a stored single call in
   `StoredThreadRun.waiting` and `prior_waiting` as a one-element list; unapplying it keeps
   each list's first call.

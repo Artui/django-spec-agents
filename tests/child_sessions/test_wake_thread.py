@@ -244,32 +244,19 @@ async def test_the_resumed_run_finds_its_answer_gone_from_the_queue() -> None:
     assert runner.queued == []
 
 
-class _QueueAnotherWakeEmpties(DefaultInboundQueue):
-    async def pending(self, thread: ThreadRef, **kwargs: Any) -> Any:
-        found = await super().pending(thread, **kwargs)
-        await super().ack(thread, [m.id for m in found], request=kwargs["request"])
-        return found
-
-
 @pytest.mark.django_db(transaction=True)
-async def test_an_answer_another_wake_took_starts_nothing() -> None:
+async def test_an_answer_in_an_inbox_another_wake_holds_starts_nothing_and_stays() -> None:
     request = authed_request("7")
     runs = DefaultRunStore()
     await _park(runs, request, "question", "c1")
     await _send(request, InboundKind.ANSWER, "1999")
+    await DefaultInboundQueue().take(_CHILD, "another-wake", request=request, lease=_LEASE)
     runner = _Runner(runs)
 
-    started = await wake_thread(
-        _CHILD,
-        request=request,
-        runner=runner,
-        runs=runs,
-        queue=_QueueAnotherWakeEmpties(),
-        timeout=60.0,
-    )
-
-    assert started is None
+    assert await _wake(runner, request, _CHILD) is None
     assert runner.attempts == 0
+    [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
+    assert kept.body == {"text": "1999"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -490,7 +477,7 @@ async def test_a_child_waiting_on_two_questions_resumes_with_an_answer_for_each(
     [start] = runner.starts
     assert start["answers"] == {"t-1": "1999", "t-2": "2000"}
     left = await DefaultInboundQueue().pending(_CHILD, request=request)
-    assert [m.id for m in left] == [steer, later]
+    assert [(m.id, m.taken_by) for m in left] == [(steer, None), (later, None)]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -537,31 +524,42 @@ async def test_answers_whose_resume_fails_to_start_all_stay_pending() -> None:
     ]
 
 
-class _QueueAnotherWakeTakesOne(DefaultInboundQueue):
-    async def pending(self, thread: ThreadRef, **kwargs: Any) -> Any:
-        found = await super().pending(thread, **kwargs)
-        await super().ack(thread, [found[-1].id], request=kwargs["request"])
-        return found
+class _QueuePausedAfterTake(DefaultInboundQueue):
+    def __init__(self, other_done: asyncio.Event) -> None:
+        super().__init__()
+        self.took, self.other_done = asyncio.Event(), other_done
+
+    async def take(self, thread: ThreadRef, run_id: str, **kwargs: Any) -> Any:
+        taken = await super().take(thread, run_id, **kwargs)
+        self.took.set()
+        await self.other_done.wait()
+        return taken
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_answers_another_wake_partly_took_start_nothing_and_the_rest_stay_pending() -> None:
+async def test_two_wakes_racing_on_two_answers_start_one_run_paired_in_order() -> None:
     request = authed_request("7")
     runs = DefaultRunStore()
     await _park_on(runs, request, "c1", "question", "question")
     await _send(request, InboundKind.ANSWER, "1999")
     await _send(request, InboundKind.ANSWER, "2000")
     runner = _Runner(runs)
+    other_done = asyncio.Event()
+    first = _QueuePausedAfterTake(other_done)
 
-    started = await wake_thread(
-        _CHILD,
-        request=request,
-        runner=runner,
-        runs=runs,
-        queue=_QueueAnotherWakeTakesOne(),
-        timeout=60.0,
+    async def second() -> HeadlessStart | None:
+        try:
+            await asyncio.wait_for(first.took.wait(), timeout=5)
+            return await _wake(runner, request, _CHILD)
+        finally:
+            other_done.set()
+
+    wakes = wake_thread(
+        _CHILD, request=request, runner=runner, runs=runs, queue=first, timeout=60.0
     )
+    results = await asyncio.gather(wakes, second())
 
-    assert (started, runner.attempts) == (None, 0)
-    [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
-    assert (kept.kind, kept.body) == (InboundKind.ANSWER, {"text": "1999"})
+    assert [result is not None for result in results] == [True, False]
+    [start] = runner.starts
+    assert start["answers"] == {"t-1": "1999", "t-2": "2000"}
+    assert await DefaultInboundQueue().pending(_CHILD, request=request) == []
