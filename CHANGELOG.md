@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The `0008_waiting_calls` migration** rewrites a stored single call in
   `StoredThreadRun.waiting` and `prior_waiting` as a one-element list; unapplying it keeps
   each list's first call.
+- **The `[specs]` extra needs django-service-specs 0.34.2**, whose dataclass presenter maps
+  `tuple[X, ...]` as an array; below it `run_headless` refuses every stop, because
+  `RunStop.waiting` is a tuple.
 
 ## [0.23.0] — 2026-11-18
 
