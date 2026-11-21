@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1] — 2026-11-21
+
+### Fixed
+
+- **`wake_thread` acks a parked child's answers only after the run it resumes has
+  started.** It acked them before `runner.start`, so a cancellation or a process death
+  between the two lost them, and a cancelled start was not caught to enqueue them again.
+  It now holds its claim on the child's inbox across the start, which keeps the resumed
+  run's drain from taking the answers, and acks them once the start returns; a start that
+  fails, is cancelled or dies before the run claims its thread leaves them pending under
+  their own ids, in order, for the next wake; a wake cancelled once the run started lets
+  the run's drain deliver them a second time, as the queue's at-least-once delivery
+  allows. Two wakes racing on the same answers still start one run. While the wake holds
+  the inbox, the resumed run's first read takes none of the thread's other messages
+  either; they reach it at its next read. An answer is no longer enqueued again, so
+  `wake_thread` can now be passed a `WakingInboundQueue`.
+
 ## [0.24.0] — 2026-11-21
 
 ### Added
@@ -1499,7 +1516,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.24.1...HEAD
+[0.24.1]: https://github.com/Artui/django-spec-agents/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/Artui/django-spec-agents/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/django-spec-agents/compare/v0.21.0...v0.22.0
