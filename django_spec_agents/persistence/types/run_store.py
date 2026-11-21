@@ -68,7 +68,7 @@ class RunStore(Protocol):
         outcome: RunOutcome,
         *,
         request: HttpRequest,
-        waiting: RunWaiting | None = None,
+        waiting: tuple[RunWaiting, ...] = (),
     ) -> bool:
         """Release the claim and record how the run ended; ``waiting`` goes with ``WAITING``."""
         ...

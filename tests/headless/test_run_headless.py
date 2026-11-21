@@ -50,7 +50,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 _T0 = datetime(2026, 1, 1, tzinfo=UTC)
 _LEASE = timedelta(seconds=30)
 _WAITING = RunWaiting(kind="approval", summary="delete_thing", tool_call_id="c1", destructive=True)
-_PARKED = RunStop("t1", "r1", RunOutcome.WAITING, _WAITING)
+_PARKED = RunStop("t1", "r1", RunOutcome.WAITING, (_WAITING,))
 _PARAMS = {"agent_id": "support", "prompt": "Summarise the inbox.", "timeout": 17.5}
 
 
@@ -165,12 +165,14 @@ def test_a_worker_runs_the_spec_to_its_first_stop(
         "thread_id": "t1",
         "run_id": "r1",
         "outcome": "waiting",
-        "waiting": {
-            "kind": "approval",
-            "summary": "delete_thing",
-            "tool_call_id": "c1",
-            "destructive": True,
-        },
+        "waiting": [
+            {
+                "kind": "approval",
+                "summary": "delete_thing",
+                "tool_call_id": "c1",
+                "destructive": True,
+            }
+        ],
     }
     assert worker.state(run_id) is FiringState.FINISHED
     [(agent_id, prompt, principal, timeout, thread_id, parent, capabilities)] = runner.calls
@@ -193,7 +195,7 @@ def test_a_run_that_completes_presents_no_waiting(
 
     worker.run(run_id)
 
-    output = {"thread_id": "t1", "run_id": "r1", "outcome": "completed", "waiting": None}
+    output = {"thread_id": "t1", "run_id": "r1", "outcome": "completed", "waiting": []}
     assert worker.rows[run_id].output == output
     assert worker.state(run_id) is FiringState.FINISHED
 
@@ -464,7 +466,7 @@ class _AgentRunner:
             waiting = build_run_waiting(
                 result.output, call.tool_call_id, summary=call.tool_name, destructive=False
             )
-            return RunStop(thread_id, "r1", RunOutcome.WAITING, waiting)
+            return RunStop(thread_id, "r1", RunOutcome.WAITING, (waiting,))
         return RunStop(thread_id, "r1", RunOutcome.COMPLETED)
 
     async def cancel(self, thread_id: str, principal: Any) -> bool:
@@ -479,13 +481,13 @@ def test_a_firing_with_answers_resumes_the_parked_question_with_no_new_prompt(
     worker = _worker(runner, clock)
     asked = worker.enqueue("run_headless", {**_PARAMS, "thread_id": "c1"}, actor=user)
     worker.run(asked)
-    assert worker.rows[asked].output["waiting"]["kind"] == "question"
+    assert worker.rows[asked].output["waiting"][0]["kind"] == "question"
 
     params = {**_PARAMS, "thread_id": "c1", "answers": {"q-1": "1999"}}
     answered = worker.enqueue("run_headless", params, actor=user)
     worker.run(answered)
 
-    completed = {"thread_id": "c1", "run_id": "r1", "outcome": "completed", "waiting": None}
+    completed = {"thread_id": "c1", "run_id": "r1", "outcome": "completed", "waiting": []}
     assert worker.rows[answered].output == completed
     resumed = runner.seen[-1]
     [returned] = [p for p in resumed.parts if isinstance(p, ToolReturnPart)]

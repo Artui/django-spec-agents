@@ -80,7 +80,7 @@ class AgentRunner:
         if isinstance(result.output, DeferredToolRequests):
             [call] = result.output.approvals
             waiting = RunWaiting("approval", call.tool_name, call.tool_call_id, True)
-            return RunStop(thread, "r1", RunOutcome.WAITING, waiting)
+            return RunStop(thread, "r1", RunOutcome.WAITING, (waiting,))
         return RunStop(thread, "r1", RunOutcome.COMPLETED)
 
     async def cancel(self, thread_id: str, principal: Any) -> bool:

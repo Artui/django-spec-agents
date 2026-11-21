@@ -7,7 +7,7 @@ from pydantic_ai.tools import DeferredToolKind
 
 @dataclass(frozen=True)
 class RunWaiting:
-    """What a parked run waits on: one deferred call a person has to answer.
+    """One deferred call a parked run waits on, which a person has to answer.
 
     ``kind`` is upstream's ``DeferredToolKind``: ``approval``, ``question`` (a tool
     that deferred with ``CallDeferred(kind="question")``) or ``external`` (a client

@@ -306,7 +306,7 @@ and returns at the run's first stop, presenting `{thread_id, run_id, outcome, wa
 | `outcome` | What happened |
 | --- | --- |
 | `completed` | The run ended with an answer |
-| `waiting` | A gated call the routine did not pre-approve parked the thread; `waiting` names it |
+| `waiting` | A gated call the routine did not pre-approve parked the thread; `waiting` lists each call it parked on |
 | `timed_out` | The run passed `timeout`; what it produced is kept |
 | `error` | The run failed, a refused tool call included |
 

@@ -17,6 +17,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SkillScanResult` give the shape a scanner of your own needs. A policy without a scanner
   behaves as before, and the package imports nothing of the harness itself.
 
+### Changed
+
+- **Breaking: `waiting` is a tuple of every call a parked run waits on.** A thread parked
+  on several deferred calls recorded and served one; it now records them all.
+  `ThreadRunState.waiting`, `RunStop.waiting` and `ChildSession.waiting` are
+  `tuple[RunWaiting, ...]`, empty when the thread is not waiting, where they were
+  `RunWaiting | None`; `RunStore.finish` takes `waiting=` as that tuple, `()` by default.
+  `finish` and `RunStop` raise `ValueError` unless `waiting` is non-empty exactly when the
+  outcome is `WAITING`. A transport passes `(build_run_waiting(...),)` for one call, and
+  reads `state.waiting` as a sequence (`not state.waiting` for "not waiting"). A store of
+  your own changes `finish` to match.
+- **`wake_thread` resumes a child parked on several questions** once an `ANSWER` is
+  pending for each, mapping the waiting calls, in order, to the oldest answers. A thread
+  waiting on any approval, or on more questions than there are answers, starts nothing.
+  When its ack removes fewer answers than it took, it starts nothing and enqueues again
+  the ones it removed.
+- **The `0008_waiting_calls` migration** rewrites a stored single call in
+  `StoredThreadRun.waiting` and `prior_waiting` as a one-element list; unapplying it keeps
+  each list's first call.
+
 ## [0.23.0] — 2026-11-18
 
 ### Added
