@@ -3095,10 +3095,13 @@ its next model request, or, for one that lands after its last read, the runner's
 once it ends; waiting on questions only, with an <code>ANSWER</code> pending for each, it resumes
 the parked calls, starting the run with <code>answers=</code> mapping each waiting call's id, in
 order, to the oldest answers' texts. It pairs them under a claim on the inbox (<code>take</code>,
-then <code>release</code>), so of two wakes racing on one park only one pairs and acks the
-answers, and acks them before starting, so the resumed run's drain does not hand them
-on again; a wake that finds the inbox claimed starts nothing, and a start that fails
-enqueues the answers again, in order. Waiting on
+then <code>release</code>) held across the start, so of two wakes racing on one park only one
+pairs them, and the resumed run's drain takes nothing until the wake acks them once the
+start returns; a wake that finds the inbox claimed starts nothing, and a start that
+fails, is cancelled or dies before the run claims the thread leaves the answers pending
+for the next wake. An ack lost once the run started lets its drain deliver them again,
+as the queue's at-least-once, and the claim holds the thread's other messages from the
+resumed run until the wake releases it. Waiting on
 anything else, or on more questions than there are answers, it does nothing, since a
 second run must not start before the resume, which reads the queue; idle, failed or never
 run, with messages pending, it starts one run on the thread's scope as <code>request.user</code>,
@@ -3116,14 +3119,7 @@ mount reads (scoped as that mount scopes it), a child's thread is started with t
 bounds; a thread with neither stored, or no <code>conversations</code>, is started with neither.
 A message another run took and has not released starts nothing: that run hands it on
 when it releases the inbox, and a run that died holding it leaves it for the next run
-the thread starts once its lease lapses. Pass the inner queue, never a
-<a class="autorefs autorefs-internal" title="WakingInboundQueue
-
-
-  
-      dataclass
-  " href="#django_spec_agents.child_sessions.waking_inbound_queue.WakingInboundQueue"><code>WakingInboundQueue</code></a>:
-an answer whose start fails is enqueued again, which would wake once more.</p>
+the thread starts once its lease lapses.</p>
 <p>When two wakes race, the runner's claim lets one run start; the other's refusal is
 absorbed once the thread reads as running.</p>
 
