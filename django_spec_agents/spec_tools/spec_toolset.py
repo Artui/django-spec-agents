@@ -476,7 +476,9 @@ class SpecToolset(AbstractToolset[Any]):
             payload because what is being protected is the model's context
             window. Over it the call **fails** with a model-readable
             ``ToolFailed`` — never truncates, because a partial payload looks
-            complete.
+            complete. A file is the exception: over it, the file is described
+            in a one-line note, a success, never refused; see
+            [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output].
         tool_max_result_bytes: ``max_result_bytes`` per tool. An explicit
             ``None`` opts that tool out; an absent key inherits the default.
         attachment_inline: The
