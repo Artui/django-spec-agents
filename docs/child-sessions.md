@@ -158,8 +158,8 @@ must accept them.
 
 A transport that deletes a parent thread should cancel its running children, with their
 descendants, and keep them as ordinary threads with the link cleared, as django-ag-ui does
-from 0.86.0. This package does neither on its own; a store clears the link with `unlink_parent`, on
-the optional [`UnlinkableConversationStore`](reference/persistence.md#unlinkableconversationstore)
+from 0.86.0. This package does neither on its own; a store clears the link with
+`unlink_parent`, on the optional [`UnlinkableConversationStore`](reference/persistence.md#unlinkableconversationstore)
 protocol:
 
 ```python
