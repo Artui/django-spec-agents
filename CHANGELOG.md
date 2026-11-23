@@ -15,8 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `False` at the timeout. A store without it still satisfies `RunStore`; a reader checks
   `isinstance(store, WatchableRunStore)` first. `DefaultRunStore` implements it by polling,
   one indexed read of the log's next number and end per tick, pausing 0.5 s and doubling to
-  2 s while idle (`poll_interval=`, refused unless `0 < first <= largest`); the storage page shows a PostgreSQL LISTEN/NOTIFY store
-  as a recipe.
+  2 s while idle (`poll_interval=`, refused unless `0 < first <= largest`); the storage page
+  shows a PostgreSQL LISTEN/NOTIFY store as a recipe.
 - **`agent_store_prune_run_logs`** runs `DefaultRunStore.prune` with `--older-than` as the
   retention window (default `24h`) and `--dry-run`. Nothing called `prune` before; the host
   schedules the command.

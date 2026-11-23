@@ -593,7 +593,8 @@ wait and checks `get`, which reads the lapsed lease as `failed`.
 number and end, and between ticks it pauses half a second, doubling up to two
 seconds while nothing changes. Every call starts from the shortest pause, so a
 reader that comes back after an entry polls quickly again. `poll_interval=(0.5,
-2.0)` on the constructor sets both.
+2.0)` on the constructor sets both, and a pair that could not back off (a first
+pause of zero or less, or one longer than the largest) raises `ValueError`.
 
 On PostgreSQL a store can wake its readers instead of letting them poll. The
 package ships no such store, because it would hold a connection per waiting
