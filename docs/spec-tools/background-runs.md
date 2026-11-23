@@ -162,7 +162,8 @@ a correctness one, and in a fan-out it is multiplied by every concurrent run.
   the model asks for. The clamp is reported back in the envelope, so the model
   is told it received less than it asked for rather than silently truncated.
 - `max_result_bytes=` (and `tool_max_result_bytes=` per tool) bounds the
-  serialized payload, answering with a refusal the model can act on.
+  serialized payload, answering with a refusal the model can act on; a file result over
+  it is described to the model rather than attached or refused.
 - `dispatch_timeout=` bounds how long a call blocks the run. **It does not stop
   the work** — the thread runs to completion; the run stops waiting.
 
