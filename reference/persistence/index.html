@@ -1067,6 +1067,45 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#unlinkableconversationstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnlinkableConversationStore
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.UnlinkableConversationStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnlinkableConversationStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UnlinkableConversationStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.UnlinkableConversationStore.unlink_parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        unlink_parent
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3184,6 +3223,45 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#unlinkableconversationstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnlinkableConversationStore
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.UnlinkableConversationStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnlinkableConversationStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UnlinkableConversationStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.UnlinkableConversationStore.unlink_parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        unlink_parent
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4790,7 +4868,8 @@ survive a round trip untouched; another transport stores its own.</p>
 <p><code>owner_id</code> scopes the conversation to a user for authorization. <code>parent</code> is
 the thread that started this one as a child session, and <code>lineage</code> the bounds it
 runs under; a store that keeps either writes it when given and leaves it alone when
-it is <code>None</code>.</p>
+it is <code>None</code>. <code>routine_id</code> is the routine whose firing started the thread, kept
+the same way.</p>
 
 
 
@@ -4848,7 +4927,8 @@ of the first user message unless a store records a rename, <code>preview</code> 
 one-line excerpt of the latest message, and <code>updated_at</code> is <code>None</code> in a
 store that does not track it. <code>owner_id</code> scopes the conversation to a user
 and is not surfaced on the wire. <code>parent</code> is the thread that started this
-one as a child session, in any scope; <code>None</code> for a thread of its own.</p>
+one as a child session, in any scope; <code>None</code> for a thread of its own.
+<code>routine_id</code> is the routine whose firing started it, <code>None</code> for any other thread.</p>
 
 
 
@@ -5013,6 +5093,12 @@ refuses them rather than collapsing every anonymous visitor into one shared
 owner bucket where they could read and delete each other's data. It is a
 <em>store</em> policy, so two endpoints sharing a store necessarily agree on it.
 Pass it explicitly: this substrate reads no Django settings.</p>
+<p><code>unlink_parent</code> (see
+<a class="autorefs autorefs-internal" title="UnlinkableConversationStore" href="#django_spec_agents.UnlinkableConversationStore"><code>UnlinkableConversationStore</code></a>)
+is offered only by a subclass that defines a synchronous
+<code>_unlink_parent(thread_id, owner_id)</code> hook, which clears that owner's
+thread's parent link and lineage. A subclass without one is not unlinkable, so
+a transport never believes a link it cannot clear was cleared.</p>
 <p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class MyStore(ModelConversationStore):
     def _fetch(self, thread_id, owner_id):
@@ -5096,6 +5182,8 @@ namespace would silently orphan the whole thread history of an existing
 single-endpoint project the moment it set one.</p>
 <p><code>check_identifiers</code> is forwarded, with the prefix applied to <code>thread_id</code>,
 only when the inner store has it; <code>preflight_identifiers</code> skips one without.
+<code>unlink_parent</code> is offered the same way, only over an
+<a class="autorefs autorefs-internal" title="UnlinkableConversationStore" href="#django_spec_agents.UnlinkableConversationStore"><code>UnlinkableConversationStore</code></a>.
 A <code>thread_id</code> refused there or by <code>save</code> is reported at the length the
 client sent, against the room the prefix leaves.</p>
 <p>The scope is invisible on the wire. Thread ids are echoed back to the client
@@ -5153,6 +5241,90 @@ unaffected: the separator ends the scope.</p>
 <p><code>limit</code> is applied by the inner store <em>before</em> this filter, so a busy
 sibling scope can crowd out rows. A store needing exact per-scope paging
 should partition at the query rather than by wrapping.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="unlinkableconversationstore"><code>UnlinkableConversationStore</code><a class="headerlink" href="#unlinkableconversationstore" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.UnlinkableConversationStore" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">UnlinkableConversationStore</span>
+
+
+<a href="#django_spec_agents.UnlinkableConversationStore" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="ConversationStore (django_spec_agents.persistence.types.conversation_store.ConversationStore)" href="#django_spec_agents.ConversationStore">ConversationStore</a></code>, <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>A conversation store that can clear a thread's parent link.</p>
+<p>A <a class="autorefs autorefs-internal" title="ConversationStore" href="#django_spec_agents.ConversationStore"><code>ConversationStore</code></a> with one more
+method. Optional: a store written against <code>ConversationStore</code> alone stays
+one, and a transport checks <code>isinstance(store, UnlinkableConversationStore)</code>
+before it calls <code>unlink_parent</code>.
+<a class="autorefs autorefs-internal" title="DefaultConversationStore" href="#django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore"><code>DefaultConversationStore</code></a>
+is one, and so is a
+<a class="autorefs autorefs-internal" title="ScopedConversationStore" href="#django_spec_agents.ScopedConversationStore"><code>ScopedConversationStore</code></a> over
+one.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.UnlinkableConversationStore.unlink_parent" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">unlink_parent</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.UnlinkableConversationStore.unlink_parent" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unlink_parent</span><span class="p">(</span><span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Clear the owner's thread's <code>parent</code> and <code>lineage</code>, leaving an ordinary thread.</p>
+<p>Owner-scoped like every other method: a missing thread, or another
+owner's, is left alone. Saving the thread again with a <code>parent</code> links it
+again, so a caller unlinks a child once its run has ended.</p>
 
 
     </div>
@@ -6746,6 +6918,12 @@ a runner calls <a class="autorefs autorefs-internal" title="wake_thread
       async
   " href="../child-sessions/#django_spec_agents.child_sessions.wake_thread.wake_thread"><code>wake_thread</code></a>
 for its thread once, which starts or resumes it when messages are still queued.</p>
+<p><code>parent_run_id</code> is the run this one comes from: the parent run that started a child,
+or the parked run a resume answers; the runner reports it as the run's
+<code>RUN_STARTED.parentRunId</code>. <code>routine_id</code> is the routine a firing runs; the runner
+saves it on the thread's conversation, as it saves <code>parent</code>, so every firing's
+thread names its routine. Every caller in this package passes both on every call, so
+a runner must accept them.</p>
 
 
 
@@ -6791,7 +6969,9 @@ for its thread once, which starts or resumes it when messages are still queued.<
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lineage</span><span class="p">:</span> <span class="n">ChildLineageRecord</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -6827,7 +7007,9 @@ for its thread once, which starts or resumes it when messages are still queued.<
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">capabilities</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AbstractCapability</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7168,7 +7350,8 @@ firing presents the <a class="autorefs autorefs-internal" title="RunStop
   
       dataclass
   " href="#django_spec_agents.RunStop"><code>RunStop</code></a>. A firing's <code>run_id</code> and
-<code>answers</code> are each passed only when set, so a runner without them still serves the rest.</p>
+<code>answers</code> are each passed only when set, so a runner without them still serves the rest;
+<code>parent_run_id</code> and <code>routine_id</code> are always passed, so a runner must take both.</p>
 <p>It declares <code>atomic=False</code>, since one transaction must not span a whole agent
 run, and <code>idempotent=False</code>, since a second call is a second paid run. A worker
 that dies mid-run is not run again: the run's lease lapses, so its thread reads
@@ -7213,7 +7396,9 @@ that cross a queue as JSON. <code>capabilities</code> cannot, so a queued run ca
 thread before the worker takes the firing up. <code>answers</code> resumes a thread parked on a
 question, a <code>tool_call_id</code> to its answer's text; the run sends no new <code>prompt</code>.
 <code>inbox_mark</code> is the thread's inbox mark taken when the firing was enqueued, for the
-worker to wake on mail newer than it; <code>None</code> for a firing that carries none.</p>
+worker to wake on mail newer than it; <code>None</code> for a firing that carries none.
+<code>parent_run_id</code> and <code>routine_id</code> are the runner's own, the run and the routine the
+firing comes from.</p>
 
 
 
@@ -7695,6 +7880,10 @@ it drops the ones nothing else refers to, so an attachment's lifetime is tied
 to the conversations quoting it. An upload that was never sent belongs to no
 conversation, and the <code>agent_store_prune_attachments</code> command collects
 those instead.</p>
+<p>It is an
+<a class="autorefs autorefs-internal" title="UnlinkableConversationStore" href="#django_spec_agents.UnlinkableConversationStore"><code>UnlinkableConversationStore</code></a>:
+<code>unlink_parent</code> writes NULL to the thread's parent columns and its lineage,
+and leaves its place in the list alone, as a rename does.</p>
 
 
 

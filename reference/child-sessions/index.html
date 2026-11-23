@@ -3117,6 +3117,8 @@ returns it. The run's mount composes
 mount reads (scoped as that mount scopes it), a child's thread is started with the
 <code>parent</code> and <code>lineage</code> its conversation stores, from which the runner composes its
 bounds; a thread with neither stored, or no <code>conversations</code>, is started with neither.
+It passes the stored <code>routine_id</code> the same way, and as <code>parent_run_id</code> the parked
+run a resume answers, <code>None</code> for any other start.
 A message another run took and has not released starts nothing: that run hands it on
 when it releases the inbox, and a run that died holding it leaves it for the next run
 the thread starts once its lease lapses.</p>

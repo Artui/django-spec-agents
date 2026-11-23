@@ -2506,6 +2506,19 @@ spelled out because a child usually lives under another agent:
 alone when a save does not, so a later turn typed in the child, which saves
 with <code>parent=None</code>, keeps it. A store written before the field existed still
 satisfies <code>ConversationStore</code>; its threads read back with no parent.</p>
+<p>Clearing the link is a method of its own, <code>unlink_parent(thread_id, *, request)</code>, on the
+optional <a href="../reference/persistence/#unlinkableconversationstore"><code>UnlinkableConversationStore</code></a>
+protocol, so a store without it still satisfies <code>ConversationStore</code>; a caller checks
+<code>isinstance(store, UnlinkableConversationStore)</code> first. <code>DefaultConversationStore</code> has
+it: it writes NULL to the thread's two parent columns and its lineage, owner-scoped, and
+leaves the thread's place in the list alone. <code>ScopedConversationStore</code> offers it only over
+a store that has it, and <code>ModelConversationStore</code> only to a subclass that defines the
+<code>_unlink_parent(thread_id, owner_id)</code> hook.</p>
+<p><strong>The routine link.</strong> <code>Conversation.routine_id</code> and <code>ConversationMeta.routine_id</code> name the
+routine whose firing started the thread, as a string. <code>DefaultConversationStore</code> keeps it
+in a <code>routine_id</code> column (the <code>0009_conversation_routine</code> migration) and, as with the
+parent, writes it when a save names one and leaves it alone otherwise, so every firing's
+thread keeps naming its routine.</p>
 <p><strong>The inbound queue.</strong> Reports, questions, answers and steering reach a thread
 through an <code>InboundQueue</code>, its own protocol so <code>ConversationStore</code> gains no
 method. Messages are addressed by <code>ThreadRef</code> and owner-scoped like every

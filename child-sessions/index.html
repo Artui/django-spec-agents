@@ -721,6 +721,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deleting-a-parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting a parent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reports" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1447,6 +1458,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deleting-a-parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting a parent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reports" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1696,6 +1718,28 @@ tools. The runner composes them on each run of a thread that has a parent:</p>
 <p>It returns nothing for a thread with no stored lineage, so a runner can call it on
 every run. Until 0.21.0 <code>start_session</code> passed these capabilities to the first run
 itself; a runner that composes only on later runs leaves a child's first run unbounded.</p>
+<p>The runner is also told which run started the child: <code>start_session</code> passes the parent
+run's id as <code>parent_run_id</code>, and a runner reports it as the child's first
+<code>RUN_STARTED.parentRunId</code>. A wake that resumes a parked child passes the parked run's
+id the same way; any other wake passes <code>None</code>. Every caller passes both <code>parent_run_id</code>
+and <code>routine_id</code> on every start, so a <a href="../reference/persistence/#headlessrunner"><code>HeadlessRunner</code></a>
+must accept them.</p>
+<h2 id="deleting-a-parent">Deleting a parent<a class="headerlink" href="#deleting-a-parent" title="Permanent link">&para;</a></h2>
+<p>A transport that deletes a parent thread should cancel its running children, with their
+descendants, and keep them as ordinary threads with the link cleared, as django-ag-ui does
+from 0.86.0. This package does neither on its own; a store clears the link with
+<code>unlink_parent</code>, on the optional <a href="../reference/persistence/#unlinkableconversationstore"><code>UnlinkableConversationStore</code></a>
+protocol:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnlinkableConversationStore</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">children</span><span class="p">,</span> <span class="n">UnlinkableConversationStore</span><span class="p">):</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="k">await</span> <span class="n">children</span><span class="o">.</span><span class="n">unlink_parent</span><span class="p">(</span><span class="s2">"c1"</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The child then loads with <code>parent=None</code> and <code>lineage=None</code>, so no run of its thread is
+bounded as a child's, and <code>DefaultChildSessionIndex.children</code> no longer lists it. Call it
+through the child's own scoped store; unlinking a missing thread, or another owner's,
+does nothing. Unlink once the child's run has ended or been cancelled: a save that names
+a <code>parent</code> writes the link again.</p>
 <h2 id="reports">Reports<a class="headerlink" href="#reports" title="Permanent link">&para;</a></h2>
 <p><code>ChildReport</code> is composed into every child run, by <code>child_lineage_for</code>. When the run settles it enqueues a <code>REPORT</code> on the parent's queue,
 with the body <code>{"text": ..., "outcome": ...}</code>, sent from the child's thread:</p>
@@ -1751,9 +1795,9 @@ a <code>&lt;task_question&gt;</code>.</p>
 <p>Reports, questions, answers and steering all travel through the receiving thread's
 inbound queue. <code>DrainInbound</code> hands them to that thread's model. Compose it into every
 run of each mount whose threads receive them, the parent's and the child's alike:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.drain_inbound</span><span class="w"> </span><span class="kn">import</span> <span class="n">DrainInbound</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">drain</span> <span class="o">=</span> <span class="n">DrainInbound</span><span class="p">(</span><span class="n">inbound_queue</span><span class="p">,</span> <span class="s2">"support"</span><span class="p">)</span>  <span class="c1"># the mount's agent id, its thread scope</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.drain_inbound</span><span class="w"> </span><span class="kn">import</span> <span class="n">DrainInbound</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">drain</span> <span class="o">=</span> <span class="n">DrainInbound</span><span class="p">(</span><span class="n">inbound_queue</span><span class="p">,</span> <span class="s2">"support"</span><span class="p">)</span>  <span class="c1"># the mount's agent id, its thread scope</span>
 </span></code></pre></div>
 <p><code>lease</code> (a keyword, five minutes by default) is how long the run's claim on the thread's
 inbox lasts without a model request to renew it.</p>
@@ -1810,17 +1854,17 @@ nothing.</p>
 <h2 id="waking-a-thread">Waking a thread<a class="headerlink" href="#waking-a-thread" title="Permanent link">&para;</a></h2>
 <p>A message for a thread with no run would wait until someone opened it.
 <code>wake_thread</code> starts that run:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.wake_thread</span><span class="w"> </span><span class="kn">import</span> <span class="n">wake_thread</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">started</span> <span class="o">=</span> <span class="k">await</span> <span class="n">wake_thread</span><span class="p">(</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">parent_thread</span><span class="p">,</span>  <span class="c1"># a ThreadRef: the thread id and its mount's agent id</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>  <span class="c1"># the owner's request; the run is started as request.user</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">runner</span><span class="o">=</span><span class="n">headless_runner</span><span class="p">,</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">runs</span><span class="o">=</span><span class="n">run_store</span><span class="p">,</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">queue</span><span class="o">=</span><span class="n">inbound_queue</span><span class="p">,</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">timeout</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">conversations</span><span class="o">=</span><span class="n">conversation_store</span><span class="p">,</span>  <span class="c1"># optional: the store the thread's mount reads</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.wake_thread</span><span class="w"> </span><span class="kn">import</span> <span class="n">wake_thread</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">started</span> <span class="o">=</span> <span class="k">await</span> <span class="n">wake_thread</span><span class="p">(</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">parent_thread</span><span class="p">,</span>  <span class="c1"># a ThreadRef: the thread id and its mount's agent id</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>  <span class="c1"># the owner's request; the run is started as request.user</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">runner</span><span class="o">=</span><span class="n">headless_runner</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">runs</span><span class="o">=</span><span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">queue</span><span class="o">=</span><span class="n">inbound_queue</span><span class="p">,</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">timeout</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">conversations</span><span class="o">=</span><span class="n">conversation_store</span><span class="p">,</span>  <span class="c1"># optional: the store the thread's mount reads</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Call it after enqueueing for a thread. What it does depends on where the thread's runs
 stand in the <code>RunStore</code>:</p>
@@ -1907,15 +1951,15 @@ prompt and the message delivered beside it by <code>DrainInbound</code>, and <co
 a child parked on <code>ask_parent</code> with the answer. A message that lands on a running thread
 after its run's last read is not woken by the enqueue, since the thread still reads as
 running; the runner's wake after <code>RunStore.finish</code> starts the next run for it.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">WakingInboundQueue</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">WakingInboundQueue</span><span class="p">(</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">DefaultInboundQueue</span><span class="p">(),</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">headless_runner</span><span class="p">,</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">run_store</span><span class="p">,</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="mf">300.0</span><span class="p">,</span>  <span class="c1"># each woken run's timeout</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">conversations</span><span class="o">=</span><span class="p">{</span><span class="s2">"research"</span><span class="p">:</span> <span class="n">research_store</span><span class="p">},</span>  <span class="c1"># agent id to the store its mount reads</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">WakingInboundQueue</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">WakingInboundQueue</span><span class="p">(</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">DefaultInboundQueue</span><span class="p">(),</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">headless_runner</span><span class="p">,</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="mf">300.0</span><span class="p">,</span>  <span class="c1"># each woken run's timeout</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">conversations</span><span class="o">=</span><span class="p">{</span><span class="s2">"research"</span><span class="p">:</span> <span class="n">research_store</span><span class="p">},</span>  <span class="c1"># agent id to the store its mount reads</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>A thread whose agent id is not in <code>conversations</code> wakes with no <code>parent</code> or <code>lineage</code>, as
 a root thread does. A wake that fails is logged, and the message stays queued for the

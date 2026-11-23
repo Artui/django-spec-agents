@@ -1850,7 +1850,9 @@ not the routine's principal, and a routine your policy's <code>can_run</code> re
 it at enqueue and the worker again before the run, so a routine your policy stops allowing in
 between lapses the firing, and the next sweep pauses the routine.</p>
 <p>It runs the routine's prompt on its agent, into the sweep's thread, one thread per firing,
-and returns at the run's first stop, presenting <code>{thread_id, run_id, outcome, waiting}</code>:</p>
+passing the runner <code>routine_id=str(routine.pk)</code>, which the runner saves on the thread's
+conversation (<code>Conversation.routine_id</code>), so every firing's thread names its routine and
+not only the newest. It returns at the run's first stop, presenting <code>{thread_id, run_id, outcome, waiting}</code>:</p>
 <table>
 <thead>
 <tr>
