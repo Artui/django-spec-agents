@@ -345,13 +345,28 @@ Return the rows, or declare `RETRIEVE` to present one.
 A spec presenting its result through the kernel's `FilePresenter` produces a
 `FileResult`, and the toolset reads it to the model the way
 [`read_attachment`](../storage.md#the-read_attachment-tool) reads an attachment,
-under `AttachmentInlineConfig`'s default limits:
+under the toolset's `attachment_inline` config. Pass it the
+`AttachmentInlineConfig` `read_attachment` is given, so one config governs both;
+without one the defaults apply. `SpecCapability` and `build_spec_capability`
+take the same keyword:
+
+```python
+from django_spec_agents import AttachmentInlineConfig
+from django_spec_agents.spec_tools import SpecToolset
+
+inline = AttachmentInlineConfig(max_bytes=1024 * 1024)
+toolset = SpecToolset(specs, attachment_inline=inline, max_result_bytes=256_000)
+```
+
+Below, the limit is the smaller of the config's `max_bytes` and the tool's
+`max_result_bytes`, or the config's alone when the tool has no ceiling:
 
 | The file | What the model gets |
 | --- | --- |
-| Textual (`text/*`, JSON, XML, JavaScript, YAML, SVG), valid UTF-8, within `max_bytes` | Its text. |
-| A type in `media_types` (PDF, PNG, JPEG, GIF, WebP) within `max_bytes` | The bytes, attached to the tool result as file content for that turn, beside a one-line note. |
-| Anything else: another type, a file over `max_bytes`, undecodable "text" | A one-line note giving its name, type and size. |
+| Textual (`text/*`, JSON, XML, JavaScript, YAML, SVG), valid UTF-8, within the limit | Its text. |
+| A type in `media_types` (PDF, PNG, JPEG, GIF, WebP) within the limit | The bytes, attached to the tool result as file content for that turn, beside a one-line note. |
+| A file over the limit | A one-line note giving its name, type and size, and the limit it is over: the config's, or the tool's ceiling on one result. |
+| Anything else: another type, undecodable "text" | A one-line note giving its name, type and size. |
 
 A file over the limit is read no further than the limit, so an over-limit
 textual file is described by its type without being read, where `read_attachment`
@@ -366,7 +381,11 @@ row, is refused when the toolset is built, naming the tool.
 
 `max_result_bytes` measures a file by its bytes: a text file by its UTF-8
 length, an attached one by its bytes plus the note, never by the repr of the
-bytes. Handing the user a download of the file is not the toolset's to do.
+bytes. A file over it is described, a success, never refused with the advice to
+narrow the request that a list over it gets: a file has nothing to narrow, and a
+smaller file never fares worse than a larger one. That holds for a `FileResult`
+a `render_output` override returns unrendered too. Handing the user a download
+of the file is not the toolset's to do.
 
 ## What a tool asks the model for
 
@@ -1264,7 +1283,7 @@ The toolset maps the kernel's failure kinds onto the Pydantic-AI model loop:
 | `ServiceError` (business rule) | `ToolFailed` with the rule's own message — a failed result the model reads and reports |
 | Unresolved instance: a read's or a write's instance selector that finds no row, or raises `DoesNotExist` or Django's `Http404` (as `get_object_or_404` does) | `ToolFailed("not found")`, unless the spec sets `allow_none=True`, when the tool returns `None`. A list selector's `Http404`, usually from a parent it looked up, is `ToolFailed("not found")` whatever `allow_none` says; a list that finds no rows returns `[]`, and a `DoesNotExist` escaping a list selector is an error, not a not-found |
 | A dispatch past `dispatch_timeout` | `ToolFailed` — abandoned, with the sentence telling the model to narrow and call again |
-| A rendered result over `max_result_bytes` | `ToolFailed` — refused rather than truncated, since a partial payload looks complete |
+| A rendered result over `max_result_bytes` | `ToolFailed` — refused rather than truncated, since a partial payload looks complete. A file is described instead: see [A file result](#a-file-result) |
 | Unexpected argument (default `REJECT`) | `ModelRetry` naming the unknown key, in the kernel's words: `note: Unknown argument.` |
 | A required argument left out: a required read, or a service's target lookup such as `pk` | `ModelRetry` naming each such parameter left out; a missing Validator field is reported by the Validator when the call runs — see [What a tool asks the model for](#what-a-tool-asks-the-model-for) |
 | An invalid item in a `many=True` list | `ModelRetry` with the errors keyed under the list's argument, then the item's index — see [A list as input](#a-list-as-input) |

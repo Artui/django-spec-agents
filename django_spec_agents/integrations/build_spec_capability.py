@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
 from django_spec_agents.integrations.resolve_spec_mapping import resolve_spec_mapping
 from django_spec_agents.integrations.types.spec_source import SpecSource
 
@@ -11,6 +12,7 @@ def build_spec_capability(
     specs: Mapping[str, Any] | SpecSource,
     *,
     exclude_names: frozenset[str] = frozenset(),
+    attachment_inline: AttachmentInlineConfig | None = None,
 ) -> Any:
     """A ``SpecCapability`` over ``specs``, acting as the run's ``deps.user``.
 
@@ -50,6 +52,9 @@ def build_spec_capability(
             the MCP bridge) already claimed. They are dropped so that source
             wins the collision, since pydantic-ai raises ``UserError`` for a
             duplicate name at run time.
+        attachment_inline: The ``AttachmentInlineConfig`` a spec tool's file
+            result is read with, as ``SpecToolset``'s keyword of that name. Pass
+            the one ``read_attachment`` is given, so one config governs both.
     """
     from django_spec_agents.spec_tools import SpecCapability
 
@@ -57,8 +62,10 @@ def build_spec_capability(
     selected = [name for name in resolved if name not in exclude_names]
     subset = getattr(specs, "subset", None)
     if subset is not None:
-        return SpecCapability(subset(*selected))
-    return SpecCapability({name: resolved[name] for name in selected})
+        return SpecCapability(subset(*selected), attachment_inline=attachment_inline)
+    return SpecCapability(
+        {name: resolved[name] for name in selected}, attachment_inline=attachment_inline
+    )
 
 
 __all__ = ["build_spec_capability"]

@@ -170,15 +170,17 @@ async def test_the_byte_ceiling_measures_a_media_file_by_its_bytes_not_their_rep
     assert _attached(result)[0].data == PNG
 
 
-async def test_the_byte_ceiling_refuses_a_media_file_over_it():
+async def test_a_media_file_whose_note_tips_it_over_the_ceiling_is_described_not_refused():
     spec = _file_spec(lambda: FileResult(PNG, "chart.png"), content_type="image/png")
-    toolset = SpecToolset({"make": spec}, max_result_bytes=len(PNG))
-    agent = Agent(tool_calling_model("make"), deps_type=AgentDeps, toolsets=[toolset])
-    result = await agent.run("go", deps=AgentDeps(user="alice"))
+    result = await _run(spec, max_result_bytes=len(PNG))
 
     (part,) = tool_answers(result.all_messages())
-    assert part.outcome == "failed"
-    assert f"over the {len(PNG)} byte ceiling" in part.content
+    assert part.outcome == "success"
+    assert part.content == (
+        f"[chart.png] is a image/png file ({len(PNG)} bytes), over this tool's {len(PNG)}-byte "
+        "ceiling on one result; it was described rather than attached."
+    )
+    assert _attached(result) == []
 
 
 def _bound(payload: Any, max_bytes: int) -> Any:
@@ -188,15 +190,18 @@ def _bound(payload: Any, max_bytes: int) -> Any:
 def test_a_raw_file_is_measured_by_its_declared_size():
     file = FileResult(b"abcd", "a.bin")
     assert _bound(file, 4) is file
-    with pytest.raises(ToolFailed, match="This result was 4 bytes, over the 3 byte ceiling"):
-        _bound(file, 3)
+    assert _bound(file, 3) == (
+        "[a.bin] is a binary file (4 bytes), over this tool's 3-byte ceiling on one result; "
+        "it was described rather than attached."
+    )
 
 
 def test_a_raw_file_of_unknown_size_is_read_up_to_the_ceiling():
     kept = _bound(FileResult(iter([b"ab", b"cd"]), "a.bin"), 4)
     assert (kept.content, kept.size) == (b"abcd", 4)
-    with pytest.raises(ToolFailed, match="This result was more than 3 bytes, over the 3 byte"):
-        _bound(FileResult(iter([b"ab", b"cd"]), "a.bin"), 3)
+    assert "(at least 4 bytes), over this tool's 3-byte ceiling" in _bound(
+        FileResult(iter([b"ab", b"cd"]), "a.bin"), 3
+    )
 
 
 @pytest.mark.parametrize(
@@ -232,3 +237,122 @@ def test_a_file_spec_the_kernel_refuses_is_refused_at_registration_naming_the_to
     )
     with pytest.raises(ImproperlyConfigured, match="SpecToolset tool 'export'.*list of rows"):
         SpecToolset({"export": spec})
+
+
+MIB = 1024 * 1024
+PDF_MIB = b"%PDF" + b"x" * (MIB - 4)
+
+
+def _over_inline(name: str, mime: str, size: int, limit: int) -> str:
+    verb = ("returning", "read") if mime.startswith("text/") else ("attaching", "attached")
+    return (
+        f"[{name}] is a {mime} file ({size} bytes), over the {limit}-byte limit for "
+        f"{verb[0]} a file's contents; it was described rather than {verb[1]}."
+    )
+
+
+def _over_ceiling(name: str, mime: str, size: str, ceiling: int) -> str:
+    verb = "read" if mime.startswith("text/") else "attached"
+    return (
+        f"[{name}] is a {mime} file ({size}), over this tool's {ceiling}-byte ceiling on "
+        f"one result; it was described rather than {verb}."
+    )
+
+
+@pytest.mark.parametrize(
+    ("mime", "data"),
+    [("application/pdf", b"%PDF" + b"x" * 1_000_005), ("text/plain", b"x" * 1_000_000)],
+)
+async def test_a_file_over_the_tools_ceiling_is_described_not_refused(mime: str, data: bytes):
+    spec = _file_spec(lambda: FileResult(data, "big"), content_type=mime)
+    result = await _run(spec, max_result_bytes=256_000)
+
+    (part,) = tool_answers(result.all_messages())
+    assert part.outcome == "success"
+    assert part.content == _over_ceiling("big", mime, f"{len(data)} bytes", 256_000)
+    assert _attached(result) == []
+
+
+async def test_a_configured_inline_limit_governs_a_spec_file():
+    text = "x" * (5 * MIB)
+    spec = _file_spec(lambda: FileResult(text.encode(), "big.txt"))
+    result = await _run(spec, attachment_inline=AttachmentInlineConfig(max_bytes=10 * MIB))
+
+    assert _answer(result) == text
+
+
+async def test_a_configured_media_allowlist_governs_a_spec_file():
+    spec = _file_spec(lambda: FileResult(PNG, "chart.png"), content_type="image/png")
+    result = await _run(spec, attachment_inline=AttachmentInlineConfig(media_types=frozenset()))
+
+    assert _answer(result) == (
+        f"[chart.png] is a image/png file ({len(PNG)} bytes); its content is not text and was "
+        "not inlined."
+    )
+    assert _attached(result) == []
+
+
+def _sizes(*limits: int) -> list[int]:
+    return sorted({size for limit in limits for size in (limit - 200, limit - 1, limit, limit + 1)})
+
+
+@pytest.mark.parametrize("mime", ["application/pdf", "text/plain"])
+@pytest.mark.parametrize(
+    ("inline", "ceiling"), [(4000, 2000), (2000, 4000), (3000, 3000), (3000, None)]
+)
+async def test_a_file_under_the_limit_that_fires_never_fares_worse_than_a_larger_one(
+    mime: str, inline: int, ceiling: int | None
+):
+    described: list[int] = []
+    for size in _sizes(inline, *([] if ceiling is None else [ceiling])):
+        data = (b"%PDF" if mime == "application/pdf" else b"xxxx") + b"x" * (size - 4)
+        result = await _run(
+            _file_spec(lambda data=data: FileResult(data, "f"), content_type=mime),
+            max_result_bytes=ceiling,
+            attachment_inline=AttachmentInlineConfig(max_bytes=inline),
+        )
+        (part,) = tool_answers(result.all_messages())
+        assert part.outcome == "success"
+        inlined = part.content == data.decode() or bool(_attached(result))
+        if not inlined:
+            if ceiling is not None and (ceiling < inline or size <= inline):
+                assert part.content == _over_ceiling("f", mime, f"{size} bytes", ceiling)
+            else:
+                assert part.content == _over_inline("f", mime, size, inline)
+            described.append(size)
+        else:
+            assert not described, f"{size} bytes inlined after {described} were described"
+    assert described
+
+
+async def test_render_output_is_handed_the_tools_ceiling():
+    seen: list[int | None] = []
+
+    class Recording(SpecToolset):
+        def render_output(self, spec, result, *, ctx, projection, max_bytes):
+            seen.append(max_bytes)
+            return super().render_output(
+                spec, result, ctx=ctx, projection=projection, max_bytes=max_bytes
+            )
+
+    toolset = Recording(
+        {"make": _file_spec(lambda: FileResult(b"hi", "a.txt"))},
+        max_result_bytes=900,
+        tool_max_result_bytes={"make": 700},
+    )
+    agent = Agent(tool_calling_model("make"), deps_type=AgentDeps, toolsets=[toolset])
+    result = await agent.run("go", deps=AgentDeps(user="alice"))
+
+    assert seen == [700]
+    assert _answer(result) == "hi"
+
+
+def test_a_raw_file_over_the_ceiling_is_described_and_closed():
+    handle = _Closing(b"abcd")
+    assert _bound(FileResult(handle, "a.pdf", "application/pdf", size=4), 3) == _over_ceiling(
+        "a.pdf", "application/pdf", "4 bytes", 3
+    )
+    assert handle.closed
+    assert _bound(FileResult(iter([b"ab", b"cd"]), "a.txt", "text/plain"), 3) == _over_ceiling(
+        "a.txt", "text/plain", "at least 4 bytes", 3
+    )

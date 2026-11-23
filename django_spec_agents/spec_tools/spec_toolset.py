@@ -476,9 +476,17 @@ class SpecToolset(AbstractToolset[Any]):
             payload because what is being protected is the model's context
             window. Over it the call **fails** with a model-readable
             ``ToolFailed`` — never truncates, because a partial payload looks
-            complete.
+            complete. A file is the exception: over it, the file is described
+            in a one-line note, a success, never refused; see
+            [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output].
         tool_max_result_bytes: ``max_result_bytes`` per tool. An explicit
             ``None`` opts that tool out; an absent key inherits the default.
+        attachment_inline: The
+            [`AttachmentInlineConfig`][django_spec_agents.AttachmentInlineConfig]
+            a file result is read with, the one ``read_attachment`` is given:
+            which binary types are attached and the largest file returned
+            rather than described. ``None`` is ``AttachmentInlineConfig()``.
+            See [`render_output`][django_spec_agents.spec_tools.SpecToolset.render_output].
         max_page_size: Clamps a list tool's ``limit`` *and* advertises the
             ceiling as JSON-Schema ``maximum``. It lowers the default page size
             only when it is below ``DEFAULT_PAGE_SIZE``: an omitted ``limit`` is
@@ -605,6 +613,7 @@ class SpecToolset(AbstractToolset[Any]):
         max_retries: int = 1,
         max_result_bytes: int | None = None,
         tool_max_result_bytes: Mapping[str, int | None] | None = None,
+        attachment_inline: AttachmentInlineConfig | None = None,
         max_page_size: int | None = None,
         include_total: bool = False,
         dispatch_timeout: float | None = None,
@@ -640,6 +649,9 @@ class SpecToolset(AbstractToolset[Any]):
         self._dispatch_timeout = dispatch_timeout
         self._thread_sensitive = thread_sensitive
         self._executor = executor
+        self._attachment_inline = (
+            attachment_inline if attachment_inline is not None else AttachmentInlineConfig()
+        )
         overrides: Mapping[str, int | None] = tool_max_result_bytes or {}
         for tool_name in overrides:
             _refuse_an_unknown_tool("tool_max_result_bytes", tool_name, self._specs)
@@ -1093,6 +1105,7 @@ class SpecToolset(AbstractToolset[Any]):
         *,
         ctx: RunContext[Any],
         projection: AudienceProjection | None,
+        max_bytes: int | None,
     ) -> Any:
         """Turn a dispatch result into the payload the model reads.
 
@@ -1125,20 +1138,28 @@ class SpecToolset(AbstractToolset[Any]):
         projected" is not true, and an override is how a project that means it
         says so.
 
-        **A file is read the way ``read_attachment`` reads an attachment.** A
-        spec presenting a ``FileResult`` (through the kernel's
-        ``FilePresenter``) is answered with its text when its type is textual and
-        it fits ``AttachmentInlineConfig``'s ``max_bytes``; with its bytes
-        attached to the tool result, for that turn, when its type is one of the
-        config's ``media_types`` and it fits; and otherwise with a one-line
-        note giving its name, type and size. The default config's limits apply.
-        A file over the limit is read no further than it, and one of a type the
-        model cannot read is closed unread.
+        **A file is read the way ``read_attachment`` reads an attachment**, with
+        the toolset's ``attachment_inline`` config (``AttachmentInlineConfig()``
+        when none was given). A spec presenting a ``FileResult`` (through the
+        kernel's ``FilePresenter``) is answered with its text when its type is
+        textual and it fits; with its bytes attached to the tool result, for
+        that turn, when its type is one of the config's ``media_types`` and it
+        fits; and otherwise with a one-line note giving its name, type and size.
+
+        **It fits under the smaller of two limits**: the config's ``max_bytes``
+        and ``max_bytes`` here, the tool's ``max_result_bytes`` (``None`` when
+        it has none, and then the config's limit alone applies). An attached
+        file fits when its bytes plus the sentence beside them do, as
+        ``enforce_result_bytes`` measures it. A file over either limit is a
+        success carrying the note, which names the limit that fired, never a
+        refusal: there is nothing in a file to narrow. A file over the limit is
+        read no further than it, and one of a type the model cannot read is
+        closed unread.
         """
         del ctx
         presented = present_for_audience(spec, result, projection=projection)
         if isinstance(presented, FileResult):
-            return _file_for_the_model(presented, _FILE_INLINE)
+            return _file_for_the_model(presented, self._attachment_inline, ceiling=max_bytes)
         return presented
 
     def enforce_result_bytes(
@@ -1148,7 +1169,13 @@ class SpecToolset(AbstractToolset[Any]):
 
         Measured on the envelope, because the envelope is what is sent. A file
         is measured by its bytes: a text file by its text's UTF-8 length, an
-        attached one by its bytes plus the note beside them, never by its repr. Override to
+        attached one by its bytes plus the note beside them, never by its repr.
+        ``render_output`` already described a file that would not fit, so a
+        rendered file reaches this under the ceiling. One an override returned
+        unrendered, a ``FileResult``, is measured by its declared size, or read
+        up to the ceiling when it declares none; over it, the default returns
+        the note ``render_output`` would have, as a success, and closes the
+        file, rather than refusing. Override to
         bound on something other than serialized length -- a row count, a per-run
         running total read off ``ctx.usage``, a taper against ``ctx.usage_limits``
         as a run gets long -- or to shape the refusal differently.
@@ -1945,7 +1972,7 @@ def _call_spec(
         )
         result = replace(result, value=page.items)
     try:
-        rendered = render_output(spec, result, projection=projection)
+        rendered = render_output(spec, result, projection=projection, max_bytes=max_result_bytes)
     except (InvalidArguments, ServiceValidationError) as exc:
         handler = translate_exception(exc)
         if handler is not None:
@@ -2003,7 +2030,10 @@ def _enforce_result_bytes(
         try:
             payload = replace(payload, content=payload.read(max_bytes))
         except FileTooLarge:
-            _refuse_over_budget(f"more than {max_bytes}", max_bytes, label=label, extra=extra)
+            return _over_ceiling_note(payload, f"at least {max_bytes + 1} bytes", max_bytes)
+    if isinstance(payload, FileResult) and cast("int", payload.size) > max_bytes:
+        payload.close()
+        return _over_ceiling_note(payload, f"{payload.size} bytes", max_bytes)
     size = _payload_bytes(payload)
     if size <= max_bytes:
         return payload
@@ -2056,26 +2086,43 @@ def _json_bytes(payload: Any) -> int:
     return len(json.dumps(payload, default=str).encode("utf-8"))
 
 
-_FILE_INLINE = AttachmentInlineConfig()
-
-
-def _file_for_the_model(file: FileResult, inline: AttachmentInlineConfig) -> str | ToolReturn:
-    """A file as ``read_attachment`` answers one: its text, its bytes attached, or a note."""
+def _file_for_the_model(
+    file: FileResult, inline: AttachmentInlineConfig, *, ceiling: int | None
+) -> str | ToolReturn:
+    """A file as ``read_attachment`` answers one, within ``ceiling`` too: text, bytes or a note."""
     name, mime = file.filename, file.content_type or ""
     if not (is_textual(mime) or mime in inline.media_types):
         file.close()
         return unread_note(name, mime, _size_text(file.size))
+    by_ceiling = ceiling is not None and ceiling < inline.max_bytes
+    limit = ceiling if by_ceiling else inline.max_bytes
     try:
-        data = file.read(inline.max_bytes)
+        data = file.read(limit)
     except FileTooLarge:
-        size = _size_text(file.size, at_least=inline.max_bytes + 1)
-        return over_limit_note(name, mime, size, inline.max_bytes, text=is_textual(mime))
+        size = _size_text(file.size, at_least=limit + 1)
+        if by_ceiling:
+            return _over_ceiling_note(file, size, limit)
+        return over_limit_note(name, mime, size, limit, text=is_textual(mime))
     text = as_text(data, mime)
     if text is not None:
-        return ToolReturn(return_value=text)
-    if mime in inline.media_types:
-        return attached_file(data, name=name, mime=mime, again="")
-    return unread_note(name, mime, f"{len(data)} bytes")
+        rendered: str | ToolReturn = ToolReturn(return_value=text)
+    elif mime in inline.media_types:
+        rendered = attached_file(data, name=name, mime=mime, again="")
+    else:
+        rendered = unread_note(name, mime, f"{len(data)} bytes")
+    if ceiling is not None and _payload_bytes(rendered) > ceiling:
+        return _over_ceiling_note(file, f"{len(data)} bytes", ceiling)
+    return rendered
+
+
+def _over_ceiling_note(file: FileResult, size: str, ceiling: int) -> str:
+    """The note for a file over the tool's ``max_result_bytes``, which names that ceiling."""
+    mime = file.content_type or ""
+    verb = "read" if is_textual(mime) else "attached"
+    return (
+        f"[{file.filename}] is a {mime or 'binary'} file ({size}), over this tool's "
+        f"{ceiling}-byte ceiling on one result; it was described rather than {verb}."
+    )
 
 
 def _size_text(size: int | None, *, at_least: int | None = None) -> str:

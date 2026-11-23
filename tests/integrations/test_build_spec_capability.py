@@ -9,6 +9,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django_service_specs import ServiceSpec, SpecRegistry, Unrestricted
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
 from django_spec_agents.integrations.build_spec_capability import build_spec_capability
 from tests.integrations.helpers import (
     LOOKUP_CALLS,
@@ -214,3 +215,18 @@ async def test_a_call_missing_a_selector_argument_is_one_retry_then_the_row(
 
     assert retries == ["Missing required argument(s): `pk`."]
     assert returns == [row]
+
+
+@pytest.mark.parametrize("as_registry", [False, True], ids=["mapping", "registry"])
+def test_the_inline_config_reaches_the_toolset(as_registry: bool) -> None:
+    source: Any = {"ping": open_spec()}
+    if as_registry:
+        source = SpecRegistry()
+        source.register("ping", open_spec())
+    inline = AttachmentInlineConfig(max_bytes=10)
+
+    capability = build_spec_capability(source, attachment_inline=inline)
+    assert capability.get_toolset()._attachment_inline is inline
+    assert build_spec_capability(source).get_toolset()._attachment_inline == (
+        AttachmentInlineConfig()
+    )
