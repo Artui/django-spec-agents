@@ -29,6 +29,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read, a lease check, the insert and an update. A run that no longer holds a live lease, or
   has finished, still appends nothing and gets `None`, including an append that waited on
   the log row behind the run's `finish`.
+- **`SpecToolset.render_output` is handed the tool's ceiling as `max_bytes`.** It is the
+  tool's `max_result_bytes` (`None` when it has none), and the default uses it to decide
+  whether a file fits. An override with a closed signature,
+  `render_output(self, spec, result, *, ctx, projection)`, now raises `TypeError` at the
+  call: add `max_bytes`, or take `**kwargs`, and pass it on to `super()`.
+
+### Fixed
+
+- **A spec tool's file result is read with the project's `AttachmentInlineConfig`.**
+  `SpecToolset`, `SpecCapability` and `build_spec_capability` take `attachment_inline=`, the
+  config `read_attachment` is given, so one config governs both. Before, a file always met
+  the default 4 MiB limit and the default media types: a raised `max_bytes` was ignored,
+  and `media_types=frozenset()` still attached a spec tool's PDF or image. Without the
+  keyword the defaults apply, as before.
+- **A file over a tool's `max_result_bytes` is described, never refused.** It is inlined only
+  up to the smaller of the config's `max_bytes` and the tool's ceiling; over it, the call is
+  a success carrying the one-line note, which names the limit that fired. Before, a 1 MB
+  PDF under a 256 KB ceiling was refused with the advice to add a filter or lower `limit`,
+  while a 5 MB one, over the inline limit, came back as the note. A `FileResult` an override
+  returns unrendered gets the same note when it is over the ceiling, and is closed.
 
 ## [0.25.1] — 2026-11-23
 

@@ -6619,7 +6619,7 @@ async def test_render_output_override_can_skip_the_projection():
     """The kernel's ``present`` is the opt-out; ``projection=None`` is not."""
 
     class Unprojected(SpecToolset):
-        def render_output(self, spec, result, *, ctx, projection):
+        def render_output(self, spec, result, *, ctx, projection, max_bytes):
             return present(spec, result)
 
     user = await sync_to_async(User.objects.create)(username="u")
@@ -6645,7 +6645,7 @@ async def test_render_output_is_handed_the_page_s_rows_and_the_envelope_follows(
     seen: dict[str, Any] = {}
 
     class Rows(SpecToolset):
-        def render_output(self, spec, result, *, ctx, projection):
+        def render_output(self, spec, result, *, ctx, projection, max_bytes):
             seen["names"] = [row.name for row in result.value]
             return ["rendered"]
 
@@ -6763,11 +6763,13 @@ async def test_render_output_reaches_the_dispatch_result_carrier():
     seen: dict[str, Any] = {}
 
     class Upsert(SpecToolset):
-        def render_output(self, spec, result, *, ctx, projection):
+        def render_output(self, spec, result, *, ctx, projection, max_bytes):
             seen["created"] = result.service_result.created
             seen["value_is_the_refetched_row"] = isinstance(result.value, Widget)
             seen["data"] = dict(result.data)
-            return super().render_output(spec, result, ctx=ctx, projection=projection)
+            return super().render_output(
+                spec, result, ctx=ctx, projection=projection, max_bytes=max_bytes
+            )
 
     user = await sync_to_async(User.objects.create)(username="u")
     toolset = Upsert({"upsert": upsert_spec()})
@@ -6790,7 +6792,9 @@ async def test_a_render_output_override_written_for_the_earlier_signature_breaks
     called: list[str] = []
 
     class Legacy(SpecToolset):
-        def render_output(self, spec, value, *, ctx, projection, many, request, view, extras):
+        def render_output(
+            self, spec, value, *, ctx, projection, max_bytes, many, request, view, extras
+        ):
             called.append("yes")
             return value
 
@@ -6803,6 +6807,22 @@ async def test_a_render_output_override_written_for_the_earlier_signature_breaks
         await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
 
     assert called == []
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_render_output_override_without_max_bytes_breaks_loudly():
+    """An override written before the tool's ceiling was handed in raises at the call."""
+
+    class Earlier(SpecToolset):
+        def render_output(self, spec, result, *, ctx, projection):
+            return []
+
+    user = await sync_to_async(User.objects.create)(username="u")
+    toolset = Earlier({"list_widgets": list_spec()})
+    tools = await toolset.get_tools(None)
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'max_bytes'"):
+        await toolset.call_tool("list_widgets", {}, ctx_for(user), tools["list_widgets"])
 
 
 async def test_dispatch_timeout_log_line_carries_run_correlation(caplog):

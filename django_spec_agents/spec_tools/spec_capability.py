@@ -7,6 +7,7 @@ from typing import Any
 from django_service_specs import DEFAULT_POOL_SEEDS, PoolSeeds, ServerArguments, UnknownArguments
 from pydantic_ai.capabilities import AbstractCapability
 
+from django_spec_agents.agent.types.attachment_inline_config import AttachmentInlineConfig
 from django_spec_agents.spec_tools.spec_toolset import (
     ExceptionHandler,
     ProgressExtractor,
@@ -94,6 +95,7 @@ class SpecCapability(AbstractCapability[Any]):
         max_retries: int = 1,
         max_result_bytes: int | None = None,
         tool_max_result_bytes: Mapping[str, int | None] | None = None,
+        attachment_inline: AttachmentInlineConfig | None = None,
         max_page_size: int | None = None,
         include_total: bool = False,
         dispatch_timeout: float | None = None,
@@ -116,6 +118,7 @@ class SpecCapability(AbstractCapability[Any]):
             max_retries=max_retries,
             max_result_bytes=max_result_bytes,
             tool_max_result_bytes=tool_max_result_bytes,
+            attachment_inline=attachment_inline,
             max_page_size=max_page_size,
             include_total=include_total,
             dispatch_timeout=dispatch_timeout,
