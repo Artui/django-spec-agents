@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 from typing import Any
 
@@ -292,3 +293,30 @@ async def test_non_utf8_text_over_the_limit_gets_the_text_note() -> None:
         "[bad.txt] is a text/plain file (at least 101 bytes), over the 100-byte limit for "
         "returning a file's contents; it was described rather than read."
     )
+
+
+async def test_the_handle_is_read_and_closed_off_the_event_loop() -> None:
+    seen: list[str] = []
+
+    def _where() -> str:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return "off"
+        return "on"
+
+    class _Recording(io.BytesIO):
+        def read(self, size: int | None = -1) -> bytes:
+            seen.append(f"read {_where()}")
+            return super().read(size)
+
+        def close(self) -> None:
+            seen.append(f"close {_where()}")
+            super().close()
+
+    ref = AttachmentRef(id="a1", name="f", mime="text/plain", size=2)
+    store = _FakeStore(OpenedAttachment(ref=ref, content=_Recording(b"hi")))
+    read = _read_attachment(store, RequestFactory().get("/"))
+    assert await read("a1") == "hi"
+    assert seen and set(seen) <= {"read off", "close off"}
+    assert "close off" in seen

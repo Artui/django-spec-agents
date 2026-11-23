@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`read_attachment` reads and closes the attachment in a thread.** The handle was read
+  on the event loop, so a remote `Storage` download blocked every other run on it. It
+  now goes through `sync_to_async` on the same thread `ModelAttachmentStore.open` uses.
+  The `AttachmentStore` docstring now says `open` must not block the loop.
 - **`read_attachment` reads no more than `max_bytes + 1` bytes.** It read the whole
   file before checking its type or size, so a 10 MB zip was read in full and then
   described. A type that is neither textual nor in `media_types` is now closed unread, a

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import IO, Any, cast
 
+from asgiref.sync import sync_to_async
 from django.http import HttpRequest
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.toolsets.function import FunctionToolset
@@ -46,7 +47,7 @@ def build_attachment_toolset(
         opened = await store.open(attachment_id, request=request)
         if opened is None:
             return f"No attachment with id {attachment_id!r} is available."
-        return _render(opened, resolved)
+        return await sync_to_async(_render)(opened, resolved)
 
     return FunctionToolset([cast("Any", read_attachment)], id="django-spec-agents-attachments")
 
