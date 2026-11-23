@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import io
-from typing import Any
+import threading
+from typing import Any, cast
 
 import pytest
 from asgiref.sync import sync_to_async
@@ -67,10 +68,18 @@ async def test_reads_non_text_mime_as_a_manifest() -> None:
 
 async def test_textual_mime_but_undecodable_bytes_is_a_manifest() -> None:
     # ``text/plain`` content type, but the bytes aren't valid UTF-8.
+    store = _FakeStore(_opened("text/plain", b"\xff\xfe", name="bad.txt", size=2))
+    read = _read_attachment(store, RequestFactory().get("/"))
+    assert await read("a1") == (
+        "[bad.txt] is a text/plain file (2 bytes); its content is not text and was not inlined."
+    )
+
+
+async def test_the_undecodable_note_reports_the_bytes_read_not_the_declared_size() -> None:
     store = _FakeStore(_opened("text/plain", b"\xff\xfe", name="bad.txt", size=20))
     read = _read_attachment(store, RequestFactory().get("/"))
     assert await read("a1") == (
-        "[bad.txt] is a text/plain file (20 bytes); its content is not text and was not inlined."
+        "[bad.txt] is a text/plain file (2 bytes); its content is not text and was not inlined."
     )
 
 
@@ -262,6 +271,26 @@ async def test_an_unreadable_type_is_closed_unread() -> None:
     assert handle.closed
 
 
+async def test_a_small_unreadable_type_under_the_limit_is_closed_unread() -> None:
+    handle = _CountingHandle(b"x" * 50)
+    store = _FakeStore(_counted("application/zip", handle, size=50))
+    read = _read_attachment(
+        store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=100)
+    )
+    assert await read("a1") == (
+        "[big] is a application/zip file (50 bytes); its content is not text and was not inlined."
+    )
+    assert handle.taken == 0
+    assert handle.closed
+
+
+async def test_an_undeclared_size_is_read_and_returned_as_text() -> None:
+    ref = AttachmentRef(id="a1", name="f", mime="text/plain", size=cast("Any", None))
+    store = _FakeStore(OpenedAttachment(ref=ref, content=io.BytesIO(b"hello")))
+    read = _read_attachment(store, RequestFactory().get("/"))
+    assert await read("a1") == "hello"
+
+
 async def test_a_stream_that_returns_short_reads_is_still_bounded() -> None:
     class _Trickle(_CountingHandle):
         def read(self, size: int | None = -1) -> bytes:
@@ -320,3 +349,80 @@ async def test_the_handle_is_read_and_closed_off_the_event_loop() -> None:
     assert await read("a1") == "hi"
     assert seen and set(seen) <= {"read off", "close off"}
     assert "close off" in seen
+
+
+async def test_the_read_runs_on_the_thread_sensitive_thread() -> None:
+    seen: list[int] = []
+
+    class _Recording(io.BytesIO):
+        def read(self, size: int | None = -1) -> bytes:
+            seen.append(threading.get_ident())
+            return super().read(size)
+
+    ref = AttachmentRef(id="a1", name="f", mime="text/plain", size=2)
+    store = _FakeStore(OpenedAttachment(ref=ref, content=_Recording(b"hi")))
+    read = _read_attachment(store, RequestFactory().get("/"))
+    assert await read("a1") == "hi"
+    assert set(seen) == {await sync_to_async(threading.get_ident)()}
+
+
+async def _until(condition: Any) -> None:
+    for _ in range(200):
+        if condition():
+            return
+        await asyncio.sleep(0.01)
+
+
+async def test_a_read_cancelled_while_queued_still_closes_the_handle() -> None:
+    gate = threading.Event()
+    handle = _CountingHandle(b"hello")
+    store = _FakeStore(_counted("text/plain", handle, size=5))
+    read = _read_attachment(store, RequestFactory().get("/"))
+
+    blocker = asyncio.ensure_future(sync_to_async(gate.wait)())
+    await asyncio.sleep(0.05)
+    task = asyncio.ensure_future(read("a1"))
+    await _until(lambda: store.opened_ids)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    gate.set()
+    await blocker
+    await _until(lambda: handle.closed)
+
+    assert handle.closed
+
+
+async def test_a_read_cancelled_while_the_store_is_opening_still_closes_the_handle() -> None:
+    release = asyncio.Event()
+    handle = _CountingHandle(b"hello")
+    opened = _counted("text/plain", handle, size=5)
+
+    class _Slow(_FakeStore):
+        async def open(self, attachment_id: str, *, request: HttpRequest) -> OpenedAttachment:
+            await release.wait()
+            return opened
+
+    store = _Slow(None)
+    read = _read_attachment(store, RequestFactory().get("/"))
+
+    task = asyncio.ensure_future(read("a1"))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    release.set()
+    await _until(lambda: handle.closed)
+
+    assert handle.closed
+
+
+async def test_a_store_failure_reaches_the_caller_through_the_shield() -> None:
+    class _Broken(_FakeStore):
+        async def open(self, attachment_id: str, *, request: HttpRequest) -> OpenedAttachment:
+            raise RuntimeError("store down")
+
+    read = _read_attachment(_Broken(None), RequestFactory().get("/"))
+    with pytest.raises(RuntimeError, match="store down"):
+        await read("a1")

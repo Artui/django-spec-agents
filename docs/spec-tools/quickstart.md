@@ -368,10 +368,8 @@ Below, the limit is the smaller of the config's `max_bytes` and the tool's
 | A file over the limit | A one-line note giving its name, type and size, and the limit it is over: the config's, or the tool's ceiling on one result. |
 | Anything else: another type, undecodable "text" | A one-line note giving its name, type and size. |
 
-A file over the limit is read no further than the limit, so an over-limit
-textual file is described by its type without being read, where `read_attachment`
-reads an attachment whole and then measures it. One of a type the model cannot
-read is closed without being read. Unlike `read_attachment`, the
+A file over the limit is read no further than the limit, and one of a type the
+model cannot read is closed without being read. Unlike `read_attachment`, the
 note does not ask the model to call the tool again for a later turn: calling a
 service again runs it again.
 

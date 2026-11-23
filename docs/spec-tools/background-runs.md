@@ -129,8 +129,9 @@ The usage fields are cumulative for the run rather than attributable to the call
 — a tool call spends no tokens itself — which is exactly what makes them useful
 here: they say where the budget stood when a long run went wrong. They ride on
 the timing line; the `run_id` / `conversation_id` / `run_step` / `tool_call_id`
-four are on every line the package emits, including the two `WARNING`s a
-misbehaving call produces (a dispatch timeout, a result over its byte ceiling).
+four are on every line the package emits, including the `WARNING`s a
+misbehaving call produces (a dispatch timeout, a result over its byte ceiling, a file
+described rather than returned over it).
 
 ```python title="settings.py"
 LOGGING = {

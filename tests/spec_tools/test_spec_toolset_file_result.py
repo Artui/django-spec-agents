@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -356,3 +357,54 @@ def test_a_raw_file_over_the_ceiling_is_described_and_closed():
     assert _bound(FileResult(iter([b"ab", b"cd"]), "a.txt", "text/plain"), 3) == _over_ceiling(
         "a.txt", "text/plain", "at least 4 bytes", 3
     )
+
+
+@pytest.mark.parametrize("ceiling", [64, 120])
+async def test_a_note_longer_than_the_ceiling_is_still_a_success_not_a_refusal(ceiling: int):
+    spec = _file_spec(lambda: FileResult(b"x" * 500, "notes.txt"))
+    result = await _run(spec, max_result_bytes=ceiling)
+
+    (part,) = tool_answers(result.all_messages())
+    assert part.outcome == "success"
+    assert part.content == _over_ceiling("notes.txt", "text/plain", "500 bytes", ceiling)
+    assert len(part.content) > ceiling
+
+
+@pytest.mark.parametrize("ceiling", [64, 120])
+def test_a_raw_file_note_longer_than_the_ceiling_is_returned_not_refused(ceiling: int):
+    note = _bound(FileResult(b"x" * 500, "notes.txt", "text/plain"), ceiling)
+    assert note == _over_ceiling("notes.txt", "text/plain", "500 bytes", ceiling)
+    assert len(note) > ceiling
+
+
+async def test_a_file_described_over_the_ceiling_is_logged_with_the_run_correlation(caplog):
+    spec = _file_spec(lambda: FileResult(b"x" * 500, "notes.txt"))
+    with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
+        result = await _run(spec, max_result_bytes=200)
+
+    record = next(r for r in caplog.records if "Result bound exceeded" in r.getMessage())
+    assert record.levelno == logging.WARNING
+    assert record.run_id == result.run_id
+    assert record.tool_call_id
+
+
+def test_a_raw_file_described_over_the_ceiling_is_logged_with_the_extra(caplog):
+    with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
+        _enforce_result_bytes(
+            FileResult(b"x" * 500, "notes.txt", "text/plain"),
+            max_bytes=200,
+            label="make",
+            extra={"run_id": "run-raw"},
+        )
+
+    record = next(r for r in caplog.records if "Result bound exceeded" in r.getMessage())
+    assert record.run_id == "run-raw"
+    assert "'make'" in record.getMessage()
+
+
+async def test_a_file_within_the_ceiling_logs_nothing(caplog):
+    spec = _file_spec(lambda: FileResult(b"hi", "a.txt"))
+    with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
+        await _run(spec, max_result_bytes=200)
+
+    assert not [r for r in caplog.records if "Result bound exceeded" in r.getMessage()]

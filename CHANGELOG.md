@@ -61,6 +61,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PDF under a 256 KB ceiling was refused with the advice to add a filter or lower `limit`,
   while a 5 MB one, over the inline limit, came back as the note. A `FileResult` an override
   returns unrendered gets the same note when it is over the ceiling, and is closed.
+- **A cancelled `read_attachment` still closes the handle.** The read queues behind
+  other thread-sensitive work, and a cancel landing before it ran left the handle open,
+  as did a cancel during `store.open`. Open and read now run as one shielded task, so a
+  cancelled call finishes in its thread, bounded at `max_bytes + 1` bytes, and closes
+  the handle. A pin test holds that the read stays on the thread-sensitive executor.
+- **`read_attachment` accepts an attachment with no declared size.** `ref.size` of `None`
+  raised `TypeError` against the limit; it now reads up to `max_bytes + 1`, like a size of
+  `0`. A file whose bytes are not text is described by the bytes read rather than the
+  declared size.
+- **A file note longer than the tool's ceiling is a success on the render path too.** The
+  one-line note was measured again by the result bound, so at a small `max_result_bytes`
+  (a note runs about 110 bytes plus the name and type) the call was refused with the
+  advice to narrow the request. The note is now final on both paths.
+- **A file described over a tool's ceiling is logged.** It left no line; it now logs the
+  `Result bound exceeded` `WARNING`, with the run's `run_id`, `conversation_id`,
+  `run_step` and `tool_call_id`, on the render path and for a `FileResult` returned
+  unrendered.
 
 ## [0.25.1] — 2026-11-23
 

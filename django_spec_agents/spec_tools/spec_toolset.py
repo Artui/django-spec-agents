@@ -1175,7 +1175,9 @@ class SpecToolset(AbstractToolset[Any]):
         unrendered, a ``FileResult``, is measured by its declared size, or read
         up to the ceiling when it declares none; over it, the default returns
         the note ``render_output`` would have, as a success, and closes the
-        file, rather than refusing. Override to
+        file, rather than refusing. A note ``render_output`` returned is final:
+        it is not measured again, whatever the ceiling, and is logged at
+        ``WARNING``. Override to
         bound on something other than serialized length -- a row count, a per-run
         running total read off ``ctx.usage``, a taper against ``ctx.usage_limits``
         as a run gets long -- or to shape the refusal differently.
@@ -2026,18 +2028,35 @@ def _enforce_result_bytes(
     """Return ``payload``, or raise a model-readable refusal when it is over budget."""
     if max_bytes is None:
         return payload
+    if isinstance(payload, _OverCeilingNote):
+        return _described_over_ceiling(payload, max_bytes, label=label, extra=extra)
     if isinstance(payload, FileResult) and payload.size is None:
         try:
             payload = replace(payload, content=payload.read(max_bytes))
         except FileTooLarge:
-            return _over_ceiling_note(payload, f"at least {max_bytes + 1} bytes", max_bytes)
+            note = _over_ceiling_note(payload, f"at least {max_bytes + 1} bytes", max_bytes)
+            return _described_over_ceiling(note, max_bytes, label=label, extra=extra)
     if isinstance(payload, FileResult) and cast("int", payload.size) > max_bytes:
         payload.close()
-        return _over_ceiling_note(payload, f"{payload.size} bytes", max_bytes)
+        note = _over_ceiling_note(payload, f"{payload.size} bytes", max_bytes)
+        return _described_over_ceiling(note, max_bytes, label=label, extra=extra)
     size = _payload_bytes(payload)
     if size <= max_bytes:
         return payload
     _refuse_over_budget(str(size), max_bytes, label=label, extra=extra)
+
+
+def _described_over_ceiling(
+    note: str, max_bytes: int, *, label: str, extra: Mapping[str, Any]
+) -> str:
+    """Log a file described over the ceiling and return its note, which is final."""
+    logger.warning(
+        "Result bound exceeded: tool %r described a file over a %d byte ceiling",
+        label,
+        max_bytes,
+        extra=extra,
+    )
+    return note
 
 
 def _refuse_over_budget(
@@ -2115,11 +2134,15 @@ def _file_for_the_model(
     return rendered
 
 
-def _over_ceiling_note(file: FileResult, size: str, ceiling: int) -> str:
+class _OverCeilingNote(str):
+    """A file's over-ceiling note, which the result bound passes through unmeasured."""
+
+
+def _over_ceiling_note(file: FileResult, size: str, ceiling: int) -> _OverCeilingNote:
     """The note for a file over the tool's ``max_result_bytes``, which names that ceiling."""
     mime = file.content_type or ""
     verb = "read" if is_textual(mime) else "attached"
-    return (
+    return _OverCeilingNote(
         f"[{file.filename}] is a {mime or 'binary'} file ({size}), over this tool's "
         f"{ceiling}-byte ceiling on one result; it was described rather than {verb}."
     )

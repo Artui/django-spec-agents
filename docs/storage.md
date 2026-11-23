@@ -96,6 +96,15 @@ toolset = build_attachment_toolset(
 failure mode of a mislabelled file is a provider rejecting the request, not a
 disclosure — the store is owner-scoped either way.
 
+Pass the same `AttachmentInlineConfig` to the spec tools (`attachment_inline=` on
+`SpecToolset`, `SpecCapability` and `build_spec_capability`), so one config governs
+a file a spec returns as well as an attachment the model asks for. The declared
+`AttachmentRef.size` is trusted for the over-limit refusal: a file declaring more
+than `max_bytes` is refused without being read, and one declaring less is still
+read no further than `max_bytes + 1` bytes. The read runs thread-sensitive, on the
+thread the rest of the request's synchronous work uses, and a cancelled call still
+finishes it and closes the handle.
+
 ## Threads key by `(owner_id, thread_id)`
 
 Which has a consequence worth knowing before you mount two endpoints: **two

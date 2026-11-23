@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import IO, Any, cast
 
 from asgiref.sync import sync_to_async
@@ -44,12 +45,26 @@ def build_attachment_toolset(
         and you no longer have its contents, call this again with the same id
         rather than saying you cannot see it — the file is still there.
         """
-        opened = await store.open(attachment_id, request=request)
-        if opened is None:
-            return f"No attachment with id {attachment_id!r} is available."
-        return await sync_to_async(_render)(opened, resolved)
+        read = asyncio.ensure_future(_open_and_render(store, request, attachment_id, resolved))
+        read.add_done_callback(_retrieve)
+        return await asyncio.shield(read)
 
     return FunctionToolset([cast("Any", read_attachment)], id="django-spec-agents-attachments")
+
+
+async def _open_and_render(
+    store: AttachmentStore, request: HttpRequest, attachment_id: str, inline: AttachmentInlineConfig
+) -> str | ToolReturn:
+    """Open and render as one task, so a cancelled caller cannot strand the handle."""
+    opened = await store.open(attachment_id, request=request)
+    if opened is None:
+        return f"No attachment with id {attachment_id!r} is available."
+    return await sync_to_async(_render)(opened, inline)
+
+
+def _retrieve(task: asyncio.Future[Any]) -> None:
+    """Mark a shielded read's outcome retrieved, so a discarded failure is not logged twice."""
+    task.cancelled() or task.exception()
 
 
 def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | ToolReturn:
@@ -59,7 +74,7 @@ def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | T
     with opened.content as handle:
         if not (textual or ref.mime in inline.media_types):
             return unread_note(ref.name, ref.mime, f"{ref.size} bytes")
-        if ref.size > inline.max_bytes:
+        if ref.size is not None and ref.size > inline.max_bytes:
             return over_limit_note(
                 ref.name, ref.mime, f"{ref.size} bytes", inline.max_bytes, text=textual
             )
@@ -73,7 +88,7 @@ def _render(opened: OpenedAttachment, inline: AttachmentInlineConfig) -> str | T
     if ref.mime in inline.media_types:
         again = " Call read_attachment again with the same id if a later turn needs them."
         return attached_file(data, name=ref.name, mime=ref.mime, again=again)
-    return unread_note(ref.name, ref.mime, f"{ref.size} bytes")
+    return unread_note(ref.name, ref.mime, f"{len(data)} bytes")
 
 
 def _read_up_to(handle: IO[bytes], limit: int) -> bytes:
