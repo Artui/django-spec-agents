@@ -27,7 +27,8 @@ class AttachmentStore(Protocol):
     — the view does that from its own config — and just persists the bytes,
     returning a durable [`AttachmentRef`][django_spec_agents.AttachmentRef].
     ``open`` returns ``None`` for a missing *or cross-owner* id rather than
-    raising, so a caller maps both to a 404 and the two stay indistinguishable.
+    raising, so a caller maps both to a 404 and the two stay indistinguishable. ``open``
+    must not block the event loop; ``read_attachment`` reads the handle in a thread.
 
     Attachments need no scoped wrapper of the kind conversations have: they are
     id-referenced with no enumeration and already owner-scoped, so two endpoints

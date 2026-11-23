@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`read_attachment` reads and closes the attachment in a thread.** The handle was read
+  on the event loop, so a remote `Storage` download blocked every other run on it. It
+  now goes through `sync_to_async` on the same thread `ModelAttachmentStore.open` uses.
+  The `AttachmentStore` docstring now says `open` must not block the loop.
+- **`read_attachment` reads no more than `max_bytes + 1` bytes.** It read the whole
+  file before checking its type or size, so a 10 MB zip was read in full and then
+  described. A type that is neither textual nor in `media_types` is now closed unread, a
+  file whose `ref.size` exceeds `max_bytes` is refused unread, and anything else is read
+  up to `max_bytes + 1`, looping over short reads. The over-limit note now gives
+  `ref.size`, or "at least N bytes" when the file outgrew an understated `ref.size`,
+  where it gave the bytes read. A textual type over the limit whose bytes are not UTF-8
+  now gets the over-limit note, as on the spec route, where it got the unread note.
+
 ### Added
 
 - **A reader can wait on a run's log.** `WatchableRunStore`, an optional protocol beside
