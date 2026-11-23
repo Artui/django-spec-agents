@@ -32,7 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `routine_id` is the routine a firing runs, for the runner to save on the thread's
   conversation. `HeadlessFiring` carries both across a queue, and `run_headless` passes
   them on. A runner whose signature lacks either now fails every child start, wake and
-  routine firing with a `TypeError`: accept both, defaulting to `None`.
+  routine firing with a `TypeError`: accept both, defaulting to `None`. django-ag-ui's
+  `AGUIHeadlessRunner` is such a runner before 0.86.0, which accepts both and floors on
+  this release.
 
 ## [0.24.1] — 2026-11-21
 
