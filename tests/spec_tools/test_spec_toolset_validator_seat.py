@@ -12,6 +12,7 @@ from pydantic_ai.exceptions import ModelRetry
 from django_spec_agents.spec_tools import SpecToolset
 from tests.spec_tools.kernel_specs import allow
 from tests.spec_tools.test_spec_toolset import _call, _input_schema_of, by_pk, get_any_widget
+from tests.spec_tools.testapp.models import Widget
 
 
 @dataclass
@@ -244,3 +245,98 @@ def test_a_row_field_a_typed_input_data_may_decline_is_offered_and_not_required(
 
     assert sorted(rows["properties"]) == ["name", "owner"]
     assert rows["required"] == ["name"]
+
+
+class _SelectorKeys(TypedDict):
+    owner: str
+    note: str
+
+
+def _fills_selector(user) -> _SelectorKeys:
+    return _SelectorKeys(owner="SEL-OWNER", note="SEL-NOTE")
+
+
+def make_row_named(data: Row, owner: str) -> dict[str, str]:
+    """Report the Validator's ``owner`` and the service keyword's, side by side."""
+    return {"field": data.owner, "keyword": owner}
+
+
+def make_rows_named(data: list[Row], owner: str) -> list[dict[str, str]]:
+    return [{"field": row.owner, "keyword": owner} for row in data]
+
+
+def get_widget_seeing(pk: int, owner: str, note: str) -> Any:
+    """Fetch a widget by ``pk``, recording the ``owner`` and ``note`` the selector received."""
+    _Recording.ran.append({"selector_owner": owner, "selector_note": note})
+    return Widget.objects.filter(pk=pk)
+
+
+def touch_row(instance: Any, data: Row, note: str) -> dict[str, str]:
+    return {"owner": data.owner, "note": note}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_spec_kwargs_key_named_like_a_validator_field_is_a_namesake():
+    """The field stays the caller's; the provider's value reaches only the service keyword."""
+    user = await User.objects.acreate(username="u")
+    spec = ServiceSpec(
+        service=make_row_named,
+        validator=_Recording(Row),
+        kwargs=_always_fills_owner,
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    assert _input_schema_of(toolset, "t")["required"] == ["name", "owner"]
+    result = await _call(toolset, "t", user, {"name": "n", "owner": "MODEL"})
+
+    assert result == {"field": "MODEL", "keyword": "SERVER"}
+    assert _Recording.ran == [{"name": "n", "owner": "MODEL"}]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_target_selector_kwargs_namesake_reaches_only_the_selector():
+    """A selector's provider key named like a Validator field or a read leaves both the caller's."""
+    user = await User.objects.acreate(username="u")
+    widget = await Widget.objects.acreate(owner=user, name="w")
+    spec = ServiceSpec(
+        service=touch_row,
+        validator=_Recording(Row),
+        instance_selector_spec=by_pk(get_widget_seeing, kwargs=_fills_selector),
+        reads=Parameters.of(Parameter("note", "string", required=True)),
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    assert _input_schema_of(toolset, "t")["required"] == ["pk", "note", "name", "owner"]
+    args = {"pk": widget.pk, "note": "MNOTE", "name": "n", "owner": "MODEL"}
+    result = await _call(toolset, "t", user, args)
+
+    assert result == {"owner": "MODEL", "note": "MNOTE"}
+    assert {"selector_owner": "SEL-OWNER", "selector_note": "SEL-NOTE"} in _Recording.ran
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_many_spec_kwargs_namesake_is_offered_in_every_row():
+    """Each row offers and requires the field; the service keyword is the provider's."""
+    user = await User.objects.acreate(username="u")
+    spec = ServiceSpec(
+        service=make_rows_named,
+        validator=_Recording(Row),
+        kwargs=_always_fills_owner,
+        many=True,
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    rows = _input_schema_of(toolset, "t")["properties"][spec.many_argument]["items"]
+    assert rows["required"] == ["name", "owner"]
+    sent = [{"name": "a", "owner": "M1"}, {"name": "b", "owner": "M2"}]
+    result = await _call(toolset, "t", user, {spec.many_argument: sent})
+
+    assert result == {
+        "items": [{"field": "M1", "keyword": "SERVER"}, {"field": "M2", "keyword": "SERVER"}]
+    }

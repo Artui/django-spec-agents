@@ -300,13 +300,17 @@ class SpecToolset(AbstractToolset[Any]):
     which stays advertised but optional: any parameter, beside a provider whose
     return annotation does not name a ``TypedDict``, and a key the provider may
     decline with ``UNSET``, both as the kernel's ``provider_keys`` reads the
-    annotation. A name a
+    annotation. A Validator field or a read named like another seat's provider
+    key is a namesake, not a fill: it stays advertised, and the provider's
+    value reaches only that seat (a spec's ``kwargs=`` the service keyword, a
+    selector's the selector). A name a
     ``call_seeds`` override fills is invisible here, so it has to be
     declared (see ``call_seeds``). A single-item service also advertises its
     target lookup -- the parameters of its ``collection_selector_spec``, or
     failing that its ``instance_selector_spec``, such as a ``pk`` -- beside its
     input's fields, the input's property winning a shared name, and less every
-    key the kernel's ``server_owned_keys`` names, which dispatch fills itself. A
+    key the kernel's ``server_owned_keys`` names, which dispatch fills itself
+    and which leaves a namesake out. A
     call leaving out a required selector parameter is handed back as
     ``ModelRetry`` naming each one left out, before anything runs. A required
     input field is the Validator's to report, once the call is dispatched, so

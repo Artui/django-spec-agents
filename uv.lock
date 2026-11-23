@@ -737,16 +737,16 @@ wheels = [
 
 [[package]]
 name = "django-service-specs"
-version = "0.34.2"
+version = "0.35.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/ae/1e08cf30e92090a52a146d25f270cb9c8c479086d0244d4531f67e3d8eda/django_service_specs-0.34.2.tar.gz", hash = "sha256:24584c00c19f0b170e935af04d580b9b23d11a166de043043ad12aa668069879", size = 1081328, upload-time = "2026-11-21T18:38:51.081Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/5d/cdf04bbb65977d09be205c89eab5993c31837d7a1e26fcf9bac2906b65d8/django_service_specs-0.35.0.tar.gz", hash = "sha256:2e0270552bfeba97547f57025ff03bd417f6610bb328f56fe5fe4400411f9075", size = 1089075, upload-time = "2026-11-23T12:51:20.778Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/72/e0d45bad13705a3f33a79add5fab335c54101bd67535e850b8d3ae7c9418/django_service_specs-0.34.2-py3-none-any.whl", hash = "sha256:7ffd24ef6fd4c7fd045a41f95601c18b474a08e419d478fbe9b20fe1c69d9a87", size = 424740, upload-time = "2026-11-21T18:38:49.59Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/e7/532e4631afe3e7fff60336e0c22595867377637bd2872a1b73bd25b853db/django_service_specs-0.35.0-py3-none-any.whl", hash = "sha256:3053d66179c01b08dbcce176b8d70935710413248728a4ce9062559ccd3e9dba", size = 426126, upload-time = "2026-11-23T12:51:19.304Z" },
 ]
 
 [[package]]
@@ -806,7 +806,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "django", specifier = ">=4.2" },
-    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.34.2" },
+    { name = "django-service-specs", marker = "extra == 'specs'", specifier = ">=0.35.0" },
     { name = "django-spec-mcp", marker = "extra == 'mcp'", specifier = ">=0.14.0" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-ai-harness", extras = ["code-mode"], marker = "extra == 'harness'", specifier = ">=0.69" },
@@ -821,7 +821,7 @@ provides-extras = ["anthropic", "google", "harness", "mcp", "openai", "specs"]
 [package.metadata.requires-dev]
 dev = [
     { name = "django-filter", specifier = ">=23" },
-    { name = "django-service-specs", specifier = ">=0.34.2" },
+    { name = "django-service-specs", specifier = ">=0.35.0" },
     { name = "django-spec-mcp", specifier = ">=0.14.0" },
     { name = "django-stubs", specifier = ">=5.0" },
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
