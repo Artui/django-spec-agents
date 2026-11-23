@@ -595,6 +595,21 @@ alone when a save does not, so a later turn typed in the child, which saves
 with `parent=None`, keeps it. A store written before the field existed still
 satisfies `ConversationStore`; its threads read back with no parent.
 
+Clearing the link is a method of its own, `unlink_parent(thread_id, *, request)`, on the
+optional [`UnlinkableConversationStore`](reference/persistence.md#unlinkableconversationstore)
+protocol, so a store without it still satisfies `ConversationStore`; a caller checks
+`isinstance(store, UnlinkableConversationStore)` first. `DefaultConversationStore` has
+it: it writes NULL to the thread's two parent columns and its lineage, owner-scoped, and
+leaves the thread's place in the list alone. `ScopedConversationStore` offers it only over
+a store that has it, and `ModelConversationStore` only to a subclass that defines the
+`_unlink_parent(thread_id, owner_id)` hook.
+
+**The routine link.** `Conversation.routine_id` and `ConversationMeta.routine_id` name the
+routine whose firing started the thread, as a string. `DefaultConversationStore` keeps it
+in a `routine_id` column (the `0009_conversation_routine` migration) and, as with the
+parent, writes it when a save names one and leaves it alone otherwise, so every firing's
+thread keeps naming its routine.
+
 **The inbound queue.** Reports, questions, answers and steering reach a thread
 through an `InboundQueue`, its own protocol so `ConversationStore` gains no
 method. Messages are addressed by `ThreadRef` and owner-scoped like every

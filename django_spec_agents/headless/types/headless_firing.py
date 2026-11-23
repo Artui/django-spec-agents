@@ -18,6 +18,8 @@ class HeadlessFiring:
     question, a ``tool_call_id`` to its answer's text; the run sends no new ``prompt``.
     ``inbox_mark`` is the thread's inbox mark taken when the firing was enqueued, for the
     worker to wake on mail newer than it; ``None`` for a firing that carries none.
+    ``parent_run_id`` and ``routine_id`` are the runner's own, the run and the routine the
+    firing comes from.
     """
 
     agent_id: str
@@ -29,6 +31,8 @@ class HeadlessFiring:
     run_id: str | None = None
     answers: dict[str, str] | None = None
     inbox_mark: int | None = None
+    parent_run_id: str | None = None
+    routine_id: str | None = None
 
 
 __all__ = ["HeadlessFiring"]

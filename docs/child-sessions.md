@@ -147,6 +147,33 @@ It returns nothing for a thread with no stored lineage, so a runner can call it 
 every run. Until 0.21.0 `start_session` passed these capabilities to the first run
 itself; a runner that composes only on later runs leaves a child's first run unbounded.
 
+The runner is also told which run started the child: `start_session` passes the parent
+run's id as `parent_run_id`, and the runner reports it as the child's first
+`RUN_STARTED.parentRunId`. A wake that resumes a parked child passes the parked run's
+id the same way; any other wake passes `None`. Every caller passes both `parent_run_id`
+and `routine_id` on every start, so a [`HeadlessRunner`](reference/persistence.md#headlessrunner)
+must accept them.
+
+## Deleting a parent
+
+Deleting a parent cancels its running children with their descendants and keeps them
+as ordinary threads, with the link cleared. A store clears it with `unlink_parent`, on
+the optional [`UnlinkableConversationStore`](reference/persistence.md#unlinkableconversationstore)
+protocol:
+
+```python
+from django_spec_agents import UnlinkableConversationStore
+
+if isinstance(children, UnlinkableConversationStore):
+    await children.unlink_parent("c1", request=request)
+```
+
+The child then loads with `parent=None` and `lineage=None`, so no run of its thread is
+bounded as a child's, and `DefaultChildSessionIndex.children` no longer lists it. Call it
+through the child's own scoped store; unlinking a missing thread, or another owner's,
+does nothing. Unlink once the child's run has ended or been cancelled: a save that names
+a `parent` writes the link again.
+
 ## Reports
 
 `ChildReport` is composed into every child run, by `child_lineage_for`. When the run settles it enqueues a `REPORT` on the parent's queue,

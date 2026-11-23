@@ -66,6 +66,7 @@ class DefaultConversationStore(ModelConversationStore):
             owner_id=row.owner_id or None,
             parent=_parent(row.parent_thread_id, row.parent_scope),
             lineage=None if row.lineage is None else ChildLineageRecord.from_json(row.lineage),
+            routine_id=row.routine_id,
         )
 
     def _store(self, conversation: Conversation, owner_id: str | None) -> None:
@@ -76,6 +77,7 @@ class DefaultConversationStore(ModelConversationStore):
             thread_id=conversation.thread_id,
             parent_thread_id=None if parent is None else parent.thread_id,
             parent_scope=None if parent is None else parent.scope,
+            routine_id=conversation.routine_id,
         )
         messages = conversation.messages
         defaults: dict[str, object] = {
@@ -86,6 +88,8 @@ class DefaultConversationStore(ModelConversationStore):
             defaults.update(parent_thread_id=parent.thread_id, parent_scope=parent.scope)
         if conversation.lineage is not None:
             defaults["lineage"] = conversation.lineage.to_json()
+        if conversation.routine_id is not None:
+            defaults["routine_id"] = conversation.routine_id
         row, created = StoredConversation.objects.get_or_create(
             owner_id=owner_id or "",
             thread_id=conversation.thread_id,
@@ -123,6 +127,7 @@ class DefaultConversationStore(ModelConversationStore):
                 "owner_id",
                 "parent_thread_id",
                 "parent_scope",
+                "routine_id",
             )
         )
         if limit is not None:
@@ -135,6 +140,7 @@ class DefaultConversationStore(ModelConversationStore):
                 preview=row["preview"],
                 owner_id=row["owner_id"] or None,
                 parent=_parent(row["parent_thread_id"], row["parent_scope"]),
+                routine_id=row["routine_id"],
             )
             for row in rows
         ]

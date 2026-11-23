@@ -98,6 +98,8 @@ class _Runner:
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[AbstractCapability[Any]] = (),
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> HeadlessStart:
         self.starts.append(
             dict(
@@ -106,6 +108,8 @@ class _Runner:
                 timeout=timeout,
                 parent=parent,
                 lineage=lineage,
+                parent_run_id=parent_run_id,
+                routine_id=routine_id,
             )
         )
         self.starts[-1]["capabilities"] = list(capabilities)
@@ -217,6 +221,25 @@ async def test_the_receipt_names_the_child_thread() -> None:
     assert start["lineage"] == ChildLineageRecord(
         _HERE, 1, sorted(lineage.tools), sorted(lineage.gated)
     )
+
+
+async def test_the_child_names_the_run_that_started_it() -> None:
+    runner = _Runner()
+
+    def model(messages: Any, info: AgentInfo) -> ModelResponse:
+        if len(messages) == 1:
+            return ModelResponse(
+                [ToolCallPart("start_session", {"agent": "research", "prompt": "x"})]
+            )
+        return ModelResponse([TextPart("done")])
+
+    agent = Agent(FunctionModel(model), toolsets=[_toolset(runner=runner)])
+    deps = AgentDeps(user=_User(), call_context={"request": HttpRequest()})
+    result = await agent.run("go", deps=deps, conversation_id="p1")
+
+    [start] = runner.starts
+    assert result.run_id is not None
+    assert (start["parent_run_id"], start["routine_id"]) == (result.run_id, None)
 
 
 async def test_the_child_gets_the_parents_tools_and_no_others() -> None:

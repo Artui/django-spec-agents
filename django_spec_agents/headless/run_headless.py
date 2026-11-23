@@ -46,6 +46,8 @@ def run_headless(runner: HeadlessRunner, *, permissions: Sequence[PermissionChec
             thread_id=data.thread_id,
             parent=data.parent,
             lineage=data.lineage,
+            parent_run_id=data.parent_run_id,
+            routine_id=data.routine_id,
             **adopt,
         )
 

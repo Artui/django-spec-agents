@@ -301,7 +301,9 @@ it at enqueue and the worker again before the run, so a routine your policy stop
 between lapses the firing, and the next sweep pauses the routine.
 
 It runs the routine's prompt on its agent, into the sweep's thread, one thread per firing,
-and returns at the run's first stop, presenting `{thread_id, run_id, outcome, waiting}`:
+passing the runner `routine_id=str(routine.pk)`, which the runner saves on the thread's
+conversation (`Conversation.routine_id`), so every firing's thread names its routine and
+not only the newest. It returns at the run's first stop, presenting `{thread_id, run_id, outcome, waiting}`:
 
 | `outcome` | What happened |
 | --- | --- |

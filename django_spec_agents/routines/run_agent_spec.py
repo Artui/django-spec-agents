@@ -119,6 +119,8 @@ def run_agent_spec(
                 GrantedApprovals(preapproved_exempt(routine), answered_by),
                 _FiringRecord(grant),
             ],
+            parent_run_id=None,
+            routine_id=str(routine.pk),
         )
 
     return ServiceSpec(

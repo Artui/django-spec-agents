@@ -81,6 +81,7 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
         [LABEL, "0006_inbox_claim"],
         [LABEL, "0007_thread_run_prior"],
         [LABEL, "0008_waiting_calls"],
+        [LABEL, "0009_conversation_routine"],
     ]
     # The same rows, moved rather than recreated, so whatever points at them by key still does.
     moved = {model: after["content_types"][model] for model in before["content_types"]}

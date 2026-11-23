@@ -17,6 +17,7 @@ class StoredConversation(models.Model):
     parent_thread_id = models.CharField(max_length=255, null=True, blank=True, default=None)
     parent_scope = models.CharField(max_length=255, null=True, blank=True, default=None)
     lineage = models.JSONField(null=True, blank=True, default=None)
+    routine_id = models.CharField(max_length=255, null=True, blank=True, default=None)
     attachments = models.ManyToManyField(
         "StoredAttachment",
         through="ConversationAttachment",

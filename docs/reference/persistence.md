@@ -34,6 +34,10 @@ models.
 
 ::: django_spec_agents.ScopedConversationStore
 
+### `UnlinkableConversationStore`
+
+::: django_spec_agents.UnlinkableConversationStore
+
 ## Attachments
 
 ### `AttachmentStore`

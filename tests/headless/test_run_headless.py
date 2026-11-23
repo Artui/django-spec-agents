@@ -82,6 +82,7 @@ class _Runner:
         self.lineages: list[ChildLineageRecord | None] = []
         self.run_ids: list[str | None] = []
         self.answers: list[Mapping[str, str] | None] = []
+        self.origins: list[tuple[str | None, str | None]] = []
 
     async def start(self, *args: Any, **kwargs: Any) -> HeadlessStart:
         raise NotImplementedError
@@ -99,8 +100,11 @@ class _Runner:
         capabilities: Sequence[Any] = (),
         run_id: str | None = None,
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> RunStop:
         self.calls.append((agent_id, prompt, principal, timeout, thread_id, parent, capabilities))
+        self.origins.append((parent_run_id, routine_id))
         self.lineages.append(lineage)
         self.run_ids.append(run_id)
         self.answers.append(answers)
@@ -225,6 +229,19 @@ def test_the_thread_and_parent_default_to_none(
 
     [(*_, thread_id, parent, _capabilities)] = runner.calls
     assert (thread_id, parent) == (None, None)
+    assert runner.origins == [(None, None)]
+
+
+def test_a_firing_names_the_run_and_routine_it_comes_from(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    runner = _Runner(store)
+    worker = _worker(runner, clock)
+    params = {**_PARAMS, "parent_run_id": "r0", "routine_id": "12"}
+
+    worker.run(worker.enqueue("run_headless", params, actor=user))
+
+    assert runner.origins == [("r0", "12")]
 
 
 def test_a_restart_leaves_the_lease_to_lapse(
@@ -330,7 +347,7 @@ def _delete_everything() -> str:
 
 
 class _RunnerWithoutRunId(_Runner):
-    """A runner built against 0.20.0, taking neither ``run_id`` nor ``answers``."""
+    """A runner taking neither ``run_id`` nor ``answers``."""
 
     async def run_to_first_stop(
         self,
@@ -343,6 +360,8 @@ class _RunnerWithoutRunId(_Runner):
         parent: ThreadRef | None = None,
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[Any] = (),
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> RunStop:
         return await super().run_to_first_stop(
             agent_id, prompt, principal, timeout=timeout, thread_id=thread_id, parent=parent
@@ -440,6 +459,8 @@ class _AgentRunner:
         capabilities: Sequence[Any] = (),
         run_id: str | None = None,
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> RunStop:
         assert thread_id is not None
         request = HttpRequest()

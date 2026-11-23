@@ -399,3 +399,47 @@ def test_unlinking_keeps_the_threads_place_in_the_list() -> None:
     store._unlink_parent("t1", "7")
 
     assert StoredConversation.objects.get(thread_id="t1").updated_at == before
+
+
+def test_a_routine_id_round_trips_through_fetch_and_list() -> None:
+    store = DefaultConversationStore()
+
+    store._store(dataclasses.replace(_conv(), routine_id="12"), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.routine_id == "12"
+    assert [meta.routine_id for meta in store._list("7", None)] == ["12"]
+
+
+def test_a_thread_saved_without_a_routine_has_none() -> None:
+    store = DefaultConversationStore()
+
+    store._store(_conv(), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.routine_id is None
+    assert [meta.routine_id for meta in store._list("7", None)] == [None]
+
+
+def test_a_later_save_without_a_routine_keeps_it() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), routine_id="12"), "7")
+
+    store._store(_conv(text="a browser turn on the routine's thread"), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.routine_id == "12"
+
+
+def test_an_over_long_routine_id_is_refused_with_nothing_written() -> None:
+    store = DefaultConversationStore()
+    value = too_long(StoredConversation, "routine_id")
+
+    with pytest.raises(IdentifierTooLongError) as caught:
+        store._store(dataclasses.replace(_conv(), routine_id=value), "7")
+
+    assert caught.value.field == "routine_id"
+    assert not StoredConversation.objects.exists()
