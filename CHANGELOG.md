@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **A `kwargs=` key named like a Validator field or a read is served as a namesake.** The
+- **A `kwargs=` key named like another seat's parameter is served as a namesake.** The
   `[specs]` extra's floor rises to `django-service-specs>=0.35.0`, whose namesake rule
   `SpecToolset` follows through the kernel's `spec_caller_input_schema` and
   `server_owned_keys`. A spec's `kwargs=` key named like a Validator field leaves the field
-  the caller's, advertised and validated into `data`, and hands the provider's value to the
-  service keyword; a target selector's `kwargs=` key named like a Validator field or a
-  `reads` name reaches only the selector; a `many` spec offers the field in every row.
+  the caller's, advertised and validated into `data` unless `input_data` fills it, and
+  hands the provider's value to the service keyword; a target selector's `kwargs=` key
+  named like a Validator field or a `reads` name reaches only the selector; a `many` spec
+  offers the field in every row.
   Below 0.35.0 the kernel refuses each such spec when the toolset is built.
 
 ## [0.25.0] — 2026-11-23

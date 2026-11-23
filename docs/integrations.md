@@ -67,10 +67,11 @@ declines, and the model left out, is retried the same way rather than reaching
 the selector, and where a selector parameter the toolset takes out of every
 call, a list selector's `page` or `limit`,
 makes `build_spec_capability` raise `ImproperlyConfigured` rather than
-advertising an argument whose value never arrives, and where a `kwargs=` key
-named like a Validator field or a read is served as a namesake, the field asked
-of the caller and the provider's value passed to its own seat, rather than the
-spec refused.
+advertising an argument whose value never arrives, and where a spec's
+`kwargs=` key named like a Validator field, or a target selector's named like a
+Validator field or a read, is served as a namesake, the field or read asked of
+the caller unless `input_data` fills it and the provider's value passed to its
+own seat, rather than the spec refused.
 
 ### Declaring specs once
 

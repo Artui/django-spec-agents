@@ -295,9 +295,48 @@ async def test_a_spec_kwargs_key_named_like_a_validator_field_is_a_namesake():
     assert _Recording.ran == [{"name": "n", "owner": "MODEL"}]
 
 
+class _SelectorOwner(TypedDict):
+    owner: str
+
+
+def _fills_selector_owner(user) -> _SelectorOwner:
+    return _SelectorOwner(owner="SEL-OWNER")
+
+
+def get_widget_seeing_owner(pk: int, owner: str) -> Any:
+    """Fetch a widget by ``pk``, recording the ``owner`` the selector received."""
+    _Recording.ran.append({"selector_owner": owner})
+    return Widget.objects.filter(pk=pk)
+
+
+def touch_row_owner(instance: Any, data: Row) -> dict[str, str]:
+    return {"owner": data.owner}
+
+
 @pytest.mark.django_db(transaction=True)
-async def test_a_target_selector_kwargs_namesake_reaches_only_the_selector():
-    """A selector's provider key named like a Validator field or a read leaves both the caller's."""
+async def test_a_target_selector_kwargs_namesake_of_a_validator_field_reaches_only_the_selector():
+    """The Validator field stays the caller's; the provider's ``owner`` reaches the selector."""
+    user = await User.objects.acreate(username="u")
+    widget = await Widget.objects.acreate(owner=user, name="w")
+    spec = ServiceSpec(
+        service=touch_row_owner,
+        validator=_Recording(Row),
+        instance_selector_spec=by_pk(get_widget_seeing_owner, kwargs=_fills_selector_owner),
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    assert _input_schema_of(toolset, "t")["required"] == ["pk", "name", "owner"]
+    result = await _call(toolset, "t", user, {"pk": widget.pk, "name": "n", "owner": "MODEL"})
+
+    assert result == {"owner": "MODEL"}
+    assert {"selector_owner": "SEL-OWNER"} in _Recording.ran
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_target_selector_kwargs_namesake_of_a_read_reaches_only_the_selector():
+    """The read and the field stay the caller's; the provider's values reach the selector."""
     user = await User.objects.acreate(username="u")
     widget = await Widget.objects.acreate(owner=user, name="w")
     spec = ServiceSpec(
@@ -316,6 +355,26 @@ async def test_a_target_selector_kwargs_namesake_reaches_only_the_selector():
 
     assert result == {"owner": "MODEL", "note": "MNOTE"}
     assert {"selector_owner": "SEL-OWNER", "selector_note": "SEL-NOTE"} in _Recording.ran
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_namesake_beside_an_input_data_filling_the_field_is_not_advertised():
+    """``input_data`` still fills the field, so ``data`` holds its value, not the caller's."""
+    user = await User.objects.acreate(username="u")
+    spec = ServiceSpec(
+        service=make_row_named,
+        validator=_Recording(Row),
+        input_data=_always_fills_owner,
+        kwargs=_always_fills_owner,
+        atomic=False,
+        permissions=allow(),
+    )
+    toolset = SpecToolset({"t": spec})
+
+    assert sorted(_input_schema_of(toolset, "t")["properties"]) == ["name"]
+    result = await _call(toolset, "t", user, {"name": "n"})
+
+    assert result == {"field": "SERVER", "keyword": "SERVER"}
 
 
 @pytest.mark.django_db(transaction=True)
