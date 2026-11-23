@@ -3,6 +3,7 @@ from __future__ import annotations
 from django_spec_agents.persistence.model_conversation_store import ModelConversationStore
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMeta
+from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from tests.request_helpers import authed_request
 
 
@@ -10,6 +11,7 @@ class _DictStore(ModelConversationStore):
     """A dict-backed subclass exercising the base's async + owner plumbing."""
 
     def __init__(self) -> None:
+        super().__init__()
         self.rows: dict[tuple[str | None, str], Conversation] = {}
 
     def _fetch(self, thread_id: str, owner_id: str | None) -> Conversation | None:
@@ -86,3 +88,23 @@ async def test_exists_defaults_to_the_fetch_probe() -> None:
     await store.save(Conversation(thread_id="t1"), request=request)
     assert await store.exists("t1", request=request) is True
     assert await store.exists("absent", request=request) is False
+
+
+def test_a_subclass_without_the_unlink_hook_does_not_offer_unlink() -> None:
+    assert not hasattr(_DictStore(), "unlink_parent")
+
+
+class _UnlinkingStore(_DictStore):
+    def _unlink_parent(self, thread_id: str, owner_id: str | None) -> None:
+        conversation = self.rows[(owner_id, thread_id)]
+        self.rows[(owner_id, thread_id)] = Conversation(thread_id=conversation.thread_id)
+
+
+async def test_unlink_calls_the_hook_with_the_resolved_owner() -> None:
+    store = _UnlinkingStore()
+    request = authed_request()
+    await store.save(Conversation(thread_id="t1", parent=ThreadRef("p1")), request=request)
+
+    await store.unlink_parent("t1", request=request)
+
+    assert store.rows[("7", "t1")].parent is None

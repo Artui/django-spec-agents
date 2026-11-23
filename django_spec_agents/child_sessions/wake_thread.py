@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from django.http import HttpRequest
@@ -59,6 +59,8 @@ async def wake_thread(
     mount reads (scoped as that mount scopes it), a child's thread is started with the
     ``parent`` and ``lineage`` its conversation stores, from which the runner composes its
     bounds; a thread with neither stored, or no ``conversations``, is started with neither.
+    It passes the stored ``routine_id`` the same way, and as ``parent_run_id`` the parked
+    run a resume answers, ``None`` for any other start.
     A message another run took and has not released starts nothing: that run hands it on
     when it releases the inbox, and a run that died holding it leaves it for the next run
     the thread starts once its lease lapses.
@@ -77,7 +79,15 @@ async def wake_thread(
         if all(message.taken_by is not None for message in pending):
             return None
         return await _start(
-            thread.scope, thread, request, runner, runs, timeout, conversations, prompt, {}
+            thread.scope,
+            thread,
+            request,
+            runner,
+            runs,
+            timeout,
+            conversations,
+            prompt,
+            {"parent_run_id": None},
         )
     holder = f"wake-{uuid4().hex}"
     taken = await queue.take(thread, holder, request=request, lease=_PAIRING_LEASE)
@@ -98,7 +108,10 @@ async def wake_thread(
             timeout,
             conversations,
             prompt,
-            {"answers": texts},
+            {
+                "answers": texts,
+                "parent_run_id": cast("ThreadRunState", state).last_run_id,
+            },
         )
         if started is not None:
             await queue.ack(thread, [m.id for m in answers], request=request)
@@ -132,6 +145,7 @@ async def _start(
             thread_id=thread.thread_id,
             parent=None if stored is None else stored.parent,
             lineage=None if stored is None else stored.lineage,
+            routine_id=None if stored is None else stored.routine_id,
             **resume,
         )
     except Exception:

@@ -433,6 +433,8 @@ class _QueuedRunner:
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[Any] = (),
         run_id: str | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> RunStop:
         request = HttpRequest()
         request.user = principal

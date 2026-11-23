@@ -9,6 +9,9 @@ from django_spec_agents.persistence.identifier_too_long_error import IdentifierT
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.conversation_meta import ConversationMetaList
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
+from django_spec_agents.persistence.types.unlinkable_conversation_store import (
+    UnlinkableConversationStore,
+)
 
 
 class ScopedConversationStore:
@@ -44,6 +47,8 @@ class ScopedConversationStore:
 
     ``check_identifiers`` is forwarded, with the prefix applied to ``thread_id``,
     only when the inner store has it; ``preflight_identifiers`` skips one without.
+    ``unlink_parent`` is offered the same way, only over an
+    [`UnlinkableConversationStore`][django_spec_agents.UnlinkableConversationStore].
     A ``thread_id`` refused there or by ``save`` is reported at the length the
     client sent, against the room the prefix leaves.
 
@@ -74,6 +79,8 @@ class ScopedConversationStore:
         # Offered only over a store that has it, so a scoped custom store never looks capable.
         if callable(getattr(inner, "check_identifiers", None)):
             self.check_identifiers = self._check_identifiers
+        if isinstance(inner, UnlinkableConversationStore):
+            self.unlink_parent = self._unlink_parent
 
     def _check_identifiers(self, **ids: str | None) -> None:
         thread_id = ids.get("thread_id")
@@ -83,6 +90,11 @@ class ScopedConversationStore:
             cast("Any", self._inner).check_identifiers(**ids)
         except IdentifierTooLongError as error:
             raise self._as_sent(error, thread_id) from error
+
+    async def _unlink_parent(self, thread_id: str, *, request: HttpRequest) -> None:
+        await cast("UnlinkableConversationStore", self._inner).unlink_parent(
+            self._key(thread_id), request=request
+        )
 
     def _as_sent(
         self, error: IdentifierTooLongError, thread_id: str | None

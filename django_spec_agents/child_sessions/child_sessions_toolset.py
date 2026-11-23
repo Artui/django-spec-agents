@@ -121,6 +121,8 @@ class ChildSessionsToolset(FunctionToolset[Any]):
             timeout=self._limits.timeout,
             parent=here,
             lineage=ChildLineageRecord(root, depth, sorted(tools), sorted(gated)),
+            parent_run_id=ctx.run_id,
+            routine_id=None,
         )
         return ChildSessionReceipt(
             agent_id=agent, thread_id=started.thread_id, run_id=started.run_id

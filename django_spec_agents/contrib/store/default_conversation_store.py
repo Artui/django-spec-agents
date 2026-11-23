@@ -41,6 +41,11 @@ class DefaultConversationStore(ModelConversationStore):
     to the conversations quoting it. An upload that was never sent belongs to no
     conversation, and the ``agent_store_prune_attachments`` command collects
     those instead.
+
+    It is an
+    [`UnlinkableConversationStore`][django_spec_agents.UnlinkableConversationStore]:
+    ``unlink_parent`` writes NULL to the thread's parent columns and its lineage,
+    and leaves its place in the list alone, as a rename does.
     """
 
     def check_identifiers(self, *, thread_id: str) -> None:
@@ -61,6 +66,7 @@ class DefaultConversationStore(ModelConversationStore):
             owner_id=row.owner_id or None,
             parent=_parent(row.parent_thread_id, row.parent_scope),
             lineage=None if row.lineage is None else ChildLineageRecord.from_json(row.lineage),
+            routine_id=row.routine_id,
         )
 
     def _store(self, conversation: Conversation, owner_id: str | None) -> None:
@@ -71,6 +77,7 @@ class DefaultConversationStore(ModelConversationStore):
             thread_id=conversation.thread_id,
             parent_thread_id=None if parent is None else parent.thread_id,
             parent_scope=None if parent is None else parent.scope,
+            routine_id=conversation.routine_id,
         )
         messages = conversation.messages
         defaults: dict[str, object] = {
@@ -81,6 +88,8 @@ class DefaultConversationStore(ModelConversationStore):
             defaults.update(parent_thread_id=parent.thread_id, parent_scope=parent.scope)
         if conversation.lineage is not None:
             defaults["lineage"] = conversation.lineage.to_json()
+        if conversation.routine_id is not None:
+            defaults["routine_id"] = conversation.routine_id
         row, created = StoredConversation.objects.get_or_create(
             owner_id=owner_id or "",
             thread_id=conversation.thread_id,
@@ -118,6 +127,7 @@ class DefaultConversationStore(ModelConversationStore):
                 "owner_id",
                 "parent_thread_id",
                 "parent_scope",
+                "routine_id",
             )
         )
         if limit is not None:
@@ -130,6 +140,7 @@ class DefaultConversationStore(ModelConversationStore):
                 preview=row["preview"],
                 owner_id=row["owner_id"] or None,
                 parent=_parent(row["parent_thread_id"], row["parent_scope"]),
+                routine_id=row["routine_id"],
             )
             for row in rows
         ]
@@ -140,6 +151,11 @@ class DefaultConversationStore(ModelConversationStore):
 
     def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
         _thread_rows(thread_id, owner_id).update(title=title)
+
+    def _unlink_parent(self, thread_id: str, owner_id: str | None) -> None:
+        _thread_rows(thread_id, owner_id).update(
+            parent_thread_id=None, parent_scope=None, lineage=None
+        )
 
 
 def _parent(thread_id: str | None, scope: str | None) -> ThreadRef | None:

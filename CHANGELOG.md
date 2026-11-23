@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-11-23
+
+### Added
+
+- **A store can clear a child's parent link.** `UnlinkableConversationStore`, an optional
+  protocol beside `ConversationStore`, adds `unlink_parent(thread_id, *, request)`, so a
+  deleted parent can leave its children as ordinary threads. `DefaultConversationStore`
+  writes NULL to the thread's parent columns and its lineage, owner-scoped, leaving its
+  place in the list alone; `ScopedConversationStore` offers the method only over a store
+  that has it, with the scope applied, and `ModelConversationStore` only to a subclass that
+  defines the `_unlink_parent(thread_id, owner_id)` hook. A store without it still
+  satisfies `ConversationStore`. Saving the thread again with a `parent` links it again.
+- **A conversation names the routine whose firing started it.** `Conversation.routine_id`
+  and `ConversationMeta.routine_id`, `None` by default; `DefaultConversationStore` keeps it
+  in a new `routine_id` column (migration `0009_conversation_routine`), written when a save
+  names one and left alone otherwise, as `parent` is. `run_agent_spec` passes the runner
+  `routine_id=str(routine.pk)`, and `wake_thread` passes the one the thread stores.
+
+### Changed
+
+- **Breaking: `HeadlessRunner.start` and `run_to_first_stop` take `parent_run_id` and
+  `routine_id`, and every caller passes both.** `parent_run_id` is the run a run comes
+  from, for the runner to report as `RUN_STARTED.parentRunId`: `start_session` passes the
+  parent run's id, a `wake_thread` resume the parked run's, any other start `None`.
+  `routine_id` is the routine a firing runs, for the runner to save on the thread's
+  conversation. `HeadlessFiring` carries both across a queue, and `run_headless` passes
+  them on. A runner whose signature lacks either now fails every child start, wake,
+  routine firing and `run_headless` firing with a `TypeError`: accept both, defaulting to
+  `None`. django-ag-ui's `AGUIHeadlessRunner` is such a runner before 0.86.0, which
+  accepts both and floors on this release.
+
 ## [0.24.1] — 2026-11-21
 
 ### Fixed
@@ -1516,7 +1547,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.24.1...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/Artui/django-spec-agents/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/Artui/django-spec-agents/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/Artui/django-spec-agents/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/django-spec-agents/compare/v0.22.0...v0.23.0

@@ -13,6 +13,7 @@ from django_spec_agents.persistence.types.child_lineage_record import ChildLinea
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from tests.contrib.store.rows import at_limit, refusal, stored_attachment, too_long
+from tests.request_helpers import authed_request
 
 pytestmark = pytest.mark.django_db
 
@@ -352,4 +353,97 @@ def test_an_over_long_parent_is_refused_with_nothing_written(field: str) -> None
         store._store(dataclasses.replace(_conv(), parent=link), "7")
 
     assert error.value.field == field
+    assert not StoredConversation.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_unlinking_leaves_the_child_an_ordinary_thread() -> None:
+    store = DefaultConversationStore()
+    request = authed_request()
+    child = dataclasses.replace(_conv(), parent=ThreadRef("p1", "a"), lineage=_LINEAGE)
+    await store.save(child, request=request)
+
+    await store.unlink_parent("t1", request=request)
+
+    loaded = await store.load("t1", request=request)
+    assert loaded is not None
+    assert (loaded.parent, loaded.lineage) == (None, None)
+    assert [m["id"] for m in loaded.messages] == ["u1"]
+    assert [meta.parent for meta in await store.list(request=request)] == [None]
+    row = await StoredConversation.objects.values(
+        "parent_thread_id", "parent_scope", "lineage"
+    ).aget(thread_id="t1")
+    assert row == {"parent_thread_id": None, "parent_scope": None, "lineage": None}
+
+
+def test_unlinking_another_owners_thread_changes_nothing() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1"), lineage=_LINEAGE), "7")
+
+    store._unlink_parent("t1", "8")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert (fetched.parent, fetched.lineage) == (ThreadRef("p1"), _LINEAGE)
+
+
+def test_unlinking_a_missing_thread_writes_nothing() -> None:
+    store = DefaultConversationStore()
+
+    store._unlink_parent("absent", "7")
+
+    assert not StoredConversation.objects.exists()
+
+
+def test_unlinking_keeps_the_threads_place_in_the_list() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1")), "7")
+    before = StoredConversation.objects.get(thread_id="t1").updated_at
+
+    store._unlink_parent("t1", "7")
+
+    assert StoredConversation.objects.get(thread_id="t1").updated_at == before
+
+
+def test_a_routine_id_round_trips_through_fetch_and_list() -> None:
+    store = DefaultConversationStore()
+
+    store._store(dataclasses.replace(_conv(), routine_id="12"), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.routine_id == "12"
+    assert [meta.routine_id for meta in store._list("7", None)] == ["12"]
+
+
+def test_a_thread_saved_without_a_routine_has_none() -> None:
+    store = DefaultConversationStore()
+
+    store._store(_conv(), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.routine_id is None
+    assert [meta.routine_id for meta in store._list("7", None)] == [None]
+
+
+def test_a_later_save_without_a_routine_keeps_it() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), routine_id="12"), "7")
+
+    store._store(_conv(text="a browser turn on the routine's thread"), "7")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert fetched.routine_id == "12"
+
+
+def test_an_over_long_routine_id_is_refused_with_nothing_written() -> None:
+    store = DefaultConversationStore()
+    value = too_long(StoredConversation, "routine_id")
+
+    with pytest.raises(IdentifierTooLongError) as caught:
+        store._store(dataclasses.replace(_conv(), routine_id=value), "7")
+
+    assert caught.value.field == "routine_id"
     assert not StoredConversation.objects.exists()

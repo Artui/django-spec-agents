@@ -51,6 +51,8 @@ class _Runner:
         lineage: Any = None,
         capabilities: Sequence[Any] = (),
         answers: Mapping[str, str] | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> HeadlessStart:
         self.attempts += 1
         if self.fails is not None:
@@ -72,6 +74,8 @@ class _Runner:
                 "lineage": lineage,
                 "capabilities": capabilities,
                 "answers": answers,
+                "parent_run_id": parent_run_id,
+                "routine_id": routine_id,
             }
         )
         return HeadlessStart(thread_id=thread_id, run_id=run_id)
@@ -89,6 +93,8 @@ class _RunnerWithoutAnswers(_Runner):
         parent: ThreadRef | None = None,
         lineage: Any = None,
         capabilities: Sequence[Any] = (),
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> HeadlessStart:
         return await super().start(
             agent_id, prompt, principal, timeout=timeout, thread_id=thread_id
@@ -149,6 +155,7 @@ async def test_an_idle_thread_with_messages_starts_one_run_with_no_bounds_passed
     assert (start["agent_id"], start["thread_id"], start["timeout"]) == ("main", "p1", 60.0)
     assert start["principal"] is request.user
     assert (start["parent"], start["lineage"], start["capabilities"]) == (None, None, ())
+    assert (start["parent_run_id"], start["routine_id"]) == (None, None)
     assert "arrived" in start["prompt"]
 
 
@@ -221,6 +228,7 @@ async def test_a_child_waiting_on_its_question_resumes_with_the_answer_and_acks_
     [start] = runner.starts
     assert (start["agent_id"], start["thread_id"]) == ("research", "c1")
     assert start["answers"] == {"t-1": "1999"}
+    assert start["parent_run_id"] == "parked"
     left = await DefaultInboundQueue().pending(_CHILD, request=request)
     assert [(m.id, m.body["text"]) for m in left] == [(steer, "Use March."), (later, "2000")]
 
@@ -702,3 +710,32 @@ async def test_a_wake_cancelled_after_its_start_leaves_the_answers_for_the_drain
     assert start["answers"] == {"t-1": "1999"}
     [kept] = await DefaultInboundQueue().pending(_CHILD, request=request)
     assert (kept.id, kept.taken_by) == (sent, None)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_routines_thread_wakes_naming_its_routine() -> None:
+    request = authed_request("7")
+    store = ScopedConversationStore(DefaultConversationStore(), scope="main")
+    await store.save(Conversation("p1", owner_id="7", routine_id="12"), request=request)
+    await _report(request)
+    runner = _Runner(DefaultRunStore())
+
+    await _wake(runner, request, conversations=store)
+
+    [start] = runner.starts
+    assert start["routine_id"] == "12"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_after_a_finished_run_names_no_parent_run() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await runs.claim("p1", "before", request=request, lease=_LEASE)
+    await runs.finish("p1", "before", RunOutcome.COMPLETED, request=request)
+    await _report(request)
+    runner = _Runner(runs)
+
+    await _wake(runner, request)
+
+    [start] = runner.starts
+    assert start["parent_run_id"] is None

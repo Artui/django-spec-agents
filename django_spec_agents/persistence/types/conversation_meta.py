@@ -18,6 +18,7 @@ class ConversationMeta:
     store that does not track it. ``owner_id`` scopes the conversation to a user
     and is not surfaced on the wire. ``parent`` is the thread that started this
     one as a child session, in any scope; ``None`` for a thread of its own.
+    ``routine_id`` is the routine whose firing started it, ``None`` for any other thread.
     """
 
     thread_id: str
@@ -26,6 +27,7 @@ class ConversationMeta:
     preview: str = ""
     owner_id: str | None = None
     parent: ThreadRef | None = None
+    routine_id: str | None = None
 
 
 # Return type for ``ConversationStore.list``. Aliased because a store names that

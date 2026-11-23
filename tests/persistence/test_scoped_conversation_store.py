@@ -253,3 +253,41 @@ async def test_a_parent_link_round_trips_across_two_scopes() -> None:
     assert await ScopedConversationStore(store, scope=link.scope).exists(
         link.thread_id, request=request
     )
+
+
+class _UnlinkingStore(_MemoryStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.unlinked: list[str] = []
+
+    async def unlink_parent(self, thread_id, *, request):  # noqa: ANN001, ANN202, ARG002
+        self.unlinked.append(thread_id)
+
+
+def test_a_wrapper_over_a_store_without_unlink_does_not_offer_one() -> None:
+    scoped = ScopedConversationStore(_MemoryStore(), scope="internal")
+
+    assert not hasattr(scoped, "unlink_parent")
+    assert isinstance(scoped, ConversationStore)
+
+
+async def test_unlink_is_forwarded_with_the_scope_applied(request_) -> None:
+    inner = _UnlinkingStore()
+
+    await ScopedConversationStore(inner, scope="internal").unlink_parent("t1", request=request_)
+
+    assert inner.unlinked == ["internal:t1"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_scoped_child_loads_unlinked_after_unlinking() -> None:
+    request = authed_request()
+    scoped = ScopedConversationStore(DefaultConversationStore(), scope="b")
+    child = Conversation(thread_id="c", messages=[], parent=ThreadRef("p", "a"))
+    await scoped.save(child, request=request)
+
+    await scoped.unlink_parent("c", request=request)
+
+    loaded = await scoped.load("c", request=request)
+    assert loaded is not None
+    assert (loaded.thread_id, loaded.parent, loaded.lineage) == ("c", None, None)

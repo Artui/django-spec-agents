@@ -119,6 +119,7 @@ def test_a_firing_runs_the_routines_prompt_as_its_principal_into_the_sweeps_thre
         "t-sweep",
     )
     assert call.principal.pk == member.pk
+    assert (call.parent_run_id, call.routine_id) == (None, str(firing.pk))
 
 
 def test_an_unlisted_gated_call_parks_and_the_firing_ends_succeeded_waiting(

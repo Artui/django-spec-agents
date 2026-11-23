@@ -63,6 +63,9 @@ from django_spec_agents.persistence.types.run_waiting import RunWaiting
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from django_spec_agents.persistence.types.thread_run_state import ThreadRunState
 from django_spec_agents.persistence.types.thread_run_status import ThreadRunStatus
+from django_spec_agents.persistence.types.unlinkable_conversation_store import (
+    UnlinkableConversationStore,
+)
 from django_spec_agents.policy.approvals.answered_by_metadata import AnsweredByMetadata
 from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
 from django_spec_agents.policy.approvals.reviewed_approvals import ReviewedApprovals
@@ -173,6 +176,7 @@ __all__ = [
     "ToolGuardConfig",
     "ToolRegistry",
     "ToolSpec",
+    "UnlinkableConversationStore",
     "WakingInboundQueue",
     "__version__",
     "build_agent",

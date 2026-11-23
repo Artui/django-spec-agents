@@ -29,6 +29,8 @@ class Call:
     timeout: float
     thread_id: str | None
     capabilities: Sequence[Any]
+    parent_run_id: str | None = None
+    routine_id: str | None = None
 
 
 @dataclass
@@ -56,8 +58,21 @@ class AgentRunner:
         lineage: ChildLineageRecord | None = None,
         capabilities: Sequence[Any] = (),
         run_id: str | None = None,
+        parent_run_id: str | None = None,
+        routine_id: str | None = None,
     ) -> RunStop:
-        self.calls.append(Call(agent_id, prompt, principal, timeout, thread_id, capabilities))
+        self.calls.append(
+            Call(
+                agent_id,
+                prompt,
+                principal,
+                timeout,
+                thread_id,
+                capabilities,
+                parent_run_id,
+                routine_id,
+            )
+        )
         config = AgentConfig(
             model=self.model,
             tool_guard=ToolGuardConfig(enabled=True),
