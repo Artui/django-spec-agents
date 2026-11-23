@@ -2312,6 +2312,13 @@ fill offered and not required:</p>
   with <code>UNSET</code> (below). The annotation is read by the kernel's
   <code>provider_keys</code>, the reader dispatch's own contract is stated in, so this
   toolset and django-spec-mcp read a provider the same way.</li>
+<li><strong>A namesake is still advertised.</strong> A key a spec's <code>kwargs=</code> provider returns
+  that is named like a Validator field does not fill the field: unless
+  <code>input_data</code> fills it, the field stays the caller's, advertised and required
+  as the Validator says, and validated into <code>data</code>, while the provider's value
+  goes to the service keyword of that name. A target selector's <code>kwargs=</code> key
+  named like a Validator field or a spec <code>reads</code> name reaches only the
+  selector, and the field or read stays the caller's. The same holds for a <code>many</code> spec's row fields, offered in each row.</li>
 <li><strong>An input field the spec's Validator requires and no call can send</strong> is
   refused when the toolset is built, with <code>ImproperlyConfigured</code> naming the
   tool and the field, under either <a href="#unexpected-arguments"><code>unknown_arguments</code></a>

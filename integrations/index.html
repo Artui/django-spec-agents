@@ -1666,7 +1666,11 @@ declines, and the model left out, is retried the same way rather than reaching
 the selector, and where a selector parameter the toolset takes out of every
 call, a list selector's <code>page</code> or <code>limit</code>,
 makes <code>build_spec_capability</code> raise <code>ImproperlyConfigured</code> rather than
-advertising an argument whose value never arrives.</p>
+advertising an argument whose value never arrives, and where a spec's
+<code>kwargs=</code> key named like a Validator field, or a target selector's named like a
+Validator field or a read, is served as a namesake, the field or read asked of
+the caller unless <code>input_data</code> fills it and the provider's value passed to its
+own seat, rather than the spec refused.</p>
 <h3 id="declaring-specs-once">Declaring specs once<a class="headerlink" href="#declaring-specs-once" title="Permanent link">&para;</a></h3>
 <p><code>specs</code> takes either a <code>name -&gt; spec</code> mapping or a <strong>spec registry</strong> —
 the kernel's <code>SpecRegistry</code>, the single declaration site for a project
