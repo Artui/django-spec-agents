@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from django.core.files.base import File
-from django.db.models import Field, Model, QuerySet
+from django.core.management.base import CommandError
+from django.db.models import Exists, Field, Model, OuterRef, QuerySet
 from django.http import HttpRequest
 
-from django_spec_agents.contrib.store.models import StoredAttachment
+from django_spec_agents.contrib.store.models import StoredAttachment, StoredRunLog, StoredThreadRun
 from django_spec_agents.contrib.store.types.attachment_deletion import AttachmentDeletion
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.identifier_too_long_error import IdentifierTooLongError
@@ -16,6 +18,8 @@ from django_spec_agents.persistence.utils import resolve_owner_id
 
 # 64 KiB: Django's own default read size for a ``File``.
 _CHUNK_SIZE = 64 * 1024
+# Age units, as seconds. Hours are the unit a bare number is read in.
+_UNITS = {"s": 1.0, "m": 60.0, "h": 3600.0, "d": 86400.0}
 
 
 def owner_or_none(request: HttpRequest, *, allow_anonymous: bool) -> str | None:
@@ -86,10 +90,39 @@ def preview_attachment_deletion(attachments: list[StoredAttachment]) -> Attachme
     return AttachmentDeletion(rows=len(attachments), blobs=len(freed), bytes_freed=sum(freed))
 
 
+def parse_age(value: str) -> timedelta:
+    """An ``--older-than`` of ``30m`` / ``24h`` / ``7d``, or hours when the unit is left off."""
+    text = value.strip().lower()
+    unit = _UNITS.get(text[-1:])
+    amount = text if unit is None else text[:-1]
+    try:
+        number = float(amount)
+    except ValueError:
+        raise CommandError(
+            f"Could not read --older-than {value!r}. Give a number with an "
+            "optional s/m/h/d unit, for example 24h."
+        ) from None
+    if number < 0:
+        raise CommandError("--older-than must not be negative.")
+    return timedelta(seconds=number * (_UNITS["h"] if unit is None else unit))
+
+
+def stale_run_logs(now: datetime, retention: timedelta) -> QuerySet[StoredRunLog]:
+    """Run logs last written over ``retention`` ago (their end, if they ended), bar a live run's."""
+    live = StoredThreadRun.objects.filter(
+        owner_id=OuterRef("owner_id"),
+        active_run_id=OuterRef("run_id"),
+        lease_expires_at__gte=now,
+    )
+    return StoredRunLog.objects.filter(updated_at__lt=now - retention).exclude(Exists(live))
+
+
 __all__ = [
     "check_column_widths",
     "delete_attachments",
     "hash_file",
+    "parse_age",
     "preview_attachment_deletion",
+    "stale_run_logs",
     "unreferenced_attachments",
 ]

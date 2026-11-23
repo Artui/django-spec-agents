@@ -101,6 +101,10 @@ runs on the server. See [Storage](../storage.md#run-status-and-event-logs).
 
 ::: django_spec_agents.ResumableRunStore
 
+### `WatchableRunStore`
+
+::: django_spec_agents.WatchableRunStore
+
 ### `RunNotParkedError`
 
 ::: django_spec_agents.RunNotParkedError

@@ -393,7 +393,7 @@ stranded permanently; the prune command is exactly what collects them.
 
 ## Maintenance commands
 
-The `contrib.store` app ships four, all of them opt-in and none of them
+The `contrib.store` app ships five, all of them opt-in and none of them
 scheduled for you:
 
 | Command | What it does |
@@ -402,8 +402,9 @@ scheduled for you:
 | `agent_store_prune_attachments` | Delete unreferenced attachments older than `--older-than` (default `24h`). |
 | `agent_store_strip_inline_bytes` | Rewrite stored conversations to drop inlined base64 file content. |
 | `agent_store_purge_memory` | Erase every stored memory file for one owner. |
+| `agent_store_prune_run_logs` | Delete the event logs of runs that ended over `--older-than` ago (default `24h`), never a live run's; see [Run status and event logs](#run-status-and-event-logs). |
 
-All four take `--dry-run`.
+All five take `--dry-run`.
 
 **`--older-than` is why the prune command is safe to run.** References alone
 cannot tell an upload abandoned last month from one sitting in a composer right
@@ -559,10 +560,104 @@ a client error rather than a server one.
 **The log is append-only and numbered.** `append(run_id, events, request=...)`
 numbers a batch of opaque JSON events on from the run's last, starting at 1,
 and `read(run_id, after=n)` pages from any number, so a reader that reconnects
-asks for what it has not seen. Nothing edits an entry. `prune()` deletes whole
-logs once their run has been over for `log_retention` (a day by default),
-counting a run that never finished from its last write and never touching one
-under a live lease. Call it from a periodic task; it reads no setting.
+asks for what it has not seen. Nothing edits an entry. An append is one
+conditional update, which checks the run still holds a live lease and takes the
+next numbers in the same statement, then the insert of the batch (`UPDATE ...
+RETURNING` on PostgreSQL and SQLite 3.35 or later; elsewhere the update is
+followed by a read of the new number).
+
+**Pruning is the host's to schedule.** `prune()` deletes whole logs once their
+run has been over for `log_retention` (a day by default), counting a run that
+never finished from its last write and never touching one under a live lease.
+Nothing calls it for you, and it reads no setting: schedule the
+`agent_store_prune_run_logs` command (cron, a Celery beat, a platform
+scheduler), passing your store's window as `--older-than`:
+
+```bash
+python manage.py agent_store_prune_run_logs --older-than 6h
+```
+
+**Waiting on a log.** A reader that follows a live run, as a reattached
+browser does, asks the store to tell it when there is more rather than
+re-reading the log on a timer. That is `wait(run_id, after=n, timeout=...,
+request=...)` on the optional `WatchableRunStore`, a sub-protocol of `RunStore`
+in the shape of `ResumableRunStore`: a store written against `RunStore` alone
+stays one, and a reader checks `isinstance(store, WatchableRunStore)` before it
+calls `wait`, polling `read` itself otherwise. `wait` answers `True` once the
+log has an entry numbered above `n` or the run has ended, and at once if either
+already holds or the run has no log; `False` when the timeout passes. A run
+whose owner died without finishing never ends this way, so a reader bounds each
+wait and checks `get`, which reads the lapsed lease as `failed`.
+
+`DefaultRunStore.wait` polls: each tick is one indexed read of the log's next
+number and end, and between ticks it pauses half a second, doubling up to two
+seconds while nothing changes. Every call starts from the shortest pause, so a
+reader that comes back after an entry polls quickly again. `poll_interval=(0.5,
+2.0)` on the constructor sets both.
+
+On PostgreSQL a store can wake its readers instead of letting them poll. The
+package ships no such store, because it would hold a connection per waiting
+reader and tie the store to one database; this is a recipe to adapt, written
+against psycopg 3.2 or later (`notifies(timeout=)`):
+
+```python
+from datetime import timedelta
+
+import psycopg
+from asgiref.sync import sync_to_async
+from django.db import connection
+
+from django_spec_agents.contrib.store.default_run_store import DefaultRunStore
+
+CHANNEL = "agent_run_log"
+
+
+def _notify(run_id):
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_notify(%s, %s)", [CHANNEL, run_id])
+
+
+class NotifyingRunStore(DefaultRunStore):
+    def __init__(self, *, conninfo, **kwargs):
+        super().__init__(**kwargs)
+        self._conninfo = conninfo
+
+    async def append(self, run_id, events, *, request):
+        last = await super().append(run_id, events, request=request)
+        if last is not None:
+            await sync_to_async(_notify)(run_id)
+        return last
+
+    async def finish(self, thread_id, run_id, outcome, *, request, waiting=()):
+        finished = await super().finish(
+            thread_id, run_id, outcome, request=request, waiting=waiting
+        )
+        if finished:
+            await sync_to_async(_notify)(run_id)
+        return finished
+
+    async def wait(self, run_id, *, after, timeout, request):
+        now = timedelta(0)
+        async with await psycopg.AsyncConnection.connect(
+            self._conninfo, autocommit=True
+        ) as listener:
+            # Listen first, then look: a write between the two is not missed.
+            await listener.execute(f"LISTEN {CHANNEL}")
+            if await super().wait(run_id, after=after, timeout=now, request=request):
+                return True
+            async for note in listener.notifies(timeout=timeout.total_seconds()):
+                if note.payload == run_id and await super().wait(
+                    run_id, after=after, timeout=now, request=request
+                ):
+                    return True
+        return False
+```
+
+A notification is sent when the writer's transaction commits, so a reader woken
+by one reads the entries it announces. One reader's wait holds one listening
+connection for its timeout, which counts against PostgreSQL's
+`max_connections`; a deployment with many reattached readers shares one
+listener per process and fans the notifications out instead.
 
 `request_cancel` records a cancel for the live run, for its owner to act on
 from wherever it runs, and `mark_read` stamps `last_read_at` for an unread

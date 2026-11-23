@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+from asyncio import sleep
 from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import Any, NoReturn
+from time import monotonic
+from typing import Any, NoReturn, cast
 
 from asgiref.sync import sync_to_async
-from django.db import transaction
+from django.db import connections, router, transaction
+from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import Case, CharField, Exists, F, OuterRef, Q, QuerySet, Value, When
+from django.db.models.sql import UpdateQuery
 from django.http import HttpRequest
 from django.utils import timezone
 
 from django_spec_agents.contrib.store.models import StoredRunEvent, StoredRunLog, StoredThreadRun
-from django_spec_agents.contrib.store.utils import check_column_widths
+from django_spec_agents.contrib.store.utils import check_column_widths, stale_run_logs
 from django_spec_agents.persistence.run_id_reused_error import RunIdReusedError
 from django_spec_agents.persistence.run_not_parked_error import RunNotParkedError
 from django_spec_agents.persistence.types.run_claim import RunClaim
@@ -36,7 +40,8 @@ _ENDINGS: dict[RunOutcome, tuple[ThreadRunStatus, RunEndReason | None]] = {
 class DefaultRunStore:
     """A durable, owner-scoped run store over the reference models.
 
-    It is a [`ResumableRunStore`][django_spec_agents.ResumableRunStore].
+    It is a [`ResumableRunStore`][django_spec_agents.ResumableRunStore] and a
+    [`WatchableRunStore`][django_spec_agents.WatchableRunStore].
 
     One instance serves every request, like
     [`DefaultConversationStore`][django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore]:
@@ -47,7 +52,13 @@ class DefaultRunStore:
     ``log_retention`` is how long a run's log outlives the run, a day by
     default; ``prune`` deletes the logs past it. A run that never finished
     (its owner died) counts from its last write, and a run under a live lease
-    is never pruned. ``clock`` supplies "now" and exists for tests.
+    is never pruned; the host schedules ``agent_store_prune_run_logs`` to
+    run it.
+
+    ``wait`` polls the log with one indexed query per tick, pausing
+    ``poll_interval[0]`` seconds after the first and doubling up to
+    ``poll_interval[1]`` while nothing changes; every call starts from the
+    shortest pause. ``clock`` supplies "now" and exists for tests.
     """
 
     def __init__(
@@ -55,10 +66,12 @@ class DefaultRunStore:
         *,
         allow_anonymous: bool = False,
         log_retention: timedelta = timedelta(days=1),
+        poll_interval: tuple[float, float] = (0.5, 2.0),
         clock: Callable[[], datetime] = timezone.now,
     ) -> None:
         self._allow_anonymous = allow_anonymous
         self._log_retention = log_retention
+        self._poll_interval = poll_interval
         self._clock = clock
 
     async def claim(
@@ -102,6 +115,19 @@ class DefaultRunStore:
         self, run_id: str, *, request: HttpRequest, after: int = 0, limit: int | None = None
     ) -> list[RunLogEntry]:
         return await sync_to_async(self._read)(run_id, after, limit, request)
+
+    async def wait(
+        self, run_id: str, *, after: int, timeout: timedelta, request: HttpRequest
+    ) -> bool:
+        deadline = monotonic() + timeout.total_seconds()
+        pause, longest = self._poll_interval
+        while not await sync_to_async(self._moved)(run_id, after, request):
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                return False
+            await sleep(min(pause, remaining))
+            pause = min(pause * 2, longest)
+        return True
 
     async def get(self, thread_id: str, *, request: HttpRequest) -> ThreadRunState | None:
         return (await self.get_many([thread_id], request=request)).get(thread_id)
@@ -245,17 +271,27 @@ class DefaultRunStore:
     def _append(self, run_id: str, events: list[Any], request: HttpRequest) -> int | None:
         owner_id = self._owner(request)
         now = self._clock()
+        holder = StoredThreadRun.objects.filter(
+            owner_id=owner_id,
+            thread_id=OuterRef("thread_id"),
+            active_run_id=run_id,
+            lease_expires_at__gte=now,
+        )
         with transaction.atomic():
-            log = _log(owner_id, run_id).select_for_update().first()
-            if log is None or not _held(owner_id, log.thread_id, run_id, now).exists():
+            bumped = _bump(_log(owner_id, run_id), Exists(holder), len(events), now)
+            if bumped is None:
                 return None
-            first = log.next_seq
+            log_id, next_seq = bumped
+            first = next_seq - len(events)
             StoredRunEvent.objects.bulk_create(
-                StoredRunEvent(log=log, seq=first + offset, event=event, created_at=now)
+                StoredRunEvent(log_id=log_id, seq=first + offset, event=event, created_at=now)
                 for offset, event in enumerate(events)
             )
-            _log(owner_id, run_id).update(next_seq=first + len(events), updated_at=now)
-        return first + len(events) - 1
+        return next_seq - 1
+
+    def _moved(self, run_id: str, after: int, request: HttpRequest) -> bool:
+        row = _log(self._owner(request), run_id).values_list("next_seq", "ended_at").first()
+        return row is None or row[0] > after + 1 or row[1] is not None
 
     def _read(
         self, run_id: str, after: int, limit: int | None, request: HttpRequest
@@ -287,15 +323,7 @@ class DefaultRunStore:
         _thread(self._owner(request), thread_id).update(last_read_at=self._clock())
 
     def _prune(self) -> int:
-        now = self._clock()
-        cutoff = now - self._log_retention
-        live = StoredThreadRun.objects.filter(
-            owner_id=OuterRef("owner_id"),
-            active_run_id=OuterRef("run_id"),
-            lease_expires_at__gte=now,
-        )
-        # ``updated_at`` is the run's end, or its last write if it never ended.
-        stale = StoredRunLog.objects.filter(updated_at__lt=cutoff).exclude(Exists(live))
+        stale = stale_run_logs(self._clock(), self._log_retention)
         pks = list(stale.values_list("pk", flat=True))
         StoredRunLog.objects.filter(pk__in=pks).delete()
         return len(pks)
@@ -329,6 +357,33 @@ def _seen(column: F, lapsed: str) -> Case:
         default=column,
         output_field=CharField(),
     )
+
+
+def _returns_from_update(connection: BaseDatabaseWrapper) -> bool:
+    """Whether ``connection`` takes the ``UPDATE ... RETURNING`` that ``_bump`` writes."""
+    if connection.vendor == "sqlite":
+        return connection.features.can_return_rows_from_bulk_insert
+    return connection.vendor == "postgresql"
+
+
+def _bump(
+    log: QuerySet[StoredRunLog], held: Exists, count: int, now: datetime
+) -> tuple[int, int] | None:
+    """Advance ``next_seq`` by ``count`` while ``held``; the log's pk and new ``next_seq``."""
+    db = router.db_for_write(StoredRunLog)
+    connection = connections[db]
+    if not _returns_from_update(connection):
+        if not log.filter(held).update(next_seq=F("next_seq") + count, updated_at=now):
+            return None
+        return log.values_list("pk", "next_seq").get()
+    query = cast("UpdateQuery", log.filter(held).query.chain(UpdateQuery))
+    query.add_update_values({"next_seq": F("next_seq") + count, "updated_at": now})
+    sql, params = query.get_compiler(db).as_sql()
+    quote = connection.ops.quote_name
+    with connection.cursor() as cursor:
+        cursor.execute(f"{sql} RETURNING {quote('id')}, {quote('next_seq')}", params)
+        row = cursor.fetchone()
+    return None if row is None else (row[0], row[1])
 
 
 def _log(owner_id: str, run_id: str) -> QuerySet[StoredRunLog]:
