@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import io
 import threading
 from typing import Any, cast
@@ -426,3 +427,31 @@ async def test_a_store_failure_reaches_the_caller_through_the_shield() -> None:
     read = _read_attachment(_Broken(None), RequestFactory().get("/"))
     with pytest.raises(RuntimeError, match="store down"):
         await read("a1")
+
+
+async def test_a_failure_after_the_caller_cancelled_is_not_reported_unretrieved() -> None:
+    release = asyncio.Event()
+
+    class _Late(_FakeStore):
+        async def open(self, attachment_id: str, *, request: HttpRequest) -> OpenedAttachment:
+            await release.wait()
+            raise RuntimeError("store down")
+
+    loop = asyncio.get_running_loop()
+    reported: list[dict[str, Any]] = []
+    loop.set_exception_handler(lambda _loop, context: reported.append(context))
+    try:
+        task = asyncio.ensure_future(_read_attachment(_Late(None), RequestFactory().get("/"))("a1"))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        del task
+        release.set()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        gc.collect()
+    finally:
+        loop.set_exception_handler(None)
+
+    assert "Task exception was never retrieved" not in [c["message"] for c in reported]

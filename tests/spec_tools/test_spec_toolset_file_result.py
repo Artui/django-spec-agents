@@ -377,12 +377,33 @@ def test_a_raw_file_note_longer_than_the_ceiling_is_returned_not_refused(ceiling
     assert len(note) > ceiling
 
 
+@pytest.mark.parametrize(
+    ("name", "mime", "inline"),
+    [
+        ("notes.txt", "text/plain", AttachmentInlineConfig(max_bytes=50)),
+        ("quarterly-report-archive.zip", "application/zip", AttachmentInlineConfig()),
+    ],
+)
+async def test_a_limit_or_unread_note_longer_than_the_ceiling_is_a_success(
+    name: str, mime: str, inline: AttachmentInlineConfig, caplog: pytest.LogCaptureFixture
+):
+    spec = _file_spec(lambda: FileResult(b"x" * 200, name), content_type=mime)
+    with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
+        result = await _run(spec, max_result_bytes=100, attachment_inline=inline)
+
+    (part,) = tool_answers(result.all_messages())
+    assert part.outcome == "success"
+    assert len(part.content) > 100
+    assert "ceiling" not in part.content
+    assert not [r for r in caplog.records if "Result bound exceeded" in r.getMessage()]
+
+
 async def test_a_file_described_over_the_ceiling_is_logged_with_the_run_correlation(caplog):
     spec = _file_spec(lambda: FileResult(b"x" * 500, "notes.txt"))
     with caplog.at_level(logging.WARNING, logger="django_spec_agents.spec_tools"):
         result = await _run(spec, max_result_bytes=200)
 
-    record = next(r for r in caplog.records if "Result bound exceeded" in r.getMessage())
+    (record,) = [r for r in caplog.records if "Result bound exceeded" in r.getMessage()]
     assert record.levelno == logging.WARNING
     assert record.run_id == result.run_id
     assert record.tool_call_id
@@ -397,7 +418,7 @@ def test_a_raw_file_described_over_the_ceiling_is_logged_with_the_extra(caplog):
             extra={"run_id": "run-raw"},
         )
 
-    record = next(r for r in caplog.records if "Result bound exceeded" in r.getMessage())
+    (record,) = [r for r in caplog.records if "Result bound exceeded" in r.getMessage()]
     assert record.run_id == "run-raw"
     assert "'make'" in record.getMessage()
 

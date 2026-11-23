@@ -63,7 +63,7 @@ async def _open_and_render(
 
 
 def _retrieve(task: asyncio.Future[Any]) -> None:
-    """Mark a shielded read's outcome retrieved, so a discarded failure is not logged twice."""
+    """Retrieve a shielded read's failure, which a cancelled caller never awaits."""
     task.cancelled() or task.exception()
 
 

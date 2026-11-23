@@ -1176,8 +1176,8 @@ class SpecToolset(AbstractToolset[Any]):
         up to the ceiling when it declares none; over it, the default returns
         the note ``render_output`` would have, as a success, and closes the
         file, rather than refusing. A note ``render_output`` returned is final:
-        it is not measured again, whatever the ceiling, and is logged at
-        ``WARNING``. Override to
+        it is not measured again, whatever the ceiling, and one naming the
+        ceiling is logged at ``WARNING``. Override to
         bound on something other than serialized length -- a row count, a per-run
         running total read off ``ctx.usage``, a taper against ``ctx.usage_limits``
         as a run gets long -- or to shape the refusal differently.
@@ -2030,6 +2030,8 @@ def _enforce_result_bytes(
         return payload
     if isinstance(payload, _OverCeilingNote):
         return _described_over_ceiling(payload, max_bytes, label=label, extra=extra)
+    if isinstance(payload, _FileNote):
+        return payload
     if isinstance(payload, FileResult) and payload.size is None:
         try:
             payload = replace(payload, content=payload.read(max_bytes))
@@ -2112,7 +2114,7 @@ def _file_for_the_model(
     name, mime = file.filename, file.content_type or ""
     if not (is_textual(mime) or mime in inline.media_types):
         file.close()
-        return unread_note(name, mime, _size_text(file.size))
+        return _FileNote(unread_note(name, mime, _size_text(file.size)))
     by_ceiling = ceiling is not None and ceiling < inline.max_bytes
     limit = ceiling if by_ceiling else inline.max_bytes
     try:
@@ -2121,21 +2123,25 @@ def _file_for_the_model(
         size = _size_text(file.size, at_least=limit + 1)
         if by_ceiling:
             return _over_ceiling_note(file, size, limit)
-        return over_limit_note(name, mime, size, limit, text=is_textual(mime))
+        return _FileNote(over_limit_note(name, mime, size, limit, text=is_textual(mime)))
     text = as_text(data, mime)
     if text is not None:
         rendered: str | ToolReturn = ToolReturn(return_value=text)
     elif mime in inline.media_types:
         rendered = attached_file(data, name=name, mime=mime, again="")
     else:
-        rendered = unread_note(name, mime, f"{len(data)} bytes")
+        rendered = _FileNote(unread_note(name, mime, f"{len(data)} bytes"))
     if ceiling is not None and _payload_bytes(rendered) > ceiling:
         return _over_ceiling_note(file, f"{len(data)} bytes", ceiling)
     return rendered
 
 
-class _OverCeilingNote(str):
-    """A file's over-ceiling note, which the result bound passes through unmeasured."""
+class _FileNote(str):
+    """A note describing a file, which the result bound passes through unmeasured."""
+
+
+class _OverCeilingNote(_FileNote):
+    """A file's note naming the tool's ceiling, which the result bound also logs."""
 
 
 def _over_ceiling_note(file: FileResult, size: str, ceiling: int) -> _OverCeilingNote:
