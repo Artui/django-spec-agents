@@ -104,6 +104,20 @@ async def test_another_owner_waits_on_no_log(store: DefaultRunStore) -> None:
     assert await store.wait("r1", after=0, timeout=timedelta(0), request=other) is True
 
 
+async def test_wait_does_not_end_a_run_whose_owner_died(store: DefaultRunStore) -> None:
+    await store.claim("t1", "r1", request=authed_request(), lease=timedelta(0))
+
+    assert await _wait(store, timeout=timedelta(seconds=0.05)) is False
+
+
+@pytest.mark.parametrize("poll_interval", [(0.0, 1.0), (-1.0, 1.0), (2.0, 1.0)])
+def test_a_poll_interval_that_cannot_back_off_is_refused(
+    poll_interval: tuple[float, float],
+) -> None:
+    with pytest.raises(ValueError, match="poll_interval"):
+        DefaultRunStore(poll_interval=poll_interval)
+
+
 def test_an_idle_tick_is_one_query_on_the_log(store: DefaultRunStore) -> None:
     async_to_sync(_claim)(store)
 
@@ -135,3 +149,6 @@ def test_the_wait_backs_off_while_idle_and_never_sleeps_past_its_timeout(
 
     assert async_to_sync(_wait)(store, 0, timedelta(seconds=6)) is False
     assert pauses == [0.5, 1.0, 2.0, 2.0, 0.5]
+    pauses.clear()
+    assert async_to_sync(_wait)(store, 0, timedelta(seconds=1)) is False
+    assert pauses == [0.5, 0.5]

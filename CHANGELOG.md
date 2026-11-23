@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `False` at the timeout. A store without it still satisfies `RunStore`; a reader checks
   `isinstance(store, WatchableRunStore)` first. `DefaultRunStore` implements it by polling,
   one indexed read of the log's next number and end per tick, pausing 0.5 s and doubling to
-  2 s while idle (`poll_interval=`); the storage page shows a PostgreSQL LISTEN/NOTIFY store
+  2 s while idle (`poll_interval=`, refused unless `0 < first <= largest`); the storage page shows a PostgreSQL LISTEN/NOTIFY store
   as a recipe.
 - **`agent_store_prune_run_logs`** runs `DefaultRunStore.prune` with `--older-than` as the
   retention window (default `24h`) and `--dry-run`. Nothing called `prune` before; the host
@@ -26,8 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`DefaultRunStore.append` is one conditional update and the insert.** The held-lease check
   and the bump of the log's next number are one `UPDATE ... RETURNING` on PostgreSQL and
   SQLite 3.35 or later (an update and a read of the number elsewhere), where it was a locked
-  read, a lease check, the insert and an update. A run that no longer holds a live lease
-  still appends nothing and gets `None`.
+  read, a lease check, the insert and an update. A run that no longer holds a live lease, or
+  has finished, still appends nothing and gets `None`, including an append that waited on
+  the log row behind the run's `finish`.
 
 ## [0.25.1] — 2026-11-23
 

@@ -69,6 +69,8 @@ class DefaultRunStore:
         poll_interval: tuple[float, float] = (0.5, 2.0),
         clock: Callable[[], datetime] = timezone.now,
     ) -> None:
+        if not 0 < poll_interval[0] <= poll_interval[1]:
+            raise ValueError(f"poll_interval {poll_interval!r} must be 0 < first <= largest")
         self._allow_anonymous = allow_anonymous
         self._log_retention = log_retention
         self._poll_interval = poll_interval
@@ -277,8 +279,10 @@ class DefaultRunStore:
             active_run_id=run_id,
             lease_expires_at__gte=now,
         )
+        # PostgreSQL re-checks a blocked UPDATE against the log row, not the EXISTS.
+        log = _log(owner_id, run_id).filter(ended_at__isnull=True)
         with transaction.atomic():
-            bumped = _bump(_log(owner_id, run_id), Exists(holder), len(events), now)
+            bumped = _bump(log, Exists(holder), len(events), now)
             if bumped is None:
                 return None
             log_id, next_seq = bumped

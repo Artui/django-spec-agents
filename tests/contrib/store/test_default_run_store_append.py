@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 from asgiref.sync import async_to_sync
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 
 from django_spec_agents.contrib.store import default_run_store
@@ -115,6 +116,18 @@ def test_a_finished_run_s_append_returns_none(store: DefaultRunStore) -> None:
     assert _seqs() == []
 
 
+def test_a_lapsed_owner_s_append_misses_another_owner_s_live_run_of_the_same_id(
+    store: DefaultRunStore, clock: _Clock
+) -> None:
+    _claim(store)
+    clock.now = _T0 + _LEASE + timedelta(seconds=1)
+    other = authed_request("8")
+    async_to_sync(store.claim)("t1", "r1", request=other, lease=_LEASE)
+
+    assert _append(store, [{"n": 1}]) is None
+    assert _seqs() == []
+
+
 def test_an_unknown_run_s_append_returns_none(store: DefaultRunStore) -> None:
     assert _append(store, [{"n": 1}], run_id="nope") is None
 
@@ -199,3 +212,47 @@ def test_only_postgresql_and_a_recent_sqlite_take_update_returning(
     database = SimpleNamespace(vendor=vendor, features=features)
 
     assert default_run_store._returns_from_update(database) is expected
+
+
+@pytest.mark.skipif(connection.vendor != "postgresql", reason="SQLite serialises its writers")
+@pytest.mark.parametrize("returning", [True, False])
+def test_an_append_blocked_behind_the_finish_appends_nothing(
+    returning: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(default_run_store, "_returns_from_update", lambda _: returning)
+    store = DefaultRunStore()
+    async_to_sync(store.claim)("t1", "r1", request=authed_request(), lease=timedelta(minutes=5))
+    finished, commit, pid, result = threading.Event(), threading.Event(), [], {}
+
+    def finisher() -> None:
+        with transaction.atomic():
+            async_to_sync(store.finish)("t1", "r1", RunOutcome.COMPLETED, request=authed_request())
+            finished.set()
+            commit.wait(10)
+        connection.close()
+
+    def appender() -> None:
+        finished.wait(10)
+        connection.ensure_connection()
+        pid.append(connection.connection.info.backend_pid)
+        result["seq"] = _append(store, [{"n": 1}])
+        connection.close()
+
+    threads = [threading.Thread(target=finisher), threading.Thread(target=appender)]
+    for thread in threads:
+        thread.start()
+    blocked = False
+    deadline = time.monotonic() + 10
+    with connection.cursor() as cursor:
+        while not blocked and time.monotonic() < deadline:
+            time.sleep(0.01)
+            if pid:
+                cursor.execute("SELECT wait_event_type FROM pg_stat_activity WHERE pid = %s", pid)
+                blocked = cursor.fetchone() == ("Lock",)
+    commit.set()
+    for thread in threads:
+        thread.join()
+
+    assert blocked
+    assert result["seq"] is None
+    assert _seqs() == []
