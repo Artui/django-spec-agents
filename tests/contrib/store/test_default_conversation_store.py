@@ -370,6 +370,10 @@ async def test_unlinking_leaves_the_child_an_ordinary_thread() -> None:
     assert (loaded.parent, loaded.lineage) == (None, None)
     assert [m["id"] for m in loaded.messages] == ["u1"]
     assert [meta.parent for meta in await store.list(request=request)] == [None]
+    row = await StoredConversation.objects.values(
+        "parent_thread_id", "parent_scope", "lineage"
+    ).aget(thread_id="t1")
+    assert row == {"parent_thread_id": None, "parent_scope": None, "lineage": None}
 
 
 def test_unlinking_another_owners_thread_changes_nothing() -> None:

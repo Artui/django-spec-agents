@@ -24,7 +24,8 @@ def run_headless(runner: HeadlessRunner, *, permissions: Sequence[PermissionChec
     [`HeadlessFiring`][django_spec_agents.headless.types.headless_firing.HeadlessFiring]
     and the worker's principal, so the run's owner lives in the worker, and the
     firing presents the [`RunStop`][django_spec_agents.RunStop]. A firing's ``run_id`` and
-    ``answers`` are each passed only when set, so a runner without them still serves the rest.
+    ``answers`` are each passed only when set, so a runner without them still serves the rest;
+    ``parent_run_id`` and ``routine_id`` are always passed, so a runner must take both.
 
     It declares ``atomic=False``, since one transaction must not span a whole agent
     run, and ``idempotent=False``, since a second call is a second paid run. A worker

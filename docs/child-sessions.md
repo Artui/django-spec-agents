@@ -148,7 +148,7 @@ every run. Until 0.21.0 `start_session` passed these capabilities to the first r
 itself; a runner that composes only on later runs leaves a child's first run unbounded.
 
 The runner is also told which run started the child: `start_session` passes the parent
-run's id as `parent_run_id`, and the runner reports it as the child's first
+run's id as `parent_run_id`, and a runner reports it as the child's first
 `RUN_STARTED.parentRunId`. A wake that resumes a parked child passes the parked run's
 id the same way; any other wake passes `None`. Every caller passes both `parent_run_id`
 and `routine_id` on every start, so a [`HeadlessRunner`](reference/persistence.md#headlessrunner)
@@ -156,8 +156,9 @@ must accept them.
 
 ## Deleting a parent
 
-Deleting a parent cancels its running children with their descendants and keeps them
-as ordinary threads, with the link cleared. A store clears it with `unlink_parent`, on
+A transport that deletes a parent thread should cancel its running children, with their
+descendants, and keep them as ordinary threads with the link cleared, as django-ag-ui does
+from 0.86.0. This package does neither on its own; a store clears the link with `unlink_parent`, on
 the optional [`UnlinkableConversationStore`](reference/persistence.md#unlinkableconversationstore)
 protocol:
 

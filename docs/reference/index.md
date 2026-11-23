@@ -48,6 +48,7 @@ from django_spec_agents import (
     DjangoSessionConversationStore,
     ModelConversationStore,
     ScopedConversationStore,
+    UnlinkableConversationStore,
     AttachmentStore,
     AttachmentRef,
     OpenedAttachment,

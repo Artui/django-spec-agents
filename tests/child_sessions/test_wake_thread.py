@@ -724,3 +724,18 @@ async def test_a_routines_thread_wakes_naming_its_routine() -> None:
 
     [start] = runner.starts
     assert start["routine_id"] == "12"
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_after_a_finished_run_names_no_parent_run() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await runs.claim("p1", "before", request=request, lease=_LEASE)
+    await runs.finish("p1", "before", RunOutcome.COMPLETED, request=request)
+    await _report(request)
+    runner = _Runner(runs)
+
+    await _wake(runner, request)
+
+    [start] = runner.starts
+    assert start["parent_run_id"] is None
