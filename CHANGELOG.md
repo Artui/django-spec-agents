@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-11-23
+
 ### Added
 
 - **A reader can wait on a run's log.** `WatchableRunStore`, an optional protocol beside
@@ -1584,7 +1586,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.25.1...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/Artui/django-spec-agents/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/Artui/django-spec-agents/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/Artui/django-spec-agents/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/Artui/django-spec-agents/compare/v0.24.0...v0.24.1
