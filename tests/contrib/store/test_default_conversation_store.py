@@ -13,6 +13,7 @@ from django_spec_agents.persistence.types.child_lineage_record import ChildLinea
 from django_spec_agents.persistence.types.conversation import Conversation
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 from tests.contrib.store.rows import at_limit, refusal, stored_attachment, too_long
+from tests.request_helpers import authed_request
 
 pytestmark = pytest.mark.django_db
 
@@ -353,3 +354,48 @@ def test_an_over_long_parent_is_refused_with_nothing_written(field: str) -> None
 
     assert error.value.field == field
     assert not StoredConversation.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_unlinking_leaves_the_child_an_ordinary_thread() -> None:
+    store = DefaultConversationStore()
+    request = authed_request()
+    child = dataclasses.replace(_conv(), parent=ThreadRef("p1", "a"), lineage=_LINEAGE)
+    await store.save(child, request=request)
+
+    await store.unlink_parent("t1", request=request)
+
+    loaded = await store.load("t1", request=request)
+    assert loaded is not None
+    assert (loaded.parent, loaded.lineage) == (None, None)
+    assert [m["id"] for m in loaded.messages] == ["u1"]
+    assert [meta.parent for meta in await store.list(request=request)] == [None]
+
+
+def test_unlinking_another_owners_thread_changes_nothing() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1"), lineage=_LINEAGE), "7")
+
+    store._unlink_parent("t1", "8")
+
+    fetched = store._fetch("t1", "7")
+    assert fetched is not None
+    assert (fetched.parent, fetched.lineage) == (ThreadRef("p1"), _LINEAGE)
+
+
+def test_unlinking_a_missing_thread_writes_nothing() -> None:
+    store = DefaultConversationStore()
+
+    store._unlink_parent("absent", "7")
+
+    assert not StoredConversation.objects.exists()
+
+
+def test_unlinking_keeps_the_threads_place_in_the_list() -> None:
+    store = DefaultConversationStore()
+    store._store(dataclasses.replace(_conv(), parent=ThreadRef("p1")), "7")
+    before = StoredConversation.objects.get(thread_id="t1").updated_at
+
+    store._unlink_parent("t1", "7")
+
+    assert StoredConversation.objects.get(thread_id="t1").updated_at == before

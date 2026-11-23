@@ -41,6 +41,11 @@ class DefaultConversationStore(ModelConversationStore):
     to the conversations quoting it. An upload that was never sent belongs to no
     conversation, and the ``agent_store_prune_attachments`` command collects
     those instead.
+
+    It is an
+    [`UnlinkableConversationStore`][django_spec_agents.UnlinkableConversationStore]:
+    ``unlink_parent`` writes NULL to the thread's parent columns and its lineage,
+    and leaves its place in the list alone, as a rename does.
     """
 
     def check_identifiers(self, *, thread_id: str) -> None:
@@ -140,6 +145,11 @@ class DefaultConversationStore(ModelConversationStore):
 
     def _rename(self, thread_id: str, title: str, owner_id: str | None) -> None:
         _thread_rows(thread_id, owner_id).update(title=title)
+
+    def _unlink_parent(self, thread_id: str, owner_id: str | None) -> None:
+        _thread_rows(thread_id, owner_id).update(
+            parent_thread_id=None, parent_scope=None, lineage=None
+        )
 
 
 def _parent(thread_id: str | None, scope: str | None) -> ThreadRef | None:

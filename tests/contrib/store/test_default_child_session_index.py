@@ -101,6 +101,18 @@ async def test_it_lists_a_parents_children_across_scopes_oldest_first(
     ]
 
 
+async def test_an_unlinked_child_is_no_longer_listed(index: DefaultChildSessionIndex) -> None:
+    await _save("c1", _PARENT, scope="research")
+    await _save("c2", _PARENT)
+    scoped = ScopedConversationStore(DefaultConversationStore(), scope="research")
+
+    await scoped.unlink_parent("c1", request=authed_request())
+
+    assert await index.children(_PARENT, request=authed_request()) == [
+        ChildSession(ThreadRef("c2"), _IDLE)
+    ]
+
+
 async def test_a_child_whose_run_ended_early_carries_why(
     index: DefaultChildSessionIndex, runs: DefaultRunStore
 ) -> None:

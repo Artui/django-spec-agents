@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, cast
 
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
@@ -31,6 +32,13 @@ class ModelConversationStore(ABC):
     *store* policy, so two endpoints sharing a store necessarily agree on it.
     Pass it explicitly: this substrate reads no Django settings.
 
+    ``unlink_parent`` (see
+    [`UnlinkableConversationStore`][django_spec_agents.UnlinkableConversationStore])
+    is offered only by a subclass that defines a synchronous
+    ``_unlink_parent(thread_id, owner_id)`` hook, which clears that owner's
+    thread's parent link and lineage. A subclass without one is not unlinkable, so
+    a transport never believes a link it cannot clear was cleared.
+
     Example:
 
         class MyStore(ModelConversationStore):
@@ -49,6 +57,8 @@ class ModelConversationStore(ABC):
     def __init__(self, *, allow_anonymous: bool = False) -> None:
         """A subclass overriding this must call ``super().__init__()``."""
         self._allow_anonymous: bool = allow_anonymous
+        if callable(getattr(self, "_unlink_parent", None)):
+            self.unlink_parent = self._unlink_parent_offered
 
     async def load(self, thread_id: str, *, request: HttpRequest) -> Conversation | None:
         return await sync_to_async(self._load)(thread_id, request)
@@ -67,6 +77,9 @@ class ModelConversationStore(ABC):
 
     async def rename(self, thread_id: str, title: str, *, request: HttpRequest) -> None:
         await sync_to_async(self._rename_scoped)(thread_id, title, request)
+
+    async def _unlink_parent_offered(self, thread_id: str, *, request: HttpRequest) -> None:
+        await sync_to_async(self._unlink_parent_scoped)(thread_id, request)
 
     # resolve_owner_id may create a session row, so this must not run on the event loop.
     def _load(self, thread_id: str, request: HttpRequest) -> Conversation | None:
@@ -91,6 +104,11 @@ class ModelConversationStore(ABC):
     def _rename_scoped(self, thread_id: str, title: str, request: HttpRequest) -> None:
         self._rename(
             thread_id, title, resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
+        )
+
+    def _unlink_parent_scoped(self, thread_id: str, request: HttpRequest) -> None:
+        cast("Any", self)._unlink_parent(
+            thread_id, resolve_owner_id(request, allow_anonymous=self._allow_anonymous)
         )
 
     @abstractmethod
