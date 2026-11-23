@@ -177,7 +177,7 @@ async def test_a_text_file_over_the_cap_is_described_rather_than_returned() -> N
     read = _read_attachment(store, RequestFactory().get("/"), inline=inline)
 
     assert await read("a1") == (
-        "[rows.csv] is a text/csv file (4096 bytes), over the 1024-byte limit for "
+        "[rows.csv] is a text/csv file (9999 bytes), over the 1024-byte limit for "
         "returning a file's contents; it was described rather than read."
     )
 
@@ -204,4 +204,91 @@ async def test_the_attached_result_says_the_content_is_for_this_turn() -> None:
         "[doc.pdf] is a application/pdf file (8 bytes); its contents are attached to this "
         "tool result, for this turn. Call read_attachment again with the same id if a later "
         "turn needs them."
+    )
+
+
+class _CountingHandle(io.BytesIO):
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.taken = 0
+
+    def read(self, size: int | None = -1) -> bytes:
+        chunk = super().read(size)
+        self.taken += len(chunk)
+        return chunk
+
+
+def _counted(mime: str, handle: _CountingHandle, *, size: int) -> OpenedAttachment:
+    ref = AttachmentRef(id="a1", name="big", mime=mime, size=size)
+    return OpenedAttachment(ref=ref, content=handle)
+
+
+@pytest.mark.parametrize("mime", ["text/plain", "application/pdf"])
+async def test_an_undeclared_size_over_the_limit_is_read_no_further_than_the_limit(
+    mime: str,
+) -> None:
+    handle = _CountingHandle(b"x" * 10_000)
+    store = _FakeStore(_counted(mime, handle, size=0))
+    read = _read_attachment(
+        store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=100)
+    )
+    result = await read("a1")
+    assert handle.taken == 101
+    assert handle.closed
+    assert "at least 101 bytes" in result
+
+
+@pytest.mark.parametrize("mime", ["text/plain", "application/pdf"])
+async def test_a_declared_size_over_the_limit_is_refused_unread(mime: str) -> None:
+    handle = _CountingHandle(b"x" * 10_000)
+    store = _FakeStore(_counted(mime, handle, size=10_000))
+    read = _read_attachment(
+        store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=100)
+    )
+    assert "(10000 bytes), over the 100-byte limit" in await read("a1")
+    assert handle.taken == 0
+    assert handle.closed
+
+
+async def test_an_unreadable_type_is_closed_unread() -> None:
+    handle = _CountingHandle(b"x" * 10_000)
+    store = _FakeStore(_counted("application/zip", handle, size=10_000))
+    read = _read_attachment(
+        store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=100)
+    )
+    assert "application/zip file (10000 bytes)" in await read("a1")
+    assert handle.taken == 0
+    assert handle.closed
+
+
+async def test_a_stream_that_returns_short_reads_is_still_bounded() -> None:
+    class _Trickle(_CountingHandle):
+        def read(self, size: int | None = -1) -> bytes:
+            return super().read(7 if size is None or size < 0 or size > 7 else size)
+
+    handle = _Trickle(b"x" * 10_000)
+    store = _FakeStore(_counted("text/plain", handle, size=0))
+    read = _read_attachment(
+        store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=100)
+    )
+    assert "at least 101 bytes" in await read("a1")
+    assert handle.taken == 101
+
+
+async def test_a_declared_size_under_the_limit_does_not_excuse_more_bytes() -> None:
+    store = _FakeStore(_opened("text/plain", b"x" * 200, size=50))
+    read = _read_attachment(
+        store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=100)
+    )
+    assert "(at least 101 bytes)" in await read("a1")
+
+
+async def test_non_utf8_text_over_the_limit_gets_the_text_note() -> None:
+    store = _FakeStore(_opened("text/plain", b"\xff" * 200, name="bad.txt", size=0))
+    read = _read_attachment(
+        store, RequestFactory().get("/"), inline=AttachmentInlineConfig(max_bytes=100)
+    )
+    assert await read("a1") == (
+        "[bad.txt] is a text/plain file (at least 101 bytes), over the 100-byte limit for "
+        "returning a file's contents; it was described rather than read."
     )
