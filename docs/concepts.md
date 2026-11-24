@@ -141,6 +141,31 @@ installed. The extras exist for exactly that:
 pip install django-spec-agents[anthropic]   # or [openai], [google]
 ```
 
+### Falling back to another model
+
+`build_model_fallback` returns Pydantic-AI's `ModelFallback` capability, passed in
+`AgentConfig.capabilities`. When the agent's model fails, refuses, or is cut off at
+`max_tokens`, the next model serves the same request step, and the answer's
+`ModelResponse.model_id` names the model that gave it:
+
+```python
+from django_spec_agents import AgentConfig, build_model_fallback
+
+config = AgentConfig(
+    model="anthropic:claude-sonnet-4-5",
+    capabilities=[build_model_fallback("openai:gpt-5", sticky=True)],
+)
+```
+
+Each name is built when the capability is, so a typo or a provider with no key in
+its environment variable raises `ImproperlyConfigured` at startup rather than on the
+first outage. A fallback never borrows the agent's `api_key`; pass a built `Model`
+for one that needs its own key or provider. With `sticky=True` a conversation that
+fell back stays on the answering model across later runs, as long as the history
+those runs continue carries `model_id` (the step store's does). A project building
+agents from a Pydantic-AI agent spec lists `ModelFallback` in its `capabilities`
+directly; `ModelFallback.from_spec` needs nothing from this package.
+
 ## Replacing construction entirely
 
 When `build_agent`'s composition isn't what a project wants — a custom output

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-11-24
+
+### Added
+
+- **`build_model_fallback`, a model fallback built at configuration time.** It returns
+  Pydantic-AI's `ModelFallback` capability for `AgentConfig.capabilities`: when the
+  agent's model fails, refuses or is cut off at `max_tokens`, the next model answers the
+  same step, and `ModelResponse.model_id` names it. Each `"provider:name"` goes through
+  the agent's own model builder, so a bad name or a missing key raises
+  `ImproperlyConfigured` at startup, not on the first outage. `fallback_on` and `sticky`
+  pass through; a fallback never reuses the agent's `api_key`.
+- **A run that loops can be nudged or stopped.** `AgentConfig.loop_detection`, a
+  `LoopDetectionConfig`, composes pydantic-ai-harness's `DetectLoops` (`[harness]`):
+  `action="nudge"`, the default, tells the model which loop it is in and lets the run carry
+  on; `action="error"` ends the run with `LoopDetectedError`. The repeat thresholds and the
+  call window are its fields, `None` turning a check off, and `stream_checks=False` drops
+  the checks within a streamed response. A child session stopped this way reports `failed`,
+  its text now naming the loop (`The run was stopped in a loop (<pattern>): ...`) rather than
+  the nudge addressed to the model. Only a child session's report carries the loop as its
+  reason; a main or headless run the transport ends with `LoopDetectedError` records the
+  outcome it records for any error, and names the loop only in the error message.
+- **Spend limits on a mount.** `AgentConfig.spend_limits`, a `SpendLimitsConfig` of
+  `SpendBudget`s, composes pydantic-ai-harness's `SpendLimits` (`[harness]`). A budget caps
+  dollars, tokens or both over one run, conversation, UTC day or month, or all time, for the
+  whole mount or, with `per_user`, for each acting user (runs with no authenticated user
+  share an `anonymous` counter); `price` prices a response ahead of the `genai-prices`
+  registry. A spent budget refuses the next request with `SpendLimitExceeded`, a
+  `UsageLimitExceeded`, so the run ends as a usage limit ends it and a child session reports
+  `budget`.
+- **`DefaultSpendStore`**, the harness `BatchSpendStore` over two new store-app models,
+  `StoredSpendCounter` and `StoredSpendMarker` (migration `0010_spend_store`), so every
+  worker on one database enforces one budget, on PostgreSQL, or on SQLite with one process
+  or `"transaction_mode": "IMMEDIATE"` (Django 5.1+; below it concurrent workers on SQLite
+  can fail a write). All windows of one response apply in one transaction, a response
+  presented twice counts once within `dedup_retain`, an expired window restarts at zero, and
+  every `sweep_every` entries the store deletes expired rows without waiting on a row a
+  writer holds. A key with a NUL character and a non-positive `dedup_retain` are refused.
+  Build it once and share it.
+
 ## [0.26.1] — 2026-11-24
 
 ### Changed
@@ -1636,7 +1675,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.26.1...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/Artui/django-spec-agents/compare/v0.26.1...v0.27.0
 [0.26.1]: https://github.com/Artui/django-spec-agents/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/Artui/django-spec-agents/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/Artui/django-spec-agents/compare/v0.25.0...v0.25.1

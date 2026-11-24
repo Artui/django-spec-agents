@@ -477,6 +477,50 @@ one run exists.
 
 Full signatures in the [persistence reference](reference/persistence.md).
 
+## Spend counters
+
+`DefaultSpendStore` is the database equivalent of pydantic-ai-harness's
+`PostgresSpendStore`, for PostgreSQL and for SQLite (see below), and the `store` a
+[`SpendLimitsConfig`](policy.md#spend-limits) names. It satisfies harness's
+`BatchSpendStore` protocol and needs the `[harness]` extra.
+
+```python
+from django_spec_agents.contrib.store.default_spend_store import DefaultSpendStore
+
+spend_store = DefaultSpendStore()
+```
+
+Build it once and share it, unlike `DefaultStepStore`: it holds no request and scopes
+nothing, since a budget's key already names its partition (a user, a run, a day). Each
+window is a `StoredSpendCounter` row, keyed by the SHA-256 of its key so a long
+conversation id fits the index, with dollars held as whole billionths. Every window of
+one response is applied in one transaction, so all of them count or none does. A
+response presented twice, as recovery outside a durable journal can, is counted once
+while its `StoredSpendMarker` lives, `dedup_retain` (an hour) or the window's own
+horizon, whichever is shorter; `dedup_retain=None` keeps no markers.
+
+A window past its horizon reads as zero and restarts at its next write. Horizons are
+measured on `clock`, the application's clock (`timezone.now` unless given), not the
+database's, so keep the workers' clocks in step. Every `sweep_every` (256) entries a
+store writes, it deletes the expired rows, skipping any another connection holds; a failed
+sweep is logged and the write still counts. A key cannot contain a NUL character, which
+PostgreSQL refuses in text, and `dedup_retain` must be positive or `None`.
+
+SQLite refuses a second writer's lock upgrade at once, with `database is locked` and no
+wait, so concurrent workers on it need `"transaction_mode": "IMMEDIATE"` in the database
+`OPTIONS`, which Django 5.1 added; below 5.1 concurrent workers on SQLite can fail a write.
+One ASGI process is unaffected.
+
+```python
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
+    }
+}
+```
+
 ## Run status and event logs
 
 A run started on the server with no stream, or one whose browser leaves, has

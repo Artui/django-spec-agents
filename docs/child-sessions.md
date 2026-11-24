@@ -103,7 +103,8 @@ starting at that moment. The limits bound the common case, not a race between wo
 A start that finds either budget exhausted is refused, as `child_sessions_tree_spend` or
 `child_sessions_day_spend`. The parent's own spend counts toward the tree budget only if
 the parent's mount carries the same budget. The `store` has to be one that every worker
-shares. An in-memory store counts each process on its own. This needs the `[harness]`
+shares, such as [`DefaultSpendStore`](storage.md#spend-counters). An in-memory store counts
+each process on its own. This needs the `[harness]`
 extra.
 
 ## Finding children

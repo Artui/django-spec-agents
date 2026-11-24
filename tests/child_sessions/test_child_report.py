@@ -197,3 +197,58 @@ def test_a_report_without_the_harness_installed_is_refused_when_built(
 
     with pytest.raises(ImportError):
         ChildReport(_PARENT, "research", _Queue())
+
+
+def _loops(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+    return ModelResponse(parts=[ToolCallPart("look", {"at": "the same place"})])
+
+
+async def test_a_child_stopped_in_a_loop_reports_failed_with_the_loop_as_its_reason() -> None:
+    from pydantic_ai_harness.detect_loops import DetectLoops, LoopDetectedError
+
+    queue = _Queue()
+    agent = Agent(FunctionModel(_loops), capabilities=[DetectLoops(action="error")])
+
+    @agent.tool_plain
+    def look(at: str) -> str:
+        return "nothing new"
+
+    with pytest.raises(LoopDetectedError):
+        await agent.run(
+            "Go.",
+            deps=AgentDeps(user=None, call_context={"request": HttpRequest()}),
+            conversation_id=_CHILD.thread_id,
+            capabilities=[ChildReport(_PARENT, "research", queue)],
+        )
+
+    [(_, _, body, _)] = queue.sent
+    assert body["outcome"] == "failed"
+    assert "The run was stopped in a loop (repeated_result):" in body["text"]
+    assert "calls to `look` used the same arguments" in body["text"]
+
+
+async def test_a_child_past_a_spend_limit_reports_budget() -> None:
+    from decimal import Decimal
+
+    from pydantic_ai_harness.spend_limits import Budget, SpendLimitExceeded, SpendLimits
+
+    queue = _Queue()
+    agent = Agent(FunctionModel(_loops))
+
+    @agent.tool_plain
+    def look(at: str) -> str:
+        return "nothing new"
+
+    limits = SpendLimits(
+        budgets=[Budget(usd=Decimal("1"), window="run")], price=lambda _r: Decimal("1")
+    )
+    with pytest.raises(SpendLimitExceeded):
+        await agent.run(
+            "Go.",
+            deps=AgentDeps(user=None, call_context={"request": HttpRequest()}),
+            conversation_id=_CHILD.thread_id,
+            capabilities=[limits, ChildReport(_PARENT, "research", queue)],
+        )
+
+    [(_, _, body, _)] = queue.sent
+    assert body["outcome"] == "budget"
