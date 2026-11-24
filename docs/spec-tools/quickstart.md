@@ -210,6 +210,10 @@ page lacks. The reverse, the flag on and an override dropping `total` from some
 tools, leaves those tools' `limit` description and the pagination line, which
 the model reads on every turn, promising a key that never comes.
 
+`include_total` never governs tools bridged through `[mcp]`: spec-mcp's own
+switch does, because the bridged payload and the bridged schema both come from
+the server.
+
 ### Aggregates beside the total: a `shape_page` override
 
 The toolset ships the count and no other figure, because which sums a list owes

@@ -232,14 +232,6 @@ class _PageArgs:
     limit: int | None
 
 
-@dataclass(frozen=True)
-class _CountedPage(OutputPage):
-    """A page whose envelope also says how many rows matched, across every page."""
-
-    def envelope(self, rendered: Any) -> dict[str, Any]:
-        return {**super().envelope(rendered), "total": self.total}
-
-
 _ENVELOPE: tuple[tuple[str, str], ...] = (
     ("items", "[...]"),
     ("page", "1"),
@@ -249,8 +241,7 @@ _ENVELOPE: tuple[tuple[str, str], ...] = (
 """The kernel's page envelope as the model is shown it: each key, and what it holds.
 
 In the order ``OutputPage.envelope`` writes them, the order both renderings of
-``{envelope}`` keep. ``include_total`` adds ``total`` last, where
-``_CountedPage`` writes it.
+``{envelope}`` keep. ``include_total`` adds ``total`` last, where the kernel's page writes it.
 """
 
 _ENVELOPE_TOTAL = ("total", "T")
@@ -1080,8 +1071,8 @@ class SpecToolset(AbstractToolset[Any]):
         that sort rather than compose with it.
 
         **``include_total`` decides the page here**: on, the page returned
-        writes ``total`` into its envelope. The return schema, the ``limit``
-        description and the ``{envelope}`` the conventions render follow the
+        writes ``total`` into its envelope, as the kernel's page does. The return
+        schema, the ``limit`` description and the ``{envelope}`` the conventions render follow the
         flag too, but they are written at construction, so an override changes
         the payload and never what is advertised. An
         override that builds a page of its own carries what that page's
@@ -1091,11 +1082,12 @@ class SpecToolset(AbstractToolset[Any]):
         keep ``total`` on every page, since every tool advertises it.
         """
         del ctx
-        shaped = _shape_list(rows, page=page, limit=limit, max_page_size=max_page_size)
-        if not self._include_total:
-            return shaped
-        return _CountedPage(
-            items=shaped.items, page=shaped.page, limit=shaped.limit, total=shaped.total
+        return _shape_list(
+            rows,
+            page=page,
+            limit=limit,
+            max_page_size=max_page_size,
+            include_total=self._include_total,
         )
 
     def render_output(
@@ -1707,15 +1699,10 @@ def _return_schema(
     derived = spec_output_schema(
         spec,
         paginate=paginate,
+        include_total=include_total,
         projection=projection,
         handle_description=_render(conventions.handle_field_description),
     )
-    if derived is not None and paginate and include_total:
-        derived = {
-            **derived,
-            "properties": {**derived["properties"], "total": _TOTAL_SCHEMA},
-            "required": [*derived["required"], "total"],
-        }
     if derived is not None and not paginate and _is_a_list(derived):
         derived = _rows_under_items(derived)
     if derived is None or fragment is None:
@@ -1747,12 +1734,6 @@ def _unpaged_rows(spec: Spec, rendered: Any) -> Any:
     if isinstance(rendered, list | tuple):
         return {"items": list(rendered)}
     return rendered
-
-
-_TOTAL_SCHEMA: dict[str, Any] = {
-    "type": "integer",
-    "description": "How many items match, across every page.",
-}
 
 
 def _spec_description(spec: Spec) -> str | None:
@@ -2319,7 +2300,12 @@ def _refuse_unadvertised_ordering(value: Any) -> None:
 
 
 def _shape_list(
-    value: Any, *, page: int | None, limit: int | None, max_page_size: int | None
+    value: Any,
+    *,
+    page: int | None,
+    limit: int | None,
+    max_page_size: int | None,
+    include_total: bool = False,
 ) -> OutputPage:
     """Paginate a list selector's queryset with ``paginate_output``, then force it to evaluate."""
     shaped: OutputPage = paginate_output(
@@ -2327,6 +2313,7 @@ def _shape_list(
         page=page,
         limit=limit,
         max_page_size=max_page_size,
+        include_total=include_total,
     )
     return replace(shaped, items=list(shaped.items))
 
