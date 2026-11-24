@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.1] — 2026-11-24
+
+### Changed
+
+- **`include_total` takes its count from the kernel.** The toolset passes the flag to
+  `paginate_output` and `spec_output_schema`, which write `total` into the envelope and the
+  return schema, in place of a private page class and a schema patch. Payloads and return
+  schemas are unchanged, except that an override rebuilding the page from its class keeps
+  `total` only through `dataclasses.replace` or `include_total=shaped.include_total`. The `[specs]` floor moves to `django-service-specs>=0.37.0`. The
+  quickstart now says `include_total` never governs tools bridged through `[mcp]`.
+
 ## [0.26.0] — 2026-11-23
 
 ### Added
@@ -1625,7 +1636,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.26.1...HEAD
+[0.26.1]: https://github.com/Artui/django-spec-agents/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/Artui/django-spec-agents/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/Artui/django-spec-agents/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/Artui/django-spec-agents/compare/v0.24.1...v0.25.0
