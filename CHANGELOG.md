@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A run that loops can be nudged or stopped.** `AgentConfig.loop_detection`, a
+  `LoopDetectionConfig`, composes pydantic-ai-harness's `DetectLoops` (`[harness]`):
+  `action="nudge"`, the default, tells the model which loop it is in and lets the run carry
+  on; `action="error"` ends the run with `LoopDetectedError`. The repeat thresholds and the
+  call window are its fields, `None` turning a check off, and `stream_checks=False` drops
+  the checks within a streamed response. A child session stopped this way reports `failed`,
+  its text now naming the loop (`The run was stopped in a loop (<pattern>): ...`) rather than
+  the nudge addressed to the model.
+- **Spend limits on a mount.** `AgentConfig.spend_limits`, a `SpendLimitsConfig` of
+  `SpendBudget`s, composes pydantic-ai-harness's `SpendLimits` (`[harness]`). A budget caps
+  dollars, tokens or both over one run, conversation, UTC day or month, or all time, for the
+  whole mount or, with `per_user`, for each acting user (runs with no authenticated user
+  share an `anonymous` counter); `price` prices a response ahead of the `genai-prices`
+  registry. A spent budget refuses the next request with `SpendLimitExceeded`, a
+  `UsageLimitExceeded`, so the run ends as a usage limit ends it and a child session reports
+  `budget`.
+- **`DefaultSpendStore`**, the harness `BatchSpendStore` over two new store-app models,
+  `StoredSpendCounter` and `StoredSpendMarker` (migration `0010_spend_store`), so every
+  worker on one database enforces one budget, on any database Django supports. All windows
+  of one response apply in one transaction, a response presented twice counts once within
+  `dedup_retain`, an expired window restarts at zero, and every `sweep_every` entries the
+  store deletes expired rows. Build it once and share it.
+
 ## [0.26.1] — 2026-11-24
 
 ### Changed

@@ -216,6 +216,8 @@ that don't opt in get no migration.
 
 ::: django_spec_agents.contrib.store.default_child_session_index.DefaultChildSessionIndex
 
+::: django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore
+
 ### Attachment lifecycle
 
 Contrib-level, not part of either protocol. See

@@ -386,3 +386,33 @@ class StoredInboxClaim(models.Model):
 
     def __str__(self) -> str:
         return f"{self.scope or ''}:{self.thread_id}@{self.run_id}"
+
+
+class StoredSpendCounter(models.Model):
+    """One spend window's counters, keyed by the SHA-256 of its key so a key of any length
+    fits the index. Dollars are whole billionths; a NULL ``expires_at`` never expires.
+    """
+
+    key_sha256 = models.CharField(max_length=64, unique=True)
+    key = models.TextField()
+    usd_nanos = models.BigIntegerField(default=0)
+    tokens = models.BigIntegerField(default=0)
+    requests = models.BigIntegerField(default=0)
+    unpriced = models.BigIntegerField(default=0)
+    expires_at = models.DateTimeField(null=True, blank=True, default=None)
+
+    class Meta:
+        indexes = [models.Index(fields=["expires_at"])]
+
+    def __str__(self) -> str:
+        return self.key
+
+
+class StoredSpendMarker(models.Model):
+    """That one response reached one window, so a replay of it is not counted twice."""
+
+    marker_sha256 = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    def __str__(self) -> str:
+        return self.marker_sha256

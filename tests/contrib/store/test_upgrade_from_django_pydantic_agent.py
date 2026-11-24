@@ -71,7 +71,7 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
     after = _ran(_step(database, "new"))
 
     assert [table for table in after["tables"] if table.startswith(OLD_LABEL)] == []
-    assert len([table for table in after["tables"] if table.startswith(LABEL)]) == 14
+    assert len([table for table in after["tables"] if table.startswith(LABEL)]) == 16
     assert after["recorded"] == [
         [LABEL, "0001_initial"],
         [LABEL, "0002_text_columns"],
@@ -82,6 +82,7 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
         [LABEL, "0007_thread_run_prior"],
         [LABEL, "0008_waiting_calls"],
         [LABEL, "0009_conversation_routine"],
+        [LABEL, "0010_spend_store"],
     ]
     # The same rows, moved rather than recreated, so whatever points at them by key still does.
     moved = {model: after["content_types"][model] for model in before["content_types"]}
@@ -92,6 +93,8 @@ def test_an_installed_store_comes_across_with_its_rows(tmp_path: pathlib.Path) -
         "storedrunevent",
         "storedinboundmessage",
         "storedinboxclaim",
+        "storedspendcounter",
+        "storedspendmarker",
     }
     assert after["old_content_types"] == 0
     assert after["view_permissions"] == 1
