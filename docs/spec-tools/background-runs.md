@@ -129,8 +129,9 @@ The usage fields are cumulative for the run rather than attributable to the call
 — a tool call spends no tokens itself — which is exactly what makes them useful
 here: they say where the budget stood when a long run went wrong. They ride on
 the timing line; the `run_id` / `conversation_id` / `run_step` / `tool_call_id`
-four are on every line the package emits, including the two `WARNING`s a
-misbehaving call produces (a dispatch timeout, a result over its byte ceiling).
+four are on every line the package emits, including the `WARNING`s a
+misbehaving call produces (a dispatch timeout, a result over its byte ceiling, a file
+described rather than returned over it).
 
 ```python title="settings.py"
 LOGGING = {
@@ -162,7 +163,8 @@ a correctness one, and in a fan-out it is multiplied by every concurrent run.
   the model asks for. The clamp is reported back in the envelope, so the model
   is told it received less than it asked for rather than silently truncated.
 - `max_result_bytes=` (and `tool_max_result_bytes=` per tool) bounds the
-  serialized payload, answering with a refusal the model can act on.
+  serialized payload, answering with a refusal the model can act on; a file result over
+  it is described to the model rather than attached or refused.
 - `dispatch_timeout=` bounds how long a call blocks the run. **It does not stop
   the work** — the thread runs to completion; the run stops waiting.
 

@@ -66,6 +66,7 @@ from django_spec_agents.persistence.types.thread_run_status import ThreadRunStat
 from django_spec_agents.persistence.types.unlinkable_conversation_store import (
     UnlinkableConversationStore,
 )
+from django_spec_agents.persistence.types.watchable_run_store import WatchableRunStore
 from django_spec_agents.policy.approvals.answered_by_metadata import AnsweredByMetadata
 from django_spec_agents.policy.approvals.granted_approvals import GrantedApprovals
 from django_spec_agents.policy.approvals.reviewed_approvals import ReviewedApprovals
@@ -178,6 +179,7 @@ __all__ = [
     "ToolSpec",
     "UnlinkableConversationStore",
     "WakingInboundQueue",
+    "WatchableRunStore",
     "__version__",
     "build_agent",
     "build_input_schema",

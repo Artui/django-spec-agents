@@ -7,7 +7,8 @@ from dataclasses import dataclass
 class AttachmentInlineConfig:
     """Which attachment types ``read_attachment`` hands back as file content.
 
-    Tunes ``build_attachment_toolset``.
+    Tunes ``build_attachment_toolset``, and, passed as ``attachment_inline=``, the
+    file results of ``SpecToolset``, ``SpecCapability`` and ``build_spec_capability``.
     ``media_types`` governs the **binary** attachments, where the choice is
     between attaching the bytes for the model to look at and returning a
     one-line note about a file it will never see;
@@ -50,8 +51,8 @@ class AttachmentInlineConfig:
 
     max_bytes: int = 4 * 1024 * 1024
     """Largest file, in bytes, returned rather than described -- text and binary
-    alike. Measured against the bytes the store returns, not the declared
-    ``AttachmentRef.size``."""
+    alike. A declared ``AttachmentRef.size`` over it is trusted and refused
+    unread; a file is otherwise measured by the bytes the store returns."""
 
 
 __all__ = ["AttachmentInlineConfig"]

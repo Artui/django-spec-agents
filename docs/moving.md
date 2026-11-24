@@ -291,8 +291,10 @@ See [per-call seeds and the run's context](spec-tools/quickstart.md#per-call-see
 
 ### Rendering and paging
 
-- `render_output(spec, result, *, ctx, projection)` takes the kernel's
-  `DispatchResult` and defaults to the kernel's `present_for_audience`. The
+- `render_output(spec, result, *, ctx, projection, max_bytes)` takes the kernel's
+  `DispatchResult` and defaults to the kernel's `present_for_audience`. `max_bytes`, the
+  tool's `max_result_bytes`, came in 0.26.0: an override with a closed signature adds it,
+  or takes `**kwargs` and passes them to `super()`. The
   `many`, `request`, `view` and `extras` arguments are gone; an override that
   wants the unprojected payload calls the kernel's `present(spec, result)`.
 - `output_extras` is gone, and with it the `page`, `result` and `instance` keys

@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-11-23
+
+### Added
+
+- **A reader can wait on a run's log.** `WatchableRunStore`, an optional protocol beside
+  `RunStore` in the shape of `ResumableRunStore`, adds `wait(run_id, *, after, timeout,
+  request)`: `True` once the log has an entry numbered above `after` or the run has ended,
+  `False` at the timeout. A store without it still satisfies `RunStore`; a reader checks
+  `isinstance(store, WatchableRunStore)` first. `DefaultRunStore` implements it by polling,
+  one indexed read of the log's next number and end per tick, pausing 0.5 s and doubling to
+  2 s while idle (`poll_interval=`, refused unless `0 < first <= largest`); the storage page
+  shows a PostgreSQL LISTEN/NOTIFY store as a recipe.
+- **`agent_store_prune_run_logs`** runs `DefaultRunStore.prune` with `--older-than` as the
+  retention window (default `24h`) and `--dry-run`. Nothing called `prune` before; the host
+  schedules the command.
+
+### Changed
+
+- **`DefaultRunStore.append` is one conditional update and the insert.** The held-lease check
+  and the bump of the log's next number are one `UPDATE ... RETURNING` on PostgreSQL and
+  SQLite 3.35 or later (an update and a read of the number elsewhere), where it was a locked
+  read, a lease check, the insert and an update. A run that no longer holds a live lease, or
+  has finished, still appends nothing and gets `None`, including an append that waited on
+  the log row behind the run's `finish`.
+- **`SpecToolset.render_output` is handed the tool's ceiling as `max_bytes`.** It is the
+  tool's `max_result_bytes` (`None` when it has none), and the default uses it to decide
+  whether a file fits. An override with a closed signature,
+  `render_output(self, spec, result, *, ctx, projection)`, now raises `TypeError` at the
+  call: add `max_bytes`, or take `**kwargs`, and pass it on to `super()`.
+
+### Fixed
+
+- **`read_attachment` reads and closes the attachment in a thread.** The handle was read
+  on the event loop, so a remote `Storage` download blocked every other run on it. It
+  now goes through `sync_to_async` on the same thread `ModelAttachmentStore.open` uses.
+  The `AttachmentStore` docstring now says `open` must not block the loop.
+- **`read_attachment` reads no more than `max_bytes + 1` bytes.** It read the whole
+  file before checking its type or size, so a 10 MB zip was read in full and then
+  described. A type that is neither textual nor in `media_types` is now closed unread, a
+  file whose `ref.size` exceeds `max_bytes` is refused unread, and anything else is read
+  up to `max_bytes + 1`, looping over short reads. The over-limit note now gives
+  `ref.size`, or "at least N bytes" when the file outgrew an understated `ref.size`,
+  where it gave the bytes read. A textual type over the limit whose bytes are not UTF-8
+  now gets the over-limit note, as on the spec route, where it got the unread note.
+- **A spec tool's file result is read with the project's `AttachmentInlineConfig`.**
+  `SpecToolset`, `SpecCapability` and `build_spec_capability` take `attachment_inline=`, the
+  config `read_attachment` is given, so one config governs both. Before, a file always met
+  the default 4 MiB limit and the default media types: a raised `max_bytes` was ignored,
+  and `media_types=frozenset()` still attached a spec tool's PDF or image. Without the
+  keyword the defaults apply, as before.
+- **A file over a tool's `max_result_bytes` is described, never refused.** It is inlined only
+  up to the smaller of the config's `max_bytes` and the tool's ceiling; over it, the call is
+  a success carrying the one-line note, which names the limit that fired. Before, a 1 MB
+  PDF under a 256 KB ceiling was refused with the advice to add a filter or lower `limit`,
+  while a 5 MB one, over the inline limit, came back as the note. A `FileResult` an override
+  returns unrendered gets the same note when it is over the ceiling, and is closed. A note
+  describing a file is final, never measured again however small the ceiling, and one
+  naming the ceiling is logged as the `Result bound exceeded` `WARNING`, with the run's
+  correlation fields.
+- **A cancelled `read_attachment` still closes the handle.** A cancel during
+  `store.open` left the handle open. Open and read now run as one shielded task, so a
+  cancelled call finishes in its thread, bounded at `max_bytes + 1` bytes, and closes the
+  handle.
+
 ## [0.25.1] — 2026-11-23
 
 ### Changed
@@ -1561,7 +1625,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.25.1...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/Artui/django-spec-agents/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/Artui/django-spec-agents/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/Artui/django-spec-agents/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/Artui/django-spec-agents/compare/v0.24.0...v0.24.1
