@@ -12,6 +12,8 @@ from django_spec_agents.policy.audit.audit_capability import AuditCapability
 from django_spec_agents.policy.audit.null_audit_logger import NullAuditLogger
 from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePolicy
 from django_spec_agents.policy.guard.tool_guard import ToolGuard
+from django_spec_agents.policy.loops.build_detect_loops import build_detect_loops
+from django_spec_agents.policy.spend.build_spend_limits import build_spend_limits
 from django_spec_agents.registry.tool_registry import ToolRegistry
 from django_spec_agents.registry.types.tool_spec import ToolSpec
 from django_spec_agents.registry.utils import first_doc_paragraph
@@ -45,7 +47,9 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
     Two more are composed: ``config.approval_reviewer``'s
     [`ReviewedApprovals`][django_spec_agents.ReviewedApprovals], when set, and always an
     [`AnsweredByMetadata`][django_spec_agents.AnsweredByMetadata], which copies an in-run
-    answerer's ``answered_by`` mark onto the call's result.
+    answerer's ``answered_by`` mark onto the call's result. ``config.loop_detection``
+    adds a ``DetectLoops`` and ``config.spend_limits`` a ``SpendLimits`` (both
+    ``[harness]``); ``DetectLoops`` sorts outermost.
 
     **A destructive tool is not confirmed unless a config asks for it.** The
     approval interrupt exists only when ``config.tool_guard`` is enabled, and
@@ -73,6 +77,10 @@ def build_agent(registry: ToolRegistry, config: AgentConfig) -> Agent[AgentDeps,
     if config.approval_reviewer is not None:
         capabilities.append(ReviewedApprovals(config.approval_reviewer))
     capabilities.append(AnsweredByMetadata())
+    if config.loop_detection is not None:
+        capabilities.append(build_detect_loops(config.loop_detection))
+    if config.spend_limits is not None:
+        capabilities.append(build_spend_limits(config.spend_limits))
     if config.tool_failure.enabled:
         capabilities.insert(0, ToolFailurePolicy(config.tool_failure))
     return Agent(

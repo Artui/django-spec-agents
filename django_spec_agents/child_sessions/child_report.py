@@ -29,6 +29,8 @@ class ChildReport(AbstractCapability[Any]):
 
     Needs ``[harness]``, checked when built. A run that parks, or is cancelled before its
     deadline, sends nothing; a failed enqueue is logged and never replaces the run's own.
+    A spend limit reports ``budget``, as a usage limit does, and a ``DetectLoops`` stop
+    ``failed``, its text naming the loop.
     With ``user_joined``, the report's framed body ends with a line telling the parent that
     the user joined the child's session, so its result may reflect the user's direction.
     """
@@ -57,7 +59,7 @@ class ChildReport(AbstractCapability[Any]):
             await self._report(ctx, str(error), "budget")
             raise
         except Exception as error:
-            await self._report(ctx, str(error), "failed")
+            await self._report(ctx, _failure(error), "failed")
             raise
         if not isinstance(result.output, DeferredToolRequests):
             await self._report(ctx, str(result.output), "ok")
@@ -81,6 +83,14 @@ class ChildReport(AbstractCapability[Any]):
             )
         except Exception:
             logger.exception("Child %s could not report to %s.", child, self.parent)
+
+
+def _failure(error: Exception) -> str:
+    from pydantic_ai_harness.detect_loops import LoopDetectedError
+
+    if isinstance(error, LoopDetectedError):
+        return f"The run was stopped in a loop ({error.loop.pattern}): {error}"
+    return str(error)
 
 
 def _text(content: Any) -> str:

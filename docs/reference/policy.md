@@ -71,3 +71,17 @@ See [Policy](../policy.md) for the narrative.
 ### `ToolFailurePolicy`
 
 ::: django_spec_agents.ToolFailurePolicy
+
+## Loops and spend
+
+### `LoopDetectionConfig`
+
+::: django_spec_agents.LoopDetectionConfig
+
+### `SpendLimitsConfig`
+
+::: django_spec_agents.SpendLimitsConfig
+
+### `SpendBudget`
+
+::: django_spec_agents.SpendBudget

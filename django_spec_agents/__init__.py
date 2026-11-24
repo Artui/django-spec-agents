@@ -85,6 +85,9 @@ from django_spec_agents.policy.failure.tool_failure_policy import ToolFailurePol
 from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_spec_agents.policy.guard.tool_guard import ToolGuard
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
+from django_spec_agents.policy.loops.types.loop_detection_config import LoopDetectionConfig
+from django_spec_agents.policy.spend.types.spend_budget import SpendBudget
+from django_spec_agents.policy.spend.types.spend_limits_config import SpendLimitsConfig
 from django_spec_agents.registry.build_input_schema import build_input_schema
 from django_spec_agents.registry.decorator import tool
 from django_spec_agents.registry.tool_registry import ToolRegistry
@@ -147,6 +150,7 @@ __all__ = [
     "InboundMessage",
     "InboundQueue",
     "LoggingAuditLogger",
+    "LoopDetectionConfig",
     "ModelAttachmentStore",
     "ModelConversationStore",
     "ModelInboundQueue",
@@ -167,6 +171,8 @@ __all__ = [
     "RunWaiting",
     "SchemaStrategy",
     "ScopedConversationStore",
+    "SpendBudget",
+    "SpendLimitsConfig",
     "ThreadRef",
     "ThreadRunState",
     "ThreadRunStatus",

@@ -457,6 +457,84 @@ ToolFailureConfig(reraise=())  # convert everything, denials included
 ToolFailureConfig(reraise=(PermissionDenied, LookupError))
 ```
 
+## A run that loops
+
+`AgentConfig.loop_detection` composes pydantic-ai-harness's `DetectLoops` (the
+`[harness]` extra), which watches the run for the same tool call made again and again,
+the same call returning the same result, two calls in turn, and the same text answered
+over and over, and checks each streamed response for a passage that keeps repeating.
+
+```python
+from django_spec_agents import AgentConfig, LoopDetectionConfig
+
+config = AgentConfig(model=..., loop_detection=LoopDetectionConfig(action="error"))
+```
+
+`action` decides what a loop costs:
+
+- **`"nudge"`**, the default, tells the model which loop it is in and asks it to change
+  its approach. The run carries on, so a model that ignores the nudge still needs a usage
+  limit or a spend limit to stop it.
+- **`"error"`** ends the run with `LoopDetectedError`, an `AgentRunError`, so it ends the
+  way any run that raises does. A child session reports it to its parent as `failed`,
+  its text naming the loop: `The run was stopped in a loop (<pattern>):` and the
+  loop's description, with the tools involved.
+
+Each threshold is how many repeats make a loop: `repeated_call_threshold` (5) the same
+call within the last `window` (10) calls, `repeated_result_threshold` (3) the same call
+returning the same result, `alternating_calls_threshold` (3) A-B cycles, and
+`repeated_text_threshold` (3) responses with the same text and no tool call. `None` turns
+that check off. A tool polled on purpose with unchanging arguments is a loop to these
+checks, so raise or turn off the thresholds it trips. `stream_checks=False` drops the
+checks within a response.
+
+## Spend limits
+
+`AgentConfig.spend_limits` composes pydantic-ai-harness's `SpendLimits` (the
+`[harness]` extra). Each response's price is added to every budget's counter, and once a
+counter is spent the next model request is refused with `SpendLimitExceeded`.
+
+```python
+from decimal import Decimal
+
+from django_spec_agents import AgentConfig, SpendBudget, SpendLimitsConfig
+from django_spec_agents.contrib.store.default_spend_store import DefaultSpendStore
+
+spend_store = DefaultSpendStore()  # built once, shared by every run
+
+config = AgentConfig(
+    model=...,
+    spend_limits=SpendLimitsConfig(
+        store=spend_store,
+        budgets=[
+            SpendBudget("run", usd=Decimal("1"), window="run"),
+            SpendBudget("user_day", usd=Decimal("5"), window="day", per_user=True),
+            SpendBudget("mount_month", usd=Decimal("500"), window="month", warn_at=0.8),
+        ],
+    ),
+)
+```
+
+A budget's `window` is one `run`, one `conversation`, a UTC `day` or `month`, or the
+`total`. `per_user` counts each acting user (`AgentDeps.user`) apart; every run with no
+authenticated user shares one `anonymous` counter. Without it, the whole mount shares one
+counter, as long as the same `store` holds it. A budget with neither `usd` nor `tokens`
+only counts.
+
+`SpendLimitExceeded` subclasses `UsageLimitExceeded`, so a tripped spend limit ends a run
+the way a usage limit does: a child session reports it as `budget`. The request that
+crosses the line completes, and concurrent runs can each find a budget unspent and pass
+it together, so a ceiling bounds spend rather than capping it exactly.
+
+A response is priced from the `genai-prices` registry. `price` prices it first, for a
+self-hosted model or a negotiated rate; return `None` to fall through to the registry. A
+model the registry does not know costs nothing in dollars unless `price` covers it.
+
+The `store` is a harness `BatchSpendStore`. `DefaultSpendStore` keeps the counters in the
+store app's tables, so every worker on the database enforces one budget (see
+[Storage](storage.md#spend-counters)). The harness's `InMemorySpendStore` counts each
+process on its own.
+
 ## Ordering
 
 Each capability here declares its own place through `get_ordering()`, and
