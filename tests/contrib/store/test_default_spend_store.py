@@ -44,6 +44,8 @@ def _e(key: str, usd: str = "0", **fields: Any) -> SpendEntry:
     return SpendEntry(key=key, usd=Decimal(usd), **fields)
 
 
+_TWICE = _e("d", "1", token="t3")
+
 # Each step is a batch to apply, or a clock advance; every step is followed by a read.
 _STEPS: list[Any] = [
     [
@@ -58,11 +60,12 @@ _STEPS: list[Any] = [
     timedelta(minutes=45),
     [_e("a", "3", requests=1, ttl=_HOUR)],
     [_e("c", "1", ttl=timedelta(minutes=10)), _e("c", "1")],
+    [_TWICE, _TWICE],
     timedelta(hours=2),
     [_e("b", "2", tokens=3, requests=1, unpriced=1, token="t1")],
     [],
 ]
-_KEYS = ["a", "b", "c", "never", _LONG_KEY]
+_KEYS = ["a", "b", "c", "d", "never", _LONG_KEY]
 
 
 async def _replay(store: Any, clock: _Clock) -> list[Any]:

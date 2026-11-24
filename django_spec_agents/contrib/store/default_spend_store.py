@@ -71,11 +71,12 @@ class DefaultSpendStore:
             return {}
         with transaction.atomic():
             now = self._clock()
-            by_marker = sorted(entries, key=lambda entry: (entry.key, entry.token or ""))
-            claimed = {id(entry) for entry in by_marker if self._claim(entry, now)}
-            for entry in sorted(entries, key=lambda entry: entry.key):
-                if id(entry) in claimed:
-                    _increment(entry, now)
+            order = range(len(entries))
+            by_marker = sorted(order, key=lambda i: (entries[i].key, entries[i].token or ""))
+            claimed = {i for i in by_marker if self._claim(entries[i], now)}
+            for i in sorted(order, key=lambda i: entries[i].key):
+                if i in claimed:
+                    _increment(entries[i], now)
             totals = _totals([entry.key for entry in entries], now)
         self._writes_since_sweep += len(entries)
         if self._writes_since_sweep >= self._sweep_every:
