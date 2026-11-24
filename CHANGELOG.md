@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call window are its fields, `None` turning a check off, and `stream_checks=False` drops
   the checks within a streamed response. A child session stopped this way reports `failed`,
   its text now naming the loop (`The run was stopped in a loop (<pattern>): ...`) rather than
-  the nudge addressed to the model.
+  the nudge addressed to the model. Only a child session's report carries the loop as its
+  reason; a main or headless run the transport ends with `LoopDetectedError` records the
+  outcome it records for any error, and names the loop only in the error message.
 - **Spend limits on a mount.** `AgentConfig.spend_limits`, a `SpendLimitsConfig` of
   `SpendBudget`s, composes pydantic-ai-harness's `SpendLimits` (`[harness]`). A budget caps
   dollars, tokens or both over one run, conversation, UTC day or month, or all time, for the
