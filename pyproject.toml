@@ -120,6 +120,8 @@ specs = [
     # ``RunStop.waiting`` is; below it ``run_headless`` refuses every stop.
     # 0.35.0: a ``kwargs=`` key named like a Validator field or a read is a
     # namesake, served; below it the toolset refuses the spec at build.
+    # 0.37.0: ``paginate_output`` and ``spec_output_schema`` take ``include_total``, which the
+    # toolset passes; below it the keyword is refused.
     "django-service-specs>=0.37.0",
 ]
 # pydantic-ai-harness capabilities (lazy-imported; the core install stays slim):

@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`include_total` takes its count from the kernel.** The toolset passes the flag to
   `paginate_output` and `spec_output_schema`, which write `total` into the envelope and the
   return schema, in place of a private page class and a schema patch. Payloads and return
-  schemas are unchanged. The `[specs]` floor moves to `django-service-specs>=0.37.0`. The
+  schemas are unchanged, except that an override rebuilding the page from its class keeps
+  `total` only through `dataclasses.replace` or `include_total=shaped.include_total`. The `[specs]` floor moves to `django-service-specs>=0.37.0`. The
   quickstart now says `include_total` never governs tools bridged through `[mcp]`.
 
 ## [0.26.0] — 2026-11-23

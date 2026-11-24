@@ -1076,8 +1076,10 @@ class SpecToolset(AbstractToolset[Any]):
         flag too, but they are written at construction, so an override changes
         the payload and never what is advertised. An
         override that builds a page of its own carries what that page's
-        ``envelope`` writes: that is how a project with the flag off adds
-        ``total``, or figures of its own, on the tools it chooses
+        ``envelope`` writes (rebuilding the page keeps ``total`` only through
+        ``dataclasses.replace`` or ``include_total=shaped.include_total``): that is how
+        a project with the flag off adds ``total``, or figures of its own, on the tools
+        it chooses
         (``ctx.tool_name`` names the call's). Under the flag, an override should
         keep ``total`` on every page, since every tool advertises it.
         """
