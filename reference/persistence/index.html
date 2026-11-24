@@ -2575,8 +2575,41 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="DefaultChildSessionIndex">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DefaultSpendStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DefaultSpendStore">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.get_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_many
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.add_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_many
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#attachment-lifecycle" class="md-nav__link">
@@ -4770,8 +4803,41 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="DefaultChildSessionIndex">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DefaultSpendStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DefaultSpendStore">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.get_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_many
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.add_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_many
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#attachment-lifecycle" class="md-nav__link">
@@ -8607,6 +8673,118 @@ exists for tests.</p>
 
 
 
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">DefaultSpendStore</span>
+
+
+<a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A <code>pydantic-ai-harness</code> <code>BatchSpendStore</code> over the reference models, so every
+worker on one database enforces one budget.</p>
+<p>The Django-model counterpart of the harness's <code>PostgresSpendStore</code>, for PostgreSQL and
+for SQLite with one process or <code>"transaction_mode": "IMMEDIATE"</code>. Built once and
+shared: it holds no request and scopes nothing, since a budget's <code>scope</code> already names
+the partition in each key. Every window of a response is applied in one transaction, so
+all of them count or none does, and a <code>SpendEntry.token</code> already applied to a window
+within <code>dedup_retain</code> is not counted again. A window past its horizon reads as zero and
+restarts at the next write.</p>
+<p>Horizons are measured on <code>clock</code>, the application's clock (<code>timezone.now</code> unless
+given), not the database's, so workers whose clocks disagree disagree on when a window
+rolls over. A read and the increment after it are separate statements, so concurrent
+runs can each find a budget unspent and pass it together, as with every harness store.
+Every <code>sweep_every</code> entries this instance writes, it deletes the expired rows.</p>
+<p>SQLite refuses a second writer's lock upgrade at once (<code>database is locked</code>), so
+concurrent workers on SQLite need <code>OPTIONS = {"transaction_mode": "IMMEDIATE"}</code>, which
+Django 5.1 added; below it they can fail a write. One ASGI process is unaffected.</p>
+<p>Add <code>"django_spec_agents.contrib.store"</code> to <code>INSTALLED_APPS</code> and run <code>migrate</code>
+for the backing tables. Requires the <code>django-spec-agents[harness]</code> extra.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.get_many" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_many</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.get_many" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_many</span><span class="p">(</span><span class="n">keys</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Spent</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>What each key has accumulated; an absent or expired window reads as zero.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.add_many" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">add_many</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.contrib.store.default_spend_store.DefaultSpendStore.add_many" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">add_many</span><span class="p">(</span><span class="n">entries</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">SpendEntry</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Spent</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Apply every entry in one transaction and return each key's new total.</p>
+
+
+    </div>
+
+</div>
 
 
 

@@ -936,6 +936,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentConfig.loop_detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        loop_detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentConfig.spend_limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        spend_limits
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1090,6 +1112,28 @@
     <span class="md-ellipsis">
       
         build_agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build_model_fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_model_fallback
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.build_model_fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_model_fallback
       
     </span>
   </a>
@@ -1756,6 +1800,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentConfig.loop_detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        loop_detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.AgentConfig.spend_limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        spend_limits
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1910,6 +1976,28 @@
     <span class="md-ellipsis">
       
         build_agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build_model_fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_model_fallback
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.build_model_fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_model_fallback
       
     </span>
   </a>
@@ -2316,6 +2404,59 @@ mean "on" to keep that default — backwards next to <code>tool_guard</code>.</p
         <p>A second model that may approve a gated call in the person's place, through a
 <a class="autorefs autorefs-internal" title="ReviewedApprovals" href="../policy/#django_spec_agents.ReviewedApprovals"><code>ReviewedApprovals</code></a> (the <code>[harness]</code>
 extra). <code>None</code>, the default, leaves every gated call to the person.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_spec_agents.AgentConfig.loop_detection" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">loop_detection</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.AgentConfig.loop_detection" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">loop_detection</span><span class="p">:</span> <span class="n">LoopDetectionConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Watches the run for repeated calls, results and text, through <code>pydantic-ai-harness</code>'s
+<code>DetectLoops</code> (the <code>[harness]</code> extra). <code>None</code>, the default, watches nothing.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="django_spec_agents.AgentConfig.spend_limits" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">spend_limits</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.AgentConfig.spend_limits" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">spend_limits</span><span class="p">:</span> <span class="n">SpendLimitsConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Prices each response and refuses the next request once a budget is spent, through
+<code>pydantic-ai-harness</code>'s <code>SpendLimits</code> (the <code>[harness]</code> extra). <code>None</code>, the
+default, counts nothing.</p>
 
     </div>
 
@@ -2742,7 +2883,9 @@ that exception.</p>
 <p>Two more are composed: <code>config.approval_reviewer</code>'s
 <a class="autorefs autorefs-internal" title="ReviewedApprovals" href="../policy/#django_spec_agents.ReviewedApprovals"><code>ReviewedApprovals</code></a>, when set, and always an
 <a class="autorefs autorefs-internal" title="AnsweredByMetadata" href="../policy/#django_spec_agents.AnsweredByMetadata"><code>AnsweredByMetadata</code></a>, which copies an in-run
-answerer's <code>answered_by</code> mark onto the call's result.</p>
+answerer's <code>answered_by</code> mark onto the call's result. <code>config.loop_detection</code>
+adds a <code>DetectLoops</code> and <code>config.spend_limits</code> a <code>SpendLimits</code> (both
+<code>[harness]</code>); <code>DetectLoops</code> sorts outermost.</p>
 <p><strong>A destructive tool is not confirmed unless a config asks for it.</strong> The
 approval interrupt exists only when <code>config.tool_guard</code> is enabled, and
 even then it reaches a tool only if that tool's source declares the mutation
@@ -2762,6 +2905,52 @@ the model should say which of the two it configured.</p>
   
       dataclass
   " href="#django_spec_agents.AgentDeps"><code>AgentDeps</code></a> through <code>deps=</code>.</p>
+
+
+    </div>
+
+</div><h2 id="build_model_fallback"><code>build_model_fallback</code><a class="headerlink" href="#build_model_fallback" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="django_spec_agents.build_model_fallback" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_model_fallback</span>
+
+
+<a href="#django_spec_agents.build_model_fallback" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_model_fallback</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">*</span><span class="n">models</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Model</span><span class="p">,</span> <span class="n">fallback_on</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">sticky</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelFallback</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>A <code>ModelFallback</code> capability whose models are built now, not mid-outage.</p>
+<p>Pass it in <a class="autorefs autorefs-internal" title="AgentConfig
+
+
+  
+      dataclass
+  " href="#django_spec_agents.AgentConfig"><code>AgentConfig.capabilities</code></a>. When the
+agent's model fails, refuses (<code>finish_reason='content_filter'</code>) or is cut off at
+<code>max_tokens</code> (<code>finish_reason='length'</code>), the next model here serves the same request
+step, and the answer's <code>ModelResponse.model_id</code> names the model that gave it.</p>
+<p>Each <code>"provider:name"</code> string goes through the same builder as the agent's own
+model, so the <code>gemini:</code> alias applies and a name no provider resolves, or a provider
+with no key in its environment variable, raises <code>ImproperlyConfigured</code> here, at
+configuration time. A bare <code>ModelFallback("provider:name")</code> would resolve the string
+only on its first attempt, the moment the primary is already down. The agent's
+<code>api_key</code> is never reused: a fallback usually sits at another provider, so a string
+reads that provider's own environment variable, and a model needing an explicit key
+or provider is passed as a built <code>Model</code>.</p>
+<p><code>fallback_on</code> and <code>sticky</code> pass through to <code>ModelFallback</code>; left out, <code>fallback_on</code>
+keeps its default (<code>ModelAPIError</code>, <code>ContentFilterError</code>,
+<code>OutputTokenLimitExceeded</code>). With <code>sticky=True</code>, a conversation that fell back stays
+on the model that answered, across later runs continuing the stored history.</p>
+<p>An agent spec needs none of this: <code>ModelFallback.from_spec</code> builds it from a spec's
+<code>capabilities</code> list, resolving its names on attempt.</p>
 
 
     </div>

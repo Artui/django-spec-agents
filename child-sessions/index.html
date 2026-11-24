@@ -1684,7 +1684,8 @@ starting at that moment. The limits bound the common case, not a race between wo
 <p>A start that finds either budget exhausted is refused, as <code>child_sessions_tree_spend</code> or
 <code>child_sessions_day_spend</code>. The parent's own spend counts toward the tree budget only if
 the parent's mount carries the same budget. The <code>store</code> has to be one that every worker
-shares. An in-memory store counts each process on its own. This needs the <code>[harness]</code>
+shares, such as <a href="../storage/#spend-counters"><code>DefaultSpendStore</code></a>. An in-memory store counts
+each process on its own. This needs the <code>[harness]</code>
 extra.</p>
 <h2 id="finding-children">Finding children<a class="headerlink" href="#finding-children" title="Permanent link">&para;</a></h2>
 <p>No store can say which threads a thread started, or how many of one user's children are

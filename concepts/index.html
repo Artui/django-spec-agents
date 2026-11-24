@@ -500,6 +500,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Model resolution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#falling-back-to-another-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Falling back to another model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1372,6 +1389,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Model resolution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#falling-back-to-another-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Falling back to another model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1543,6 +1577,26 @@ string or a <code>Model</code> instance.</p>
 installed. The extras exist for exactly that:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-spec-agents<span class="o">[</span>anthropic<span class="o">]</span><span class="w">   </span><span class="c1"># or [openai], [google]</span>
 </span></code></pre></div>
+<h3 id="falling-back-to-another-model">Falling back to another model<a class="headerlink" href="#falling-back-to-another-model" title="Permanent link">&para;</a></h3>
+<p><code>build_model_fallback</code> returns Pydantic-AI's <code>ModelFallback</code> capability, passed in
+<code>AgentConfig.capabilities</code>. When the agent's model fails, refuses, or is cut off at
+<code>max_tokens</code>, the next model serves the same request step, and the answer's
+<code>ModelResponse.model_id</code> names the model that gave it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConfig</span><span class="p">,</span> <span class="n">build_model_fallback</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">AgentConfig</span><span class="p">(</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">"anthropic:claude-sonnet-4-5"</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">build_model_fallback</span><span class="p">(</span><span class="s2">"openai:gpt-5"</span><span class="p">,</span> <span class="n">sticky</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Each name is built when the capability is, so a typo or a provider with no key in
+its environment variable raises <code>ImproperlyConfigured</code> at startup rather than on the
+first outage. A fallback never borrows the agent's <code>api_key</code>; pass a built <code>Model</code>
+for one that needs its own key or provider. With <code>sticky=True</code> a conversation that
+fell back stays on the answering model across later runs, as long as the history
+those runs continue carries <code>model_id</code> (the step store's does). A project building
+agents from a Pydantic-AI agent spec lists <code>ModelFallback</code> in its <code>capabilities</code>
+directly; <code>ModelFallback.from_spec</code> needs nothing from this package.</p>
 <h2 id="replacing-construction-entirely">Replacing construction entirely<a class="headerlink" href="#replacing-construction-entirely" title="Permanent link">&para;</a></h2>
 <p>When <code>build_agent</code>'s composition isn't what a project wants — a custom output
 type, an unusual toolset arrangement, bespoke instrumentation — a transport can
