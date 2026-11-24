@@ -3267,13 +3267,15 @@ belongs to whatever the spec declared it on, which has already applied it
 to the queryset by the time this runs; an <code>order_by</code> here would replace
 that sort rather than compose with it.</p>
 <p><strong><code>include_total</code> decides the page here</strong>: on, the page returned
-writes <code>total</code> into its envelope. The return schema, the <code>limit</code>
-description and the <code>{envelope}</code> the conventions render follow the
+writes <code>total</code> into its envelope, as the kernel's page does. The return
+schema, the <code>limit</code> description and the <code>{envelope}</code> the conventions render follow the
 flag too, but they are written at construction, so an override changes
 the payload and never what is advertised. An
 override that builds a page of its own carries what that page's
-<code>envelope</code> writes: that is how a project with the flag off adds
-<code>total</code>, or figures of its own, on the tools it chooses
+<code>envelope</code> writes (rebuilding the page keeps <code>total</code> only through
+<code>dataclasses.replace</code> or <code>include_total=shaped.include_total</code>): that is how
+a project with the flag off adds <code>total</code>, or figures of its own, on the tools
+it chooses
 (<code>ctx.tool_name</code> names the call's). Under the flag, an override should
 keep <code>total</code> on every page, since every tool advertises it.</p>
 

@@ -2144,6 +2144,9 @@ counting page for those tools, reading the call's tool name off
 page lacks. The reverse, the flag on and an override dropping <code>total</code> from some
 tools, leaves those tools' <code>limit</code> description and the pagination line, which
 the model reads on every turn, promising a key that never comes.</p>
+<p><code>include_total</code> never governs tools bridged through <code>[mcp]</code>: the MCP
+server's own choice does, because the bridged payload and the bridged schema both
+come from the server, so whether they carry <code>total</code> is its decision.</p>
 <h3 id="aggregates-beside-the-total-a-shape_page-override">Aggregates beside the total: a <code>shape_page</code> override<a class="headerlink" href="#aggregates-beside-the-total-a-shape_page-override" title="Permanent link">&para;</a></h3>
 <p>The toolset ships the count and no other figure, because which sums a list owes
 its reader is the project's to declare. A model asked "how much is outstanding"
