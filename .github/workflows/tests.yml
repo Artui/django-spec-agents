@@ -206,6 +206,7 @@ jobs:
             tests/contrib/store/test_default_run_store.py::test_two_connections_resuming_one_park_one_wins \
             tests/contrib/store/test_default_run_store_append.py \
             tests/contrib/store/test_default_run_store_wait.py \
+            tests/contrib/store/test_default_spend_store.py \
             tests/contrib/store/management/commands/test_agent_store_prune_run_logs.py
       - name: pytest (routine sweep concurrency)
         env:

@@ -34,10 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `budget`.
 - **`DefaultSpendStore`**, the harness `BatchSpendStore` over two new store-app models,
   `StoredSpendCounter` and `StoredSpendMarker` (migration `0010_spend_store`), so every
-  worker on one database enforces one budget, on any database Django supports. All windows
-  of one response apply in one transaction, a response presented twice counts once within
-  `dedup_retain`, an expired window restarts at zero, and every `sweep_every` entries the
-  store deletes expired rows. Build it once and share it.
+  worker on one database enforces one budget, on PostgreSQL, or on SQLite with one process
+  or `"transaction_mode": "IMMEDIATE"` (Django 5.1+; below it concurrent workers on SQLite
+  can fail a write). All windows of one response apply in one transaction, a response
+  presented twice counts once within `dedup_retain`, an expired window restarts at zero, and
+  every `sweep_every` entries the store deletes expired rows without waiting on a row a
+  writer holds. A key with a NUL character and a non-positive `dedup_retain` are refused.
+  Build it once and share it.
 
 ## [0.26.1] — 2026-11-24
 

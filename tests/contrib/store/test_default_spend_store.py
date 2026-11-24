@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import django
 import pytest
-from django.db import DataError
+from asgiref.sync import async_to_sync
+from django.db import DataError, connection, transaction
+from pydantic_ai.exceptions import UserError
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai_harness.spend_limits import (
@@ -15,10 +19,12 @@ from pydantic_ai_harness.spend_limits import (
     SpendEntry,
     SpendLimitExceeded,
 )
+from pydantic_ai_harness.spend_limits._snapshot import to_nanos
 
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.contrib.store import default_spend_store as module
 from django_spec_agents.contrib.store.default_spend_store import DefaultSpendStore
 from django_spec_agents.contrib.store.models import StoredSpendCounter, StoredSpendMarker
 from django_spec_agents.policy.spend.types.spend_budget import SpendBudget
@@ -202,3 +208,202 @@ async def test_the_rows_read_as_their_key_and_marker() -> None:
     counter = await StoredSpendCounter.objects.aget()
     marker = await StoredSpendMarker.objects.aget()
     assert (str(counter), str(marker)) == ("a", marker.marker_sha256)
+
+
+async def test_the_sweep_waits_a_whole_interval_before_running_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    swept: list[datetime] = []
+    monkeypatch.setattr(
+        "django_spec_agents.contrib.store.default_spend_store._sweep_rows", swept.append
+    )
+    store = DefaultSpendStore(sweep_every=2)
+
+    for _ in range(3):
+        await store.add_many([_e("a", "1")])
+    assert len(swept) == 1
+    await store.add_many([_e("a", "1")])
+
+    assert len(swept) == 2
+
+
+def test_a_non_positive_dedup_retain_is_refused() -> None:
+    with pytest.raises(UserError, match="dedup_retain"):
+        DefaultSpendStore(dedup_retain=timedelta(0))
+    with pytest.raises(UserError, match="dedup_retain"):
+        DefaultSpendStore(dedup_retain=timedelta(seconds=-1))
+
+
+def test_a_key_with_a_nul_is_refused_and_nothing_counts() -> None:
+    store = DefaultSpendStore()
+
+    with pytest.raises(ValueError, match="spend key"):
+        async_to_sync(store.add_many)([_e("a", "1", token="t1"), _e("b\x00c", "1")])
+
+    assert not StoredSpendCounter.objects.exists()
+    assert not StoredSpendMarker.objects.exists()
+
+
+def test_a_failed_sweep_inside_a_callers_transaction_leaves_it_usable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _broken(_now: datetime) -> None:
+        connection.cursor().execute("SELECT * FROM no_such_spend_table")
+
+    monkeypatch.setattr("django_spec_agents.contrib.store.default_spend_store._sweep_rows", _broken)
+    store = DefaultSpendStore(sweep_every=1)
+
+    with transaction.atomic():
+        totals = store._add_many([_e("a", "1")])
+        assert StoredSpendCounter.objects.count() == 1
+
+    assert totals["a"].usd == Decimal("1")
+
+
+def _inject_once(monkeypatch: pytest.MonkeyPatch, model: Any, after: str, inject: Any) -> None:
+    manager = model.objects
+    real = getattr(manager, after)
+    fired: list[bool] = []
+
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        result = real(*args, **kwargs)
+        if not fired:
+            fired.append(True)
+            inject()
+        return result
+
+    monkeypatch.setattr(manager, after, wrapped)
+
+
+def _expire_and_sweep() -> None:
+    module._sweep_rows(_Clock().now + timedelta(days=1))
+
+
+def test_a_sweep_between_finding_a_counter_and_updating_it_does_not_drop_the_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock()
+    store = DefaultSpendStore(clock=clock)
+    store._add_many([_e("a", "5", ttl=timedelta(minutes=5))])
+    clock.now += timedelta(minutes=10)
+    _inject_once(monkeypatch, StoredSpendCounter, "get_or_create", _expire_and_sweep)
+
+    totals = store._add_many([_e("a", "1", tokens=3, requests=1)])
+
+    assert (totals["a"].usd, totals["a"].tokens, totals["a"].requests) == (Decimal("1"), 3, 1)
+
+
+def test_a_sweep_between_finding_a_marker_and_refreshing_it_does_not_drop_the_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock()
+    store = DefaultSpendStore(clock=clock)
+    store._add_many([_e("a", "5", token="t1", ttl=timedelta(minutes=5))])
+    clock.now += timedelta(minutes=10)
+    _inject_once(monkeypatch, StoredSpendMarker, "get_or_create", _expire_and_sweep)
+
+    totals = store._add_many([_e("a", "1", token="t1", ttl=timedelta(minutes=5))])
+
+    assert totals["a"].usd == Decimal("1")
+
+
+_RACERS = 8
+
+
+def _race(work: Any) -> list[Any]:
+    start = threading.Barrier(_RACERS)
+    done: list[Any] = [None] * _RACERS
+
+    def run(index: int) -> None:
+        try:
+            start.wait(timeout=10)
+            done[index] = work(index)
+        except Exception as error:
+            done[index] = error
+        finally:
+            connection.close()
+
+    racers = [threading.Thread(target=run, args=(index,)) for index in range(_RACERS)]
+    for racer in racers:
+        racer.start()
+    for racer in racers:
+        racer.join()
+    return done
+
+
+@pytest.mark.skipif(connection.vendor != "postgresql", reason="SQLite serialises its writers")
+def test_connections_racing_with_one_token_count_it_once() -> None:
+    results = _race(lambda _i: DefaultSpendStore()._add_many([_e("a", "1", token="t1")]))
+
+    assert not [r for r in results if isinstance(r, Exception)]
+    assert StoredSpendCounter.objects.get().usd_nanos == 1_000_000_000
+
+
+@pytest.mark.skipif(connection.vendor != "postgresql", reason="SQLite serialises its writers")
+def test_connections_racing_on_one_key_lose_no_update() -> None:
+    def add(index: int) -> Any:
+        store = DefaultSpendStore(sweep_every=1)
+        return [store._add_many([_e("a", "1", tokens=1, token=f"t{index}-{n}")]) for n in range(5)]
+
+    results = _race(add)
+
+    assert not [r for r in results if isinstance(r, Exception)]
+    row = StoredSpendCounter.objects.get()
+    assert (row.usd_nanos, row.tokens) == (_RACERS * 5 * 1_000_000_000, _RACERS * 5)
+
+
+@pytest.mark.skipif(connection.vendor != "postgresql", reason="SQLite has no row locks")
+def test_a_sweep_skips_an_expired_row_another_connection_holds() -> None:
+    DefaultSpendStore(clock=_Clock())._add_many([_e("a", "1", ttl=timedelta(minutes=5))])
+    locked, release = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with transaction.atomic():
+            StoredSpendCounter.objects.select_for_update().get()
+            locked.set()
+            release.wait(timeout=10)
+        connection.close()
+
+    def sweep() -> None:
+        module._sweep(_Clock().now + timedelta(days=1))
+        connection.close()
+
+    holder, sweeper = threading.Thread(target=hold), threading.Thread(target=sweep)
+    holder.start()
+    assert locked.wait(timeout=5)
+    sweeper.start()
+    sweeper.join(timeout=5)
+    stuck = sweeper.is_alive()
+    release.set()
+    holder.join()
+    sweeper.join()
+
+    assert not stuck
+    assert StoredSpendCounter.objects.count() == 1
+
+
+@pytest.mark.skipif(
+    connection.vendor != "sqlite" or django.VERSION < (5, 1), reason="IMMEDIATE is SQLite, 5.1+"
+)
+def test_sqlite_writers_on_separate_connections_count_when_the_mode_is_immediate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = {"transaction_mode": "IMMEDIATE", "timeout": 20}
+    monkeypatch.setitem(connection.settings_dict, "OPTIONS", options)
+
+    results = _race(lambda _i: DefaultSpendStore()._add_many([_e("a", "1", requests=1)]))
+
+    assert not [r for r in results if isinstance(r, Exception)]
+    assert StoredSpendCounter.objects.get().requests == _RACERS
+
+
+@pytest.mark.parametrize(
+    ("usd", "nanos"),
+    [("0.0000000015", 2), ("0.0000000025", 3), ("0.0000000014999", 1), ("-0.0000000015", -2)],
+)
+async def test_a_sub_nanodollar_amount_rounds_half_up_as_the_harness_does(
+    usd: str, nanos: int
+) -> None:
+    await DefaultSpendStore().add_many([_e("a", usd)])
+
+    assert (await StoredSpendCounter.objects.aget()).usd_nanos == nanos == to_nanos(Decimal(usd))
