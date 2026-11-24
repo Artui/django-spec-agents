@@ -1971,8 +1971,10 @@ a role the returned view set.</p>
 <p>See <a href="../spec-tools/quickstart/#per-call-seeds-and-the-runs-context">per-call seeds and the run's context</a>.</p>
 <h3 id="rendering-and-paging">Rendering and paging<a class="headerlink" href="#rendering-and-paging" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>render_output(spec, result, *, ctx, projection)</code> takes the kernel's
-  <code>DispatchResult</code> and defaults to the kernel's <code>present_for_audience</code>. The
+<li><code>render_output(spec, result, *, ctx, projection, max_bytes)</code> takes the kernel's
+  <code>DispatchResult</code> and defaults to the kernel's <code>present_for_audience</code>. <code>max_bytes</code>, the
+  tool's <code>max_result_bytes</code>, came in 0.26.0: an override with a closed signature adds it,
+  or takes <code>**kwargs</code> and passes them to <code>super()</code>. The
   <code>many</code>, <code>request</code>, <code>view</code> and <code>extras</code> arguments are gone; an override that
   wants the unprojected payload calls the kernel's <code>present(spec, result)</code>.</li>
 <li><code>output_extras</code> is gone, and with it the <code>page</code>, <code>result</code> and <code>instance</code> keys

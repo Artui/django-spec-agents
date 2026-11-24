@@ -2353,7 +2353,8 @@ extra). <code>None</code>, the default, leaves every gated call to the person.</
 
 
         <p>Which attachment types <code>read_attachment</code> hands back as file content.</p>
-<p>Tunes <code>build_attachment_toolset</code>.
+<p>Tunes <code>build_attachment_toolset</code>, and, passed as <code>attachment_inline=</code>, the
+file results of <code>SpecToolset</code>, <code>SpecCapability</code> and <code>build_spec_capability</code>.
 <code>media_types</code> governs the <strong>binary</strong> attachments, where the choice is
 between attaching the bytes for the model to look at and returning a
 one-line note about a file it will never see;
@@ -2444,8 +2445,8 @@ outside the set falls back to the one-line note.</p>
     <div class="doc doc-contents ">
 
         <p>Largest file, in bytes, returned rather than described -- text and binary
-alike. Measured against the bytes the store returns, not the declared
-<code>AttachmentRef.size</code>.</p>
+alike. A declared <code>AttachmentRef.size</code> over it is trusted and refused
+unread; a file is otherwise measured by the bytes the store returns.</p>
 
     </div>
 

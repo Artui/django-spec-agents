@@ -2262,7 +2262,18 @@ Return the rows, or declare <code>RETRIEVE</code> to present one.</p>
 <p>A spec presenting its result through the kernel's <code>FilePresenter</code> produces a
 <code>FileResult</code>, and the toolset reads it to the model the way
 <a href="../../storage/#the-read_attachment-tool"><code>read_attachment</code></a> reads an attachment,
-under <code>AttachmentInlineConfig</code>'s default limits:</p>
+under the toolset's <code>attachment_inline</code> config. Pass it the
+<code>AttachmentInlineConfig</code> <code>read_attachment</code> is given, so one config governs both;
+without one the defaults apply. <code>SpecCapability</code> and <code>build_spec_capability</code>
+take the same keyword:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">AttachmentInlineConfig</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">inline</span> <span class="o">=</span> <span class="n">AttachmentInlineConfig</span><span class="p">(</span><span class="n">max_bytes</span><span class="o">=</span><span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">attachment_inline</span><span class="o">=</span><span class="n">inline</span><span class="p">,</span> <span class="n">max_result_bytes</span><span class="o">=</span><span class="mi">256_000</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Below, the limit is the smaller of the config's <code>max_bytes</code> and the tool's
+<code>max_result_bytes</code>, or the config's alone when the tool has no ceiling:</p>
 <table>
 <thead>
 <tr>
@@ -2272,23 +2283,25 @@ under <code>AttachmentInlineConfig</code>'s default limits:</p>
 </thead>
 <tbody>
 <tr>
-<td>Textual (<code>text/*</code>, JSON, XML, JavaScript, YAML, SVG), valid UTF-8, within <code>max_bytes</code></td>
+<td>Textual (<code>text/*</code>, JSON, XML, JavaScript, YAML, SVG), valid UTF-8, within the limit</td>
 <td>Its text.</td>
 </tr>
 <tr>
-<td>A type in <code>media_types</code> (PDF, PNG, JPEG, GIF, WebP) within <code>max_bytes</code></td>
+<td>A type in <code>media_types</code> (PDF, PNG, JPEG, GIF, WebP) within the limit</td>
 <td>The bytes, attached to the tool result as file content for that turn, beside a one-line note.</td>
 </tr>
 <tr>
-<td>Anything else: another type, a file over <code>max_bytes</code>, undecodable "text"</td>
+<td>A file over the limit</td>
+<td>A one-line note giving its name, type and size, and the limit it is over: the config's, or the tool's ceiling on one result.</td>
+</tr>
+<tr>
+<td>Anything else: another type, undecodable "text"</td>
 <td>A one-line note giving its name, type and size.</td>
 </tr>
 </tbody>
 </table>
-<p>A file over the limit is read no further than the limit, so an over-limit
-textual file is described by its type without being read, where <code>read_attachment</code>
-reads an attachment whole and then measures it. One of a type the model cannot
-read is closed without being read. Unlike <code>read_attachment</code>, the
+<p>A file over the limit is read no further than the limit, and one of a type the
+model cannot read is closed without being read. Unlike <code>read_attachment</code>, the
 note does not ask the model to call the tool again for a later turn: calling a
 service again runs it again.</p>
 <p>A file spec has no <code>return_schema</code>, since a file has no JSON shape. One the
@@ -2296,7 +2309,11 @@ kernel's <code>file_output</code> refuses, such as a <code>LIST</code> selector 
 row, is refused when the toolset is built, naming the tool.</p>
 <p><code>max_result_bytes</code> measures a file by its bytes: a text file by its UTF-8
 length, an attached one by its bytes plus the note, never by the repr of the
-bytes. Handing the user a download of the file is not the toolset's to do.</p>
+bytes. A file over it is described, a success, never refused with the advice to
+narrow the request that a list over it gets: a file has nothing to narrow, and a
+smaller file never fares worse than a larger one. That holds for a <code>FileResult</code>
+a <code>render_output</code> override returns unrendered too. Handing the user a download
+of the file is not the toolset's to do.</p>
 <h2 id="what-a-tool-asks-the-model-for">What a tool asks the model for<a class="headerlink" href="#what-a-tool-asks-the-model-for" title="Permanent link">&para;</a></h2>
 <p>A tool's parameter schema is the model's only account of what to send, and the
 kernel reflects nothing off a callable's signature: every argument is one the
@@ -2348,29 +2365,29 @@ fill offered and not required:</p>
   that key stays advertised and the others are still filled. Annotate the
   provider to have the rest required:</li>
 </ul>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProjectScope</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">ceiling</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">scope</span><span class="p">(</span><span class="n">project_pk</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProjectScope</span><span class="p">:</span>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="c1"># ceiling is filled here, so the model is never asked for it. project_pk is</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="c1"># a read the tool declares, handed to the provider by name.</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">"ceiling"</span><span class="p">:</span> <span class="n">ceiling_for</span><span class="p">(</span><span class="n">project_pk</span><span class="p">)}</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>
-</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
-</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="n">list_spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">priced_under</span><span class="p">,</span>
-</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>    <span class="n">reads</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span>
-</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>        <span class="n">Parameter</span><span class="p">(</span><span class="s2">"project_pk"</span><span class="p">,</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
-</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>        <span class="n">Parameter</span><span class="p">(</span><span class="s2">"ceiling"</span><span class="p">,</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
-</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>    <span class="p">),</span>
-</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>    <span class="n">kwargs</span><span class="o">=</span><span class="n">scope</span><span class="p">,</span>
-</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
-</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProjectScope</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">ceiling</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">scope</span><span class="p">(</span><span class="n">project_pk</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProjectScope</span><span class="p">:</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="c1"># ceiling is filled here, so the model is never asked for it. project_pk is</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    <span class="c1"># a read the tool declares, handed to the provider by name.</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">"ceiling"</span><span class="p">:</span> <span class="n">ceiling_for</span><span class="p">(</span><span class="n">project_pk</span><span class="p">)}</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="n">list_spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">priced_under</span><span class="p">,</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>    <span class="n">reads</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span>
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>        <span class="n">Parameter</span><span class="p">(</span><span class="s2">"project_pk"</span><span class="p">,</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>        <span class="n">Parameter</span><span class="p">(</span><span class="s2">"ceiling"</span><span class="p">,</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>    <span class="p">),</span>
+</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>    <span class="n">kwargs</span><span class="o">=</span><span class="n">scope</span><span class="p">,</span>
+</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
+</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="p">)</span>
 </span></code></pre></div>
 <ul>
 <li><strong>A key whose value admits <code>UnsetType</code> is not one the toolset fills.</strong> A
@@ -2434,17 +2451,17 @@ comes back as a retry naming it too, <code>ceiling: This field is required.</cod
 <h2 id="custom-identity">Custom identity<a class="headerlink" href="#custom-identity" title="Permanent link">&para;</a></h2>
 <p>If your project carries identity on a richer deps object, hand the toolset a
 <code>get_user</code> extractor instead of using <code>AgentDeps</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">get_user</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">principal</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">get_user</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">principal</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
 </span></code></pre></div>
 <h2 id="project-pool-seeds">Project pool seeds<a class="headerlink" href="#project-pool-seeds" title="Permanent link">&para;</a></h2>
 <p>Over HTTP a service reads its tenant, locale or clock off <code>request</code>. Off HTTP
 there is no request carrying any of that, and the kernel's
 <a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.pool.pool_seeds.PoolSeeds"><code>PoolSeeds</code></a> is the channel
 for it. Hand the registry to the toolset as <code>pool_seeds=</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_POOL_SEEDS</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">seeds</span> <span class="o">=</span> <span class="n">DEFAULT_POOL_SEEDS</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">tenant</span><span class="o">=</span><span class="k">lambda</span> <span class="n">user</span><span class="p">:</span> <span class="n">user</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">tenant</span><span class="p">)</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">pool_seeds</span><span class="o">=</span><span class="n">seeds</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_POOL_SEEDS</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">seeds</span> <span class="o">=</span> <span class="n">DEFAULT_POOL_SEEDS</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">tenant</span><span class="o">=</span><span class="k">lambda</span> <span class="n">user</span><span class="p">:</span> <span class="n">user</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">tenant</span><span class="p">)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">pool_seeds</span><span class="o">=</span><span class="n">seeds</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Every dispatch the toolset makes is handed the registry. A service, a selector
 or an affordance's condition that declares <code>tenant</code> therefore receives the
@@ -2492,9 +2509,9 @@ any entry of the same name the run put there, so a callable reading
 when the run carries the HTTP request it arrived on. The run's entries reach
 every call as the same objects, so put the request the run arrived on there,
 under <code>request</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">deps</span> <span class="o">=</span> <span class="n">AgentDeps</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">deps</span><span class="o">.</span><span class="n">call_context</span><span class="p">[</span><span class="s2">"request"</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">deps</span><span class="o">=</span><span class="n">deps</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">deps</span> <span class="o">=</span> <span class="n">AgentDeps</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">deps</span><span class="o">.</span><span class="n">call_context</span><span class="p">[</span><span class="s2">"request"</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">deps</span><span class="o">=</span><span class="n">deps</span><span class="p">)</span>
 </span></code></pre></div>
 <p>A callable declaring <code>request</code> is then handed that request, and a permission
 check declaring <code>call_context</code> reads it there. The toolset builds no request
@@ -2568,10 +2585,10 @@ never see.</p>
 asked once per call with the live <code>RunContext</code> and the tool's name, and once
 per conditioned tool when the catalog is listed. Each value is a resolver, as
 for <code>PoolSeeds.extend</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TenantToolset</span><span class="p">(</span><span class="n">SpecToolset</span><span class="p">):</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">call_seeds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">tool_name</span><span class="p">):</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>        <span class="n">tenant</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">tenant</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"tenant"</span><span class="p">:</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">tenant</span><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TenantToolset</span><span class="p">(</span><span class="n">SpecToolset</span><span class="p">):</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">call_seeds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">tool_name</span><span class="p">):</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>        <span class="n">tenant</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">tenant</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"tenant"</span><span class="p">:</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">tenant</span><span class="p">}</span>
 </span></code></pre></div>
 <p>A name the mount's <code>pool_seeds</code> registers already is refused with
 <code>ValueError</code> at the call, and <code>request</code> or <code>view</code> returned here replace the
@@ -2606,16 +2623,16 @@ runs once per model step so a database-backed check would cost a query per spec
 per step, and a model that cannot see a tool cannot ask about it. A listing
 carries a name, a description and an input schema; no row data.</p>
 <p>If a deployment does want a narrower catalog, override <code>is_tool_listed</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">asgiref.sync</span><span class="w"> </span><span class="kn">import</span> <span class="n">sync_to_async</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">OpsOnlyToolset</span><span class="p">(</span><span class="n">SpecToolset</span><span class="p">):</span>
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">is_tool_listed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ctx</span><span class="p">):</span>
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>        <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">"suspend_account"</span><span class="p">:</span>
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>            <span class="k">return</span> <span class="kc">True</span>
-</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>        <span class="c1"># Django refuses ORM access on the event loop, so anything that</span>
-</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>        <span class="c1"># queries has to go through a thread — as dispatch itself does.</span>
-</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>        <span class="k">return</span> <span class="k">await</span> <span class="n">sync_to_async</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"ops"</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">)()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">asgiref.sync</span><span class="w"> </span><span class="kn">import</span> <span class="n">sync_to_async</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">OpsOnlyToolset</span><span class="p">(</span><span class="n">SpecToolset</span><span class="p">):</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">is_tool_listed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ctx</span><span class="p">):</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>        <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">"suspend_account"</span><span class="p">:</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>            <span class="k">return</span> <span class="kc">True</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>        <span class="c1"># Django refuses ORM access on the event loop, so anything that</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>        <span class="c1"># queries has to go through a thread — as dispatch itself does.</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>        <span class="k">return</span> <span class="k">await</span> <span class="n">sync_to_async</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"ops"</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">)()</span>
 </span></code></pre></div>
 <p>Hiding a tool is a disclosure decision, never an authorization one: the call is
 gated by the spec's <code>permissions</code> whatever this returns.</p>
@@ -2630,8 +2647,8 @@ have invoked with other arguments. Only the specs declaring one are asked, and a
 toolset declaring none pays nothing. And the model can still tell the user about
 the missing tool, because the instructions for that step end by naming each tool
 left out with its reason:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>  - `post_invoice`: The books are closed.
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>- These operations exist but cannot be performed right now, so they are not among your tools. If the user asks for one, say it is unavailable at the moment and give the reason listed for it, rather than guessing why:
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>  - `post_invoice`: The books are closed.
 </span></code></pre></div>
 <p>The rest of the instructions are derived from the tools that step offers, so no
 line describes a tool it lacks. An <code>instructions=</code> override replaces those
@@ -2682,21 +2699,21 @@ adds, such as <code>limit</code> and <code>page</code>, stay fixed, and so do it
 take, a service asking for more input, and the opening of a
 <a href="#a-selection-the-presenter-rejects">render retry</a>, whose closing scope
 sentence is the one part that is a field.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConventions</span><span class="p">,</span> <span class="n">SpecToolset</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="n">specs</span><span class="p">,</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="n">conventions</span><span class="o">=</span><span class="n">AgentConventions</span><span class="p">(</span>
-</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>        <span class="c1"># {envelope} is the page as this toolset writes it, `total` included under</span>
-</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="c1"># include_total; {page_size} is the page an omitted `limit` is served.</span>
-</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>        <span class="n">pagination</span><span class="o">=</span><span class="p">(</span>
-</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>            <span class="s2">"- Collections come back one page at a time, as </span><span class="si">{envelope}</span><span class="s2">, "</span>
-</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>            <span class="s2">"</span><span class="si">{page_size}</span><span class="s2"> items unless you pass `limit`. Ask for the next `page` while "</span>
-</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>            <span class="s2">"`hasNext` is true."</span>
-</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>        <span class="p">),</span>
-</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>        <span class="n">handles</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># this audience never sees identifiers, so say nothing about them</span>
-</span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>    <span class="p">),</span>
-</span><span id="__span-16-15"><a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentConventions</span><span class="p">,</span> <span class="n">SpecToolset</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">specs</span><span class="p">,</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="n">conventions</span><span class="o">=</span><span class="n">AgentConventions</span><span class="p">(</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="c1"># {envelope} is the page as this toolset writes it, `total` included under</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>        <span class="c1"># include_total; {page_size} is the page an omitted `limit` is served.</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>        <span class="n">pagination</span><span class="o">=</span><span class="p">(</span>
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>            <span class="s2">"- Collections come back one page at a time, as </span><span class="si">{envelope}</span><span class="s2">, "</span>
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>            <span class="s2">"</span><span class="si">{page_size}</span><span class="s2"> items unless you pass `limit`. Ask for the next `page` while "</span>
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>            <span class="s2">"`hasNext` is true."</span>
+</span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>        <span class="p">),</span>
+</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>        <span class="n">handles</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># this audience never sees identifiers, so say nothing about them</span>
+</span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>    <span class="p">),</span>
+</span><span id="__span-17-15"><a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><strong>A field changes what a line says, never whether it appears.</strong> The toolset still
 decides that: the <code>pagination</code> line above is still absent from
@@ -2833,10 +2850,10 @@ self-corrects. A <code>filter_set</code>'s filters are declared names, so a key 
 and the selector's parameters is refused like any other. A selector taking a bare
 <code>**kwargs</code> declares no name, so every key sent to it is refused. Pass
 <code>unknown_arguments=</code> to change this:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnknownArguments</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="c1"># silently drop unexpected keys instead of rejecting them</span>
-</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">unknown_arguments</span><span class="o">=</span><span class="n">UnknownArguments</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnknownArguments</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="c1"># silently drop unexpected keys instead of rejecting them</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">unknown_arguments</span><span class="o">=</span><span class="n">UnknownArguments</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">)</span>
 </span></code></pre></div>
 <p><code>IGNORE</code> drops a key no parameter declares. The tool's schema says which:
 under <code>REJECT</code> it closes the argument set with <code>additionalProperties: false</code>, at
@@ -2855,25 +2872,25 @@ hand one over, declare it, as a <code>reads</code> entry or a Validator field.</
 named argument</strong>. Its input validates as a JSON array, and a model's tool
 arguments are always a JSON object, so the array travels under the argument the
 spec's <code>many_argument</code> names, <code>items</code> unless it names another:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nd">@dataclass</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetIn</span><span class="p">:</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="n">price</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>
-</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
-</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_widgets</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">WidgetIn</span><span class="p">],</span> <span class="n">user</span><span class="p">):</span>
-</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">    </span><span class="sd">"""Create several widgets in one call."""</span>
-</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">Widget</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">w</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">price</span><span class="o">=</span><span class="n">w</span><span class="o">.</span><span class="n">price</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
-</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
-</span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>
-</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="n">create_widgets_spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-18-13"><a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_widgets</span><span class="p">,</span>
-</span><span id="__span-18-14"><a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>    <span class="n">validator</span><span class="o">=</span><span class="n">DataclassValidator</span><span class="p">(</span><span class="n">WidgetIn</span><span class="p">),</span>
-</span><span id="__span-18-15"><a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>    <span class="n">presenter</span><span class="o">=</span><span class="n">DataclassPresenter</span><span class="p">(</span><span class="n">WidgetOut</span><span class="p">),</span>
-</span><span id="__span-18-16"><a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>    <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-18-17"><a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>    <span class="n">many_argument</span><span class="o">=</span><span class="s2">"widgets"</span><span class="p">,</span>  <span class="c1"># optional; the default is "items"</span>
-</span><span id="__span-18-18"><a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
-</span><span id="__span-18-19"><a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nd">@dataclass</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetIn</span><span class="p">:</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="n">price</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_widgets</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">WidgetIn</span><span class="p">],</span> <span class="n">user</span><span class="p">):</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">    </span><span class="sd">"""Create several widgets in one call."""</span>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">Widget</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">w</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">price</span><span class="o">=</span><span class="n">w</span><span class="o">.</span><span class="n">price</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="n">create_widgets_spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-19-13"><a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_widgets</span><span class="p">,</span>
+</span><span id="__span-19-14"><a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>    <span class="n">validator</span><span class="o">=</span><span class="n">DataclassValidator</span><span class="p">(</span><span class="n">WidgetIn</span><span class="p">),</span>
+</span><span id="__span-19-15"><a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>    <span class="n">presenter</span><span class="o">=</span><span class="n">DataclassPresenter</span><span class="p">(</span><span class="n">WidgetOut</span><span class="p">),</span>
+</span><span id="__span-19-16"><a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>    <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-19-17"><a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>    <span class="n">many_argument</span><span class="o">=</span><span class="s2">"widgets"</span><span class="p">,</span>  <span class="c1"># optional; the default is "items"</span>
+</span><span id="__span-19-18"><a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
+</span><span id="__span-19-19"><a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The model sends <code>{"widgets": [{...}, {...}]}</code> and the service receives the list,
 exactly as it would from a bare array body. The tool's parameter schema says so:
@@ -2905,16 +2922,16 @@ the toolset is built.</p>
 are its lookup, advertised beside the list and required as the selector
 declares them; a call sends them at the top level, and the service receives the
 resolved set as <code>collection</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">add_widgets</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">add_widgets</span><span class="p">,</span>  <span class="c1"># (*, data, user, collection)</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    <span class="n">validator</span><span class="o">=</span><span class="n">widget_input</span><span class="p">,</span>
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    <span class="n">collection_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">owned_widgets</span><span class="p">,</span>
-</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>        <span class="n">reads</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="n">Parameter</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
-</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>    <span class="p">),</span>
-</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">add_widgets</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">add_widgets</span><span class="p">,</span>  <span class="c1"># (*, data, user, collection)</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="n">validator</span><span class="o">=</span><span class="n">widget_input</span><span class="p">,</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>    <span class="n">collection_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">owned_widgets</span><span class="p">,</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>        <span class="n">reads</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="n">Parameter</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"integer"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>    <span class="p">),</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>The model sends <code>{"owner_id": 7, "items": [...]}</code>, and a call leaving out
 <code>owner_id</code> is asked for it. A lookup the selector takes but does not declare in
@@ -2922,27 +2939,27 @@ resolved set as <code>collection</code>:</p>
 refused by the kernel.</p>
 <p>Any other argument a tool needs <strong>beside</strong> its list rules out <code>many=True</code>. Name the
 list as a field of the Validator's input instead, and loop over it:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nd">@dataclass</span>
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">BulkWidgetIn</span><span class="p">:</span>
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">WidgetIn</span><span class="p">]</span>
-</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nd">@dataclass</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">BulkWidgetIn</span><span class="p">:</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">WidgetIn</span><span class="p">]</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 </span></code></pre></div>
 <p>The model sends <code>{"items": [...], "dry_run": true}</code>, and an invalid item comes
 back placing its errors at its index, as <code>items[1].price: ...</code>.</p>
 <h2 id="ordering">Ordering<a class="headerlink" href="#ordering" title="Permanent link">&para;</a></h2>
 <p><strong>The <code>filter_set</code> owns ordering.</strong> Declare a django-filter <code>OrderingFilter</code>
 named <code>ordering</code> on the selector's FilterSet and you are done:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">django_filters</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrderFilterSet</span><span class="p">(</span><span class="n">django_filters</span><span class="o">.</span><span class="n">FilterSet</span><span class="p">):</span>
-</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">ordering</span> <span class="o">=</span> <span class="n">django_filters</span><span class="o">.</span><span class="n">OrderingFilter</span><span class="p">(</span>
-</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>        <span class="n">fields</span><span class="o">=</span><span class="p">((</span><span class="s2">"created_at"</span><span class="p">,</span> <span class="s2">"created"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"total_cents"</span><span class="p">,</span> <span class="s2">"total"</span><span class="p">)),</span>
-</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>    <span class="p">)</span>
-</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>
-</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Order</span>
-</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"status"</span><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">django_filters</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrderFilterSet</span><span class="p">(</span><span class="n">django_filters</span><span class="o">.</span><span class="n">FilterSet</span><span class="p">):</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>    <span class="n">ordering</span> <span class="o">=</span> <span class="n">django_filters</span><span class="o">.</span><span class="n">OrderingFilter</span><span class="p">(</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>        <span class="n">fields</span><span class="o">=</span><span class="p">((</span><span class="s2">"created_at"</span><span class="p">,</span> <span class="s2">"created"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"total_cents"</span><span class="p">,</span> <span class="s2">"total"</span><span class="p">)),</span>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>    <span class="p">)</span>
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Order</span>
+</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"status"</span><span class="p">]</span>
 </span></code></pre></div>
 <p>The kernel lists that filter in the tool's input schema as an array of its
 public choices, each a <code>const</code> under the label <code>OrderingFilter</code> gives it:
@@ -2964,18 +2981,18 @@ send, under whatever it is called.</p>
 <h3 id="a-list-selector-with-no-filter_set">A list selector with no <code>filter_set</code><a class="headerlink" href="#a-list-selector-with-no-filter_set" title="Permanent link">&para;</a></h3>
 <p>A selector that takes its own sort argument works too: declare it as a read,
 and it is advertised like any other, and handed to the callable to apply.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_orders</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">ordering</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">    </span><span class="sd">"""List the acting user's orders."""</span>
-</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="k">return</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">customer</span><span class="o">=</span><span class="n">user</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="n">ordering</span><span class="p">)</span>
-</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>
-</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>
-</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="n">list_orders_spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
-</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>    <span class="n">reads</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="n">Parameter</span><span class="p">(</span><span class="s2">"ordering"</span><span class="p">,</span> <span class="s2">"string"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"-created_at"</span><span class="p">)),</span>
-</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>    <span class="n">presenter</span><span class="o">=</span><span class="n">DataclassPresenter</span><span class="p">(</span><span class="n">OrderOut</span><span class="p">),</span>
-</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
-</span><span id="__span-22-12"><a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_orders</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">ordering</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">    </span><span class="sd">"""List the acting user's orders."""</span>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>    <span class="k">return</span> <span class="n">Order</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">customer</span><span class="o">=</span><span class="n">user</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="n">ordering</span><span class="p">)</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>
+</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="n">list_orders_spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">list_orders</span><span class="p">,</span>
+</span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>    <span class="n">reads</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="n">Parameter</span><span class="p">(</span><span class="s2">"ordering"</span><span class="p">,</span> <span class="s2">"string"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"-created_at"</span><span class="p">)),</span>
+</span><span id="__span-23-10"><a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>    <span class="n">presenter</span><span class="o">=</span><span class="n">DataclassPresenter</span><span class="p">(</span><span class="n">OrderOut</span><span class="p">),</span>
+</span><span id="__span-23-11"><a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
+</span><span id="__span-23-12"><a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Prefer the <code>FilterSet</code> where there is one: it validates the value against a
 published set of choices before anything reaches the ORM, while a bare parameter
@@ -3018,24 +3035,24 @@ input schema and flow through as ordinary arguments, which the kernel's
 filter a list selector with no shape declared at all, and the same goes
 for <a href="#ordering">ordering</a>.</p>
 </div>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
-</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>
-</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">Parameter</span><span class="p">,</span> <span class="n">Parameters</span><span class="p">,</span> <span class="n">SpecRegistry</span>
-</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>
-</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
-</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
-</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="c1"># A parameter several tools read is one declaration, in each spec's shapes.</span>
-</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="n">FIELDS</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="s2">"fields"</span><span class="p">,</span> <span class="s2">"string"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Comma-separated fields to return."</span><span class="p">)</span>
-</span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>
-</span><span id="__span-23-10"><a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
-</span><span id="__span-23-11"><a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-</span><span id="__span-23-12"><a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>    <span class="s2">"list_orders"</span><span class="p">,</span>
-</span><span id="__span-23-13"><a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>    <span class="n">replace</span><span class="p">(</span>
-</span><span id="__span-23-14"><a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>        <span class="n">list_orders_spec</span><span class="p">,</span>
-</span><span id="__span-23-15"><a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a>        <span class="n">shapes</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="n">FIELDS</span><span class="p">,</span> <span class="n">Parameter</span><span class="p">(</span><span class="s2">"detail"</span><span class="p">,</span> <span class="s2">"string"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"summary"</span><span class="p">)),</span>
-</span><span id="__span-23-16"><a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a>    <span class="p">),</span>
-</span><span id="__span-23-17"><a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a><span class="p">)</span>
-</span><span id="__span-23-18"><a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">Parameter</span><span class="p">,</span> <span class="n">Parameters</span><span class="p">,</span> <span class="n">SpecRegistry</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.spec_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecToolset</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="c1"># A parameter several tools read is one declaration, in each spec's shapes.</span>
+</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="n">FIELDS</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="s2">"fields"</span><span class="p">,</span> <span class="s2">"string"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Comma-separated fields to return."</span><span class="p">)</span>
+</span><span id="__span-24-9"><a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>
+</span><span id="__span-24-10"><a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-24-11"><a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+</span><span id="__span-24-12"><a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a>    <span class="s2">"list_orders"</span><span class="p">,</span>
+</span><span id="__span-24-13"><a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a>    <span class="n">replace</span><span class="p">(</span>
+</span><span id="__span-24-14"><a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a>        <span class="n">list_orders_spec</span><span class="p">,</span>
+</span><span id="__span-24-15"><a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a>        <span class="n">shapes</span><span class="o">=</span><span class="n">Parameters</span><span class="o">.</span><span class="n">of</span><span class="p">(</span><span class="n">FIELDS</span><span class="p">,</span> <span class="n">Parameter</span><span class="p">(</span><span class="s2">"detail"</span><span class="p">,</span> <span class="s2">"string"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"summary"</span><span class="p">)),</span>
+</span><span id="__span-24-16"><a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a>    <span class="p">),</span>
+</span><span id="__span-24-17"><a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a><span class="p">)</span>
+</span><span id="__span-24-18"><a id="__codelineno-24-18" name="__codelineno-24-18" href="#__codelineno-24-18"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>
 </span></code></pre></div>
 <p>A declared shape is one of the call's arguments, so <code>unknown_arguments</code> never
 flags it; a declared <code>default</code> is applied when the model leaves it out or sends
@@ -3052,8 +3069,8 @@ values by declaring <code>shapes</code>, which the kernel hands it as a read-onl
 <code>many</code> list named <code>shapes</code> is refused when the spec is declared, and a
 Validator field of that name when the toolset is built, so name it for what it
 holds.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_projects</span><span class="p">(</span><span class="n">shapes</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Project</span><span class="p">]:</span>
-</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="k">return</span> <span class="n">Project</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="o">*</span><span class="n">relations_named_in</span><span class="p">(</span><span class="n">shapes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"query"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_projects</span><span class="p">(</span><span class="n">shapes</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Project</span><span class="p">]:</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="k">return</span> <span class="n">Project</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="o">*</span><span class="n">relations_named_in</span><span class="p">(</span><span class="n">shapes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"query"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)))</span>
 </span></code></pre></div>
 <p>A shape the model leaves out, with no <code>default</code> declared, is absent from the
 mapping, so read an optional one with <code>get</code>.</p>
@@ -3061,14 +3078,14 @@ mapping, so read an optional one with <code>get</code>.</p>
 selector's own, is declared once as a read instead: the selector takes it by
 name and writes it to the call's context, which the presenter is handed on
 every row of the page the toolset presents.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_projects</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Project</span><span class="p">]:</span>
-</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="n">call_context</span><span class="p">[</span><span class="s2">"query"</span><span class="p">]</span> <span class="o">=</span> <span class="n">query</span>
-</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>    <span class="k">return</span> <span class="n">Project</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="o">*</span><span class="n">relations_named_in</span><span class="p">(</span><span class="n">query</span><span class="p">))</span>
-</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
-</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
-</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProjectPresenter</span><span class="p">(</span><span class="n">Presenter</span><span class="p">):</span>
-</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">presented</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
-</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>        <span class="k">return</span> <span class="n">select_fields</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">present</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="n">context</span><span class="o">.</span><span class="n">call_context</span><span class="p">[</span><span class="s2">"query"</span><span class="p">])</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_projects</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">call_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Project</span><span class="p">]:</span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    <span class="n">call_context</span><span class="p">[</span><span class="s2">"query"</span><span class="p">]</span> <span class="o">=</span> <span class="n">query</span>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>    <span class="k">return</span> <span class="n">Project</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="o">*</span><span class="n">relations_named_in</span><span class="p">(</span><span class="n">query</span><span class="p">))</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>
+</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>
+</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">ProjectPresenter</span><span class="p">(</span><span class="n">Presenter</span><span class="p">):</span>
+</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">presented</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+</span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>        <span class="k">return</span> <span class="n">select_fields</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">present</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="n">context</span><span class="o">.</span><span class="n">call_context</span><span class="p">[</span><span class="s2">"query"</span><span class="p">])</span>
 </span></code></pre></div>
 <p>A read is not a shape, so such a spec's <code>return_schema</code> still lists each field
 its presenter always renders as required, which a selection may leave out. A
@@ -3107,9 +3124,9 @@ the work is done. When the presenter raises the kernel's
 <code>ServiceValidationError</code> or <code>InvalidArguments</code> while rendering, and the model
 supplied a value for at least one of the tool's read-shaping parameters, the
 model gets a retry naming the argument:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>`fields` was rejected while rendering the result: Unknown field `items`. On a
-</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>paged result it applies to each item in `items`, never to the page envelope
-</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>(`items`, `page`, `totalPages`, `hasNext`).
+<div class="language-text highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>`fields` was rejected while rendering the result: Unknown field `items`. On a
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>paged result it applies to each item in `items`, never to the page envelope
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>(`items`, `page`, `totalPages`, `hasNext`).
 </span></code></pre></div>
 <p>What follows the colon is the presenter's own message, verbatim. The toolset
 never reads a parameter's value, so this works the same for any grammar a
@@ -3173,7 +3190,7 @@ not try.</p>
 </tr>
 <tr>
 <td>A rendered result over <code>max_result_bytes</code></td>
-<td><code>ToolFailed</code> — refused rather than truncated, since a partial payload looks complete</td>
+<td><code>ToolFailed</code> — refused rather than truncated, since a partial payload looks complete. A file is described instead: see <a href="#a-file-result">A file result</a></td>
 </tr>
 <tr>
 <td>Unexpected argument (default <code>REJECT</code>)</td>
@@ -3263,11 +3280,11 @@ data is rendered.</p>
 <p>Every row above is matched by type. A service that raises its own error
 class gets none of this unless that class derives from the kernel's
 <code>ServiceError</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceError</span>
-</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
-</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
-</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">BookingError</span><span class="p">(</span><span class="n">ServiceError</span><span class="p">):</span>  <span class="c1"># not Exception</span>
-</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">    </span><span class="sd">"""Something the booking rules refuse."""</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceError</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">BookingError</span><span class="p">(</span><span class="n">ServiceError</span><span class="p">):</span>  <span class="c1"># not Exception</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">    </span><span class="sd">"""Something the booking rules refuse."""</span>
 </span></code></pre></div>
 <p>Deriving from <code>Exception</code> is the ordinary thing to reach for, and the
 failure is silent in a way worth spelling out, because it is not confined to
@@ -3286,26 +3303,26 @@ conditions is not met, with the affordance's <code>reason</code> as the message 
 <code>code</code> as an attribute. <code>ToolFailed</code> carries a message and nothing else, and that
 message is also what a transport forwards as the tool result, so the toolset puts
 both into it — the reason first, then the code, labelled:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">Affordance</span><span class="p">,</span> <span class="n">DataclassValidator</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">Unrestricted</span>
-</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
-</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
-</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">post_invoice</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
-</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">    </span><span class="sd">"""Post an invoice to the current period."""</span>
-</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>    <span class="o">...</span>
-</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>
-</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>
-</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="n">post_invoice_spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-28-10"><a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>    <span class="n">service</span><span class="o">=</span><span class="n">post_invoice</span><span class="p">,</span>
-</span><span id="__span-28-11"><a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>    <span class="n">validator</span><span class="o">=</span><span class="n">DataclassValidator</span><span class="p">(</span><span class="n">InvoiceIn</span><span class="p">),</span>
-</span><span id="__span-28-12"><a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
-</span><span id="__span-28-13"><a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a>    <span class="n">affordances</span><span class="o">=</span><span class="p">[</span>
-</span><span id="__span-28-14"><a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a>        <span class="n">Affordance</span><span class="p">(</span>
-</span><span id="__span-28-15"><a id="__codelineno-28-15" name="__codelineno-28-15" href="#__codelineno-28-15"></a>            <span class="n">code</span><span class="o">=</span><span class="s2">"books_closed"</span><span class="p">,</span>
-</span><span id="__span-28-16"><a id="__codelineno-28-16" name="__codelineno-28-16" href="#__codelineno-28-16"></a>            <span class="n">reason</span><span class="o">=</span><span class="s2">"The books are closed."</span><span class="p">,</span>
-</span><span id="__span-28-17"><a id="__codelineno-28-17" name="__codelineno-28-17" href="#__codelineno-28-17"></a>            <span class="n">when</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Period</span><span class="o">.</span><span class="n">current</span><span class="p">()</span><span class="o">.</span><span class="n">is_open</span><span class="p">,</span>
-</span><span id="__span-28-18"><a id="__codelineno-28-18" name="__codelineno-28-18" href="#__codelineno-28-18"></a>        <span class="p">),</span>
-</span><span id="__span-28-19"><a id="__codelineno-28-19" name="__codelineno-28-19" href="#__codelineno-28-19"></a>    <span class="p">],</span>
-</span><span id="__span-28-20"><a id="__codelineno-28-20" name="__codelineno-28-20" href="#__codelineno-28-20"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_service_specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">Affordance</span><span class="p">,</span> <span class="n">DataclassValidator</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">Unrestricted</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">post_invoice</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">    </span><span class="sd">"""Post an invoice to the current period."""</span>
+</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>    <span class="o">...</span>
+</span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>
+</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>
+</span><span id="__span-29-9"><a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="n">post_invoice_spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-29-10"><a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>    <span class="n">service</span><span class="o">=</span><span class="n">post_invoice</span><span class="p">,</span>
+</span><span id="__span-29-11"><a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>    <span class="n">validator</span><span class="o">=</span><span class="n">DataclassValidator</span><span class="p">(</span><span class="n">InvoiceIn</span><span class="p">),</span>
+</span><span id="__span-29-12"><a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>    <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">Unrestricted</span><span class="p">()],</span>
+</span><span id="__span-29-13"><a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="n">affordances</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-29-14"><a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>        <span class="n">Affordance</span><span class="p">(</span>
+</span><span id="__span-29-15"><a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>            <span class="n">code</span><span class="o">=</span><span class="s2">"books_closed"</span><span class="p">,</span>
+</span><span id="__span-29-16"><a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>            <span class="n">reason</span><span class="o">=</span><span class="s2">"The books are closed."</span><span class="p">,</span>
+</span><span id="__span-29-17"><a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a>            <span class="n">when</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">Period</span><span class="o">.</span><span class="n">current</span><span class="p">()</span><span class="o">.</span><span class="n">is_open</span><span class="p">,</span>
+</span><span id="__span-29-18"><a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>        <span class="p">),</span>
+</span><span id="__span-29-19"><a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a>    <span class="p">],</span>
+</span><span id="__span-29-20"><a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>While the period is closed the tool is <a href="#an-operation-that-is-unavailable-right-now-is-left-out">left out of the
 catalog</a>, so a run reaches
@@ -3313,7 +3330,7 @@ this refusal only through a listing that went stale: the step was offered the to
 and the period closed before the call arrived. A condition on the row is refused
 the same way, and it is never asked when the catalog is listed. The failed tool
 result's content, which is what the model reads and what a transport streams, is:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>The books are closed. (code: books_closed)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>The books are closed. (code: books_closed)
 </span></code></pre></div>
 <p>The code is the part that connects the refusal to what the model may already have
 read. A selector naming the same spec in its own <code>affordances</code>
@@ -3352,7 +3369,7 @@ value is still marked <code>"success"</code>.</p>
 <code>max_retries</code> failed attempts (default <code>1</code>, pydantic-ai's function-tool
 default) the run aborts with <code>UnexpectedModelBehavior</code>. Raise it for models
 that need more attempts to converge:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="p">,</span> <span class="n">max_retries</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 </span></code></pre></div>
 
 

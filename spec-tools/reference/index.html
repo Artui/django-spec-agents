@@ -2502,7 +2502,9 @@ pydantic-ai's own function-tool default.</p>
 payload because what is being protected is the model's context
 window. Over it the call <strong>fails</strong> with a model-readable
 <code>ToolFailed</code> — never truncates, because a partial payload looks
-complete.</p>
+complete. A file is the exception: over it, the file is described
+in a one-line note, a success, never refused; see
+<a class="autorefs autorefs-internal" title="render_output" href="#django_spec_agents.spec_tools.SpecToolset.render_output"><code>render_output</code></a>.</p>
               </div>
             </td>
             <td>
@@ -2520,6 +2522,37 @@ complete.</p>
               <div class="doc-md-description">
                 <p><code>max_result_bytes</code> per tool. An explicit
 <code>None</code> opts that tool out; an absent key inherits the default.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>attachment_inline</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="AttachmentInlineConfig
+
+
+  
+      dataclass
+   (django_spec_agents.agent.types.attachment_inline_config.AttachmentInlineConfig)" href="../../reference/agent/#django_spec_agents.AttachmentInlineConfig">AttachmentInlineConfig</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The
+<a class="autorefs autorefs-internal" title="AttachmentInlineConfig
+
+
+  
+      dataclass
+  " href="../../reference/agent/#django_spec_agents.AttachmentInlineConfig"><code>AttachmentInlineConfig</code></a>
+a file result is read with, the one <code>read_attachment</code> is given:
+which binary types are attached and the largest file returned
+rather than described. <code>None</code> is <code>AttachmentInlineConfig()</code>.
+See <a class="autorefs autorefs-internal" title="render_output" href="#django_spec_agents.spec_tools.SpecToolset.render_output"><code>render_output</code></a>.</p>
               </div>
             </td>
             <td>
@@ -3263,7 +3296,8 @@ keep <code>total</code> on every page, since every tool advertises it.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">ctx</span><span class="p">:</span> <span class="n">RunContext</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AudienceProjection</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3295,15 +3329,22 @@ and the next step has nothing to key on. And an output field declaring
 from the field itself -- so "we marked nothing, so nothing is
 projected" is not true, and an override is how a project that means it
 says so.</p>
-<p><strong>A file is read the way <code>read_attachment</code> reads an attachment.</strong> A
-spec presenting a <code>FileResult</code> (through the kernel's
-<code>FilePresenter</code>) is answered with its text when its type is textual and
-it fits <code>AttachmentInlineConfig</code>'s <code>max_bytes</code>; with its bytes
-attached to the tool result, for that turn, when its type is one of the
-config's <code>media_types</code> and it fits; and otherwise with a one-line
-note giving its name, type and size. The default config's limits apply.
-A file over the limit is read no further than it, and one of a type the
-model cannot read is closed unread.</p>
+<p><strong>A file is read the way <code>read_attachment</code> reads an attachment</strong>, with
+the toolset's <code>attachment_inline</code> config (<code>AttachmentInlineConfig()</code>
+when none was given). A spec presenting a <code>FileResult</code> (through the
+kernel's <code>FilePresenter</code>) is answered with its text when its type is
+textual and it fits; with its bytes attached to the tool result, for
+that turn, when its type is one of the config's <code>media_types</code> and it
+fits; and otherwise with a one-line note giving its name, type and size.</p>
+<p><strong>It fits under the smaller of two limits</strong>: the config's <code>max_bytes</code>
+and <code>max_bytes</code> here, the tool's <code>max_result_bytes</code> (<code>None</code> when
+it has none, and then the config's limit alone applies). An attached
+file fits when its bytes plus the sentence beside them do, as
+<code>enforce_result_bytes</code> measures it. A file over either limit is a
+success carrying the note, which names the limit that fired, never a
+refusal: there is nothing in a file to narrow. A file over the limit is
+read no further than it, and one of a type the model cannot read is
+closed unread.</p>
 
 
     </div>
@@ -3328,7 +3369,15 @@ model cannot read is closed unread.</p>
         <p>Return <code>payload</code>, or raise a model-readable refusal when it is over budget.</p>
 <p>Measured on the envelope, because the envelope is what is sent. A file
 is measured by its bytes: a text file by its text's UTF-8 length, an
-attached one by its bytes plus the note beside them, never by its repr. Override to
+attached one by its bytes plus the note beside them, never by its repr.
+<code>render_output</code> already described a file that would not fit, so a
+rendered file reaches this under the ceiling. One an override returned
+unrendered, a <code>FileResult</code>, is measured by its declared size, or read
+up to the ceiling when it declares none; over it, the default returns
+the note <code>render_output</code> would have, as a success, and closes the
+file, rather than refusing. A note <code>render_output</code> returned is final:
+it is not measured again, whatever the ceiling, and one naming the
+ceiling is logged at <code>WARNING</code>. Override to
 bound on something other than serialized length -- a row count, a per-run
 running total read off <code>ctx.usage</code>, a taper against <code>ctx.usage_limits</code>
 as a run gets long -- or to shape the refusal differently.</p>

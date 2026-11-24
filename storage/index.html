@@ -2014,6 +2014,14 @@ accepts.</p>
 <p><code>AttachmentRef.mime</code> is client-declared, so the decision is made on a hint. The
 failure mode of a mislabelled file is a provider rejecting the request, not a
 disclosure — the store is owner-scoped either way.</p>
+<p>Pass the same <code>AttachmentInlineConfig</code> to the spec tools (<code>attachment_inline=</code> on
+<code>SpecToolset</code>, <code>SpecCapability</code> and <code>build_spec_capability</code>), so one config governs
+a file a spec returns as well as an attachment the model asks for. The declared
+<code>AttachmentRef.size</code> is trusted for the over-limit refusal: a file declaring more
+than <code>max_bytes</code> is refused without being read, and one declaring less is still
+read no further than <code>max_bytes + 1</code> bytes. The read runs thread-sensitive, on the
+thread the rest of the request's synchronous work uses, and a cancelled call still
+finishes it and closes the handle.</p>
 <h2 id="threads-key-by-owner_id-thread_id">Threads key by <code>(owner_id, thread_id)</code><a class="headerlink" href="#threads-key-by-owner_id-thread_id" title="Permanent link">&para;</a></h2>
 <p>Which has a consequence worth knowing before you mount two endpoints: <strong>two
 transports sharing one store share one user's thread list.</strong> A conversation
@@ -2293,7 +2301,7 @@ cascade you can point at, or on a command you schedule. There is no TTL sweep.</
 admin — skips the cascade and leaves the attachments unreferenced. They are not
 stranded permanently; the prune command is exactly what collects them.</p>
 <h2 id="maintenance-commands">Maintenance commands<a class="headerlink" href="#maintenance-commands" title="Permanent link">&para;</a></h2>
-<p>The <code>contrib.store</code> app ships four, all of them opt-in and none of them
+<p>The <code>contrib.store</code> app ships five, all of them opt-in and none of them
 scheduled for you:</p>
 <table>
 <thead>
@@ -2319,9 +2327,13 @@ scheduled for you:</p>
 <td><code>agent_store_purge_memory</code></td>
 <td>Erase every stored memory file for one owner.</td>
 </tr>
+<tr>
+<td><code>agent_store_prune_run_logs</code></td>
+<td>Delete the event logs of runs that ended over <code>--older-than</code> ago (default <code>24h</code>), never a live run's; see <a href="#run-status-and-event-logs">Run status and event logs</a>.</td>
+</tr>
 </tbody>
 </table>
-<p>All four take <code>--dry-run</code>.</p>
+<p>All five take <code>--dry-run</code>.</p>
 <p><strong><code>--older-than</code> is why the prune command is safe to run.</strong> References alone
 cannot tell an upload abandoned last month from one sitting in a composer right
 now — both have zero. The threshold is the floor on how long an upload must
@@ -2478,10 +2490,96 @@ a client error rather than a server one.</p>
 <p><strong>The log is append-only and numbered.</strong> <code>append(run_id, events, request=...)</code>
 numbers a batch of opaque JSON events on from the run's last, starting at 1,
 and <code>read(run_id, after=n)</code> pages from any number, so a reader that reconnects
-asks for what it has not seen. Nothing edits an entry. <code>prune()</code> deletes whole
-logs once their run has been over for <code>log_retention</code> (a day by default),
-counting a run that never finished from its last write and never touching one
-under a live lease. Call it from a periodic task; it reads no setting.</p>
+asks for what it has not seen. Nothing edits an entry. An append is one
+conditional update, which checks the run still holds a live lease and takes the
+next numbers in the same statement, then the insert of the batch (<code>UPDATE ...
+RETURNING</code> on PostgreSQL and SQLite 3.35 or later; elsewhere the update is
+followed by a read of the new number).</p>
+<p><strong>Pruning is the host's to schedule.</strong> <code>prune()</code> deletes whole logs once their
+run has been over for <code>log_retention</code> (a day by default), counting a run that
+never finished from its last write and never touching one under a live lease.
+Nothing calls it for you, and it reads no setting: schedule the
+<code>agent_store_prune_run_logs</code> command (cron, a Celery beat, a platform
+scheduler), passing your store's window as <code>--older-than</code>:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_prune_run_logs<span class="w"> </span>--older-than<span class="w"> </span>6h
+</span></code></pre></div>
+<p><strong>Waiting on a log.</strong> A reader that follows a live run, as a reattached
+browser does, asks the store to tell it when there is more rather than
+re-reading the log on a timer. That is <code>wait(run_id, after=n, timeout=...,
+request=...)</code> on the optional <code>WatchableRunStore</code>, a sub-protocol of <code>RunStore</code>
+in the shape of <code>ResumableRunStore</code>: a store written against <code>RunStore</code> alone
+stays one, and a reader checks <code>isinstance(store, WatchableRunStore)</code> before it
+calls <code>wait</code>, polling <code>read</code> itself otherwise. <code>wait</code> answers <code>True</code> once the
+log has an entry numbered above <code>n</code> or the run has ended, and at once if either
+already holds or the run has no log; <code>False</code> when the timeout passes. A run
+whose owner died without finishing never ends this way, so a reader bounds each
+wait and checks <code>get</code>, which reads the lapsed lease as <code>failed</code>.</p>
+<p><code>DefaultRunStore.wait</code> polls: each tick is one indexed read of the log's next
+number and end, and between ticks it pauses half a second, doubling up to two
+seconds while nothing changes. Every call starts from the shortest pause, so a
+reader that comes back after an entry polls quickly again. <code>poll_interval=(0.5,
+2.0)</code> on the constructor sets both, and a pair that could not back off (a first
+pause of zero or less, or one longer than the largest) raises <code>ValueError</code>.</p>
+<p>On PostgreSQL a store can wake its readers instead of letting them poll. The
+package ships no such store, because it would hold a connection per waiting
+reader and tie the store to one database; this is a recipe to adapt, written
+against psycopg 3.2 or later (<code>notifies(timeout=)</code>):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">timedelta</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">psycopg</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">asgiref.sync</span><span class="w"> </span><span class="kn">import</span> <span class="n">sync_to_async</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connection</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_run_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultRunStore</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="n">CHANNEL</span> <span class="o">=</span> <span class="s2">"agent_run_log"</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">_notify</span><span class="p">(</span><span class="n">run_id</span><span class="p">):</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>    <span class="k">with</span> <span class="n">connection</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span> <span class="k">as</span> <span class="n">cursor</span><span class="p">:</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>        <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT pg_notify(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="p">[</span><span class="n">CHANNEL</span><span class="p">,</span> <span class="n">run_id</span><span class="p">])</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="k">class</span><span class="w"> </span><span class="nc">NotifyingRunStore</span><span class="p">(</span><span class="n">DefaultRunStore</span><span class="p">):</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">conninfo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_conninfo</span> <span class="o">=</span> <span class="n">conninfo</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>        <span class="n">last</span> <span class="o">=</span> <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">run_id</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>        <span class="k">if</span> <span class="n">last</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>            <span class="k">await</span> <span class="n">sync_to_async</span><span class="p">(</span><span class="n">_notify</span><span class="p">)(</span><span class="n">run_id</span><span class="p">)</span>
+</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>        <span class="k">return</span> <span class="n">last</span>
+</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a>
+</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">finish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="n">outcome</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">waiting</span><span class="o">=</span><span class="p">()):</span>
+</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a>        <span class="n">finished</span> <span class="o">=</span> <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">finish</span><span class="p">(</span>
+</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a>            <span class="n">thread_id</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="n">outcome</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">waiting</span><span class="o">=</span><span class="n">waiting</span>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a>        <span class="p">)</span>
+</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a>        <span class="k">if</span> <span class="n">finished</span><span class="p">:</span>
+</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a>            <span class="k">await</span> <span class="n">sync_to_async</span><span class="p">(</span><span class="n">_notify</span><span class="p">)(</span><span class="n">run_id</span><span class="p">)</span>
+</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a>        <span class="k">return</span> <span class="n">finished</span>
+</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a>
+</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">wait</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">after</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37" href="#__codelineno-12-37"></a>        <span class="n">now</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38" href="#__codelineno-12-38"></a>        <span class="k">async</span> <span class="k">with</span> <span class="k">await</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">AsyncConnection</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39" href="#__codelineno-12-39"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_conninfo</span><span class="p">,</span> <span class="n">autocommit</span><span class="o">=</span><span class="kc">True</span>
+</span><span id="__span-12-40"><a id="__codelineno-12-40" name="__codelineno-12-40" href="#__codelineno-12-40"></a>        <span class="p">)</span> <span class="k">as</span> <span class="n">listener</span><span class="p">:</span>
+</span><span id="__span-12-41"><a id="__codelineno-12-41" name="__codelineno-12-41" href="#__codelineno-12-41"></a>            <span class="c1"># Listen first, then look: a write between the two is not missed.</span>
+</span><span id="__span-12-42"><a id="__codelineno-12-42" name="__codelineno-12-42" href="#__codelineno-12-42"></a>            <span class="k">await</span> <span class="n">listener</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"LISTEN </span><span class="si">{</span><span class="n">CHANNEL</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-12-43"><a id="__codelineno-12-43" name="__codelineno-12-43" href="#__codelineno-12-43"></a>            <span class="k">if</span> <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">run_id</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="n">after</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">now</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">):</span>
+</span><span id="__span-12-44"><a id="__codelineno-12-44" name="__codelineno-12-44" href="#__codelineno-12-44"></a>                <span class="k">return</span> <span class="kc">True</span>
+</span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45" href="#__codelineno-12-45"></a>            <span class="k">async</span> <span class="k">for</span> <span class="n">note</span> <span class="ow">in</span> <span class="n">listener</span><span class="o">.</span><span class="n">notifies</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()):</span>
+</span><span id="__span-12-46"><a id="__codelineno-12-46" name="__codelineno-12-46" href="#__codelineno-12-46"></a>                <span class="k">if</span> <span class="n">note</span><span class="o">.</span><span class="n">payload</span> <span class="o">==</span> <span class="n">run_id</span> <span class="ow">and</span> <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span>
+</span><span id="__span-12-47"><a id="__codelineno-12-47" name="__codelineno-12-47" href="#__codelineno-12-47"></a>                    <span class="n">run_id</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="n">after</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">now</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span>
+</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48" href="#__codelineno-12-48"></a>                <span class="p">):</span>
+</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49" href="#__codelineno-12-49"></a>                    <span class="k">return</span> <span class="kc">True</span>
+</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50" href="#__codelineno-12-50"></a>        <span class="k">return</span> <span class="kc">False</span>
+</span></code></pre></div>
+<p>A notification is sent when the writer's transaction commits, so a reader woken
+by one reads the entries it announces. One reader's wait holds one listening
+connection for its timeout, which counts against PostgreSQL's
+<code>max_connections</code>; a deployment with many reattached readers shares one
+listener per process and fans the notifications out instead.</p>
 <p><code>request_cancel</code> records a cancel for the live run, for its owner to act on
 from wherever it runs, and <code>mark_read</code> stamps <code>last_read_at</code> for an unread
 marker. <code>get_many</code> reads a page of threads' states at once.</p>
@@ -2495,12 +2593,12 @@ its client sees it, and the <code>scope</code> it lives in (the agent id or
 spelled out because a child usually lives under another agent:
 <code>ScopedConversationStore</code> passes the link through untouched, so a child in scope
 <code>b</code> reads back a parent in scope <code>a</code>.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">Conversation</span><span class="p">,</span> <span class="n">ScopedConversationStore</span><span class="p">,</span> <span class="n">ThreadRef</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">children</span> <span class="o">=</span> <span class="n">ScopedConversationStore</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"b"</span><span class="p">)</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">await</span> <span class="n">children</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">Conversation</span><span class="p">(</span><span class="n">thread_id</span><span class="o">=</span><span class="s2">"c1"</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">)),</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">Conversation</span><span class="p">,</span> <span class="n">ScopedConversationStore</span><span class="p">,</span> <span class="n">ThreadRef</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">children</span> <span class="o">=</span> <span class="n">ScopedConversationStore</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"b"</span><span class="p">)</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">await</span> <span class="n">children</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">Conversation</span><span class="p">(</span><span class="n">thread_id</span><span class="o">=</span><span class="s2">"c1"</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">)),</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><code>DefaultConversationStore</code> writes the link when a save names one and leaves it
 alone when a save does not, so a later turn typed in the child, which saves
@@ -2535,19 +2633,19 @@ live it returns nothing. <code>release(thread, run_id)</code> drops the claim an
 run's unacked messages, so the next run takes them. A claim whose lease lapsed, its
 run having died, is taken over, with the messages that run took and never acked.
 <code>pending</code> still lists every unacked message, taken or not.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">InboundKind</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_inbound_queue</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultInboundQueue</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">DefaultInboundQueue</span><span class="p">()</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">enqueue</span><span class="p">(</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">InboundKind</span><span class="o">.</span><span class="n">REPORT</span><span class="p">,</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">"done"</span><span class="p">},</span>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
-</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="n">sender</span><span class="o">=</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"c1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"b"</span><span class="p">),</span>
-</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="p">)</span>
-</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="n">messages</span> <span class="o">=</span> <span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">pending</span><span class="p">(</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
-</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">ack</span><span class="p">(</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="p">[</span><span class="n">m</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">],</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">InboundKind</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_inbound_queue</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultInboundQueue</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">DefaultInboundQueue</span><span class="p">()</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">enqueue</span><span class="p">(</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="n">InboundKind</span><span class="o">.</span><span class="n">REPORT</span><span class="p">,</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">"done"</span><span class="p">},</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    <span class="n">sender</span><span class="o">=</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"c1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"b"</span><span class="p">),</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="p">)</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="n">messages</span> <span class="o">=</span> <span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">pending</span><span class="p">(</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">ack</span><span class="p">(</span><span class="n">ThreadRef</span><span class="p">(</span><span class="s2">"t1"</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="p">[</span><span class="n">m</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">],</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">)</span>
 </span></code></pre></div>
 <p><code>DefaultInboundQueue</code> keeps the queue in <code>StoredInboundMessage</code> rows, added by
 the store app's <code>0004_child_sessions</code> migration with the two parent columns on
@@ -2567,17 +2665,17 @@ it multi-tenant.</p>
 as <code>DefaultStepStore</code>'s: it <strong>structurally satisfies harness's <code>MemoryStore</code>
 protocol</strong>, which is upstream's and is not redeclared here. It needs the
 <code>[harness]</code> extra.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">)</span>
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
-</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
-</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
-</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
-</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai_harness.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Memory</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">memory_namespace_for_user</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.contrib.store.default_memory_store</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="n">DefaultMemoryStore</span><span class="p">,</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="p">)</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="n">capability</span> <span class="o">=</span> <span class="n">Memory</span><span class="p">(</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    <span class="n">DefaultMemoryStore</span><span class="p">(),</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>    <span class="n">namespace</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">memory_namespace_for_user</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">deps</span><span class="o">.</span><span class="n">user</span><span class="p">),</span>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Hand it to your transport the way you would any other capability —
 <code>AGUIServer(capabilities=[capability])</code> for django-ag-ui. There is no settings
@@ -2706,8 +2804,8 @@ composing <code>list_paths</code> with <code>delete</code> needs each path's cur
 unbounded read-then-delete loop a concurrent <code>write_memory</code> can lose to — so the
 store carries a non-protocol <code>purge(owner_id)</code> that is one statement, plus a
 command:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42<span class="w"> </span>--dry-run
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>agent_store_purge_memory<span class="w"> </span>u-42
 </span></code></pre></div>
 <p>The argument is the owner id the memory was filed under, not the bare user key.
 With the usual mount-time namespace from <code>memory_namespace_for_user</code>, that is <code>u-</code>

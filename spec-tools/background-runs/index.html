@@ -1682,8 +1682,9 @@ The usage fields are cumulative for the run rather than attributable to the call
 — a tool call spends no tokens itself — which is exactly what makes them useful
 here: they say where the budget stood when a long run went wrong. They ride on
 the timing line; the <code>run_id</code> / <code>conversation_id</code> / <code>run_step</code> / <code>tool_call_id</code>
-four are on every line the package emits, including the two <code>WARNING</code>s a
-misbehaving call produces (a dispatch timeout, a result over its byte ceiling).</p>
+four are on every line the package emits, including the <code>WARNING</code>s a
+misbehaving call produces (a dispatch timeout, a result over its byte ceiling, a file
+described rather than returned over it).</p>
 <div class="language-python highlight"><span class="filename">settings.py</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">LOGGING</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">"version"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">"loggers"</span><span class="p">:</span> <span class="p">{</span>
@@ -1709,7 +1710,8 @@ a correctness one, and in a fan-out it is multiplied by every concurrent run.</p
   the model asks for. The clamp is reported back in the envelope, so the model
   is told it received less than it asked for rather than silently truncated.</li>
 <li><code>max_result_bytes=</code> (and <code>tool_max_result_bytes=</code> per tool) bounds the
-  serialized payload, answering with a refusal the model can act on.</li>
+  serialized payload, answering with a refusal the model can act on; a file result over
+  it is described to the model rather than attached or refused.</li>
 <li><code>dispatch_timeout=</code> bounds how long a call blocks the run. <strong>It does not stop
   the work</strong> — the thread runs to completion; the run stops waiting.</li>
 </ul>

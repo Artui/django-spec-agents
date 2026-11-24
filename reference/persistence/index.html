@@ -1653,6 +1653,45 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#watchablerunstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WatchableRunStore
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.WatchableRunStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WatchableRunStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WatchableRunStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.WatchableRunStore.wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wait
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#runnotparkederror" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3809,6 +3848,45 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#watchablerunstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WatchableRunStore
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.WatchableRunStore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WatchableRunStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WatchableRunStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.WatchableRunStore.wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        wait
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#runnotparkederror" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5377,7 +5455,8 @@ returning a durable <a class="autorefs autorefs-internal" title="AttachmentRef
       dataclass
   " href="#django_spec_agents.AttachmentRef"><code>AttachmentRef</code></a>.
 <code>open</code> returns <code>None</code> for a missing <em>or cross-owner</em> id rather than
-raising, so a caller maps both to a 404 and the two stay indistinguishable.</p>
+raising, so a caller maps both to a 404 and the two stay indistinguishable. <code>open</code>
+must not block the event loop; <code>read_attachment</code> reads the handle in a thread.</p>
 <p>Attachments need no scoped wrapper of the kind conversations have: they are
 id-referenced with no enumeration and already owner-scoped, so two endpoints
 sharing a store expose nothing across the user boundary. Thread lists are the
@@ -6344,6 +6423,92 @@ as failed, interrupted), its lease and cancel are cleared, a thread no
 run had claimed reads as unknown again, and the released run's log is
 deleted, so its id may be claimed again. <code>False</code>, with nothing
 changed, if <code>run_id</code> is not the thread's live holder.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="watchablerunstore"><code>WatchableRunStore</code><a class="headerlink" href="#watchablerunstore" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.WatchableRunStore" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">WatchableRunStore</span>
+
+
+<a href="#django_spec_agents.WatchableRunStore" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="RunStore (django_spec_agents.persistence.types.run_store.RunStore)" href="#django_spec_agents.RunStore">RunStore</a></code>, <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>A run store a reader can wait on, rather than reading the log again and again.</p>
+<p>A <a class="autorefs autorefs-internal" title="RunStore" href="#django_spec_agents.RunStore"><code>RunStore</code></a> with one more method.</p>
+<p>Optional: a store written against <code>RunStore</code> alone stays one, and a
+reader checks <code>isinstance(store, WatchableRunStore)</code> before it calls
+<code>wait</code>, falling back to its own polling of <code>read</code> otherwise.
+<a class="autorefs autorefs-internal" title="DefaultRunStore" href="#django_spec_agents.contrib.store.default_run_store.DefaultRunStore"><code>DefaultRunStore</code></a>
+is one.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.WatchableRunStore.wait" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">wait</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#django_spec_agents.WatchableRunStore.wait" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">wait</span><span class="p">(</span><span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">after</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="n">timedelta</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return once the run's log has an entry numbered above <code>after</code>, or the run ended.</p>
+<p><code>True</code> then, and at once when either already holds; <code>False</code> when
+<code>timeout</code> passes with neither. A run with no log (never claimed by
+this owner, released or pruned) answers <code>True</code> at once, so the
+reader goes back to <code>read</code> and <code>get</code> rather than waiting on
+nothing. A run whose owner died without finishing is not ended: the
+reader's timeout and <code>get</code>, which reads its lapsed lease as failed,
+cover it.</p>
 
 
     </div>
@@ -8286,7 +8451,8 @@ async caller through <code>sync_to_async</code>.</p>
 
 
         <p>A durable, owner-scoped run store over the reference models.</p>
-<p>It is a <a class="autorefs autorefs-internal" title="ResumableRunStore" href="#django_spec_agents.ResumableRunStore"><code>ResumableRunStore</code></a>.</p>
+<p>It is a <a class="autorefs autorefs-internal" title="ResumableRunStore" href="#django_spec_agents.ResumableRunStore"><code>ResumableRunStore</code></a> and a
+<a class="autorefs autorefs-internal" title="WatchableRunStore" href="#django_spec_agents.WatchableRunStore"><code>WatchableRunStore</code></a>.</p>
 <p>One instance serves every request, like
 <a class="autorefs autorefs-internal" title="DefaultConversationStore" href="#django_spec_agents.contrib.store.default_conversation_store.DefaultConversationStore"><code>DefaultConversationStore</code></a>:
 each method resolves the owner from its request inside the
@@ -8295,7 +8461,12 @@ each method resolves the owner from its request inside the
 <p><code>log_retention</code> is how long a run's log outlives the run, a day by
 default; <code>prune</code> deletes the logs past it. A run that never finished
 (its owner died) counts from its last write, and a run under a live lease
-is never pruned. <code>clock</code> supplies "now" and exists for tests.</p>
+is never pruned; the host schedules <code>agent_store_prune_run_logs</code> to
+run it.</p>
+<p><code>wait</code> polls the log with one indexed query per tick, pausing
+<code>poll_interval[0]</code> seconds after the first and doubling up to
+<code>poll_interval[1]</code> while nothing changes; every call starts from the
+shortest pause. <code>clock</code> supplies "now" and exists for tests.</p>
 
 
 
