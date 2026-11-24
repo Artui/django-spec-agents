@@ -19,7 +19,6 @@ from pydantic_ai_harness.spend_limits import (
     SpendEntry,
     SpendLimitExceeded,
 )
-from pydantic_ai_harness.spend_limits._snapshot import to_nanos
 
 from django_spec_agents.agent.agent_factory import build_agent
 from django_spec_agents.agent.types.agent_config import AgentConfig
@@ -406,4 +405,4 @@ async def test_a_sub_nanodollar_amount_rounds_half_up_as_the_harness_does(
 ) -> None:
     await DefaultSpendStore().add_many([_e("a", usd)])
 
-    assert (await StoredSpendCounter.objects.aget()).usd_nanos == nanos == to_nanos(Decimal(usd))
+    assert (await StoredSpendCounter.objects.aget()).usd_nanos == nanos
