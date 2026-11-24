@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`build_model_fallback`, a model fallback built at configuration time.** It returns
+  Pydantic-AI's `ModelFallback` capability for `AgentConfig.capabilities`: when the
+  agent's model fails, refuses or is cut off at `max_tokens`, the next model answers the
+  same step, and `ModelResponse.model_id` names it. Each `"provider:name"` goes through
+  the agent's own model builder, so a bad name or a missing key raises
+  `ImproperlyConfigured` at startup, not on the first outage. `fallback_on` and `sticky`
+  pass through; a fallback never reuses the agent's `api_key`.
+
 ## [0.26.1] — 2026-11-24
 
 ### Changed

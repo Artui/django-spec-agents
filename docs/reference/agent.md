@@ -19,6 +19,10 @@ Construction: a [`ToolRegistry`](registry.md) plus an `AgentConfig` in, a
 
 ::: django_spec_agents.build_agent
 
+## `build_model_fallback`
+
+::: django_spec_agents.build_model_fallback
+
 ## `build_tool_catalog`
 
 ::: django_spec_agents.build_tool_catalog

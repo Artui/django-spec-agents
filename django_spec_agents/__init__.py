@@ -1,4 +1,5 @@
 from django_spec_agents.agent.agent_factory import build_agent
+from django_spec_agents.agent.build_model_fallback import build_model_fallback
 from django_spec_agents.agent.build_tool_catalog import build_tool_catalog
 from django_spec_agents.agent.types.agent_config import AgentConfig
 from django_spec_agents.agent.types.agent_deps import AgentDeps
@@ -182,6 +183,7 @@ __all__ = [
     "WatchableRunStore",
     "__version__",
     "build_agent",
+    "build_model_fallback",
     "build_input_schema",
     "build_run_waiting",
     "build_tool_catalog",
