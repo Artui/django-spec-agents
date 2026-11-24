@@ -11,6 +11,7 @@ from django_spec_agents.policy.audit.types.audit_logger import AuditLogger
 from django_spec_agents.policy.failure.types.tool_failure_config import ToolFailureConfig
 from django_spec_agents.policy.guard.types.tool_guard_config import ToolGuardConfig
 from django_spec_agents.policy.loops.types.loop_detection_config import LoopDetectionConfig
+from django_spec_agents.policy.spend.types.spend_limits_config import SpendLimitsConfig
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,11 @@ class AgentConfig:
     loop_detection: LoopDetectionConfig | None = None
     """Watches the run for repeated calls, results and text, through ``pydantic-ai-harness``'s
     ``DetectLoops`` (the ``[harness]`` extra). ``None``, the default, watches nothing."""
+
+    spend_limits: SpendLimitsConfig | None = None
+    """Prices each response and refuses the next request once a budget is spent, through
+    ``pydantic-ai-harness``'s ``SpendLimits`` (the ``[harness]`` extra). ``None``, the
+    default, counts nothing."""
 
 
 __all__ = ["AgentConfig"]
