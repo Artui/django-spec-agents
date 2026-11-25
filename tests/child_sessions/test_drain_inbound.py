@@ -625,20 +625,23 @@ async def test_a_field_the_queued_message_does_not_hold_is_left_out(
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_what_a_child_reports_reaches_its_parent_with_the_plain_body() -> None:
+@pytest.mark.parametrize("joined", [True, False])
+async def test_what_a_child_reports_reaches_its_parent_with_the_plain_body(joined: bool) -> None:
     request = authed_request("7")
     child = Agent(FunctionModel(lambda _m, _i: _say("Found <3>.")))
     await child.run(
         "Go.",
         deps=AgentDeps(user=None, call_context={"request": request}),
         conversation_id=_CHILD.thread_id,
-        capabilities=[ChildReport(_PARENT, "research", DefaultInboundQueue())],
+        capabilities=[ChildReport(_PARENT, "research", DefaultInboundQueue(), user_joined=joined)],
     )
 
     result = await _run(_Model(lambda _step, _m: _say("ok")), request)
 
     [_, mark] = _marks(result.all_messages())
-    assert mark["task"] == {**_TASK, "outcome": "ok", "body": "Found <3>."}
+    note = "\n\nThe user joined this session, so this result may reflect their direction."
+    body = "Found <3>." + (note if joined else "")
+    assert mark["task"] == {**_TASK, "outcome": "ok", "body": body}
 
 
 @pytest.mark.django_db(transaction=True)

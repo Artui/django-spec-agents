@@ -97,16 +97,18 @@ class _RunnerWithoutAnswers(_Runner):
         capabilities: Sequence[Any] = (),
         parent_run_id: str | None = None,
         routine_id: str | None = None,
-        prompt_metadata: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         return await super().start(
-            agent_id,
-            prompt,
-            principal,
-            timeout=timeout,
-            thread_id=thread_id,
-            prompt_metadata=prompt_metadata,
+            agent_id, prompt, principal, timeout=timeout, thread_id=thread_id
         )
+
+
+class _RunnerOptedOut(_RunnerWithoutAnswers):
+    accepts_prompt_metadata = False
+
+
+class _MarkedRunner(_Runner):
+    accepts_prompt_metadata = True
 
 
 async def _report(request: HttpRequest, text: str = "Found 3.") -> None:
@@ -165,7 +167,7 @@ async def test_an_idle_thread_with_messages_starts_one_run_with_no_bounds_passed
     assert (start["parent"], start["lineage"], start["capabilities"]) == (None, None, ())
     assert (start["parent_run_id"], start["routine_id"]) == (None, None)
     assert "arrived" in start["prompt"]
-    assert start["prompt_metadata"] == {"origin": "wake"}
+    assert start["prompt_metadata"] is None
 
 
 @pytest.mark.django_db(transaction=True)
@@ -754,7 +756,7 @@ async def test_a_wake_after_a_finished_run_names_no_parent_run() -> None:
 @pytest.mark.django_db(transaction=True)
 async def test_a_wake_with_the_callers_own_prompt_is_still_marked_as_a_wake() -> None:
     request = authed_request("7")
-    runner = _Runner(DefaultRunStore())
+    runner = _MarkedRunner(DefaultRunStore())
     await _report(request)
 
     await _wake(runner, request, prompt="Carry on.")
@@ -762,3 +764,32 @@ async def test_a_wake_with_the_callers_own_prompt_is_still_marked_as_a_wake() ->
     [start] = runner.starts
     assert start["prompt"] == "Carry on."
     assert start["prompt_metadata"] == {"origin": "wake"}
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("shape", [_RunnerWithoutAnswers, _RunnerOptedOut])
+async def test_a_runner_that_has_not_opted_in_is_woken_unmarked(shape: type[_Runner]) -> None:
+    request = authed_request("7")
+    runner = shape(DefaultRunStore())
+    await _report(request)
+
+    started = await _wake(runner, request)
+
+    assert started is not None
+    [start] = runner.starts
+    assert start["prompt_metadata"] is None
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_resume_passes_no_mark_to_a_runner_that_opted_in() -> None:
+    request = authed_request("7")
+    runs = DefaultRunStore()
+    await _park(runs, request, "question", "c1")
+    await _send(request, InboundKind.ANSWER, "1999")
+    runner = _MarkedRunner(runs)
+
+    await _wake(runner, request, _CHILD)
+
+    [start] = runner.starts
+    assert start["answers"] == {"t-1": "1999"}
+    assert start["prompt_metadata"] is None

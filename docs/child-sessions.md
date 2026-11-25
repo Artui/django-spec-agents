@@ -260,7 +260,7 @@ can keep it and a client can tell it from the user's words:
 
 | What | `origin` (`MessageOrigin`) | Where it rides |
 | --- | --- | --- |
-| the wake line | `wake` (`WAKE`) | `prompt_metadata`, passed to `HeadlessRunner.start` with the prompt |
+| the wake line | `wake` (`WAKE`) | `prompt_metadata`, passed to `HeadlessRunner.start` of a runner that opted in |
 | a child's report | `task_output` (`TASK_OUTPUT`) | `TextContent.metadata` on the delivered part |
 | a child's question | `task_question` (`TASK_QUESTION`) | `TextContent.metadata` on the delivered part |
 
@@ -287,6 +287,12 @@ from django_spec_agents.child_sessions.types.message_task_key import MESSAGE_TAS
 ```
 
 An answer, steering and a user's own prompt carry no mark, and the model is never sent one.
+
+A runner opts in to the wake line's mark by setting `accepts_prompt_metadata = True` (the
+[`PromptMetadataRunner`](reference/persistence.md#promptmetadatarunner) protocol), once its
+`start` and `run_to_first_stop` take `prompt_metadata`. A runner that has not opted in is
+woken as before, without the keyword, and its wake line is stored unmarked. A runner that
+hands `wake_thread` a wrapper of itself sets the attribute on the wrapper.
 
 A runner keeps `prompt_metadata` as the metadata of the user message it stores for the
 prompt. Only a wake of an idle thread passes it, and a queued start carries it across in

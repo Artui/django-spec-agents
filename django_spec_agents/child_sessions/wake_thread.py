@@ -12,6 +12,7 @@ from django_spec_agents.child_sessions.types.message_origin import MessageOrigin
 from django_spec_agents.child_sessions.types.message_origin_key import MESSAGE_ORIGIN_KEY
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
+from django_spec_agents.headless.types.prompt_metadata_runner import PromptMetadataRunner
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
 from django_spec_agents.persistence.types.run_store import RunStore
 from django_spec_agents.persistence.types.run_waiting import RunWaiting
@@ -54,9 +55,10 @@ async def wake_thread(
     second run must not start before the resume, which reads the queue; idle, failed or never
     run, with messages pending, it starts one run on the thread's scope as ``request.user``,
     with ``prompt`` as its new message (by default a line saying messages arrived), and
-    returns it. That start passes ``prompt_metadata={"origin": "wake"}``, for the runner to keep on
-    the stored message, whatever ``prompt`` says; a resume sends no prompt and passes none. The
-    run's mount composes
+    returns it. For a runner opted in as a
+    [`PromptMetadataRunner`][django_spec_agents.PromptMetadataRunner], that start also passes
+    ``prompt_metadata={"origin": "wake"}``, for the runner to keep on the stored message, whatever
+    ``prompt`` says; a resume sends no prompt and passes none. The run's mount composes
     [`DrainInbound`][django_spec_agents.child_sessions.drain_inbound.DrainInbound] to read them.
 
     It never passes the runner ``capabilities``. With ``conversations``, the store the thread's
@@ -82,19 +84,12 @@ async def wake_thread(
         pending = await queue.pending(thread, request=request)
         if all(message.taken_by is not None for message in pending):
             return None
+        extra: dict[str, Any] = {"parent_run_id": None}
+        # The value test is held by test_a_runner_that_has_not_opted_in_is_woken_unmarked.
+        if isinstance(runner, PromptMetadataRunner) and runner.accepts_prompt_metadata:
+            extra["prompt_metadata"] = {MESSAGE_ORIGIN_KEY: MessageOrigin.WAKE.value}
         return await _start(
-            thread.scope,
-            thread,
-            request,
-            runner,
-            runs,
-            timeout,
-            conversations,
-            prompt,
-            {
-                "parent_run_id": None,
-                "prompt_metadata": {MESSAGE_ORIGIN_KEY: MessageOrigin.WAKE.value},
-            },
+            thread.scope, thread, request, runner, runs, timeout, conversations, prompt, extra
         )
     holder = f"wake-{uuid4().hex}"
     taken = await queue.take(thread, holder, request=request, lease=_PAIRING_LEASE)

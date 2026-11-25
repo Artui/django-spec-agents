@@ -145,6 +145,10 @@ runs on the server. See [Storage](../storage.md#run-status-and-event-logs).
 
 ::: django_spec_agents.HeadlessRunner
 
+### `PromptMetadataRunner`
+
+::: django_spec_agents.PromptMetadataRunner
+
 ### `HeadlessStart`
 
 ::: django_spec_agents.HeadlessStart

@@ -28,6 +28,7 @@ from django_spec_agents.headless.types.firing_state import FiringState
 from django_spec_agents.headless.types.headless_firing import HeadlessFiring
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
+from django_spec_agents.headless.types.prompt_metadata_runner import PromptMetadataRunner
 from django_spec_agents.headless.types.run_stop import RunStop
 from django_spec_agents.persistence.anonymous_operation_error import AnonymousOperationError
 from django_spec_agents.persistence.build_run_waiting import build_run_waiting
@@ -158,6 +159,7 @@ __all__ = [
     "NullAuditLogger",
     "NullConversationStore",
     "OpenedAttachment",
+    "PromptMetadataRunner",
     "ResumableRunStore",
     "ReviewedApprovals",
     "RunClaim",

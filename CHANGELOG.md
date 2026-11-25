@@ -33,18 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `questionId` on a question, and one enqueued with no `sender` has no `taskId`, `threadId`
   or `agentName`. `ChildReport` now queues the unframed `output` and `ask_parent` the
   `question_id` beside the text. A `wake_thread` that starts an idle thread passes
-  `prompt_metadata={"origin": "wake"}`, a new argument of `HeadlessRunner.start`, for the
-  runner to keep on the stored user message; `HeadlessFiring.prompt_metadata` carries it
+  `prompt_metadata={"origin": "wake"}`, a new optional argument of `HeadlessRunner.start` and
+  `run_to_first_stop`, for the runner to keep on the stored user message, but only to a runner
+  that opts in by setting `accepts_prompt_metadata = True` (the new runtime protocol
+  `PromptMetadataRunner`, exported from `django_spec_agents`). A runner that has not opted in
+  is woken unmarked, as before, so django-ag-ui up to 0.90.0 keeps working; `HeadlessFiring.prompt_metadata` carries it
   across a queue and `run_headless` passes it on. An answer, steering and a user's own prompt
   carry none.
 
 ### Changed
 
-- **Breaking: a `HeadlessRunner` whose threads are woken must take `prompt_metadata`.**
-  `wake_thread` passes it on every wake of an idle thread, so a runner whose `start` lacks
-  it fails that wake with a `TypeError`: accept it, defaulting to `None`, on `start` and
-  `run_to_first_stop`. A resume, a child's start and a routine's firing leave it out.
-  django-ag-ui's `AGUIHeadlessRunner` is such a runner up to 0.90.0.
 - The `ty` development floor is 0.0.101, the version the lock holds, since a test now runs
   `ty` on a sample policy and the lowest-declared-versions job installs the floor.
 

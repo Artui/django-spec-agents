@@ -53,9 +53,10 @@ class HeadlessRunner(Protocol):
     for its thread once, which starts or resumes it when messages are still queued.
 
     ``prompt_metadata`` marks a ``prompt`` no user wrote: a runner keeps it as the metadata
-    of the user message it stores for the prompt, and never sends it to the model. A wake of
-    an idle thread passes it, so a runner whose thread is woken must take it; every other
-    caller leaves it out. A queued start carries it in its ``HeadlessFiring``.
+    of the user message it stores for the prompt, and never sends it to the model. Only a wake of
+    an idle thread passes it, and only to a runner that opted in as a
+    [`PromptMetadataRunner`][django_spec_agents.PromptMetadataRunner], so a runner without it
+    serves every run. A queued start carries it in its ``HeadlessFiring``.
 
     ``parent_run_id`` is the run this one comes from: the parent run that started a child,
     or the parked run a resume answers; the runner reports it as the run's
