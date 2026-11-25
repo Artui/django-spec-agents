@@ -20,26 +20,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The wake line, a child's report and a child's question are marked as not the user's
   words.** Their metadata has the key `origin` (`MESSAGE_ORIGIN_KEY`), its value a
   `MessageOrigin`: `wake`, `task_output` or `task_question`. A report and a question also
-  have `task` (`MESSAGE_TASK_KEY`) with `taskId` and `threadId` (both the child's thread id),
-  `agentName`, `outcome` (a report only, `ok` included), `questionId` (a question only: the
-  child's `ask_parent` `tool_call_id`) and `body`, the child's words as plain text without
-  the frame tags (with `user_joined`, ending in the joined line, as the frame does). The
-  constants live in
-  `django_spec_agents.child_sessions.types.message_origin_key`, `.message_task_key` and
-  `.message_origin`. A report (`report_frame`, `DrainInbound`) and a question
-  (`DrainInbound`) carry this in the part's `TextContent.metadata`, which the message history
-  keeps and the model is never sent; its text stays framed. A field the queued message does
-  not hold is left out: one queued by an earlier release has no `body` on a report and no
-  `questionId` on a question, and one enqueued with no `sender` has no `taskId`, `threadId`
-  or `agentName`. `ChildReport` now queues the unframed `output` and `ask_parent` the
-  `question_id` beside the text. A `wake_thread` that starts an idle thread passes
-  `prompt_metadata={"origin": "wake"}`, a new optional argument of `HeadlessRunner.start` and
-  `run_to_first_stop`, for the runner to keep on the stored user message, but only to a runner
-  that opts in by setting `accepts_prompt_metadata = True` (the new runtime protocol
-  `PromptMetadataRunner`, exported from `django_spec_agents`). A runner that has not opted in
-  is woken unmarked, as before, so django-ag-ui up to 0.90.0 keeps working; `HeadlessFiring.prompt_metadata` carries it
-  across a queue and `run_headless` passes it on. An answer, steering and a user's own prompt
-  carry none.
+  have `task` (`MESSAGE_TASK_KEY`) with `taskId` and `threadId` (both the child's thread
+  id), `agentName`, `outcome` (a report only, `ok` included), `questionId` (a question only:
+  the child's `ask_parent` `tool_call_id`) and `body`, the child's words as plain text
+  without the frame tags (with `user_joined`, ending in the joined line, as the frame does).
+  The constants live in `django_spec_agents.child_sessions.types.message_origin_key`,
+  `.message_task_key` and `.message_origin`. A report (`report_frame`, `DrainInbound`) and a
+  question (`DrainInbound`) carry this in the part's `TextContent.metadata`, which the
+  message history keeps and the model is never sent; its text stays framed. A field the
+  queued message does not hold is left out: one queued by an earlier release has no `body`
+  on a report and no `questionId` on a question, and one enqueued with no `sender` has no
+  `taskId`, `threadId` or `agentName`. `ChildReport` now queues the unframed `output` and
+  `ask_parent` the `question_id` beside the text. A `wake_thread` that starts an idle thread
+  passes `prompt_metadata={"origin": "wake"}`, a new optional argument of
+  `HeadlessRunner.start` and `run_to_first_stop`, for the runner to keep on the stored user
+  message, but only to a runner that opts in by setting `accepts_prompt_metadata = True`
+  (the new runtime protocol `PromptMetadataRunner`, exported from `django_spec_agents`). A
+  runner that has not opted in is woken unmarked, as before, so django-ag-ui up to 0.90.0
+  keeps working; `HeadlessFiring.prompt_metadata` carries it across a queue and
+  `run_headless` passes it on. An answer, steering and a user's own prompt carry none.
 
 ### Changed
 
