@@ -754,6 +754,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#marking-what-no-user-wrote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Marking what no user wrote
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#waking-a-thread" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1491,6 +1502,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#marking-what-no-user-wrote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Marking what no user wrote
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#waking-a-thread" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1852,20 +1874,109 @@ run whose process died cannot release: its messages wait until its lease lapses,
 next run takes them over. A run that starts before then takes nothing from the inbox, so
 keep <code>lease</code> no longer than the lease your transport gives its <code>RunStore</code> claim. A run with no signed-in user in <code>call_context["request"]</code> reads
 nothing.</p>
+<h2 id="marking-what-no-user-wrote">Marking what no user wrote<a class="headerlink" href="#marking-what-no-user-wrote" title="Permanent link">&para;</a></h2>
+<p>The wake line, a child's report and a child's question all reach the thread in the user
+channel. Each carries metadata under the key <code>origin</code> (<code>MESSAGE_ORIGIN_KEY</code>), so a transport
+can keep it and a client can tell it from the user's words:</p>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th><code>origin</code> (<code>MessageOrigin</code>)</th>
+<th>Where it rides</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the wake line</td>
+<td><code>wake</code> (<code>WAKE</code>)</td>
+<td><code>prompt_metadata</code>, passed to <code>HeadlessRunner.start</code> of a runner that opted in</td>
+</tr>
+<tr>
+<td>a child's report</td>
+<td><code>task_output</code> (<code>TASK_OUTPUT</code>)</td>
+<td><code>TextContent.metadata</code> on the delivered part</td>
+</tr>
+<tr>
+<td>a child's question</td>
+<td><code>task_question</code> (<code>TASK_QUESTION</code>)</td>
+<td><code>TextContent.metadata</code> on the delivered part</td>
+</tr>
+</tbody>
+</table>
+<p>A report and a question also carry <code>task</code> (<code>MESSAGE_TASK_KEY</code>), what the frame says as
+fields, so a client can show them without reading the frame:</p>
+<table>
+<thead>
+<tr>
+<th><code>task</code> field</th>
+<th>Holds</th>
+<th>On</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>taskId</code>, <code>threadId</code></td>
+<td>the child's thread id, which is its task id</td>
+<td>both</td>
+</tr>
+<tr>
+<td><code>agentName</code></td>
+<td>the child's agent id</td>
+<td>both</td>
+</tr>
+<tr>
+<td><code>outcome</code></td>
+<td><code>ok</code>, <code>failed</code>, <code>budget</code> or <code>timeout</code></td>
+<td>a report</td>
+</tr>
+<tr>
+<td><code>questionId</code></td>
+<td>the <code>tool_call_id</code> of the child's <code>ask_parent</code> call</td>
+<td>a question</td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td>the child's words as plain text, with no frame tags and no escaping</td>
+<td>both</td>
+</tr>
+</tbody>
+</table>
+<p>A field the queued message does not hold is left out, never sent empty: one queued before
+0.28.0 has no <code>body</code> on a report and no <code>questionId</code> on a question. <code>body</code> is the child's
+own text, so a client shows it as data, never as markup. With <code>user_joined</code>, a report's
+<code>body</code> ends with the same joined line the frame does.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.types.message_origin</span><span class="w"> </span><span class="kn">import</span> <span class="n">MessageOrigin</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.types.message_origin_key</span><span class="w"> </span><span class="kn">import</span> <span class="n">MESSAGE_ORIGIN_KEY</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.types.message_task_key</span><span class="w"> </span><span class="kn">import</span> <span class="n">MESSAGE_TASK_KEY</span>
+</span></code></pre></div>
+<p>An answer, steering and a user's own prompt carry no mark, and the model is never sent one.</p>
+<p>A runner opts in to the wake line's mark by setting <code>accepts_prompt_metadata = True</code> (the
+<a href="../reference/persistence/#promptmetadatarunner"><code>PromptMetadataRunner</code></a> protocol), once its
+<code>start</code> and <code>run_to_first_stop</code> take <code>prompt_metadata</code>. A runner that has not opted in is
+woken as before, without the keyword, and its wake line is stored unmarked. A runner that
+hands <code>wake_thread</code> a wrapper of itself sets the attribute on the wrapper.</p>
+<p>A runner keeps <code>prompt_metadata</code> as the metadata of the user message it stores for the
+prompt. Only a wake of an idle thread passes it, and a queued start carries it across in
+<code>HeadlessFiring.prompt_metadata</code>, which <code>run_headless</code> passes on when set.</p>
+<p>A delivered part keeps its mark in the run's message history, through
+<code>ModelMessagesTypeAdapter</code>, and on the <code>EnqueuedMessagesEvent</code> that reports the delivery.
+The AG-UI messages Pydantic-AI dumps from those messages leave <code>TextContent.metadata</code> out, so
+a transport reads the metadata off the event and adds it to what it sends and stores.</p>
 <h2 id="waking-a-thread">Waking a thread<a class="headerlink" href="#waking-a-thread" title="Permanent link">&para;</a></h2>
 <p>A message for a thread with no run would wait until someone opened it.
 <code>wake_thread</code> starts that run:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.wake_thread</span><span class="w"> </span><span class="kn">import</span> <span class="n">wake_thread</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">started</span> <span class="o">=</span> <span class="k">await</span> <span class="n">wake_thread</span><span class="p">(</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">parent_thread</span><span class="p">,</span>  <span class="c1"># a ThreadRef: the thread id and its mount's agent id</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>  <span class="c1"># the owner's request; the run is started as request.user</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">runner</span><span class="o">=</span><span class="n">headless_runner</span><span class="p">,</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">runs</span><span class="o">=</span><span class="n">run_store</span><span class="p">,</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">queue</span><span class="o">=</span><span class="n">inbound_queue</span><span class="p">,</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">timeout</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">conversations</span><span class="o">=</span><span class="n">conversation_store</span><span class="p">,</span>  <span class="c1"># optional: the store the thread's mount reads</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.child_sessions.wake_thread</span><span class="w"> </span><span class="kn">import</span> <span class="n">wake_thread</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">started</span> <span class="o">=</span> <span class="k">await</span> <span class="n">wake_thread</span><span class="p">(</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">parent_thread</span><span class="p">,</span>  <span class="c1"># a ThreadRef: the thread id and its mount's agent id</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>  <span class="c1"># the owner's request; the run is started as request.user</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">runner</span><span class="o">=</span><span class="n">headless_runner</span><span class="p">,</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">runs</span><span class="o">=</span><span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">queue</span><span class="o">=</span><span class="n">inbound_queue</span><span class="p">,</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="n">timeout</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="n">conversations</span><span class="o">=</span><span class="n">conversation_store</span><span class="p">,</span>  <span class="c1"># optional: the store the thread's mount reads</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Call it after enqueueing for a thread. What it does depends on where the thread's runs
 stand in the <code>RunStore</code>:</p>
@@ -1934,7 +2045,8 @@ message queued by its first request. Two wakes that race in two processes start 
 the runner's claim lets one through, and the other's refusal is absorbed once the thread
 reads as running. Any other failure to start is raised.</p>
 <p>The woken run's new message is a line saying that messages arrived; pass <code>prompt=</code> to
-change it.</p>
+change it. No user wrote that line, so the start is marked: see
+<a href="#marking-what-no-user-wrote">Marking what no user wrote</a>.</p>
 <p>A child's thread wakes the same way, when its parent steers or answers it while it is
 idle. Pass <code>conversations</code>, the store the child's mount reads (a
 <code>ScopedConversationStore</code> where the mount scopes its threads), and <code>wake_thread</code> starts
@@ -1952,15 +2064,15 @@ prompt and the message delivered beside it by <code>DrainInbound</code>, and <co
 a child parked on <code>ask_parent</code> with the answer. A message that lands on a running thread
 after its run's last read is not woken by the enqueue, since the thread still reads as
 running; the runner's wake after <code>RunStore.finish</code> starts the next run for it.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">WakingInboundQueue</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">WakingInboundQueue</span><span class="p">(</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">DefaultInboundQueue</span><span class="p">(),</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">headless_runner</span><span class="p">,</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">run_store</span><span class="p">,</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="mf">300.0</span><span class="p">,</span>  <span class="c1"># each woken run's timeout</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">conversations</span><span class="o">=</span><span class="p">{</span><span class="s2">"research"</span><span class="p">:</span> <span class="n">research_store</span><span class="p">},</span>  <span class="c1"># agent id to the store its mount reads</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">WakingInboundQueue</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">WakingInboundQueue</span><span class="p">(</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">DefaultInboundQueue</span><span class="p">(),</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">headless_runner</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">run_store</span><span class="p">,</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="mf">300.0</span><span class="p">,</span>  <span class="c1"># each woken run's timeout</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">conversations</span><span class="o">=</span><span class="p">{</span><span class="s2">"research"</span><span class="p">:</span> <span class="n">research_store</span><span class="p">},</span>  <span class="c1"># agent id to the store its mount reads</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>A thread whose agent id is not in <code>conversations</code> wakes with no <code>parent</code> or <code>lineage</code>, as
 a root thread does. A wake that fails is logged, and the message stays queued for the

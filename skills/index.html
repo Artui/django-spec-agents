@@ -643,6 +643,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#labelling-a-skill-personal-or-shared" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Labelling a skill personal or shared
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1403,6 +1414,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#labelling-a-skill-personal-or-shared" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Labelling a skill personal or shared
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1620,13 +1642,30 @@ loads nothing of the harness. Any object with the same <code>scan(content, *, so
   it, so an editor shows it and <code>update_skill</code> or <code>disable_skill</code> can fix it.</li>
 </ul>
 <p>A policy without the attribute, or with <code>scanner = None</code>, scans nothing.</p>
+<h3 id="labelling-a-skill-personal-or-shared">Labelling a skill personal or shared<a class="headerlink" href="#labelling-a-skill-personal-or-shared" title="Permanent link">&para;</a></h3>
+<p>A transport that lists skills for an editor can show whose each one is. To tell it, give
+the policy a <code>scope(request, skill)</code> method returning <code>"personal"</code> for a skill in the
+caller's own scope and <code>"shared"</code> for one another scope holds, such as a company skill. A
+policy that has it satisfies <code>SkillScoping</code>, and the values are the <code>SkillScope</code> literal:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TenantSkillPolicy</span><span class="p">:</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">...</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">scope</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">skill</span><span class="p">):</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="k">return</span> <span class="s2">"personal"</span> <span class="k">if</span> <span class="n">skill</span><span class="o">.</span><span class="n">owner_id</span> <span class="o">==</span> <span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">pk</span> <span class="k">else</span> <span class="s2">"shared"</span>
+</span></code></pre></div>
+<p>django-ag-ui's skill editor, from 0.91.0, carries it as each entry's <code>scope</code> key. The method is
+optional, and a policy without it labels nothing: the editor then leaves the key out.
+<code>scope</code> is a protocol of its own rather than a fourth <code>SkillPolicy</code> method because a
+protocol has no optional members, so a policy written before it still satisfies
+<code>SkillPolicy</code> under a type checker. Nothing in this package calls it, and the
+<code>list_skills</code> tool lists the same fields either way.</p>
 <h2 id="reading-and-writing">Reading and writing<a class="headerlink" href="#reading-and-writing" title="Permanent link">&para;</a></h2>
 <p>Every function takes the policy and the request:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillDraft</span><span class="p">,</span> <span class="n">create_skill</span><span class="p">,</span> <span class="n">list_visible_skills</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">policy</span> <span class="o">=</span> <span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">()</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">create_skill</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">SkillDraft</span><span class="p">(</span><span class="s2">"triage"</span><span class="p">,</span> <span class="s2">"Sort the inbox."</span><span class="p">,</span> <span class="s2">"Read, then sort."</span><span class="p">))</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">list_visible_skills</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillDraft</span><span class="p">,</span> <span class="n">create_skill</span><span class="p">,</span> <span class="n">list_visible_skills</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">policy</span> <span class="o">=</span> <span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">()</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">create_skill</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">SkillDraft</span><span class="p">(</span><span class="s2">"triage"</span><span class="p">,</span> <span class="s2">"Sort the inbox."</span><span class="p">,</span> <span class="s2">"Read, then sort."</span><span class="p">))</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">list_visible_skills</span><span class="p">(</span><span class="n">policy</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
 </span></code></pre></div>
 <ul>
 <li><code>list_visible_skills</code> returns the caller's enabled skills, one per name.
@@ -1668,9 +1707,9 @@ double-quoted. Any other field, such as <code>allowed-tools</code>, raises <code
 so does a multi-line value. Dropping either one silently would lose part of the file.</p>
 <h2 id="offering-stored-skills-to-the-agent">Offering stored skills to the agent<a class="headerlink" href="#offering-stored-skills-to-the-agent" title="Permanent link">&para;</a></h2>
 <p>Pass <code>StoredSkills</code> in the per-run <code>capabilities=</code>, built for the request the run serves:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoredSkills</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="p">[</span><span class="n">StoredSkills</span><span class="p">(</span><span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">authoring</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django_spec_agents.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoredSkills</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">capabilities</span> <span class="o">=</span> <span class="p">[</span><span class="n">StoredSkills</span><span class="p">(</span><span class="n">Skill</span><span class="o">.</span><span class="n">skill_policy</span><span class="p">(),</span> <span class="n">request</span><span class="p">,</span> <span class="n">authoring</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
 </span></code></pre></div>
 <p>On every run it reads the caller's visible skills through the policy, and offers each
 enabled skill with <code>model_invocable</code> set as a deferred capability. The capability's id is
@@ -1730,11 +1769,11 @@ replaces the bundled one, by the same rule that lets a personal skill replace a 
 <p>No setting names your model. Your code holds it and passes <code>Skill.skill_policy()</code> to
 every function, and to a transport as a constructor argument. To have startup refuse a
 model with no policy, add the package's opt-in app to <code>INSTALLED_APPS</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="s2">"django_spec_agents"</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="s2">"myproject.skills"</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">]</span>
 </span></code></pre></div>
 <p>The app registers a Django system check that walks the app registry for every installed
 model subclassing <code>AbstractSkill</code>, so <code>manage.py check</code>, <code>runserver</code> and <code>migrate</code> fail

@@ -1094,6 +1094,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#skillscoping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScoping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.SkillScoping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScoping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SkillScoping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.SkillScoping.scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skillscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.SkillScope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#skillscanner" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2193,6 +2254,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#skillscoping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScoping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.SkillScoping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScoping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SkillScoping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.SkillScoping.scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skillscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.skills.SkillScope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SkillScope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#skillscanner" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3135,6 +3257,106 @@ it, or whose <code>scanner</code> is <code>None</code>, scans nothing.</p>
 
 
   </div>
+
+    </div>
+
+</div><h2 id="skillscoping"><code>SkillScoping</code><a class="headerlink" href="#skillscoping" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.skills.SkillScoping" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SkillScoping</span>
+
+
+<a href="#django_spec_agents.skills.SkillScoping" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code>, <code><span title="typing.Generic">Generic</span>[<span title="django_spec_agents.skills.types.skill_policy.SkillT">SkillT</span>]</code></p>
+
+
+
+        <p>The optional hook a <a class="autorefs autorefs-internal" title="SkillPolicy" href="#django_spec_agents.skills.SkillPolicy"><code>SkillPolicy</code></a> adds to say
+whether a skill is the caller's own or one shared with them.</p>
+<p>A policy that defines <code>scope</code> lets a transport label each skill it shows: the
+django-ag-ui skill editor, from 0.91.0, carries it as the entry's <code>scope</code> key. <code>scope</code>
+returns <code>"personal"</code> for a skill in the caller's own scope and <code>"shared"</code> for one
+another scope holds (a tenant's or a company's). A policy without the method labels
+nothing, and a transport leaves the key out. It is a separate protocol because a
+Protocol has no optional members: adding <code>scope</code> to <code>SkillPolicy</code> would break
+every policy written before it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="django_spec_agents.skills.SkillScoping.scope" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">scope</span>
+
+
+<a href="#django_spec_agents.skills.SkillScoping.scope" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">scope</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span> <span class="n">skill</span><span class="p">:</span> <span class="n">SkillT</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SkillScope</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>"personal"</code> when <code>skill</code> is in the caller's own scope, else <code>"shared"</code>.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="skillscope"><code>SkillScope</code><a class="headerlink" href="#skillscope" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_spec_agents.skills.SkillScope" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">SkillScope</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.skills.SkillScope" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SkillScope</span><span class="p">:</span> <span class="n">TypeAlias</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'personal'</span><span class="p">,</span> <span class="s1">'shared'</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
 
     </div>
 

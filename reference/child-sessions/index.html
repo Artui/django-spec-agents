@@ -1298,6 +1298,72 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#message_origin_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_ORIGIN_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.message_origin_key.MESSAGE_ORIGIN_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_ORIGIN_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message_task_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_TASK_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.message_task_key.MESSAGE_TASK_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_TASK_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#messageorigin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MessageOrigin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.message_origin.MessageOrigin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MessageOrigin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#childsessionreceipt" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2053,6 +2119,72 @@
     <span class="md-ellipsis">
       
         report_frame
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message_origin_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_ORIGIN_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.message_origin_key.MESSAGE_ORIGIN_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_ORIGIN_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message_task_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_TASK_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.message_task_key.MESSAGE_TASK_KEY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MESSAGE_TASK_KEY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#messageorigin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MessageOrigin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.child_sessions.types.message_origin.MessageOrigin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MessageOrigin
       
     </span>
   </a>
@@ -3023,9 +3155,10 @@ tools and the ones the parent gated, as sorted lists so the record crosses a que
 <p>Compose it into every run of a mount whose threads receive reports, questions, answers or
 steering, with the mount's <code>agent_id</code> as the thread's scope. A report arrives as the
 <code>&lt;task_output&gt;</code> text its child framed, a question as <code>&lt;task_question&gt;</code> data naming the
-asking thread, an answer or steering as the parent's plain words. A message that arrives
-after the last request is delivered by a further request, unless the run parks: then it
-waits for the resume.</p>
+asking thread, an answer or steering as the parent's plain words. A report's and a
+question's <code>TextContent.metadata</code> holds <code>origin</code> and <code>task</code>; an answer and steering
+carry none. A message that arrives after the last request is delivered by a further
+request, unless the run parks: then it waits for the resume.</p>
 <p>The run takes the thread's inbox with <code>queue.take</code> under its <code>run_id</code>, renewing its
 claim for <code>lease</code> at each take, so one run holds a thread's inbox at a time and sees
 each message once. It acks each message once the model request carrying it is answered,
@@ -3108,7 +3241,10 @@ anything else, or on more questions than there are answers, it does nothing, sin
 second run must not start before the resume, which reads the queue; idle, failed or never
 run, with messages pending, it starts one run on the thread's scope as <code>request.user</code>,
 with <code>prompt</code> as its new message (by default a line saying messages arrived), and
-returns it. The run's mount composes
+returns it. For a runner opted in as a
+<a class="autorefs autorefs-internal" title="PromptMetadataRunner" href="../persistence/#django_spec_agents.PromptMetadataRunner"><code>PromptMetadataRunner</code></a>, that start also passes
+<code>prompt_metadata={"origin": "wake"}</code>, for the runner to keep on the stored message, whatever
+<code>prompt</code> says; a resume sends no prompt and passes none. The run's mount composes
 <a class="autorefs autorefs-internal" title="DrainInbound
 
 
@@ -3216,8 +3352,109 @@ logged and the message stays queued for the thread's next run.</p>
 <code>pydantic_ai.framing.wrap</code> so the text keeps its escaping once it crosses a queue: the
 child's output never enters system voice, cannot close its own frame and cannot forge a
 <code>&lt;task_question&gt;</code>. The task id is the child's thread id, and <code>outcome</code> is on the tag
-only when it is not <code>ok</code>.</p>
+only when it is not <code>ok</code>. The text's <code>TextContent.metadata</code>, which the model never
+sees, holds <code>origin</code> (<code>task_output</code>) and <code>task</code>: <code>taskId</code>, <code>threadId</code>,
+<code>agentName</code>, <code>outcome</code> (<code>ok</code> included) and <code>body</code>, <code>output</code> unframed.</p>
 
+
+    </div>
+
+</div><h2 id="message_origin_key"><code>MESSAGE_ORIGIN_KEY</code><a class="headerlink" href="#message_origin_key" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_spec_agents.child_sessions.types.message_origin_key.MESSAGE_ORIGIN_KEY" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">MESSAGE_ORIGIN_KEY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.types.message_origin_key.MESSAGE_ORIGIN_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">MESSAGE_ORIGIN_KEY</span> <span class="o">=</span> <span class="s1">'origin'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The metadata key naming where a message no user wrote came from.</p>
+
+    </div>
+
+</div><h2 id="message_task_key"><code>MESSAGE_TASK_KEY</code><a class="headerlink" href="#message_task_key" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="django_spec_agents.child_sessions.types.message_task_key.MESSAGE_TASK_KEY" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">MESSAGE_TASK_KEY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#django_spec_agents.child_sessions.types.message_task_key.MESSAGE_TASK_KEY" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">MESSAGE_TASK_KEY</span> <span class="o">=</span> <span class="s1">'task'</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The metadata key holding what a report's or question's frame says, as fields.</p>
+
+    </div>
+
+</div><h2 id="messageorigin"><code>MessageOrigin</code><a class="headerlink" href="#messageorigin" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.child_sessions.types.message_origin.MessageOrigin" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">MessageOrigin</span>
+
+
+<a href="#django_spec_agents.child_sessions.types.message_origin.MessageOrigin" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.StrEnum">StrEnum</span></code></p>
+
+
+
+        <p>The values of <code>MESSAGE_ORIGIN_KEY</code>: the wake line, a child's report or its question.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 

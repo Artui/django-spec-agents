@@ -2005,6 +2005,34 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#promptmetadatarunner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PromptMetadataRunner
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.PromptMetadataRunner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PromptMetadataRunner
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PromptMetadataRunner">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#headlessstart" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4231,6 +4259,34 @@
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#promptmetadatarunner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PromptMetadataRunner
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#django_spec_agents.PromptMetadataRunner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PromptMetadataRunner
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PromptMetadataRunner">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#headlessstart" class="md-nav__link">
@@ -7149,6 +7205,11 @@ a runner calls <a class="autorefs autorefs-internal" title="wake_thread
       async
   " href="../child-sessions/#django_spec_agents.child_sessions.wake_thread.wake_thread"><code>wake_thread</code></a>
 for its thread once, which starts or resumes it when messages are still queued.</p>
+<p><code>prompt_metadata</code> marks a <code>prompt</code> no user wrote: a runner keeps it as the metadata
+of the user message it stores for the prompt, and never sends it to the model. Only a wake of
+an idle thread passes it, and only to a runner that opted in as a
+<a class="autorefs autorefs-internal" title="PromptMetadataRunner" href="#django_spec_agents.PromptMetadataRunner"><code>PromptMetadataRunner</code></a>, so a runner without it
+serves every run. A queued start carries it in its <code>HeadlessFiring</code>.</p>
 <p><code>parent_run_id</code> is the run this one comes from: the parent run that started a child,
 or the parked run a resume answers; the runner reports it as the run's
 <code>RUN_STARTED.parentRunId</code>. <code>routine_id</code> is the routine a firing runs; the runner
@@ -7202,7 +7263,8 @@ a runner must accept them.</p>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">prompt_metadata</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HeadlessStart</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7240,7 +7302,8 @@ a runner must accept them.</p>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">answers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">parent_run_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">routine_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">prompt_metadata</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunStop</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -7275,6 +7338,65 @@ a runner must accept them.</p>
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="promptmetadatarunner"><code>PromptMetadataRunner</code><a class="headerlink" href="#promptmetadatarunner" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="django_spec_agents.PromptMetadataRunner" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PromptMetadataRunner</span>
+
+
+<a href="#django_spec_agents.PromptMetadataRunner" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
+
+
+
+        <p>A <a class="autorefs autorefs-internal" title="HeadlessRunner" href="#django_spec_agents.HeadlessRunner"><code>HeadlessRunner</code></a>'s opt-in to <code>prompt_metadata</code>.</p>
+<p>A runner sets <code>accepts_prompt_metadata = True</code> once its <code>start</code> and <code>run_to_first_stop</code>
+take <code>prompt_metadata</code>. Only then does
+<a class="autorefs autorefs-internal" title="wake_thread
+
+
+  
+      async
+  " href="../child-sessions/#django_spec_agents.child_sessions.wake_thread.wake_thread"><code>wake_thread</code></a> pass the wake
+line's mark; a runner without the attribute, or with it <code>False</code>, is woken without the
+keyword. A runner that hands <code>wake_thread</code> a wrapper of itself sets it on the wrapper.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7580,9 +7702,10 @@ firing presents the <a class="autorefs autorefs-internal" title="RunStop
 
   
       dataclass
-  " href="#django_spec_agents.RunStop"><code>RunStop</code></a>. A firing's <code>run_id</code> and
-<code>answers</code> are each passed only when set, so a runner without them still serves the rest;
-<code>parent_run_id</code> and <code>routine_id</code> are always passed, so a runner must take both.</p>
+  " href="#django_spec_agents.RunStop"><code>RunStop</code></a>. A firing's <code>run_id</code>,
+<code>answers</code> and <code>prompt_metadata</code> are each passed only when set, so a runner without them
+still serves the rest; <code>parent_run_id</code> and <code>routine_id</code> are always passed, so a runner
+must take both.</p>
 <p>It declares <code>atomic=False</code>, since one transaction must not span a whole agent
 run, and <code>idempotent=False</code>, since a second call is a second paid run. A worker
 that dies mid-run is not run again: the run's lease lapses, so its thread reads
@@ -7629,7 +7752,7 @@ question, a <code>tool_call_id</code> to its answer's text; the run sends no new
 <code>inbox_mark</code> is the thread's inbox mark taken when the firing was enqueued, for the
 worker to wake on mail newer than it; <code>None</code> for a firing that carries none.
 <code>parent_run_id</code> and <code>routine_id</code> are the runner's own, the run and the routine the
-firing comes from.</p>
+firing comes from. <code>prompt_metadata</code> is the mark of a <code>prompt</code> no user wrote.</p>
 
 
 
