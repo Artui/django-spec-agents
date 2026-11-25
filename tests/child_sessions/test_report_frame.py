@@ -41,11 +41,20 @@ def test_a_report_cannot_forge_another_task_question() -> None:
 
 
 def test_a_report_is_marked_as_task_output_where_a_stored_history_keeps_it() -> None:
-    part = report_frame(ThreadRef("c1"), agent_id="a", output="42")
+    part = report_frame(ThreadRef("c1"), agent_id="a", output="<b>42</b>", outcome="failed")
     history = [ModelRequest(parts=[part])]
 
     stored = ModelMessagesTypeAdapter.dump_python(history, mode="json")
 
     [loaded] = ModelMessagesTypeAdapter.validate_python(stored)[0].parts
     [content] = loaded.content  # ty: ignore[unresolved-attribute]
-    assert content.metadata == {"django_spec_agents_source": "task_output"}
+    assert content.metadata == {
+        "origin": "task_output",
+        "task": {
+            "taskId": "c1",
+            "threadId": "c1",
+            "agentName": "a",
+            "outcome": "failed",
+            "body": "<b>42</b>",
+        },
+    }

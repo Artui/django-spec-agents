@@ -255,19 +255,35 @@ nothing.
 ## Marking what no user wrote
 
 The wake line, a child's report and a child's question all reach the thread in the user
-channel. Each carries the metadata key `django_spec_agents_source`
-(`MESSAGE_SOURCE_KEY`), so a transport can keep it and a client can tell it from the
-user's words:
+channel. Each carries metadata under the key `origin` (`MESSAGE_ORIGIN_KEY`), so a transport
+can keep it and a client can tell it from the user's words:
 
-| What | Value (`MessageSource`) | Where it rides |
+| What | `origin` (`MessageOrigin`) | Where it rides |
 | --- | --- | --- |
 | the wake line | `wake` (`WAKE`) | `prompt_metadata`, passed to `HeadlessRunner.start` with the prompt |
-| a child's report | `task_output` (`REPORT`) | `TextContent.metadata` on the delivered part |
-| a child's question | `task_question` (`QUESTION`) | `TextContent.metadata` on the delivered part |
+| a child's report | `task_output` (`TASK_OUTPUT`) | `TextContent.metadata` on the delivered part |
+| a child's question | `task_question` (`TASK_QUESTION`) | `TextContent.metadata` on the delivered part |
+
+A report and a question also carry `task` (`MESSAGE_TASK_KEY`), what the frame says as
+fields, so a client can show them without reading the frame:
+
+| `task` field | Holds | On |
+| --- | --- | --- |
+| `taskId`, `threadId` | the child's thread id, which is its task id | both |
+| `agentName` | the child's agent id | both |
+| `outcome` | `ok`, `failed`, `budget` or `timeout` | a report |
+| `questionId` | the `tool_call_id` of the child's `ask_parent` call | a question |
+| `body` | the child's words as plain text, with no frame tags and no escaping | both |
+
+A field the queued message does not hold is left out, never sent empty: one queued before
+0.28.0 has no `body` on a report and no `questionId` on a question. `body` is the child's
+own text, so a client shows it as data, never as markup. With `user_joined`, a report's
+`body` ends with the same joined line the frame does.
 
 ```python
-from django_spec_agents.child_sessions.types.message_source import MessageSource
-from django_spec_agents.child_sessions.types.message_source_key import MESSAGE_SOURCE_KEY
+from django_spec_agents.child_sessions.types.message_origin import MessageOrigin
+from django_spec_agents.child_sessions.types.message_origin_key import MESSAGE_ORIGIN_KEY
+from django_spec_agents.child_sessions.types.message_task_key import MESSAGE_TASK_KEY
 ```
 
 An answer, steering and a user's own prompt carry no mark, and the model is never sent one.
@@ -279,7 +295,7 @@ prompt. Only a wake of an idle thread passes it, and a queued start carries it a
 A delivered part keeps its mark in the run's message history, through
 `ModelMessagesTypeAdapter`, and on the `EnqueuedMessagesEvent` that reports the delivery.
 The AG-UI messages Pydantic-AI dumps from those messages leave `TextContent.metadata` out, so
-a transport reads the mark off the event and adds it to what it sends and stores.
+a transport reads the metadata off the event and adds it to what it sends and stores.
 
 ## Waking a thread
 

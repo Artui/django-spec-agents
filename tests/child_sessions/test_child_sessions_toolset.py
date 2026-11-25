@@ -524,7 +524,8 @@ async def test_ask_parent_parks_the_child_on_a_question() -> None:
     assert isinstance(output, DeferredToolRequests)
     [call] = output.calls
     assert output.kind(call.tool_call_id) == "question"
-    assert queue.sent == [(ThreadRef("p0"), InboundKind.QUESTION, {"text": "Which year?"}, _HERE)]
+    body = {"text": "Which year?", "question_id": call.tool_call_id}
+    assert queue.sent == [(ThreadRef("p0"), InboundKind.QUESTION, body, _HERE)]
 
 
 async def test_a_child_parked_on_ask_parent_is_recorded_waiting_on_a_question() -> None:

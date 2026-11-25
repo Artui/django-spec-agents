@@ -18,12 +18,11 @@ from pydantic_graph import End
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.types.inbound_message import InboundMessage
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
-from django_spec_agents.child_sessions.types.message_source import MessageSource
-from django_spec_agents.child_sessions.types.message_source_key import MESSAGE_SOURCE_KEY
+from django_spec_agents.child_sessions.types.message_origin import MessageOrigin
+from django_spec_agents.child_sessions.utils import task_metadata
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 _TASK_QUESTION = register_tag("task_question")
-_SOURCES = {InboundKind.REPORT: MessageSource.REPORT, InboundKind.QUESTION: MessageSource.QUESTION}
 
 
 @dataclass
@@ -34,9 +33,9 @@ class DrainInbound(AbstractCapability[Any]):
     steering, with the mount's ``agent_id`` as the thread's scope. A report arrives as the
     ``<task_output>`` text its child framed, a question as ``<task_question>`` data naming the
     asking thread, an answer or steering as the parent's plain words. A report's and a
-    question's ``TextContent.metadata`` maps ``MESSAGE_SOURCE_KEY`` to its ``MessageSource``;
-    an answer and steering carry none. A message that arrives after the last request is
-    delivered by a further request, unless the run parks: then it waits for the resume.
+    question's ``TextContent.metadata`` holds ``origin`` and ``task``; an answer and steering
+    carry none. A message that arrives after the last request is delivered by a further
+    request, unless the run parks: then it waits for the resume.
 
     The run takes the thread's inbox with ``queue.take`` under its ``run_id``, renewing its
     claim for ``lease`` at each take, so one run holds a thread's inbox at a time and sees
@@ -119,9 +118,29 @@ def _part(message: InboundMessage) -> UserPromptPart:
         text = wrap(
             _TASK_QUESTION, f"\n{text}\n", task_id=sender.thread_id, agent_name=sender.scope
         )
-    source = _SOURCES.get(message.kind)
-    mark = None if source is None else {MESSAGE_SOURCE_KEY: source.value}
-    return UserPromptPart([TextContent(text, metadata=mark)])
+    return UserPromptPart([TextContent(text, metadata=_metadata(message))])
+
+
+def _metadata(message: InboundMessage) -> dict[str, Any] | None:
+    sender = message.sender
+    agent_name = None if sender is None else sender.scope
+    if message.kind is InboundKind.REPORT:
+        return task_metadata(
+            MessageOrigin.TASK_OUTPUT,
+            sender,
+            agent_name=agent_name,
+            body=message.body.get("output"),
+            outcome=message.body.get("outcome"),
+        )
+    if message.kind is InboundKind.QUESTION:
+        return task_metadata(
+            MessageOrigin.TASK_QUESTION,
+            sender,
+            agent_name=agent_name,
+            body=message.body.get("text"),
+            question_id=message.body.get("question_id"),
+        )
+    return None
 
 
 __all__ = ["DrainInbound"]

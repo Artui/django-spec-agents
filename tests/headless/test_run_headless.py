@@ -252,11 +252,11 @@ def test_a_firing_carries_its_prompt_metadata_across_the_queue_as_json(
 ) -> None:
     runner = _Runner(store)
     worker = _worker(runner, clock)
-    params = {**_PARAMS, "prompt_metadata": {"django_spec_agents_source": "wake"}}
+    params = {**_PARAMS, "prompt_metadata": {"origin": "wake"}}
 
     worker.run(worker.enqueue("run_headless", json.loads(json.dumps(params)), actor=user))
 
-    assert runner.marks == [{"django_spec_agents_source": "wake"}]
+    assert runner.marks == [{"origin": "wake"}]
 
 
 def test_a_restart_leaves_the_lease_to_lapse(

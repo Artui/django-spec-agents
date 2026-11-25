@@ -25,6 +25,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from django_spec_agents.agent.types.agent_deps import AgentDeps
+from django_spec_agents.child_sessions.child_report import ChildReport
 from django_spec_agents.child_sessions.drain_inbound import DrainInbound
 from django_spec_agents.child_sessions.report_frame import report_frame
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
@@ -570,28 +571,74 @@ async def test_a_cancelled_run_releases_the_inbox() -> None:
     assert any("kept" in text for text in model.seen[0])
 
 
+_TASK = {"taskId": "c1", "threadId": "c1", "agentName": "research"}
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("kind", "body", "mark"),
+    [
+        (
+            InboundKind.REPORT,
+            {"text": "<task_output>x</task_output>", "outcome": "budget", "output": "x"},
+            {"origin": "task_output", "task": {**_TASK, "outcome": "budget", "body": "x"}},
+        ),
+        (
+            InboundKind.QUESTION,
+            {"text": "<Which?>", "question_id": "q-1"},
+            {"origin": "task_question", "task": {**_TASK, "questionId": "q-1", "body": "<Which?>"}},
+        ),
+        (InboundKind.ANSWER, {"text": "Use March."}, None),
+        (InboundKind.STEER, {"text": "Use March."}, None),
+    ],
+)
+async def test_only_reports_and_questions_are_marked_never_the_prompt_or_plain_words(
+    kind: InboundKind, body: dict[str, str], mark: dict[str, Any] | None
+) -> None:
+    request = authed_request("7")
+    await DefaultInboundQueue().enqueue(_PARENT, kind, body, request=request, sender=_CHILD)
+    model = _Model(lambda _step, _m: _say("ok"))
+
+    result = await _run(model, request)
+
+    assert _marks(result.all_messages()) == [None, mark]
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
     ("kind", "mark"),
     [
-        (InboundKind.REPORT, {"django_spec_agents_source": "task_output"}),
-        (InboundKind.QUESTION, {"django_spec_agents_source": "task_question"}),
-        (InboundKind.ANSWER, None),
-        (InboundKind.STEER, None),
+        (InboundKind.REPORT, {"origin": "task_output", "task": {}}),
+        (InboundKind.QUESTION, {"origin": "task_question", "task": {"body": "Hm"}}),
     ],
 )
-async def test_only_reports_and_questions_are_marked_never_the_prompt_or_plain_words(
-    kind: InboundKind, mark: dict[str, str] | None
+async def test_a_field_the_queued_message_does_not_hold_is_left_out(
+    kind: InboundKind, mark: dict[str, Any]
 ) -> None:
     request = authed_request("7")
-    await DefaultInboundQueue().enqueue(
-        _CHILD, kind, {"text": "Use March."}, request=request, sender=_PARENT
-    )
+    await DefaultInboundQueue().enqueue(_PARENT, kind, {"text": "Hm"}, request=request)
     model = _Model(lambda _step, _m: _say("ok"))
 
-    result = await _run(model, request, thread=_CHILD)
+    result = await _run(model, request)
 
     assert _marks(result.all_messages()) == [None, mark]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_what_a_child_reports_reaches_its_parent_with_the_plain_body() -> None:
+    request = authed_request("7")
+    child = Agent(FunctionModel(lambda _m, _i: _say("Found <3>.")))
+    await child.run(
+        "Go.",
+        deps=AgentDeps(user=None, call_context={"request": request}),
+        conversation_id=_CHILD.thread_id,
+        capabilities=[ChildReport(_PARENT, "research", DefaultInboundQueue())],
+    )
+
+    result = await _run(_Model(lambda _step, _m: _say("ok")), request)
+
+    [_, mark] = _marks(result.all_messages())
+    assert mark["task"] == {**_TASK, "outcome": "ok", "body": "Found <3>."}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -615,7 +662,7 @@ async def test_the_enqueued_event_a_transport_reads_carries_each_parts_mark() ->
     )
 
     delivered = [message for event in events for message in event.messages]
-    assert _marks(delivered) == [{"django_spec_agents_source": "task_output"}, None]
+    assert [mark and mark["origin"] for mark in _marks(delivered)] == ["task_output", None]
 
 
 def _streaming(model: _Model) -> Any:

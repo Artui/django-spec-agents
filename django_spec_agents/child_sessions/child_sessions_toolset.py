@@ -189,7 +189,7 @@ class ChildSessionsToolset(FunctionToolset[Any]):
         await self._queue.enqueue(
             lineage.parent,
             InboundKind.QUESTION,
-            {"text": question},
+            {"text": question, "question_id": ctx.tool_call_id},
             request=_request(ctx),
             sender=self._here(ctx),
         )

@@ -165,7 +165,7 @@ async def test_an_idle_thread_with_messages_starts_one_run_with_no_bounds_passed
     assert (start["parent"], start["lineage"], start["capabilities"]) == (None, None, ())
     assert (start["parent_run_id"], start["routine_id"]) == (None, None)
     assert "arrived" in start["prompt"]
-    assert start["prompt_metadata"] == {"django_spec_agents_source": "wake"}
+    assert start["prompt_metadata"] == {"origin": "wake"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -761,4 +761,4 @@ async def test_a_wake_with_the_callers_own_prompt_is_still_marked_as_a_wake() ->
 
     [start] = runner.starts
     assert start["prompt"] == "Carry on."
-    assert start["prompt_metadata"] == {"django_spec_agents_source": "wake"}
+    assert start["prompt_metadata"] == {"origin": "wake"}
