@@ -252,6 +252,35 @@ next run takes them over. A run that starts before then takes nothing from the i
 keep `lease` no longer than the lease your transport gives its `RunStore` claim. A run with no signed-in user in `call_context["request"]` reads
 nothing.
 
+## Marking what no user wrote
+
+The wake line, a child's report and a child's question all reach the thread in the user
+channel. Each carries the metadata key `django_spec_agents_source`
+(`MESSAGE_SOURCE_KEY`), so a transport can keep it and a client can tell it from the
+user's words:
+
+| What | Value (`MessageSource`) | Where it rides |
+| --- | --- | --- |
+| the wake line | `wake` (`WAKE`) | `prompt_metadata`, passed to `HeadlessRunner.start` with the prompt |
+| a child's report | `task_output` (`REPORT`) | `TextContent.metadata` on the delivered part |
+| a child's question | `task_question` (`QUESTION`) | `TextContent.metadata` on the delivered part |
+
+```python
+from django_spec_agents.child_sessions.types.message_source import MessageSource
+from django_spec_agents.child_sessions.types.message_source_key import MESSAGE_SOURCE_KEY
+```
+
+An answer, steering and a user's own prompt carry no mark, and the model is never sent one.
+
+A runner keeps `prompt_metadata` as the metadata of the user message it stores for the
+prompt. Only a wake of an idle thread passes it, and a queued start carries it across in
+`HeadlessFiring.prompt_metadata`, which `run_headless` passes on when set.
+
+A delivered part keeps its mark in the run's message history, through
+`ModelMessagesTypeAdapter`, and on the `EnqueuedMessagesEvent` that reports the delivery.
+The AG-UI messages Pydantic-AI dumps from those messages leave `TextContent.metadata` out, so
+a transport reads the mark off the event and adds it to what it sends and stores.
+
 ## Waking a thread
 
 A message for a thread with no run would wait until someone opened it.
@@ -313,7 +342,8 @@ the runner's claim lets one through, and the other's refusal is absorbed once th
 reads as running. Any other failure to start is raised.
 
 The woken run's new message is a line saying that messages arrived; pass `prompt=` to
-change it.
+change it. No user wrote that line, so the start is marked: see
+[Marking what no user wrote](#marking-what-no-user-wrote).
 
 A child's thread wakes the same way, when its parent steers or answers it while it is
 idle. Pass `conversations`, the store the child's mount reads (a

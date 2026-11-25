@@ -42,6 +42,14 @@ under `django_spec_agents.child_sessions`, except `ChildLineageRecord`, which a
 
 ::: django_spec_agents.child_sessions.report_frame.report_frame
 
+## `MESSAGE_SOURCE_KEY`
+
+::: django_spec_agents.child_sessions.types.message_source_key.MESSAGE_SOURCE_KEY
+
+## `MessageSource`
+
+::: django_spec_agents.child_sessions.types.message_source.MessageSource
+
 ## `ChildSessionReceipt`
 
 ::: django_spec_agents.child_sessions.types.child_session_receipt.ChildSessionReceipt

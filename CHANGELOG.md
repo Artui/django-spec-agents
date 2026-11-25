@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The wake line, a child's report and a child's question are marked as not the user's
+  words.** The metadata key is `django_spec_agents_source`, the constant
+  `MESSAGE_SOURCE_KEY`
+  (`django_spec_agents.child_sessions.types.message_source_key`), and its value, a
+  `MessageSource` (`...child_sessions.types.message_source`), is `wake`, `task_output` or
+  `task_question`. A report (`report_frame`, `DrainInbound`) and a question
+  (`DrainInbound`) carry it in the part's `TextContent.metadata`, which the message history
+  keeps and the model is never sent. A `wake_thread` that starts an idle thread passes it as
+  the new `prompt_metadata={"django_spec_agents_source": "wake"}` of
+  `HeadlessRunner.start`, for the runner to keep on the stored user message;
+  `HeadlessFiring.prompt_metadata` carries it across a queue and `run_headless` passes it on.
+  An answer, steering and a user's own prompt carry none.
+
+### Changed
+
+- **Breaking: a `HeadlessRunner` whose threads are woken must take `prompt_metadata`.**
+  `wake_thread` passes it on every wake of an idle thread, so a runner whose `start` lacks
+  it fails that wake with a `TypeError`: accept it, defaulting to `None`, on `start` and
+  `run_to_first_stop`. A resume, a child's start and a routine's firing leave it out.
+  django-ag-ui's `AGUIHeadlessRunner` is such a runner up to 0.90.0.
+
 ## [0.27.0] — 2026-11-24
 
 ### Added

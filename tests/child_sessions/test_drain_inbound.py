@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -14,6 +14,7 @@ from django_service_specs import PermissionCheck
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults
 from pydantic_ai.exceptions import RunTimedOut
 from pydantic_ai.messages import (
+    EnqueuedMessagesEvent,
     ModelMessage,
     ModelRequest,
     ModelResponse,
@@ -49,6 +50,16 @@ _Script = Callable[[int, list[ModelMessage]], ModelResponse | Awaitable[ModelRes
 def _texts(messages: list[ModelMessage]) -> list[str]:
     return [
         str(part.content if isinstance(part.content, str) else part.content[0].content)
+        for message in messages
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if isinstance(part, UserPromptPart)
+    ]
+
+
+def _marks(messages: list[ModelMessage]) -> list[Any]:
+    return [
+        None if isinstance(part.content, str) else part.content[0].metadata
         for message in messages
         if isinstance(message, ModelRequest)
         for part in message.parts
@@ -557,3 +568,59 @@ async def test_a_cancelled_run_releases_the_inbox() -> None:
     model = _Model(lambda _step, _m: _say("ok"))
     await _run(model, request)
     assert any("kept" in text for text in model.seen[0])
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("kind", "mark"),
+    [
+        (InboundKind.REPORT, {"django_spec_agents_source": "task_output"}),
+        (InboundKind.QUESTION, {"django_spec_agents_source": "task_question"}),
+        (InboundKind.ANSWER, None),
+        (InboundKind.STEER, None),
+    ],
+)
+async def test_only_reports_and_questions_are_marked_never_the_prompt_or_plain_words(
+    kind: InboundKind, mark: dict[str, str] | None
+) -> None:
+    request = authed_request("7")
+    await DefaultInboundQueue().enqueue(
+        _CHILD, kind, {"text": "Use March."}, request=request, sender=_PARENT
+    )
+    model = _Model(lambda _step, _m: _say("ok"))
+
+    result = await _run(model, request, thread=_CHILD)
+
+    assert _marks(result.all_messages()) == [None, mark]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_the_enqueued_event_a_transport_reads_carries_each_parts_mark() -> None:
+    request = authed_request("7")
+    await _report(request, "Found 3.")
+    await DefaultInboundQueue().enqueue(_PARENT, InboundKind.STEER, {"text": "Hi"}, request=request)
+    events: list[EnqueuedMessagesEvent] = []
+
+    async def handler(_ctx: Any, stream: AsyncIterable[Any]) -> None:
+        events.extend([e async for e in stream if isinstance(e, EnqueuedMessagesEvent)])
+
+    model = _Model(lambda _step, _m: _say("ok"))
+    agent = Agent(FunctionModel(stream_function=_streaming(model)))
+    await agent.run(
+        "Go.",
+        deps=AgentDeps(user=None, call_context={"request": request}),
+        conversation_id=_PARENT.thread_id,
+        capabilities=[DrainInbound(DefaultInboundQueue(), "main")],
+        event_stream_handler=handler,
+    )
+
+    delivered = [message for event in events for message in event.messages]
+    assert _marks(delivered) == [{"django_spec_agents_source": "task_output"}, None]
+
+
+def _streaming(model: _Model) -> Any:
+    async def stream(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[str]:
+        await model(messages, info)
+        yield "ok"
+
+    return stream

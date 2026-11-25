@@ -83,6 +83,7 @@ class _Runner:
         self.run_ids: list[str | None] = []
         self.answers: list[Mapping[str, str] | None] = []
         self.origins: list[tuple[str | None, str | None]] = []
+        self.marks: list[Mapping[str, str] | None] = []
 
     async def start(self, *args: Any, **kwargs: Any) -> HeadlessStart:
         raise NotImplementedError
@@ -102,7 +103,9 @@ class _Runner:
         answers: Mapping[str, str] | None = None,
         parent_run_id: str | None = None,
         routine_id: str | None = None,
+        prompt_metadata: Mapping[str, str] | None = None,
     ) -> RunStop:
+        self.marks.append(prompt_metadata)
         self.calls.append((agent_id, prompt, principal, timeout, thread_id, parent, capabilities))
         self.origins.append((parent_run_id, routine_id))
         self.lineages.append(lineage)
@@ -242,6 +245,18 @@ def test_a_firing_names_the_run_and_routine_it_comes_from(
     worker.run(worker.enqueue("run_headless", params, actor=user))
 
     assert runner.origins == [("r0", "12")]
+
+
+def test_a_firing_carries_its_prompt_metadata_across_the_queue_as_json(
+    store: DefaultRunStore, clock: _Clock, user: Any
+) -> None:
+    runner = _Runner(store)
+    worker = _worker(runner, clock)
+    params = {**_PARAMS, "prompt_metadata": {"django_spec_agents_source": "wake"}}
+
+    worker.run(worker.enqueue("run_headless", json.loads(json.dumps(params)), actor=user))
+
+    assert runner.marks == [{"django_spec_agents_source": "wake"}]
 
 
 def test_a_restart_leaves_the_lease_to_lapse(

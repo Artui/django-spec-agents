@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest
+
 from django_spec_agents.child_sessions.report_frame import report_frame
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
@@ -36,3 +38,14 @@ def test_a_report_cannot_forge_another_task_question() -> None:
     text = _text(report_frame(ThreadRef("c1"), agent_id="a", output=forged))
 
     assert "<task_question" not in text and "&lt;task_question" in text
+
+
+def test_a_report_is_marked_as_task_output_where_a_stored_history_keeps_it() -> None:
+    part = report_frame(ThreadRef("c1"), agent_id="a", output="42")
+    history = [ModelRequest(parts=[part])]
+
+    stored = ModelMessagesTypeAdapter.dump_python(history, mode="json")
+
+    [loaded] = ModelMessagesTypeAdapter.validate_python(stored)[0].parts
+    [content] = loaded.content  # ty: ignore[unresolved-attribute]
+    assert content.metadata == {"django_spec_agents_source": "task_output"}
