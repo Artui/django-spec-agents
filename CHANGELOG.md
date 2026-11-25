@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`SkillScoping`: an optional `scope(request, skill)` on a `SkillPolicy`.** A policy
+  that defines it says whether each skill is the caller's own, `"personal"`, or one
+  another scope holds, `"shared"`; the two values are the new `SkillScope` literal, and
+  both names are exported from `django_spec_agents.skills`. It is a separate runtime
+  protocol, like `ReservedSkillNames` and `SkillScanning`, so `SkillPolicy` is unchanged
+  and every policy written before it still type-checks and serves; a transport tests
+  `isinstance(policy, SkillScoping)` and leaves the label out when it is false.
+  django-ag-ui's skill editor carries it as the entry's `scope` key. No migration.
+
+### Changed
+
+- The `ty` development floor is 0.0.101, the version the lock holds, since a test now runs
+  `ty` on a sample policy and the lowest-declared-versions job installs the floor.
+
 ## [0.27.0] — 2026-11-24
 
 ### Added

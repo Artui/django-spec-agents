@@ -146,7 +146,7 @@ packages = ["django_spec_agents"]
 [dependency-groups]
 dev = [
     "ruff>=0.9.0",
-    "ty>=0.0.32",
+    "ty>=0.0.101",
     "pre-commit>=3.8.0",
     "pytest>=8.0",
     "pytest-django>=4.11.1",

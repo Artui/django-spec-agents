@@ -134,6 +134,28 @@ With a scanner set:
 
 A policy without the attribute, or with `scanner = None`, scans nothing.
 
+### Labelling a skill personal or shared
+
+A transport that lists skills for an editor can show whose each one is. To tell it, give
+the policy a `scope(request, skill)` method returning `"personal"` for a skill in the
+caller's own scope and `"shared"` for one another scope holds, such as a company skill. A
+policy that has it satisfies `SkillScoping`, and the values are the `SkillScope` literal:
+
+```python
+class TenantSkillPolicy:
+    ...
+
+    def scope(self, request, skill):
+        return "personal" if skill.owner_id == request.user.pk else "shared"
+```
+
+django-ag-ui's skill editor carries the value as each entry's `scope` key. The method is
+optional, and a policy without it labels nothing: the editor then leaves the key out.
+`scope` is a protocol of its own rather than a fourth `SkillPolicy` method because a
+protocol has no optional members, so a policy written before it still satisfies
+`SkillPolicy` under a type checker. Nothing in this package calls it, and the
+`list_skills` tool lists the same fields either way.
+
 ## Reading and writing
 
 Every function takes the policy and the request:

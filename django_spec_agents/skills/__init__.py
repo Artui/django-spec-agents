@@ -24,6 +24,8 @@ from django_spec_agents.skills.types.skill_policy import SkillPolicy
 from django_spec_agents.skills.types.skill_scan_result import SkillScanResult
 from django_spec_agents.skills.types.skill_scanner import SkillScanner
 from django_spec_agents.skills.types.skill_scanning import SkillScanning
+from django_spec_agents.skills.types.skill_scope import SkillScope
+from django_spec_agents.skills.types.skill_scoping import SkillScoping
 from django_spec_agents.skills.update_skill import update_skill
 
 __all__ = [
@@ -40,6 +42,8 @@ __all__ = [
     "SkillScanResult",
     "SkillScanner",
     "SkillScanning",
+    "SkillScope",
+    "SkillScoping",
     "SkillWriteRefusedError",
     "StoredSkills",
     "build_skill_tools",
