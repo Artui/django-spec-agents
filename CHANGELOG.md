@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   protocol, like `ReservedSkillNames` and `SkillScanning`, so `SkillPolicy` is unchanged
   and every policy written before it still type-checks and serves; a transport tests
   `isinstance(policy, SkillScoping)` and leaves the label out when it is false.
-  django-ag-ui's skill editor carries it as the entry's `scope` key. No migration.
+  django-ag-ui's skill editor carries it as the entry's `scope` key from 0.91.0. No migration.
 - **The wake line, a child's report and a child's question are marked as not the user's
   words.** Their metadata has the key `origin` (`MESSAGE_ORIGIN_KEY`), its value a
   `MessageOrigin`: `wake`, `task_output` or `task_question`. A report and a question also

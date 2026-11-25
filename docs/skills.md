@@ -149,7 +149,7 @@ class TenantSkillPolicy:
         return "personal" if skill.owner_id == request.user.pk else "shared"
 ```
 
-django-ag-ui's skill editor carries the value as each entry's `scope` key. The method is
+django-ag-ui's skill editor, from 0.91.0, carries it as each entry's `scope` key. The method is
 optional, and a policy without it labels nothing: the editor then leaves the key out.
 `scope` is a protocol of its own rather than a fourth `SkillPolicy` method because a
 protocol has no optional members, so a policy written before it still satisfies
