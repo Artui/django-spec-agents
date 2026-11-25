@@ -86,7 +86,10 @@ def test_the_run_and_routine_a_run_comes_from_are_optional_keywords(
 
 
 @pytest.mark.parametrize("method", ["start", "run_to_first_stop"])
-def test_answers_are_an_optional_keyword_a_runner_may_lack(method: str) -> None:
-    parameter = inspect.signature(getattr(HeadlessRunner, method)).parameters["answers"]
+@pytest.mark.parametrize("keyword", ["answers", "prompt_metadata"])
+def test_a_keyword_a_runner_may_lack_until_it_is_passed_is_optional(
+    method: str, keyword: str
+) -> None:
+    parameter = inspect.signature(getattr(HeadlessRunner, method)).parameters[keyword]
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
     assert parameter.default is None

@@ -19,7 +19,7 @@ class HeadlessFiring:
     ``inbox_mark`` is the thread's inbox mark taken when the firing was enqueued, for the
     worker to wake on mail newer than it; ``None`` for a firing that carries none.
     ``parent_run_id`` and ``routine_id`` are the runner's own, the run and the routine the
-    firing comes from.
+    firing comes from. ``prompt_metadata`` is the mark of a ``prompt`` no user wrote.
     """
 
     agent_id: str
@@ -33,6 +33,7 @@ class HeadlessFiring:
     inbox_mark: int | None = None
     parent_run_id: str | None = None
     routine_id: str | None = None
+    prompt_metadata: dict[str, str] | None = None
 
 
 __all__ = ["HeadlessFiring"]

@@ -17,9 +17,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and every policy written before it still type-checks and serves; a transport tests
   `isinstance(policy, SkillScoping)` and leaves the label out when it is false.
   django-ag-ui's skill editor carries it as the entry's `scope` key. No migration.
+- **The wake line, a child's report and a child's question are marked as not the user's
+  words.** Their metadata has the key `origin` (`MESSAGE_ORIGIN_KEY`), its value a
+  `MessageOrigin`: `wake`, `task_output` or `task_question`. A report and a question also
+  have `task` (`MESSAGE_TASK_KEY`) with `taskId` and `threadId` (both the child's thread id),
+  `agentName`, `outcome` (a report only, `ok` included), `questionId` (a question only: the
+  child's `ask_parent` `tool_call_id`) and `body`, the child's words as plain text without
+  the frame tags (with `user_joined`, ending in the joined line, as the frame does). The
+  constants live in
+  `django_spec_agents.child_sessions.types.message_origin_key`, `.message_task_key` and
+  `.message_origin`. A report (`report_frame`, `DrainInbound`) and a question
+  (`DrainInbound`) carry this in the part's `TextContent.metadata`, which the message history
+  keeps and the model is never sent; its text stays framed. A field the queued message does
+  not hold is left out: one queued by an earlier release has no `body` on a report and no
+  `questionId` on a question, and one enqueued with no `sender` has no `taskId`, `threadId`
+  or `agentName`. `ChildReport` now queues the unframed `output` and `ask_parent` the
+  `question_id` beside the text. A `wake_thread` that starts an idle thread passes
+  `prompt_metadata={"origin": "wake"}`, a new argument of `HeadlessRunner.start`, for the
+  runner to keep on the stored user message; `HeadlessFiring.prompt_metadata` carries it
+  across a queue and `run_headless` passes it on. An answer, steering and a user's own prompt
+  carry none.
 
 ### Changed
 
+- **Breaking: a `HeadlessRunner` whose threads are woken must take `prompt_metadata`.**
+  `wake_thread` passes it on every wake of an idle thread, so a runner whose `start` lacks
+  it fails that wake with a `TypeError`: accept it, defaulting to `None`, on `start` and
+  `run_to_first_stop`. A resume, a child's start and a routine's firing leave it out.
+  django-ag-ui's `AGUIHeadlessRunner` is such a runner up to 0.90.0.
 - The `ty` development floor is 0.0.101, the version the lock holds, since a test now runs
   `ty` on a sample policy and the lowest-declared-versions job installs the floor.
 

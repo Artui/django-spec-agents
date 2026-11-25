@@ -53,6 +53,7 @@ class _Runner:
         answers: Mapping[str, str] | None = None,
         parent_run_id: str | None = None,
         routine_id: str | None = None,
+        prompt_metadata: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         self.attempts += 1
         if self.fails is not None:
@@ -76,6 +77,7 @@ class _Runner:
                 "answers": answers,
                 "parent_run_id": parent_run_id,
                 "routine_id": routine_id,
+                "prompt_metadata": prompt_metadata,
             }
         )
         return HeadlessStart(thread_id=thread_id, run_id=run_id)
@@ -95,9 +97,15 @@ class _RunnerWithoutAnswers(_Runner):
         capabilities: Sequence[Any] = (),
         parent_run_id: str | None = None,
         routine_id: str | None = None,
+        prompt_metadata: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         return await super().start(
-            agent_id, prompt, principal, timeout=timeout, thread_id=thread_id
+            agent_id,
+            prompt,
+            principal,
+            timeout=timeout,
+            thread_id=thread_id,
+            prompt_metadata=prompt_metadata,
         )
 
 
@@ -157,6 +165,7 @@ async def test_an_idle_thread_with_messages_starts_one_run_with_no_bounds_passed
     assert (start["parent"], start["lineage"], start["capabilities"]) == (None, None, ())
     assert (start["parent_run_id"], start["routine_id"]) == (None, None)
     assert "arrived" in start["prompt"]
+    assert start["prompt_metadata"] == {"origin": "wake"}
 
 
 @pytest.mark.django_db(transaction=True)
@@ -228,6 +237,7 @@ async def test_a_child_waiting_on_its_question_resumes_with_the_answer_and_acks_
     [start] = runner.starts
     assert (start["agent_id"], start["thread_id"]) == ("research", "c1")
     assert start["answers"] == {"t-1": "1999"}
+    assert start["prompt_metadata"] is None
     assert start["parent_run_id"] == "parked"
     left = await DefaultInboundQueue().pending(_CHILD, request=request)
     assert [(m.id, m.body["text"]) for m in left] == [(steer, "Use March."), (later, "2000")]
@@ -739,3 +749,16 @@ async def test_a_wake_after_a_finished_run_names_no_parent_run() -> None:
 
     [start] = runner.starts
     assert start["parent_run_id"] is None
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_wake_with_the_callers_own_prompt_is_still_marked_as_a_wake() -> None:
+    request = authed_request("7")
+    runner = _Runner(DefaultRunStore())
+    await _report(request)
+
+    await _wake(runner, request, prompt="Carry on.")
+
+    [start] = runner.starts
+    assert start["prompt"] == "Carry on."
+    assert start["prompt_metadata"] == {"origin": "wake"}

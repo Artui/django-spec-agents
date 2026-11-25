@@ -8,6 +8,8 @@ from django.http import HttpRequest
 
 from django_spec_agents.child_sessions.types.inbound_kind import InboundKind
 from django_spec_agents.child_sessions.types.inbound_queue import InboundQueue
+from django_spec_agents.child_sessions.types.message_origin import MessageOrigin
+from django_spec_agents.child_sessions.types.message_origin_key import MESSAGE_ORIGIN_KEY
 from django_spec_agents.headless.types.headless_runner import HeadlessRunner
 from django_spec_agents.headless.types.headless_start import HeadlessStart
 from django_spec_agents.persistence.types.conversation_store import ConversationStore
@@ -52,7 +54,9 @@ async def wake_thread(
     second run must not start before the resume, which reads the queue; idle, failed or never
     run, with messages pending, it starts one run on the thread's scope as ``request.user``,
     with ``prompt`` as its new message (by default a line saying messages arrived), and
-    returns it. The run's mount composes
+    returns it. That start passes ``prompt_metadata={"origin": "wake"}``, for the runner to keep on
+    the stored message, whatever ``prompt`` says; a resume sends no prompt and passes none. The
+    run's mount composes
     [`DrainInbound`][django_spec_agents.child_sessions.drain_inbound.DrainInbound] to read them.
 
     It never passes the runner ``capabilities``. With ``conversations``, the store the thread's
@@ -87,7 +91,10 @@ async def wake_thread(
             timeout,
             conversations,
             prompt,
-            {"parent_run_id": None},
+            {
+                "parent_run_id": None,
+                "prompt_metadata": {MESSAGE_ORIGIN_KEY: MessageOrigin.WAKE.value},
+            },
         )
     holder = f"wake-{uuid4().hex}"
     taken = await queue.take(thread, holder, request=request, lease=_PAIRING_LEASE)
@@ -129,7 +136,7 @@ async def _start(
     timeout: float,
     conversations: ConversationStore | None,
     prompt: str,
-    resume: dict[str, Any],
+    extra: dict[str, Any],
 ) -> HeadlessStart | None:
     stored = (
         None
@@ -146,7 +153,7 @@ async def _start(
             parent=None if stored is None else stored.parent,
             lineage=None if stored is None else stored.lineage,
             routine_id=None if stored is None else stored.routine_id,
-            **resume,
+            **extra,
         )
     except Exception:
         state = await runs.get(thread.thread_id, request=request)
