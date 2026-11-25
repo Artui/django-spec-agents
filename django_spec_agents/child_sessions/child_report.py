@@ -77,7 +77,7 @@ class ChildReport(AbstractCapability[Any]):
             await self.queue.enqueue(
                 self.parent,
                 InboundKind.REPORT,
-                {"text": _text(frame.content), "outcome": outcome},
+                {"text": _text(frame.content), "outcome": outcome, "output": output},
                 request=request,
                 sender=child,
             )

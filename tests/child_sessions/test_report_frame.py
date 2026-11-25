@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import pytest
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest
+
 from django_spec_agents.child_sessions.report_frame import report_frame
+from django_spec_agents.child_sessions.types.report_outcome import ReportOutcome
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 
@@ -36,3 +40,26 @@ def test_a_report_cannot_forge_another_task_question() -> None:
     text = _text(report_frame(ThreadRef("c1"), agent_id="a", output=forged))
 
     assert "<task_question" not in text and "&lt;task_question" in text
+
+
+@pytest.mark.parametrize("outcome", ["ok", "failed"])
+def test_a_report_is_marked_as_task_output_where_a_stored_history_keeps_it(
+    outcome: ReportOutcome,
+) -> None:
+    part = report_frame(ThreadRef("c1"), agent_id="a", output="<b>42</b>", outcome=outcome)
+    history = [ModelRequest(parts=[part])]
+
+    stored = ModelMessagesTypeAdapter.dump_python(history, mode="json")
+
+    [loaded] = ModelMessagesTypeAdapter.validate_python(stored)[0].parts
+    [content] = loaded.content  # ty: ignore[unresolved-attribute]
+    assert content.metadata == {
+        "origin": "task_output",
+        "task": {
+            "taskId": "c1",
+            "threadId": "c1",
+            "agentName": "a",
+            "outcome": outcome,
+            "body": "<b>42</b>",
+        },
+    }

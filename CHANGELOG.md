@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-11-25
+
+### Added
+
+- **`SkillScoping`: an optional `scope(request, skill)` on a `SkillPolicy`.** A policy
+  that defines it says whether each skill is the caller's own, `"personal"`, or one
+  another scope holds, `"shared"`; the two values are the new `SkillScope` literal, and
+  both names are exported from `django_spec_agents.skills`. It is a separate runtime
+  protocol, like `ReservedSkillNames` and `SkillScanning`, so `SkillPolicy` is unchanged
+  and every policy written before it still type-checks and serves; a transport tests
+  `isinstance(policy, SkillScoping)` and leaves the label out when it is false.
+  django-ag-ui's skill editor carries it as the entry's `scope` key from 0.91.0. No migration.
+- **The wake line, a child's report and a child's question are marked as not the user's
+  words.** Their metadata has the key `origin` (`MESSAGE_ORIGIN_KEY`), its value a
+  `MessageOrigin`: `wake`, `task_output` or `task_question`. A report and a question also
+  have `task` (`MESSAGE_TASK_KEY`) with `taskId` and `threadId` (both the child's thread
+  id), `agentName`, `outcome` (a report only, `ok` included), `questionId` (a question only:
+  the child's `ask_parent` `tool_call_id`) and `body`, the child's words as plain text
+  without the frame tags (with `user_joined`, ending in the joined line, as the frame does).
+  The constants live in `django_spec_agents.child_sessions.types.message_origin_key`,
+  `.message_task_key` and `.message_origin`. A report (`report_frame`, `DrainInbound`) and a
+  question (`DrainInbound`) carry this in the part's `TextContent.metadata`, which the
+  message history keeps and the model is never sent; its text stays framed. A field the
+  queued message does not hold is left out: one queued by an earlier release has no `body`
+  on a report and no `questionId` on a question, and one enqueued with no `sender` has no
+  `taskId`, `threadId` or `agentName`. `ChildReport` now queues the unframed `output` and
+  `ask_parent` the `question_id` beside the text. A `wake_thread` that starts an idle thread
+  passes `prompt_metadata={"origin": "wake"}`, a new optional argument of
+  `HeadlessRunner.start` and `run_to_first_stop`, for the runner to keep on the stored user
+  message, but only to a runner that opts in by setting `accepts_prompt_metadata = True`
+  (the new runtime protocol `PromptMetadataRunner`, exported from `django_spec_agents`). A
+  runner that has not opted in is woken unmarked, as before, so django-ag-ui up to 0.90.0
+  keeps working; `HeadlessFiring.prompt_metadata` carries it across a queue and
+  `run_headless` passes it on. An answer, steering and a user's own prompt carry none.
+
+### Changed
+
+- The `ty` development floor is 0.0.101, the version the lock holds, since a test now runs
+  `ty` on a sample policy and the lowest-declared-versions job installs the floor.
+
 ## [0.27.0] — 2026-11-24
 
 ### Added
@@ -1675,7 +1715,8 @@ starts at [Moving from the old packages](https://artui.github.io/django-spec-age
   and `UrlKwarg` from `rest_framework_services`; the `spec_tools.types` modules for
   them are gone.
 
-[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/Artui/django-spec-agents/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/Artui/django-spec-agents/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/Artui/django-spec-agents/compare/v0.26.1...v0.27.0
 [0.26.1]: https://github.com/Artui/django-spec-agents/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/Artui/django-spec-agents/compare/v0.25.1...v0.26.0

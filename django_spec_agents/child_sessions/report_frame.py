@@ -3,7 +3,9 @@ from __future__ import annotations
 from pydantic_ai.framing import register_tag, wrap
 from pydantic_ai.messages import TextContent, UserPromptPart
 
+from django_spec_agents.child_sessions.types.message_origin import MessageOrigin
 from django_spec_agents.child_sessions.types.report_outcome import ReportOutcome
+from django_spec_agents.child_sessions.utils import task_metadata
 from django_spec_agents.persistence.types.thread_ref import ThreadRef
 
 _TASK_OUTPUT = register_tag("task_output")
@@ -19,7 +21,9 @@ def report_frame(
     ``pydantic_ai.framing.wrap`` so the text keeps its escaping once it crosses a queue: the
     child's output never enters system voice, cannot close its own frame and cannot forge a
     ``<task_question>``. The task id is the child's thread id, and ``outcome`` is on the tag
-    only when it is not ``ok``.
+    only when it is not ``ok``. The text's ``TextContent.metadata``, which the model never
+    sees, holds ``origin`` (``task_output``) and ``task``: ``taskId``, ``threadId``,
+    ``agentName``, ``outcome`` (``ok`` included) and ``body``, ``output`` unframed.
     """
     text = wrap(
         _TASK_OUTPUT,
@@ -28,7 +32,10 @@ def report_frame(
         agent_name=agent_id,
         outcome=None if outcome == "ok" else outcome,
     )
-    return UserPromptPart([TextContent(text)])
+    mark = task_metadata(
+        MessageOrigin.TASK_OUTPUT, child, agent_name=agent_id, body=output, outcome=outcome
+    )
+    return UserPromptPart([TextContent(text, metadata=mark)])
 
 
 __all__ = ["report_frame"]

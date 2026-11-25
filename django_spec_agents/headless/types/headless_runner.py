@@ -52,6 +52,12 @@ class HeadlessRunner(Protocol):
     a runner calls [`wake_thread`][django_spec_agents.child_sessions.wake_thread.wake_thread]
     for its thread once, which starts or resumes it when messages are still queued.
 
+    ``prompt_metadata`` marks a ``prompt`` no user wrote: a runner keeps it as the metadata
+    of the user message it stores for the prompt, and never sends it to the model. Only a wake of
+    an idle thread passes it, and only to a runner that opted in as a
+    [`PromptMetadataRunner`][django_spec_agents.PromptMetadataRunner], so a runner without it
+    serves every run. A queued start carries it in its ``HeadlessFiring``.
+
     ``parent_run_id`` is the run this one comes from: the parent run that started a child,
     or the parked run a resume answers; the runner reports it as the run's
     ``RUN_STARTED.parentRunId``. ``routine_id`` is the routine a firing runs; the runner
@@ -74,6 +80,7 @@ class HeadlessRunner(Protocol):
         answers: Mapping[str, str] | None = None,
         parent_run_id: str | None = None,
         routine_id: str | None = None,
+        prompt_metadata: Mapping[str, str] | None = None,
     ) -> HeadlessStart:
         """Start the run and return once it has claimed its thread; it goes on in the background."""
         ...
@@ -93,6 +100,7 @@ class HeadlessRunner(Protocol):
         answers: Mapping[str, str] | None = None,
         parent_run_id: str | None = None,
         routine_id: str | None = None,
+        prompt_metadata: Mapping[str, str] | None = None,
     ) -> RunStop:
         """Run until the run ends or parks, for a caller that waits on the answer."""
         ...
