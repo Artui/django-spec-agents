@@ -14,7 +14,7 @@ class SkillScoping(Protocol, Generic[SkillT]):
     whether a skill is the caller's own or one shared with them.
 
     A policy that defines ``scope`` lets a transport label each skill it shows: the
-    django-ag-ui skill editor carries the value as the entry's ``scope`` key. ``scope``
+    django-ag-ui skill editor, from 0.91.0, carries it as the entry's ``scope`` key. ``scope``
     returns ``"personal"`` for a skill in the caller's own scope and ``"shared"`` for one
     another scope holds (a tenant's or a company's). A policy without the method labels
     nothing, and a transport leaves the key out. It is a separate protocol because a
